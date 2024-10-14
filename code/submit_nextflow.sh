@@ -1,8 +1,11 @@
 #!/usr/bin/env bash
+#SBATCH --output=/users/asebe/bvanwaardenburg/git/bca_preprocessing/logs/%x.%j.out
+#SBATCH --error=/users/asebe/bvanwaardenburg/git/bca_preprocessing/logs/%x.%j.err
 #SBATCH --no-requeue
 #SBATCH --mem 6G
 #SBATCH -p genoa64
 #SBATCH --qos pipelines
+#SBATCH --job-name nextflow_pipeline
 
 
 ##################
@@ -31,7 +34,7 @@ trap _term TERM
 
 module load Java
 module load Nextflow/24.04.3
-
+module load SRA-Toolkit/3.1.1-gompi-2023b
 
 ####################
 # Run the pipeline #

@@ -36,8 +36,10 @@ module load SRA-Toolkit/3.1.1-gompi-2023b
 ###############
 # run command #
 ###############
-mapfile -t ACCESSIONS < accession_list.txt
-file_path="/users/asebe/bvanwaardenburg/git/bca_preprocessing/data/spol/fastq"
+species=$1
+dataDir=$2
+file_path="/users/asebe/bvanwaardenburg/git/bca_preprocessing/data/" . ${species} . "/fastq"
+mapfile -t ACCESSIONS < ${dataDir}/accession_lists/${species}_accessions.txt
 fastq-dump --split-files --gzip --outdir "$file_path" ${ACCESSIONS[$SLURM_ARRAY_TASK_ID-1]}
 
 ###############
