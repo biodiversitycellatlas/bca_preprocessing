@@ -1,6 +1,9 @@
- # ignore ALL .log files
+ # Ignore ALL .log files
 *.log
 
-# ignore ALL files in ANY directory named logs and data
-logs/
-data/ 
+# Ignore ALL files in ANY directory named logs and data
+logs/*
+data/*
+
+# Except the following directory
+!/data/accession_lists/
