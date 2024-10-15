@@ -48,7 +48,10 @@ process process_download_data {
   echo "process: download data for ${srr_id}"
   if [ ! -d ${params.dataDir}/${params.species} ];
   then
-    "Downloading will start..."
+    echo "Downloading will start..."
+    fastq-dump --split-files --gzip --outdir "${params.dataDir}/${params.species}/fastq" ${srr_id}
+  else
+    echo "Data found for ${params.species}, downloading will be skipped"
   fi
   """
 }
@@ -62,10 +65,11 @@ workflow mapping_pipeline {
 
 // Process 2.1: Mapping
 process process_mapping {
+  input:
+    
   output:
     stdout
-
-  shell:
+  script:
   """
   echo "process: mapping" 
   """
