@@ -38,13 +38,15 @@ module load SRA-Toolkit/3.1.1-gompi-2023b
 ###############
 species=$2
 dataDir=$3
-file_path= "${dataDir}/${species}/fastq"
+
 mapfile -t ACCESSIONS < ${dataDir}/accession_lists/${species}_accessions.txt
-fastq-dump --split-files --gzip --outdir ${file_path} ${ACCESSIONS[$SLURM_ARRAY_TASK_ID-1]}
+fastq-dump --split-files --gzip --outdir ${dataDir}/${species}/fastq \
+	${ACCESSIONS[$SLURM_ARRAY_TASK_ID-1]}
 
 ###############
 # end message #
 ###############
 end_epoch=`date +%s`
-echo [$(date +"%Y-%m-%d %H:%M:%S")] finished on $(hostname) after $((end_epoch-start_epoch)) seconds
+echo [$(date +"%Y-%m-%d %H:%M:%S")] finished on $(hostname) after \
+	$((end_epoch-start_epoch)) seconds
 
