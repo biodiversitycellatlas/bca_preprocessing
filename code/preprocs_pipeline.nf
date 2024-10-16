@@ -12,7 +12,7 @@ Analysis Pipeline downloading data, mapping and filtering
 // Define parameters
 params.dataDir = "/users/asebe/bvanwaardenburg/git/bca_preprocessing/data"
 params.codeDir = "/users/asebe/bvanwaardenburg/git/bca_preprocessing/code"
-params.species = 'spol' 
+params.species = 'nvec' 
 
 
 // Workflow:
@@ -28,12 +28,13 @@ process process_download_data {
   output:
   script:
   """
-  echo "process: download data for ${srr_id}"
+  echo "process: download raw data"
+  num_arrays=\$(wc -l < ${params.dataDir}/accession_lists/${params.species}_accessions.txt)
+  
   if [ ! -d ${params.dataDir}/${params.species}/fastq ];
   then
     echo "Downloading will start..."
-    num_arrays="wc -l ${params.accessionfile}"
-    sbatch download_fastq_files.sh ${num_arrays} ${params.species} ${params.dataDir} 
+    sbatch --array=1-\${num_arrays} ${params.codeDir}/download_fastq_files.sh ${params.species} ${params.dataDir} 
   else
     echo "Data found for ${params.species}, downloading will be skipped"
   fi
@@ -49,41 +50,16 @@ process process_fastqc {
   script:
   """
   echo "process: quality control using FASTQC"
-  
+  num_arrays=\$(wc -l < ${params.dataDir}/accession_lists/${params.species}_accessions.txt)  
+
   if [ ! -d ${params.dataDir}/${params.species}/fastqc ];
   then 
     mkdir ${params.dataDir}/${params.species}/fastqc
-  fi 
-
-  if [ ! -d ${params.dataDir}/${params.species}/fastqc/*${srr_id}* ];
-  then
     echo "FASTQC will start..."
-    fastqc ${params.dataDir}/${params.species}/fastq/${srr_id}_{2,3}.fastq.gz -o \
-    ${params.dataDir}/${params.species}/fastqc 
+    sbatch --array=1-\${num_arrays} ${params.codeDir}/fastqc_qc.sh ${params.species} ${params.dataDir} 
   else
     echo "FASTQC report found for ${params.species}, step will be skipped"
   fi
   """
 }
 
-
-// Process 4: Creating genome index
-process process_genome_index {
-  input:
-  output:
-  script:
-  """
-  echo "process: creating genome index for ${params.species}" 
-  """
-}
-
-
-// Process 5: Mapping
-process process_mapping {
-  input:
-  output:
-  script:
-  """ 
-  echo "process: mapping reads using STARsolo"
-  """
-}
