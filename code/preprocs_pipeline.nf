@@ -12,13 +12,14 @@ Analysis Pipeline downloading data, mapping and filtering
 // Define parameters
 params.dataDir = "/users/asebe/bvanwaardenburg/git/bca_preprocessing/data"
 params.codeDir = "/users/asebe/bvanwaardenburg/git/bca_preprocessing/code"
-params.species = 'nvec' 
+params.species = 'spol' 
+params.seqTech = '10xv2'
 
 
 // Workflow:
 workflow {
   // run the pipeline to download all fastq files from SRA project
-  process_download_data | process_fastqc | process_multiqc | view { it.trim() }
+  process_download_data | process_fastqc | process_multiqc | process_genome_index | view { it.trim() }
 }
 
 
@@ -67,7 +68,6 @@ process process_fastqc {
 process process_multiqc {
   input:
   output:
-    stdout
   script:
   """
   echo "process: quality control using MultiQC"
@@ -81,3 +81,21 @@ process process_multiqc {
   """
 }
 
+
+// Process 4: Generating genome index for Mapping
+process process_genome_index {
+  input:
+  output:
+    stdout
+  script:
+  """
+  echo "process: generating genome index for mapping"
+  if [ ! -d ${params.dataDir}/${params.species}/genome ];
+  then
+    echo "STAR will start..."
+    sbatch ${params.codeDir}/starsolo_genindex.sh ${params.species} ${params.dataDir} ${params.seqTech}
+  else
+    echo "Genome index found for ${params.species}, step will be skipped"
+  fi
+  """
+}
