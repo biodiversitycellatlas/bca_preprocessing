@@ -18,7 +18,7 @@ params.species = 'nvec'
 // Workflow:
 workflow {
   // run the pipeline to download all fastq files from SRA project
-  process_download_data | process_fastqc | view { it.trim() }
+  process_download_data | process_fastqc | process_multiqc | view { it.trim() }
 }
 
 
@@ -46,7 +46,6 @@ process process_download_data {
 process process_fastqc {
   input:
   output:
-    stdout
   script:
   """
   echo "process: quality control using FASTQC"
@@ -59,6 +58,25 @@ process process_fastqc {
     sbatch --array=1-\${num_arrays} ${params.codeDir}/fastqc_qc.sh ${params.species} ${params.dataDir} 
   else
     echo "FASTQC report found for ${params.species}, step will be skipped"
+  fi
+  """
+}
+
+
+// Process 3: General Quality Control file using MultiQC
+process process_multiqc {
+  input:
+  output:
+    stdout
+  script:
+  """
+  echo "process: quality control using MultiQC"
+  if [ ! -d ${params.dataDir}/${params.species}/multiqc ];
+  then
+    echo "MultiQC will start..."
+    multiqc ${params.dataDir}/${params.species}/fastqc -o ${params.dataDir}/${params.species}/multiqc
+  else
+    echo "MultiQC report found for ${params.species}, step will be skipped"
   fi
   """
 }
