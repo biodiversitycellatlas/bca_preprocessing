@@ -12,8 +12,8 @@ Analysis Pipeline downloading data, mapping and filtering
 // Define parameters
 params.dataDir = "/users/asebe/bvanwaardenburg/git/bca_preprocessing/data"
 params.codeDir = "/users/asebe/bvanwaardenburg/git/bca_preprocessing/code"
-params.species = 'nvec'
-params.seqTech = "parse_biosciences"
+params.species = 'spol'
+params.seqTech = "10xRNAv2"
 
 // params.seqTech = \$(cat ${params.dataDir}/${params.species}/spec.yaml \
 //                  | grep 'assay_id' | awk '{print $2}')

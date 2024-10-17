@@ -5,7 +5,7 @@
 ##################
 #SBATCH --output=/users/asebe/bvanwaardenburg/git/bca_preprocessing/logs/%x.%j.out
 #SBATCH --error=/users/asebe/bvanwaardenburg/git/bca_preprocessing/logs/%x.%j.err
-#SBATCH --time=05:00:00
+#SBATCH --time=03:00:00
 #SBATCH --qos=short
 #SBATCH --mem=20G
 #SBATCH --job-name starsolo_mapping 
@@ -48,7 +48,7 @@ if [[ ${seqTech} == "10xRNAv2" ]]; then
 	--soloUMIstart 17 \
 	--soloUMIlen 10"
   CBwhitelist="${dataDir}/${species}/737K-august-2016.txt" 
-  CBmatchWLtype="1MM_Multi" # Default
+  CBmatchWLtype="1MM_multi" # Default
   Strand="Forward" # Default 
 
 elif [[ ${seqTech} == "parse_biosciences" ]]; then
