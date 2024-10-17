@@ -26,12 +26,6 @@ set -u
 set -o pipefail
 
 
-###################
-# set environment #
-###################
-module load SRA-Toolkit/3.1.1-gompi-2023b
-
-
 ###############
 # run command #
 ###############

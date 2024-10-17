@@ -28,13 +28,12 @@ _term() {
 trap _term TERM
  
 
-################
-# Load Modules #
-################
+####################
+# Load Environment #
+####################
+eval "$(conda shell.bash hook)"
+conda activate bca
 
-module load Java
-module load Nextflow/24.04.3
-module load SRA-Toolkit/3.1.1-gompi-2023b
 
 ####################
 # Run the pipeline #
