@@ -22,6 +22,18 @@ This will create a new conda environment using the mentioned txt file, which con
 This environment is automatically activated when running the pipeline, from within the 'submit_nextflow.sh' script.
 
 
+### Library structure
+```
+ ┌─ code/ ────┌─
+ │            ├─
+ │            └─
+ │            ┌─ accession_lists/
+ ├─ data/ ────┼─ {abbreviation species, e.g.: spol}
+ │            └─ ...      
+ └─ logs/
+```
+
+
 ## Usage
 
 ### Prerequisites
