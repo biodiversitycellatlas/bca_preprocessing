@@ -36,17 +36,17 @@ seqTech=$3
 first_accs=$(head -1 ${dataDir}/accession_lists/${species}_accessions.txt)
 
 # Different file-ending depending on sequencing technique
-if [[ "${seqTech}" == "10xv2" ]]; then
+if [[ "${seqTech}" == "10xRNAv2" ]]; then
   first_fastq="${dataDir}/${species}/fastq/${first_accs}_3.fastq.gz" 
 else
-  first_fastq="${dataDir}/${species}/fastq/${first_accs}_R2_001.fastq.gz"  
+  first_fastq="${dataDir}/${species}/fastq/${first_accs}_R1_001.fastq.gz"  
 fi
 
 # Calculate SJBD overhang using the first read from the first fastq file
 sjdb_overhang=$(zcat "${first_fastq}" 2>/dev/null | awk 'NR==2 {print length($0)-1; exit}' || echo "") 
 
 # Create directory where genome index will be stored
-mkdir ${dataDir}/${species}/genome
+mkdir ${dataDir}/${species}/genome_index
 
 # Specify file paths
 genomeFastaFile=$(ls ${dataDir}/${species}/*.fasta)
@@ -55,7 +55,7 @@ GTFfile=$(ls ${dataDir}/${species}/*.gtf)
 # Generating genome index using STAR
 STAR \
   --runMode genomeGenerate \
-  --genomeDir "${dataDir}/${species}/genome" \
+  --genomeDir "${dataDir}/${species}/genome_index" \
   --genomeFastaFiles "${genomeFastaFile}" \
   --sjdbGTFfile "${GTFfile}" \
   --sjdbOverhang "${sjdb_overhang}" \

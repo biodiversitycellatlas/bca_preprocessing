@@ -12,14 +12,21 @@ Analysis Pipeline downloading data, mapping and filtering
 // Define parameters
 params.dataDir = "/users/asebe/bvanwaardenburg/git/bca_preprocessing/data"
 params.codeDir = "/users/asebe/bvanwaardenburg/git/bca_preprocessing/code"
-params.species = 'spol' 
-params.seqTech = '10xv2'
+params.species = 'nvec'
+params.seqTech = "parse_biosciences"
+
+// params.seqTech = \$(cat ${params.dataDir}/${params.species}/spec.yaml \
+//                  | grep 'assay_id' | awk '{print $2}')
 
 
 // Workflow:
 workflow {
-  // run the pipeline to download all fastq files from SRA project
-  process_download_data | process_fastqc | process_multiqc | process_genome_index | view { it.trim() }
+  process_download_data 
+  | process_fastqc 
+  | process_multiqc 
+  | process_genome_index 
+  | process_mapping 
+  | view { it.trim() }
 }
 
 
@@ -86,16 +93,39 @@ process process_multiqc {
 process process_genome_index {
   input:
   output:
-    stdout
   script:
   """
   echo "process: generating genome index for mapping"
-  if [ ! -d ${params.dataDir}/${params.species}/genome ];
+  if [ ! -d ${params.dataDir}/${params.species}/genome_index ];
   then
     echo "STAR will start..."
-    sbatch ${params.codeDir}/starsolo_genindex.sh ${params.species} ${params.dataDir} ${params.seqTech}
+    sbatch ${params.codeDir}/starsolo_genindex.sh ${params.species} \
+      ${params.dataDir} ${params.seqTech}
   else
     echo "Genome index found for ${params.species}, step will be skipped"
   fi
   """
 }
+
+
+// Process 5: Mapping using STARsolo
+process process_mapping {
+  input:
+  output:
+    stdout
+  script:
+  """
+  echo "process: Mapping using STARsolo"
+  num_arrays=\$(wc -l < ${params.dataDir}/accession_lists/${params.species}_accessions.txt)
+
+  if [ ! -d ${params.dataDir}/${params.species}/mapping_starsolo ];
+  then
+    echo "STAR will start..."
+    mkdir ${params.dataDir}/${params.species}/mapping_starsolo
+    sbatch --array=1-\${num_arrays} ${params.codeDir}/starsolo_mapping.sh ${params.species} ${params.dataDir} ${params.seqTech}
+  else
+    echo "BAM files found for ${params.species}, step will be skipped"
+  fi
+  """
+}
+
