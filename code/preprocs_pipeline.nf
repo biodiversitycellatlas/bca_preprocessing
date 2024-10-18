@@ -22,7 +22,7 @@ params.seqTech = "10xRNAv2"
 // Workflow:
 workflow {
   process_download_data 
-  | process_fastqc 
+  | process_fastqc
   | process_multiqc 
   | process_genome_index 
   | process_mapping 
@@ -39,10 +39,20 @@ process process_download_data {
   echo "process: download raw data"
   num_arrays=\$(wc -l < ${params.dataDir}/accession_lists/${params.species}_accessions.txt)
   
+  # Checks if the raw data already exists, otherwise downloads it using accessionfile
   if [ ! -d ${params.dataDir}/${params.species}/fastq ];
   then
     echo "Downloading will start..."
     sbatch --array=1-\${num_arrays} ${params.codeDir}/download_fastq_files.sh ${params.species} ${params.dataDir} 
+
+  # Checks if the accession list (both folder and file) exists, and creates them if not
+  elif [ ! -d ${params.dataDir}/accession_lists || ! -f ${params.dataDir}//accession_lists/${params.species}_accessions.txt  ]; 
+  then
+    echo "Creating accession list from fastq files..."
+    mkdir -p ${params.dataDir}/accession_lists
+    ls ${params.dataDir}/${params.species}/fastq/*.fastq.gz | sed 's/_.*//' | sort -u > ${params.dataDir}/accession_lists/${params.species}_accessions.txt
+
+  # Both raw data and accession list are present
   else
     echo "Data found for ${params.species}, downloading will be skipped"
   fi
