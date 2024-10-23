@@ -60,9 +60,9 @@ elif [[ ${seqTech} == "parse_biosciences" ]]; then
   Type="CB_UMI_Complex \
 	--soloCBposition 0_50_0_57 0_30_0_37 0_10_0_17 \
 	--soloUMIposition 0_0_0_9"
-  CBwhitelist="${dataDir}/${species}/bc_data_n26_R1_v3_4 \
-	  ${dataDir}/${species}/bc_data_v1 \
-	  ${dataDir}/${species}/bc_data_R3_v3"
+  CBwhitelist="${dataDir}/${species}/barcodes/bc_data_n26_R1_v3_4 \
+	  ${dataDir}/${species}/barcodes/bc_data_v1 \
+	  ${dataDir}/${species}/barcodes/bc_data_R3_v3"
   CBmatchWLtype="1MM"
   Strand="Forward" # Default
 else
@@ -74,7 +74,7 @@ mkdir ${dataDir}/${species}/mapping_starsolo/results_${ACCESSIONS[$SLURM_ARRAY_T
 
 # Mapping step and generating count matrix using STAR
 STAR --runThreadN 4 \
-     --genomeDir ${dataDir}/${species}/genome_index \
+     --genomeDir ${dataDir}/${species}/genome/genome_index \
      --readFilesCommand zcat \
      --outFileNamePrefix ${dataDir}/${species}/mapping_starsolo/results_${ACCESSIONS[$SLURM_ARRAY_TASK_ID-1]}/ \
      --readFilesIn ${R1} ${R2} \

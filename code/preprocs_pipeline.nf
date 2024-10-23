@@ -12,8 +12,8 @@ Analysis Pipeline downloading data, mapping and filtering
 // Define parameters
 params.dataDir = "/users/asebe/bvanwaardenburg/git/bca_preprocessing/data"
 params.codeDir = "/users/asebe/bvanwaardenburg/git/bca_preprocessing/code"
-params.species = 'spol'
-params.seqTech = "10xRNAv2"
+params.species = 'nvec'
+params.seqTech = "parse_biosciences"
 
 // params.seqTech = \$(cat ${params.dataDir}/${params.species}/spec.yaml \
 //                  | grep 'assay_id' | awk '{print $2}')
@@ -26,6 +26,7 @@ workflow {
   | process_multiqc 
   | process_genome_index 
   | process_mapping 
+  | process_mapping_PB
   | view { it.trim() }
 }
 
@@ -46,11 +47,11 @@ process process_download_data {
     sbatch --array=1-\${num_arrays} ${params.codeDir}/download_fastq_files.sh ${params.species} ${params.dataDir} 
 
   # Checks if the accession list (both folder and file) exists, and creates them if not
-  elif [ ! -d ${params.dataDir}/accession_lists || ! -f ${params.dataDir}//accession_lists/${params.species}_accessions.txt  ]; 
-  then
-    echo "Creating accession list from fastq files..."
-    mkdir -p ${params.dataDir}/accession_lists
-    ls ${params.dataDir}/${params.species}/fastq/*.fastq.gz | sed 's/_.*//' | sort -u > ${params.dataDir}/accession_lists/${params.species}_accessions.txt
+  // elif [ ! -d ${params.dataDir}/accession_lists || ! -f ${params.dataDir}/accession_lists/${params.species}_accessions.txt ]; 
+  // then
+  //  echo "Creating accession list from fastq files..."
+  //  mkdir -p ${params.dataDir}/accession_lists
+  //  ls ${params.dataDir}/${params.species}/fastq/* | sed 's/_.*//' | sort -u > ${params.dataDir}/accession_lists/${params.species}_accessions.txt
 
   # Both raw data and accession list are present
   else
@@ -106,7 +107,7 @@ process process_genome_index {
   script:
   """
   echo "process: generating genome index for mapping"
-  if [ ! -d ${params.dataDir}/${params.species}/genome_index ];
+  if [ ! -d ${params.dataDir}/${params.species}/genome/genome_index ];
   then
     echo "STAR will start..."
     sbatch ${params.codeDir}/starsolo_genindex.sh ${params.species} \
@@ -122,19 +123,50 @@ process process_genome_index {
 process process_mapping {
   input:
   output:
-    stdout
   script:
   """
   echo "process: Mapping using STARsolo"
   num_arrays=\$(wc -l < ${params.dataDir}/accession_lists/${params.species}_accessions.txt)
-
   if [ ! -d ${params.dataDir}/${params.species}/mapping_starsolo ];
   then
     echo "STAR will start..."
-    mkdir ${params.dataDir}/${params.species}/mapping_starsolo
+    mkdir -p ${params.dataDir}/${params.species}/mapping_starsolo
     sbatch --array=1-\${num_arrays} ${params.codeDir}/starsolo_mapping.sh ${params.species} ${params.dataDir} ${params.seqTech}
   else
     echo "BAM files found for ${params.species}, step will be skipped"
+  fi
+  """
+}
+
+
+
+// Process 5.b: Mapping using ParseBiosciences pipeline
+process process_mapping_PB {
+  input:
+  output:
+    stdout
+  script:
+  """
+  echo "process: Mapping using ParseBiosciences pipeline"
+  num_arrays=\$(wc -l < ${params.dataDir}/accession_lists/${params.species}_accessions.txt)
+
+  if [ ! -d ${params.dataDir}/${params.species}/genome/parse_refgenome ];
+  then
+    echo "split-parse will start..."
+    echo "  1) creating reference genome"
+    genome_name="${params.species}"
+    ref_gtf="${params.dataDir}/${params.species}/genome/Nvec_v4_merged_annotation_parse_sort.gtf"
+    ref_fasta="${params.dataDir}/${params.species}/genome/Nvec_vc1.1_gDNA_mtDNA.fasta"    
+    ref_outdir="${params.dataDir}/${params.species}/genome/parse_refgenome"
+    split-pipe -m mkref --genome_name \${genome_name} --genes \${ref_gtf} --fasta \${ref_fasta} --output_dir \${ref_outdir}
+
+  elif [ ! -d ${params.dataDir}/${params.species}/mapping_parseBio ];
+  then
+    echo "  2) running analysis pipeline"
+    mkdir -p ${params.dataDir}/${params.species}/mapping_parseBio
+    sbatch --array=1-\${num_arrays} ${params.codeDir}/parse_mapping.sh ${params.species} ${params.dataDir}
+  else
+    echo "Files found for ${params.species}, step will be skipped"
   fi
   """
 }

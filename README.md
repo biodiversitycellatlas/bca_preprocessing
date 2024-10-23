@@ -4,8 +4,7 @@
 ## TODO
 
 - [ ] Retrieve sequencing technique directly from seqspec file 
-- [ ] Loop over given species 
-- [ ] Automatically create an accession_file if fastq folder is found 
+- [ ] Loop over given species  
 - [ ] Integrate seqspec into mapping (https://github.com/pachterlab/seqspec/blob/main/docs/UNIFORM.md) 
 
 ***

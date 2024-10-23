@@ -46,16 +46,16 @@ fi
 sjdb_overhang=$(zcat "${first_fastq}" 2>/dev/null | awk 'NR==2 {print length($0)-1; exit}' || echo "") 
 
 # Create directory where genome index will be stored
-mkdir ${dataDir}/${species}/genome_index
+mkdir -p ${dataDir}/${species}/genome/genome_index
 
 # Specify file paths
-genomeFastaFile=$(ls ${dataDir}/${species}/*.fasta)
-GTFfile=$(ls ${dataDir}/${species}/*.gtf) 
+genomeFastaFile=$(ls ${dataDir}/${species}/genome/Nvec_gDNA.fasta)
+GTFfile=$(ls ${dataDir}/${species}/genome/Nvec_long.annot.gtf) 
 
 # Generating genome index using STAR
 STAR \
   --runMode genomeGenerate \
-  --genomeDir "${dataDir}/${species}/genome_index" \
+  --genomeDir "${dataDir}/${species}/genome/genome_index" \
   --genomeFastaFiles "${genomeFastaFile}" \
   --sjdbGTFfile "${GTFfile}" \
   --sjdbOverhang "${sjdb_overhang}" \
