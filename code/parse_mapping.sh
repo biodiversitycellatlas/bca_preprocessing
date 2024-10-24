@@ -5,10 +5,10 @@
 ##################
 #SBATCH --output=/users/asebe/bvanwaardenburg/git/bca_preprocessing/logs/%x.%j.out
 #SBATCH --error=/users/asebe/bvanwaardenburg/git/bca_preprocessing/logs/%x.%j.err
-#SBATCH --time=03:00:00
-#SBATCH --qos=short
-#SBATCH --mem=5G
-#SBATCH --job-name parse_mapping 
+#SBATCH --time=20:00:00
+#SBATCH --qos=normal
+#SBATCH --mem=30G
+#SBATCH --job-name parse_all 
 
 
 #################
@@ -49,7 +49,6 @@ fi
 
 outdir="${dataDir}/${species}/mapping_parseBio/${ACCESSIONS[$SLURM_ARRAY_TASK_ID-1]}"
 ref_genome="${dataDir}/${species}/genome/parse_refgenome"
-barcodes="${dataDir}/${species}/barcodes/bc_data_n26_R1_v3_4"
 
 
 ###############
@@ -58,7 +57,7 @@ barcodes="${dataDir}/${species}/barcodes/bc_data_n26_R1_v3_4"
 echo "running Parse Biosciences pipeline for library ${ACCESSIONS[$SLURM_ARRAY_TASK_ID-1]}"
 split-pipe -m ${mode} --chemistry ${chem} --fq1 ${R1} --fq2 ${R2} \
 	--output_dir ${outdir} --genome_dir ${ref_genome} \
-	--samp_list ${sample_file} --cell_list ${barcodes} 
+	--samp_list ${sample_file} 
 
 
 ###############

@@ -12,6 +12,7 @@ Analysis Pipeline downloading data, mapping and filtering
 // Define parameters
 params.dataDir = "/users/asebe/bvanwaardenburg/git/bca_preprocessing/data"
 params.codeDir = "/users/asebe/bvanwaardenburg/git/bca_preprocessing/code"
+params.barcodeDir = "/users/asebe/bvanwaardenburg/ParseBiosciences-Pipeline.1.3.1/splitpipe/barcodes/"
 params.species = 'nvec'
 params.seqTech = "parse_biosciences"
 
@@ -25,6 +26,7 @@ workflow {
   | process_fastqc
   | process_multiqc 
   | process_genome_index 
+  | process_splitting_parse
   | process_mapping 
   | process_mapping_PB
   | view { it.trim() }
@@ -118,6 +120,25 @@ process process_genome_index {
   """
 }
 
+// Process 5: Splitting Parse Biosciences data
+process process_splitting_parse {
+  input:
+  output:
+  script:
+  """
+  echo "process: Splitting Parse data"
+  num_arrays=\$(wc -l < ${params.dataDir}/accession_lists/${params.species}_accessions.txt)
+  if [ ! -d ${params.dataDir}/${params.species}/splitted_fastq ];
+  then
+    echo "splitting will start..."
+    mkdir -p ${params.dataDir}/${params.species}/splitted_fastq
+    sbatch --array=1-\${num_arrays} ${params.codeDir}/split_parse_data.sh ${params.species} ${params.dataDir} ${params.barcodeDir}
+  else
+    echo "Splitted files found for ${params.species}, step will be skipped"
+  fi
+  """
+}
+
 
 // Process 5: Mapping using STARsolo
 process process_mapping {
@@ -139,7 +160,6 @@ process process_mapping {
 }
 
 
-
 // Process 5.b: Mapping using ParseBiosciences pipeline
 process process_mapping_PB {
   input:
@@ -159,8 +179,9 @@ process process_mapping_PB {
     ref_fasta="${params.dataDir}/${params.species}/genome/Nvec_vc1.1_gDNA_mtDNA.fasta"    
     ref_outdir="${params.dataDir}/${params.species}/genome/parse_refgenome"
     split-pipe -m mkref --genome_name \${genome_name} --genes \${ref_gtf} --fasta \${ref_fasta} --output_dir \${ref_outdir}
-
-  elif [ ! -d ${params.dataDir}/${params.species}/mapping_parseBio ];
+  fi
+  
+  if [ ! -d ${params.dataDir}/${params.species}/mapping_parseBio ];
   then
     echo "  2) running analysis pipeline"
     mkdir -p ${params.dataDir}/${params.species}/mapping_parseBio
