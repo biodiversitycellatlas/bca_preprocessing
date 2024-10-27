@@ -33,7 +33,7 @@ species=$1
 dataDir=$2
 seqTech=$3
 
-mapfile -t ACCESSIONS < ${dataDir}/accession_lists/${species}_accessions.txt
+mapfile -t ACCESSIONS < ${dataDir}/accession_lists/${species}_accessions_v2.txt
 
 # Different STARsolo params depending on sequencing technique
 if [[ ${seqTech} == "10xRNAv2" ]]; then
@@ -54,9 +54,9 @@ if [[ ${seqTech} == "10xRNAv2" ]]; then
 elif [[ ${seqTech} == "parse_biosciences" ]]; then
   echo "Mapping using Parse Biosciences data"
   # cDNA read
-  R1="${dataDir}/${species}/fastq/${ACCESSIONS[$SLURM_ARRAY_TASK_ID-1]}_R1_001.fastq.gz"
+  R1="${dataDir}/${species}/splitted_fastq/${ACCESSIONS[$SLURM_ARRAY_TASK_ID-1]}_R1.fastq"
   # Barcode read (cell+UMI)
-  R2="${dataDir}/${species}/fastq/${ACCESSIONS[$SLURM_ARRAY_TASK_ID-1]}_R2_001.fastq.gz"
+  R2="${dataDir}/${species}/splitted_fastq/${ACCESSIONS[$SLURM_ARRAY_TASK_ID-1]}_R2.fastq"
   Type="CB_UMI_Complex \
 	--soloCBposition 0_50_0_57 0_30_0_37 0_10_0_17 \
 	--soloUMIposition 0_0_0_9"
@@ -70,13 +70,12 @@ else
 fi
 
 # Creating own subdirectory for results
-mkdir ${dataDir}/${species}/mapping_starsolo/results_${ACCESSIONS[$SLURM_ARRAY_TASK_ID-1]}
+mkdir ${dataDir}/${species}/mapping_splitted_starsolo/results_${ACCESSIONS[$SLURM_ARRAY_TASK_ID-1]}
 
 # Mapping step and generating count matrix using STAR
 STAR --runThreadN 4 \
      --genomeDir ${dataDir}/${species}/genome/genome_index \
-     --readFilesCommand zcat \
-     --outFileNamePrefix ${dataDir}/${species}/mapping_starsolo/results_${ACCESSIONS[$SLURM_ARRAY_TASK_ID-1]}/ \
+     --outFileNamePrefix ${dataDir}/${species}/mapping_splitted_starsolo/results_${ACCESSIONS[$SLURM_ARRAY_TASK_ID-1]}/ \
      --readFilesIn ${R1} ${R2} \
      --soloType ${Type} \
      --soloCBwhitelist ${CBwhitelist} \

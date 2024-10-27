@@ -26,6 +26,7 @@ workflow {
   | process_fastqc
   | process_multiqc 
   | process_genome_index 
+//  | process_bccorr_parse
   | process_splitting_parse
   | process_mapping 
   | process_mapping_PB
@@ -120,6 +121,28 @@ process process_genome_index {
   """
 }
 
+
+// Process 5: Barcode & UMI correction
+process process_bccorr_parse {
+  input:
+  output:
+  script:
+  """
+  echo "process: BC correction Parse data"
+  num_arrays=\$(wc -l < ${params.dataDir}/accession_lists/${params.species}_accessions.txt)
+  if [ ! -d ${params.dataDir}/${params.species}/corrected_fastq_long ];
+  then
+    echo "Barcode correction will start..."
+    mkdir -p ${params.dataDir}/${params.species}/corrected_fastq_long
+    sbatch --array=1-\${num_arrays} ${params.codeDir}/parse_pre.sh ${params.species} ${params.dataDir} ${params.barcodeDir}
+  else
+    echo "Corrected files found for ${params.species}, step will be skipped"
+  fi
+  """
+}
+
+
+
 // Process 5: Splitting Parse Biosciences data
 process process_splitting_parse {
   input:
@@ -147,11 +170,11 @@ process process_mapping {
   script:
   """
   echo "process: Mapping using STARsolo"
-  num_arrays=\$(wc -l < ${params.dataDir}/accession_lists/${params.species}_accessions.txt)
-  if [ ! -d ${params.dataDir}/${params.species}/mapping_starsolo ];
+  num_arrays=\$(wc -l < ${params.dataDir}/accession_lists/${params.species}_accessions_v2.txt)
+  if [ ! -d ${params.dataDir}/${params.species}/mapping_splitted_starsolo ];
   then
     echo "STAR will start..."
-    mkdir -p ${params.dataDir}/${params.species}/mapping_starsolo
+    mkdir -p ${params.dataDir}/${params.species}/mapping_splitted_starsolo
     sbatch --array=1-\${num_arrays} ${params.codeDir}/starsolo_mapping.sh ${params.species} ${params.dataDir} ${params.seqTech}
   else
     echo "BAM files found for ${params.species}, step will be skipped"
@@ -168,7 +191,7 @@ process process_mapping_PB {
   script:
   """
   echo "process: Mapping using ParseBiosciences pipeline"
-  num_arrays=\$(wc -l < ${params.dataDir}/accession_lists/${params.species}_accessions.txt)
+  num_arrays=\$(wc -l < ${params.dataDir}/accession_lists/${params.species}_accessions_v2.txt)
 
   if [ ! -d ${params.dataDir}/${params.species}/genome/parse_refgenome ];
   then
@@ -181,10 +204,10 @@ process process_mapping_PB {
     split-pipe -m mkref --genome_name \${genome_name} --genes \${ref_gtf} --fasta \${ref_fasta} --output_dir \${ref_outdir}
   fi
   
-  if [ ! -d ${params.dataDir}/${params.species}/mapping_parseBio ];
+  if [ ! -d ${params.dataDir}/${params.species}/mapping_splitted_parseBio ];
   then
     echo "  2) running analysis pipeline"
-    mkdir -p ${params.dataDir}/${params.species}/mapping_parseBio
+    mkdir -p ${params.dataDir}/${params.species}/mapping_splitted_parseBio
     sbatch --array=1-\${num_arrays} ${params.codeDir}/parse_mapping.sh ${params.species} ${params.dataDir}
   else
     echo "Files found for ${params.species}, step will be skipped"
