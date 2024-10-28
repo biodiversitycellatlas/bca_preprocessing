@@ -30,6 +30,7 @@ workflow {
   | process_splitting_parse 
   | process_mapping 
   | process_mapping_PB
+  | process_saturation
   | view { it.trim() }
 }
 
@@ -151,10 +152,10 @@ process process_splitting_parse {
   """
   echo "process: Splitting Parse data"
   num_arrays=\$(wc -l < ${params.dataDir}/accession_lists/${params.species}_accessions.txt)
-  if [ ! -d ${params.dataDir}/${params.species}/splitted_fastq_v2 ];
+  if [ ! -d ${params.dataDir}/${params.species}/splitted_fastq_v1 ];
   then
     echo "splitting will start..."
-    mkdir -p ${params.dataDir}/${params.species}/splitted_fastq_v2
+    mkdir -p ${params.dataDir}/${params.species}/splitted_fastq_v1
     sbatch --array=1-\${num_arrays} ${params.codeDir}/split_parse_data.sh ${params.species} ${params.dataDir} ${params.barcodeDir}
   else
     echo "Splitted files found for ${params.species}, step will be skipped"
@@ -171,10 +172,10 @@ process process_mapping {
   """
   echo "process: Mapping using STARsolo"
   num_arrays=\$(wc -l < ${params.dataDir}/accession_lists/${params.species}_accessions_v2.txt)
-  if [ ! -d ${params.dataDir}/${params.species}/mapping_splitted_starsolo ];
+  if [ ! -d ${params.dataDir}/${params.species}/mapping_splitted_starsolo_v1 ];
   then
     echo "STAR will start..."
-    mkdir -p ${params.dataDir}/${params.species}/mapping_splitted_starsolo
+    mkdir -p ${params.dataDir}/${params.species}/mapping_splitted_starsolo_v1
     sbatch --array=1-\${num_arrays} ${params.codeDir}/starsolo_mapping.sh ${params.species} ${params.dataDir} ${params.seqTech}
   else
     echo "BAM files found for ${params.species}, step will be skipped"
@@ -187,7 +188,6 @@ process process_mapping {
 process process_mapping_PB {
   input:
   output:
-    stdout
   script:
   """
   echo "process: Mapping using ParseBiosciences pipeline"
@@ -211,6 +211,27 @@ process process_mapping_PB {
     sbatch --array=1-\${num_arrays} ${params.codeDir}/parse_mapping.sh ${params.species} ${params.dataDir}
   else
     echo "Files found for ${params.species}, step will be skipped"
+  fi
+  """
+}
+
+// Process 6: Calculating Saturation
+process process_saturation {
+  input:
+  output:
+    stdout
+  script:
+  """
+  echo "process: Calculating saturation using 10x_saturate"
+  accession_file="${params.dataDir}/accession_lists/${params.species}_accessions_v2.txt"
+  if [ ! -d ${params.dataDir}/${params.species}/saturation ];
+  then
+    while read acc; do
+      echo "10x_saturate will start..."
+      sbatch ${params.codeDir}/calculate_saturation.sh ${params.species} ${params.dataDir} \${acc}
+  done < \${accession_file}
+  else
+    echo "Saturation plots found for ${params.species}, step will be skipped"
   fi
   """
 }

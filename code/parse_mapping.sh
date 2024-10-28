@@ -36,8 +36,8 @@ mapfile -t ACCESSIONS < ${dataDir}/accession_lists/${species}_accessions_v2.txt
 echo "${ACCESSIONS[$SLURM_ARRAY_TASK_ID-1]}"
 
 mode="all"
-R1="${dataDir}/${species}/splitted_fastq/${ACCESSIONS[$SLURM_ARRAY_TASK_ID-1]}_R1.fastq"
-R2="${dataDir}/${species}/splitted_fastq/${ACCESSIONS[$SLURM_ARRAY_TASK_ID-1]}_R2.fastq"
+R1="${dataDir}/${species}/splitted_fastq_v1/${ACCESSIONS[$SLURM_ARRAY_TASK_ID-1]}_R1.fastq.gz"
+R2="${dataDir}/${species}/splitted_fastq_v1/${ACCESSIONS[$SLURM_ARRAY_TASK_ID-1]}_R2.fastq.gz"
 chem="v3"
 
 if [ $SLURM_ARRAY_TASK_ID -lt 3 ];
@@ -47,7 +47,7 @@ else
   sample_file="${dataDir}/${species}/B003_B004_samplewells.txt"
 fi
 
-outdir="${dataDir}/${species}/mapping_splitted_parseBio/${ACCESSIONS[$SLURM_ARRAY_TASK_ID-1]}"
+outdir="${dataDir}/${species}/mapping_splitted_parseBio_v1/${ACCESSIONS[$SLURM_ARRAY_TASK_ID-1]}"
 ref_genome="${dataDir}/${species}/genome/parse_refgenome"
 
 # Generate parameter file

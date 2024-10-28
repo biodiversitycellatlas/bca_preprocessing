@@ -54,9 +54,9 @@ if [[ ${seqTech} == "10xRNAv2" ]]; then
 elif [[ ${seqTech} == "parse_biosciences" ]]; then
   echo "Mapping using Parse Biosciences data"
   # cDNA read
-  R1="${dataDir}/${species}/splitted_fastq/${ACCESSIONS[$SLURM_ARRAY_TASK_ID-1]}_R1.fastq"
+  R1="${dataDir}/${species}/splitted_fastq_v1/${ACCESSIONS[$SLURM_ARRAY_TASK_ID-1]}_R1.fastq.gz"
   # Barcode read (cell+UMI)
-  R2="${dataDir}/${species}/splitted_fastq/${ACCESSIONS[$SLURM_ARRAY_TASK_ID-1]}_R2.fastq"
+  R2="${dataDir}/${species}/splitted_fastq_v1/${ACCESSIONS[$SLURM_ARRAY_TASK_ID-1]}_R2.fastq.gz"
   Type="CB_UMI_Complex \
 	--soloCBposition 0_50_0_57 0_30_0_37 0_10_0_17 \
 	--soloUMIposition 0_0_0_9"
@@ -70,12 +70,13 @@ else
 fi
 
 # Creating own subdirectory for results
-mkdir ${dataDir}/${species}/mapping_splitted_starsolo/results_${ACCESSIONS[$SLURM_ARRAY_TASK_ID-1]}
+mkdir ${dataDir}/${species}/mapping_splitted_starsolo_v1/results_${ACCESSIONS[$SLURM_ARRAY_TASK_ID-1]}
 
 # Mapping step and generating count matrix using STAR
 STAR --runThreadN 4 \
      --genomeDir ${dataDir}/${species}/genome/genome_index \
-     --outFileNamePrefix ${dataDir}/${species}/mapping_splitted_starsolo/results_${ACCESSIONS[$SLURM_ARRAY_TASK_ID-1]}/ \
+     --readFilesCommand zcat \
+     --outFileNamePrefix ${dataDir}/${species}/mapping_splitted_starsolo_v1/results_${ACCESSIONS[$SLURM_ARRAY_TASK_ID-1]}/ \
      --readFilesIn ${R1} ${R2} \
      --soloType ${Type} \
      --soloCBwhitelist ${CBwhitelist} \
@@ -84,6 +85,9 @@ STAR --runThreadN 4 \
      --soloStrand ${Strand} \
      --outSAMattributes CR UR CB UB \
      --outSAMtype BAM SortedByCoordinate
+
+# Creates the index file
+samtools index "${dataDir}/${species}/mapping_splitted_starsolo_v1/results_${ACCESSIONS[$SLURM_ARRAY_TASK_ID-1]}/*.bam"
 
 
 ###############
