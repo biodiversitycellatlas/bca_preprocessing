@@ -5,7 +5,7 @@
 ##################
 #SBATCH --output=/users/asebe/bvanwaardenburg/git/bca_preprocessing/logs/%x.%j.out
 #SBATCH --error=/users/asebe/bvanwaardenburg/git/bca_preprocessing/logs/%x.%j.err
-#SBATCH --time=20:00:00
+#SBATCH --time=04:00:00
 #SBATCH --qos=normal
 #SBATCH --mem=30G
 #SBATCH --job-name parse_all 

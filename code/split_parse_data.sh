@@ -5,10 +5,10 @@
 ##################
 #SBATCH --output=/users/asebe/bvanwaardenburg/git/bca_preprocessing/logs/%x.%j.out
 #SBATCH --error=/users/asebe/bvanwaardenburg/git/bca_preprocessing/logs/%x.%j.err
-#SBATCH --time=03:00:00
-#SBATCH --qos=short
+#SBATCH --time=02:00:00
+#SBATCH --qos=shorter
 #SBATCH --mem=30G
-#SBATCH --job-name split_fastqs 
+#SBATCH --job-name split_fastqs2 
 
 
 #################
@@ -49,7 +49,7 @@ bc_2="${barcode_path}/bc_data_v1.csv"
 bc_3="${barcode_path}/bc_data_R3_v3.csv"
 
 # create output directory
-output_dir="${dataDir}/${species}/splitted_fastq"
+output_dir="${dataDir}/${species}/splitted_fastq_v2"
 mkdir -p ${output_dir}
 
 # checks which sample_wells file to use depending on the run 
@@ -64,10 +64,6 @@ fi
 # run command #
 ###############
 
-# read counters
-total_reads=0
-unassigned_reads=0
-
 # loops through the sample_wells file (e.g. line: 'DSP A1-A3'), -u 6 set as unknown file descriptor 
 ## TODO: check if the letters are the same, and change it from A to dynamic
 while read -u 6 line;
@@ -78,34 +74,28 @@ do
   num_wells=$( echo ${wells} | sed 's/[A-Za-z]//g' )
   echo "${line}: ${name} ${wells} num_wells : ${num_wells} alpha_wells:${alpha_wells}"
   
-  barcodes_r1=$( cat $bc_1 | grep -E ",A[${num_wells}]," | awk -F',' '{print $2}' | sed ':a;N;$!ba;s/\n/\|/g' )
+  barcodes_r1=$( cat $bc_1 | grep -E ",A[${num_wells}]," | awk -F',' '{print $2}' | sed ':a;N;$!ba;s/\n/, /g' )
   barcodes_r2=$( cat $bc_2 | grep -E ",A[${num_wells}]," | awk -F',' '{print $2}' | sed ':a;N;$!ba;s/\n/\|/g' )
   barcodes_r3=$( cat $bc_3 | grep -E ",A[${num_wells}]," | awk -F',' '{print $2}' | sed ':a;N;$!ba;s/\n/\|/g' )
   echo "round 1: '${barcodes_r1}' \n round 2: '${barcodes_r2}' \n round 3: '${barcodes_r3}'"
   
   # Step 1: Select sequences matching the barcodes and write to file
+  # version 2 allows for n number of mismatces in the barcode
   echo "${read_2}"
-  zcat "${read_2}" | grep -B 1 -A 2 --no-group-separator -E "${barcodes_r1}" > "${output_dir}/${ACCESSIONS[$SLURM_ARRAY_TASK_ID-1]}_${name}_R2.fastq"
+  zcat "${read_2}" | seqkit grep -m 2 -p "${barcodes_r1}" > "${output_dir}/${ACCESSIONS[$SLURM_ARRAY_TASK_ID-1]}_${name}_R2.fastq"
   echo "Step 1 completed, created ${output_dir}/${ACCESSIONS[$SLURM_ARRAY_TASK_ID-1]}_${name}_R2.fastq"
 
   # Step 2: Extract headers from the filtered R2 FASTQ file
   cat "${output_dir}/${ACCESSIONS[$SLURM_ARRAY_TASK_ID-1]}_${name}_R2.fastq" | grep '^@' |  sed 's/^@//g' | awk '{print $1}' > "${output_dir}/${ACCESSIONS[$SLURM_ARRAY_TASK_ID-1]}_${name}_headers_R2.txt"
   echo "Step 2 completed, created ${output_dir}/filtered_headers_R2.txt"
 
+  # Step 3
   seqtk subseq ${read_1} "${output_dir}/${ACCESSIONS[$SLURM_ARRAY_TASK_ID-1]}_${name}_headers_R2.txt" > "${output_dir}/${ACCESSIONS[$SLURM_ARRAY_TASK_ID-1]}_${name}_R1.fastq"
-  
-  # Step 3: Split headers into chunks for memory efficiency
-  # split -n 10 "${output_dir}/${ACCESSIONS[$SLURM_ARRAY_TASK_ID-1]}_${name}_headers_R2.txt" "${output_dir}/${ACCESSIONS[$SLURM_ARRAY_TASK_ID-1]}_${name}_headers_chunk_"
+  echo "Step 3 completed, created ${output_dir}/${ACCESSIONS[$SLURM_ARRAY_TASK_ID-1]}_${name}_R1.fastq"
 
-  # Process each chunk separately to reduce memory usage
-  # for chunk in ${output_dir}/${ACCESSIONS[$SLURM_ARRAY_TASK_ID-1]}_${name}_headers_chunk_*; do
-  #  echo "Processing chunk: $chunk"
-  #  zcat "${read_1}" | grep -A 3 --line-buffered -f "$chunk" >> "${output_dir}/${ACCESSIONS[$SLURM_ARRAY_TASK_ID-1]}_${name}_R1.fastq"
-  # done
-  # echo "Step 3 completed, created ${output_dir}/${ACCESSIONS[$SLURM_ARRAY_TASK_ID-1]}_${name}_R1.fastq"
+  # Step 4: Remove intermediate files
+  rm "${output_dir}/${ACCESSIONS[$SLURM_ARRAY_TASK_ID-1]}_${name}_headers_R2.txt"
 
-  # Remove chunk files to save space
-  # rm ${output_dir}/${ACCESSIONS[$SLURM_ARRAY_TASK_ID-1]}_${name}_headers_chunk_*
 done 6< ${sw_file}
 
 ###############

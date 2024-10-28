@@ -27,7 +27,7 @@ workflow {
   | process_multiqc 
   | process_genome_index 
 //  | process_bccorr_parse
-  | process_splitting_parse
+  | process_splitting_parse 
   | process_mapping 
   | process_mapping_PB
   | view { it.trim() }
@@ -151,10 +151,10 @@ process process_splitting_parse {
   """
   echo "process: Splitting Parse data"
   num_arrays=\$(wc -l < ${params.dataDir}/accession_lists/${params.species}_accessions.txt)
-  if [ ! -d ${params.dataDir}/${params.species}/splitted_fastq ];
+  if [ ! -d ${params.dataDir}/${params.species}/splitted_fastq_v2 ];
   then
     echo "splitting will start..."
-    mkdir -p ${params.dataDir}/${params.species}/splitted_fastq
+    mkdir -p ${params.dataDir}/${params.species}/splitted_fastq_v2
     sbatch --array=1-\${num_arrays} ${params.codeDir}/split_parse_data.sh ${params.species} ${params.dataDir} ${params.barcodeDir}
   else
     echo "Splitted files found for ${params.species}, step will be skipped"
