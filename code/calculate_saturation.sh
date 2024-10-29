@@ -7,7 +7,7 @@
 #SBATCH --error=/users/asebe/bvanwaardenburg/git/bca_preprocessing/logs/%x.%j.err
 #SBATCH --time=00:30:00
 #SBATCH --qos=vshort
-#SBATCH --mem=1G
+#SBATCH --mem=5G
 #SBATCH --job-name saturation
 
 
@@ -50,16 +50,24 @@ mkdir -p ${output_dir}
 ###############
 # run command #
 ###############
-n_cells=$( cat ${mappingDir}/Log.final.out | grep 'input reads' | awk '{print $NF}' )
-mapping_rate=$( cat ${mappingDir}/Log.final.out | grep 'Uniquely mapped reads %' | awk '{print $NF}' | sed 's/%//' | awk '{print $1/100}' )
-echo ${mapping_rate}
+n_cells=$( cat ${mappingDir}/Solo.out/Gene/Summary.csv | grep 'Estimated Number of Cells' | sed 's/,/ /g' | awk '{print $NF}' )
+n_reads=$( cat ${mappingDir}/Log.final.out | grep 'Number of input reads' | awk '{print $NF}' )
+MAPREADS=$( samtools view -F 260 ${bam_file} | wc -l )
+map_rate=$( echo "scale=4; ${MAPREADS}/${n_reads}" | bc ) 
+
+echo "cells:${n_cells} reads:${n_reads} mapreads:${MAPREADS} maprate:${map_rate}"
 
 python ${codeDir}/saturation_table.py \
 	-b ${bam_file} \
        	-n ${n_cells} \
-	-r ${mapping_rate} \
+	-r ${map_rate} \
+	-f ${output_dir}/tags.tab \
 	-o ${output_dir}/output.tsv
 
+python ${codeDir}/scripts/plot_curve.py  \
+	${output_dir}/output.tsv \
+	${output_dir}/saturation.png \
+	--target 0.7 
 
 ###############
 # end message #

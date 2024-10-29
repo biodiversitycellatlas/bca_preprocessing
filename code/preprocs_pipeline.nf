@@ -204,10 +204,10 @@ process process_mapping_PB {
     split-pipe -m mkref --genome_name \${genome_name} --genes \${ref_gtf} --fasta \${ref_fasta} --output_dir \${ref_outdir}
   fi
   
-  if [ ! -d ${params.dataDir}/${params.species}/mapping_splitted_parseBio ];
+  if [ ! -d ${params.dataDir}/${params.species}/mapping_splitted_parseBio_v1 ];
   then
     echo "  2) running analysis pipeline"
-    mkdir -p ${params.dataDir}/${params.species}/mapping_splitted_parseBio
+    mkdir -p ${params.dataDir}/${params.species}/mapping_splitted_parseBio_v1
     sbatch --array=1-\${num_arrays} ${params.codeDir}/parse_mapping.sh ${params.species} ${params.dataDir}
   else
     echo "Files found for ${params.species}, step will be skipped"
