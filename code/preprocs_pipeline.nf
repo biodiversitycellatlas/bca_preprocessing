@@ -198,7 +198,7 @@ process process_mapping_PB {
     echo "split-parse will start..."
     echo "  1) creating reference genome"
     genome_name="${params.species}"
-    ref_gtf="${params.dataDir}/${params.species}/genome/Nvec_v4_merged_annotation_parse_sort.gtf"
+    ref_gtf="${params.dataDir}/${params.species}/genome/Nvec_v5_merged_annotation_sort.gtf"
     ref_fasta="${params.dataDir}/${params.species}/genome/Nvec_vc1.1_gDNA_mtDNA.fasta"    
     ref_outdir="${params.dataDir}/${params.species}/genome/parse_refgenome"
     split-pipe -m mkref --genome_name \${genome_name} --genes \${ref_gtf} --fasta \${ref_fasta} --output_dir \${ref_outdir}

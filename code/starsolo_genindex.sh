@@ -49,8 +49,8 @@ sjdb_overhang=$(zcat "${first_fastq}" 2>/dev/null | awk 'NR==2 {print length($0)
 mkdir -p ${dataDir}/${species}/genome/genome_index
 
 # Specify file paths
-genomeFastaFile=$(ls ${dataDir}/${species}/genome/Nvec_gDNA.fasta)
-GTFfile=$(ls ${dataDir}/${species}/genome/Nvec_long.annot.gtf) 
+genomeFastaFile=$(ls ${dataDir}/${species}/genome/Nvec_vc1.1_gDNA_mtDNA.fasta)
+GTFfile=$(ls ${dataDir}/${species}/genome/Nvec_v5_merged_annotation_sort.gtf) 
 
 # Generating genome index using STAR
 STAR \

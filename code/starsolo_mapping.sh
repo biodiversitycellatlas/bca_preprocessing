@@ -84,7 +84,9 @@ STAR --runThreadN 4 \
      --soloCellFilter EmptyDrops_CR \
      --soloStrand ${Strand} \
      --outSAMattributes CR UR CB UB \
-     --outSAMtype BAM SortedByCoordinate
+     --outSAMtype BAM SortedByCoordinate \
+     --outSAMunmapped Within KeepPairs \
+     --soloFeatures Gene GeneFull
 
 # Creates the index file
 samtools index "${dataDir}/${species}/mapping_splitted_starsolo_v1/results_${ACCESSIONS[$SLURM_ARRAY_TASK_ID-1]}/*.bam"
