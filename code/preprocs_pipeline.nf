@@ -5,6 +5,18 @@
 BCA pre-processing
 ===========================================================================
 Analysis Pipeline downloading data, mapping and filtering 
+
+Usage: 
+sbatch submit_nextflow.sh preprocs_pipeline.nf 
+
+Pre-requisites:
+- EITHER accession list OR raw data (in fastq/ folder)
+- annotation files (fasta & gtf/gff)
+- barcodes
+
+Optional:
+- seqspec (.yaml) file
+
 --------------------------------------------------------------------------
 */
 
@@ -26,7 +38,6 @@ workflow {
   | process_fastqc
   | process_multiqc 
   | process_genome_index 
-//  | process_bccorr_parse
   | process_splitting_parse 
   | process_mapping 
   | process_mapping_PB
@@ -35,7 +46,15 @@ workflow {
 }
 
 
-// Process 1: Check if data is available and download from SRA
+// =================  DOWNLOADING  ================= \\ 
+// Check if the user provided a fastq file with the  \\
+// raw data (located in a /fastq/ folder) or if it   \\
+// still needs to be downloaded. In that case, an    \\
+// accession file must be provided with IDs from the \\
+// SRA archive. If the data folder is given, an      \\
+// accession list will be created for looping over   \\
+// the samples during the workflow.                  \\
+ 
 process process_download_data { 
   input:
   output:
@@ -65,7 +84,9 @@ process process_download_data {
 }
 
 
-// Process 2: Generate Quality Control files using FASTQC
+// ==================  FASTQC  ================== \\ 
+// Generate Quality Control reports using FASTQC  \\
+
 process process_fastqc {
   input:
   output:
@@ -86,7 +107,12 @@ process process_fastqc {
 }
 
 
-// Process 3: General Quality Control file using MultiQC
+// ==================  MULTI-QC  ================== \\ 
+// A way of combining seperate FASTQC reports into  \\
+// a single analysis. Provides an overview of the   \\
+// data, including checks which of the files passed \\
+// the quality metrics.                             \\
+
 process process_multiqc {
   input:
   output:
@@ -104,7 +130,13 @@ process process_multiqc {
 }
 
 
-// Process 4: Generating genome index for Mapping
+// ==================  PRE-MAPPING  ================== \\ 
+// Creates the Genome Indeces required for mapping.    \\
+// Two folders will be created within /genome/,        \\
+// genome_index: contains genome index for STARsolo    \\
+// parse_refgenome: contains the reference genome for  \\
+// the Parse Biosciences (split-pipe) pipeline.        \\
+
 process process_genome_index {
   input:
   output:
@@ -119,32 +151,33 @@ process process_genome_index {
   else
     echo "Genome index found for ${params.species}, step will be skipped"
   fi
-  """
-}
 
-
-// Process 5: Barcode & UMI correction
-process process_bccorr_parse {
-  input:
-  output:
-  script:
-  """
-  echo "process: BC correction Parse data"
-  num_arrays=\$(wc -l < ${params.dataDir}/accession_lists/${params.species}_accessions.txt)
-  if [ ! -d ${params.dataDir}/${params.species}/corrected_fastq_long ];
+  if [ ! -d ${params.dataDir}/${params.species}/genome/parse_refgenome ];
   then
-    echo "Barcode correction will start..."
-    mkdir -p ${params.dataDir}/${params.species}/corrected_fastq_long
-    sbatch --array=1-\${num_arrays} ${params.codeDir}/parse_pre.sh ${params.species} ${params.dataDir} ${params.barcodeDir}
-  else
-    echo "Corrected files found for ${params.species}, step will be skipped"
+    echo "split-parse will start..."
+    echo "  1) creating reference genome"
+    genome_name="${params.species}"
+    ref_gtf="${params.dataDir}/${params.species}/genome/Nvec_v4_merged_annotation_parse_sort.gtf"
+    ref_fasta="${params.dataDir}/${params.species}/genome/Nvec_vc1.1_gDNA_mtDNA.fasta"    
+    ref_outdir="${params.dataDir}/${params.species}/genome/parse_refgenome"
+    split-pipe -m mkref --genome_name \${genome_name} --genes \${ref_gtf} --fasta \${ref_fasta} --output_dir \${ref_outdir}
   fi
   """
 }
 
 
+// ==================  DEMULTIPLEXING  ================== \\ 
+// To split the fastq files of each library into separate \\
+// fastq files for each fixation method, a script for     \\
+// demultiplexing the reads is called. From a txt file    \\
+// 'sample_wells', wells associated with each fixation    \\
+// method are given. Based on the provided barcode file,  \\
+// the samples are linked to the barcodes, and splitted   \\
+// into n seperate fastq's. This step is repeated for     \\
+// all libraries. 
+// TODO: The unassigned reads are then saved in a separate \\
+// file for manual inspection.                            \\
 
-// Process 5: Splitting Parse Biosciences data
 process process_splitting_parse {
   input:
   output:
@@ -163,15 +196,15 @@ process process_splitting_parse {
   """
 }
 
-
-// Process 5: Mapping using STARsolo
+// ==================  MAPPING (STARsolo)  ================== \\ 
+// Mapping using STARsolo
 process process_mapping {
   input:
   output:
   script:
   """
   echo "process: Mapping using STARsolo"
-  num_arrays=\$(wc -l < ${params.dataDir}/accession_lists/${params.species}_accessions_v2.txt)
+  num_arrays=\$(wc -l < ${params.dataDir}/accession_lists/${params.species}_accessions_v3.txt)
   if [ ! -d ${params.dataDir}/${params.species}/mapping_splitted_starsolo_v1 ];
   then
     echo "STAR will start..."
@@ -183,8 +216,8 @@ process process_mapping {
   """
 }
 
-
-// Process 5.b: Mapping using ParseBiosciences pipeline
+// ==============  MAPPING (ParseBiosciences)  ============== \\ 
+// Mapping using ParseBiosciences pipeline
 process process_mapping_PB {
   input:
   output:
@@ -193,17 +226,6 @@ process process_mapping_PB {
   echo "process: Mapping using ParseBiosciences pipeline"
   num_arrays=\$(wc -l < ${params.dataDir}/accession_lists/${params.species}_accessions_v2.txt)
 
-  if [ ! -d ${params.dataDir}/${params.species}/genome/parse_refgenome ];
-  then
-    echo "split-parse will start..."
-    echo "  1) creating reference genome"
-    genome_name="${params.species}"
-    ref_gtf="${params.dataDir}/${params.species}/genome/Nvec_v5_merged_annotation_sort.gtf"
-    ref_fasta="${params.dataDir}/${params.species}/genome/Nvec_vc1.1_gDNA_mtDNA.fasta"    
-    ref_outdir="${params.dataDir}/${params.species}/genome/parse_refgenome"
-    split-pipe -m mkref --genome_name \${genome_name} --genes \${ref_gtf} --fasta \${ref_fasta} --output_dir \${ref_outdir}
-  fi
-  
   if [ ! -d ${params.dataDir}/${params.species}/mapping_splitted_parseBio_v1 ];
   then
     echo "  2) running analysis pipeline"
@@ -215,7 +237,11 @@ process process_mapping_PB {
   """
 }
 
-// Process 6: Calculating Saturation
+
+// ========================  SATURATION  ========================= \\ 
+// The saturation plots are created with the tool: 10x_saturate    \\
+// (gitHub: https://github.com/zolotarovgl/10x_saturate/tree/main) \\
+
 process process_saturation {
   input:
   output:
@@ -224,7 +250,7 @@ process process_saturation {
   """
   echo "process: Calculating saturation using 10x_saturate"
   accession_file="${params.dataDir}/accession_lists/${params.species}_accessions_v2.txt"
-  if [ ! -d ${params.dataDir}/${params.species}/saturation ];
+  if [ ! -d ${params.dataDir}/${params.species}/saturation_v1 ];
   then
     while read acc; do
       echo "10x_saturate will start..."

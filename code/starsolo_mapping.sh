@@ -70,18 +70,19 @@ else
 fi
 
 # Creating own subdirectory for results
-mkdir -p ${dataDir}/${species}/mapping_splitted_starsolo_v1/results_${ACCESSIONS[$SLURM_ARRAY_TASK_ID-1]}
+mapping_dir="${dataDir}/${species}/mapping_splitted_starsolo_v2/${ACCESSIONS[$SLURM_ARRAY_TASK_ID-1]}"
+mkdir -p ${mapping_dir}
 
 # Mapping step and generating count matrix using STAR
 STAR --runThreadN 4 \
      --genomeDir ${dataDir}/${species}/genome/genome_index \
      --readFilesCommand zcat \
-     --outFileNamePrefix ${dataDir}/${species}/mapping_splitted_starsolo_v1/results_${ACCESSIONS[$SLURM_ARRAY_TASK_ID-1]}/ \
+     --outFileNamePrefix ${mapping_dir} \
      --readFilesIn ${R1} ${R2} \
      --soloType ${Type} \
      --soloCBwhitelist ${CBwhitelist} \
      --soloCBmatchWLtype ${CBmatchWLtype} \
-     --soloCellFilter EmptyDrops_CR \
+#     --soloCellFilter EmptyDrops_CR \
      --soloStrand ${Strand} \
      --outSAMattributes CR UR CB UB \
      --outSAMtype BAM SortedByCoordinate \
@@ -89,7 +90,7 @@ STAR --runThreadN 4 \
      --soloFeatures Gene GeneFull
 
 # Creates the index file
-samtools index ${dataDir}/${species}/mapping_splitted_starsolo_v1/results_${ACCESSIONS[$SLURM_ARRAY_TASK_ID-1]}/*.bam
+samtools index ${mapping_dir}/*.bam
 
 
 ###############
