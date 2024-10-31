@@ -39,35 +39,39 @@ cd ${codeDir}
 # prints the accession number associated with this run
 echo "${accession}"
 
-mappingDir="${dataDir}/${species}/mapping_splitted_starsolo/results_${accession}"
+mappingDir="${dataDir}/${species}/mapping_splitted_starsolo_v1/results_${accession}"
 bam_file="${mappingDir}/*.bam"
 
 # create output directory
-output_dir="${dataDir}/${species}/saturation/${accession}"
+output_dir="${dataDir}/${species}/saturation_v1/${accession}"
 mkdir -p ${output_dir}
 
 
 ###############
 # run command #
 ###############
-n_cells=$( cat ${mappingDir}/Solo.out/Gene/Summary.csv | grep 'Estimated Number of Cells' | sed 's/,/ /g' | awk '{print $NF}' )
+n_cells=$( cat ${mappingDir}/Solo.out/GeneFull/Summary.csv | grep 'Estimated Number of Cells' | sed 's/,/ /g' | awk '{print $NF}' )
 n_reads=$( cat ${mappingDir}/Log.final.out | grep 'Number of input reads' | awk '{print $NF}' )
 MAPREADS=$( samtools view -F 260 ${bam_file} | wc -l )
 map_rate=$( echo "scale=4; ${MAPREADS}/${n_reads}" | bc ) 
-
+temp_folder="${output_dir}/_tmp_${accession}"
 echo "cells:${n_cells} reads:${n_reads} mapreads:${MAPREADS} maprate:${map_rate}"
 
 python ${codeDir}/saturation_table.py \
 	-b ${bam_file} \
        	-n ${n_cells} \
 	-r ${map_rate} \
-	-f ${output_dir}/tags.tab \
+	-t ${temp_folder} \
 	-o ${output_dir}/output.tsv
 
 python ${codeDir}/scripts/plot_curve.py  \
 	${output_dir}/output.tsv \
 	${output_dir}/saturation.png \
 	--target 0.7 
+
+# copy log file to output directory, as it contains the number of reads to reach 0.7 sat
+log_out="/users/asebe/bvanwaardenburg/git/bca_preprocessing/logs/"
+cp ${log_out}*${SLURM_JOB_ID}*.out ${output_dir}
 
 ###############
 # end message #
