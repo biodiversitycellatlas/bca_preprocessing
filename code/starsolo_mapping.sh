@@ -33,7 +33,7 @@ species=$1
 dataDir=$2
 seqTech=$3
 
-mapfile -t ACCESSIONS < ${dataDir}/accession_lists/${species}_accessions_v2.txt
+mapfile -t ACCESSIONS < ${dataDir}/accession_lists/${species}_accessions_v3.txt
 
 # Different STARsolo params depending on sequencing technique
 if [[ ${seqTech} == "10xRNAv2" ]]; then
@@ -70,7 +70,7 @@ else
 fi
 
 # Creating own subdirectory for results
-mkdir ${dataDir}/${species}/mapping_splitted_starsolo_v1/results_${ACCESSIONS[$SLURM_ARRAY_TASK_ID-1]}
+mkdir -p ${dataDir}/${species}/mapping_splitted_starsolo_v1/results_${ACCESSIONS[$SLURM_ARRAY_TASK_ID-1]}
 
 # Mapping step and generating count matrix using STAR
 STAR --runThreadN 4 \
@@ -89,7 +89,7 @@ STAR --runThreadN 4 \
      --soloFeatures Gene GeneFull
 
 # Creates the index file
-samtools index "${dataDir}/${species}/mapping_splitted_starsolo_v1/results_${ACCESSIONS[$SLURM_ARRAY_TASK_ID-1]}/*.bam"
+samtools index ${dataDir}/${species}/mapping_splitted_starsolo_v1/results_${ACCESSIONS[$SLURM_ARRAY_TASK_ID-1]}/*.bam
 
 
 ###############

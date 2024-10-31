@@ -36,7 +36,7 @@ dataDir=$2
 accession=$3
 
 # Creates the index file
-samtools index "${dataDir}/${species}/mapping_splitted_starsolo/results_${accession}/Aligned.sortedByCoord.out.bam"
+samtools index "${dataDir}/${species}/mapping_splitted_starsolo_v1/results_${accession}/Aligned.sortedByCoord.out.bam"
 
 ###############
 # end message #

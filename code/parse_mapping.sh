@@ -32,7 +32,7 @@ set -o pipefail
 species=$1
 dataDir=$2
 
-mapfile -t ACCESSIONS < ${dataDir}/accession_lists/${species}_accessions_v2.txt
+mapfile -t ACCESSIONS < ${dataDir}/accession_lists/${species}_accessions_v3.txt
 echo "${ACCESSIONS[$SLURM_ARRAY_TASK_ID-1]}"
 
 mode="all"
