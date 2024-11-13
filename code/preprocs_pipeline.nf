@@ -143,7 +143,7 @@ process process_genome_index {
   script:
   """
   echo "process: generating genome index for mapping"
-  if [ ! -d ${params.dataDir}/${params.species}/genome/genome_index ];
+  if [ ! -d ${params.dataDir}/${params.species}/genome/genome_index_CRlike ];
   then
     echo "STAR will start..."
     sbatch ${params.codeDir}/starsolo_genindex.sh ${params.species} \
@@ -205,11 +205,10 @@ process process_mapping {
   """
   echo "process: Mapping using STARsolo"
   num_arrays=\$(wc -l < ${params.dataDir}/accession_lists/${params.species}_accessions_v3.txt)
-  if [ ! -d ${params.dataDir}/${params.species}/mapping_splitted_starsolo_v1 ];
+  if [ ! -d ${params.dataDir}/${params.species}/mapping_splitted_starsolo_CRlike2 ];
   then
     echo "STAR will start..."
-    mkdir -p ${params.dataDir}/${params.species}/mapping_splitted_starsolo_v1
-    sbatch --array=1-\${num_arrays} ${params.codeDir}/starsolo_mapping.sh ${params.species} ${params.dataDir} ${params.seqTech}
+    sbatch --array=1-\${num_arrays} ${params.codeDir}/starsolo_mapping_CRlike.sh ${params.species} ${params.dataDir} ${params.seqTech}
   else
     echo "BAM files found for ${params.species}, step will be skipped"
   fi

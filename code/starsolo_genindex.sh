@@ -46,7 +46,8 @@ fi
 sjdb_overhang=$(zcat "${first_fastq}" 2>/dev/null | awk 'NR==2 {print length($0)-1; exit}' || echo "") 
 
 # Create directory where genome index will be stored
-mkdir -p ${dataDir}/${species}/genome/genome_index
+outdir="${dataDir}/${species}/genome/genome_index_CRlike"
+mkdir -p ${outdir}
 
 # Specify file paths
 genomeFastaFile=$(ls ${dataDir}/${species}/genome/Nvec_vc1.1_gDNA_mtDNA.fasta)
@@ -55,11 +56,13 @@ GTFfile=$(ls ${dataDir}/${species}/genome/Nvec_v5_merged_annotation_sort.gtf)
 # Generating genome index using STAR
 STAR \
   --runMode genomeGenerate \
-  --genomeDir "${dataDir}/${species}/genome/genome_index" \
+  --genomeDir "${outdir}" \
   --genomeFastaFiles "${genomeFastaFile}" \
   --sjdbGTFfile "${GTFfile}" \
   --sjdbOverhang "${sjdb_overhang}" \
-  --genomeSAindexNbases 12
+  --genomeSAindexNbases 12 \
+  --genomeSAsparseD 3 # use for Cell Ranger-like result
+
 
 ###############
 # end message #
