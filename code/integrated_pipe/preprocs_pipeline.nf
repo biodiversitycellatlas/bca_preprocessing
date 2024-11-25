@@ -54,11 +54,12 @@ TODO list:
 
 // Define parameters
 params.dataDir = "/users/asebe/bvanwaardenburg/git/bca_preprocessing/data"
-params.codeDir = "/users/asebe/bvanwaardenburg/git/bca_preprocessing/code/integerated_pipe"
+params.codeDir = "/users/asebe/bvanwaardenburg/git/bca_preprocessing/code/integrated_pipe"
 params.barcodeDir = "/users/asebe/bvanwaardenburg/ParseBiosciences-Pipeline.1.3.1/splitpipe/barcodes/"
-params.species = 'nvec'
+params.folder = "240810_ParseBio_Nvec_Tcas"
+params.species = "Nvec"
 params.seqTech = "parse"
-params.resDir = "${params.dataDir}/${params.species}"
+params.resDir = "${params.dataDir}/${params.folder}/${params.species}_testIntegr"
 
 // Define channels
 // Read initial sample IDs from accession list
@@ -73,12 +74,12 @@ workflow {
     download_data(sample_ids)                           // Download data
     splitting_parse(download_data.out)                  // Demultiplexing
     fastqc(splitting_parse.out)                         // Quality control with FastQC
-    multiqc(fastqc.out)                                 // Generate MultiQC report
-    genome_index_starsolo()                             // Generate genome index (only once)
-    ref_genome_parse()                                  // Generate reference genome (only once)
-    mapping_STARsolo(splitting_parse.out, genome_index_starsolo.out)      // Mapping with STARsolo
-    mapping_PB(splitting_parse.out, ref_genome_parse.out) // Mapping with Parse Biosciences pipeline
-    saturation(mapping_PB.out)                          // Saturation analysis
+    // multiqc(fastqc.out)                                 // Generate MultiQC report
+    // genome_index_starsolo()                             // Generate genome index (only once)
+    // ref_genome_parse()                                  // Generate reference genome (only once)
+    // mapping_STARsolo(splitting_parse.out, genome_index_starsolo.out)      // Mapping with STARsolo
+    // mapping_PB(splitting_parse.out, ref_genome_parse.out) // Mapping with Parse Biosciences pipeline
+    // saturation(mapping_PB.out)                          // Saturation analysis
 }
 
 
@@ -96,24 +97,23 @@ process download_data {
     tag "${sample_id}"
     
     input:
-    val sample_id
+      val sample_id
 
     output:
-    set val(sample_id), file("${sample_id}_*.fastq.gz") into fastq_files
-
-    publishDir "${params.resDir}/fastq", mode: 'move'  // Use 'move' instead of 'symlink'
+      tuple val(sample_id), path("${sample_id}_*.fastq.gz")
 
     script:
     """
     # Check if FASTQ files already exist
-    if [ -f "${params.resDir}/fastq/${sample_id}_1.fastq.gz" ]; then
+    if [ -f "${params.resDir}/fastq/${sample_id}_R1_001.fastq.gz" ]; then
         echo "FASTQ files for sample ${sample_id} already exist."
-        ln -s "${params.resDir}/fastq/${sample_id}_1.fastq.gz" .
-        ln -s "${params.resDir}/fastq/${sample_id}_2.fastq.gz" .
+        ln -s "${params.resDir}/fastq/${sample_id}_R1_001.fastq.gz" .
+        ln -s "${params.resDir}/fastq/${sample_id}_R2_001.fastq.gz" .
     else
         echo "Downloading data for sample ${sample_id}"
-        prefetch ${sample_id}
-        fastq-dump --split-files --gzip --outdir . ${sample_id}
+        # prefetch ${sample_id}
+        # fastq-dump --split-files --gzip --outdir /${params.resDir}/fastq/ ${sample_id}
+        # ln -s "/${params.resDir}/fastq/" .
     fi
     """
 }
@@ -129,49 +129,46 @@ process download_data {
 // all libraries. 
 // TODO: The unassigned reads are then saved in a separate \\
 // file for manual inspection.                            \\
+// only do this for the parse data                        \\
 process splitting_parse {
     tag "${sample_id}"
     
     input:
-    val sample_id
-    set val(sample_id), file(fastq_files) from fastq_files.filter{ it[0]==sample_id }
+      tuple val(sample_id), path(fastq_files)
 
     output:
-    set val(demux_sample_id), file("*.fastq.gz") into demuxed_fastqs
-
-    publishDir "${params.resDir}/demux_fastq", mode: 'move'
+      tuple val(sample_id), path("*.fastq.gz")
 
     script:
     """
-    # Run the demux code without copying files
-    bash ${params.codeDir}/split_parse_data.sh ${sample_id} \\
-        ${params.resDir}/fastq \\
-        ${params.barcodeDir} \\
-        .
+    # Verify the input files
+    echo "Processing sample ${sample_id}"
+    echo "Input files: ${fastq_files}"
+    ls -lh ${fastq_files}
 
-    # Extract demux_sample_id from the output files
-    demux_sample_id=\$(ls *.fastq.gz | cut -d'_' -f1 | sort | uniq)
-    echo "\${demux_sample_id}" > demux_sample_ids.txt
+    # Run the demux code
+    bash ${params.codeDir}/split_parse_data.sh ${params.resDir} ${sample_id} "${fastq_files}" ${params.barcodeDir} \$PWD
     """
 }
 
 // ==================  FASTQC  ================== \\ 
 // Generate Quality Control reports using FASTQC  \\
 process fastqc {
-    tag "${demux_sample_id}"
+    tag "${sample_id}"
     
     input:
-    set val(demux_sample_id), file(demux_fastq_files) from demuxed_fastqs.groupTuple()
+      tuple val(sample_id), path(splitted_fastqs) 
 
     output:
-    set val(demux_sample_id), file("*_fastqc.*") into fastqc_reports
+      tuple val(sample_id), path("*_fastqc.*")
 
     publishDir "${params.resDir}/fastqc", mode: 'move'
 
     script:
     """
-    echo "Running FastQC for sample ${demux_sample_id}"
-    fastqc ${demux_fastq_files.join(' ')} --outdir .
+    echo "Running FastQC for ${splitted_fastqs}"
+    fastqc ${splitted_fastqs} --outdir .
+    echo ${}
     """
 }
 
@@ -182,10 +179,10 @@ process fastqc {
 // the quality metrics.                             \\
 process multiqc {
     input:
-    file fastqc_reports from fastqc_reports.collect()
+    tuple val(sample_id), path(fastqc_reports)
 
     output:
-    file("multiqc_report.html") into multiqc_report
+    file("multiqc_report.html")
 
     publishDir "${params.resDir}/fastqc", mode: 'move'
     

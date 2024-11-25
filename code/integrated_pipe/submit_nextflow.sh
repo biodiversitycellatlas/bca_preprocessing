@@ -39,8 +39,8 @@ conda activate bca
 # Run the pipeline #
 ####################
 
-#The command uses the arguments passed to this script, e.g:
-nextflow run -ansi-log false "$@" & pid=$! 
+# The command uses the arguments passed to this script, e.g:
+nextflow run -resume -ansi-log false "$@" & pid=$!
 
 # Wait for the pipeline to finish
 echo "Waiting for ${pid}"
