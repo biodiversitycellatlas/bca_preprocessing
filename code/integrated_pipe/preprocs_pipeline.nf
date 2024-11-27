@@ -40,26 +40,61 @@ Folder structure:
 
 ==========================
 TODO list: 
-- assign demux_sample_id
 
-- FIX: Output and Input Files Outside Working Directory:
-    Nextflow expects processes to produce outputs in their working 
-    directories ($PWD during execution). By specifying output files 
-    located outside the working directory (e.g., ${params.resDir}/fastq/), 
-    Nextflow may not be able to track these files properly, leading to 
-    issues with process execution, reproducibility, and caching
+- enable workflow notification -> sends an email upon completion:
+    nextflow run <pipeline name> -N <recipient address>
+- publishDir: , overwrite: false 
+- save files somewhere outside work directory, now all files are symlink to /work/
+
+- check why 1st splitted fastq files are empty for Nvec
+- error calculating sjdboverhang 
+
+==========================
+Help:
+
+To print the output of processes:
+println splitting_parse.out.splitted_files
+
+==========================
+Last run:
+Exp: 240810_ParseBio_Nvec_Tcas
+- Nvec: -
+- Tcas: downloading -> multiqc
+
+Currently running:
+Exp: 240810_ParseBio_Nvec_Tcas
+- Nvec: up until multiqc from start - gzip in split_parse
+- Tcas: (( next up )) resume: trying to fix mkref parse
 
 ------------------------------------------------------------------------------
 */
 
 // Define parameters
+
+// PARSE -- NVEC !!
+// params.dataDir = "/users/asebe/bvanwaardenburg/git/bca_preprocessing/data"
+// params.codeDir = "/users/asebe/bvanwaardenburg/git/bca_preprocessing/code/integrated_pipe"
+// params.barcodeDir = "/users/asebe/bvanwaardenburg/ParseBiosciences-Pipeline.1.3.1/splitpipe/barcodes/"
+// params.experiment = "240810_ParseBio_Nvec_Tcas"
+// params.species = "Nvec"
+// params.seqTech = "parse"
+// params.resDir = "${params.dataDir}/${params.experiment}/${params.species}_testIntegr"
+// params.ref_star_gtf = "${params.resDir}/genome/Nvec_v5_merged_annotation_sort.gtf"
+// params.ref_parse_gtf = "${params.resDir}/genome/Nvec_v4_merged_annotation_parse_sort.gtf"
+// params.ref_fasta = "${params.resDir}/genome/Nvec_vc1.1_gDNA_mtDNA.fasta"
+
+// PARSE -- TCAS !!
 params.dataDir = "/users/asebe/bvanwaardenburg/git/bca_preprocessing/data"
 params.codeDir = "/users/asebe/bvanwaardenburg/git/bca_preprocessing/code/integrated_pipe"
 params.barcodeDir = "/users/asebe/bvanwaardenburg/ParseBiosciences-Pipeline.1.3.1/splitpipe/barcodes/"
-params.folder = "240810_ParseBio_Nvec_Tcas"
-params.species = "Nvec"
+params.experiment = "240810_ParseBio_Nvec_Tcas"
+params.species = "Tcas"
 params.seqTech = "parse"
-params.resDir = "${params.dataDir}/${params.folder}/${params.species}_testIntegr"
+params.resDir = "${params.dataDir}/${params.experiment}/${params.species}"
+params.ref_star_gtf = "${params.resDir}/genome/genomic.gtf"
+params.ref_parse_gtf = "${params.resDir}/genome/genomic.gtf"
+params.ref_fasta = "${params.resDir}/genome/GCF_031307605.1_icTriCast1.1_genomic.fna"
+
 
 // Define channels
 // Read initial sample IDs from accession list
@@ -71,15 +106,30 @@ Channel.fromPath("${params.dataDir}/accession_lists/${params.species}_accessions
 
 // Workflow definition
 workflow {
-    download_data(sample_ids)                           // Download data
-    splitting_parse(download_data.out)                  // Demultiplexing
-    fastqc(splitting_parse.out)                         // Quality control with FastQC
-    // multiqc(fastqc.out)                                 // Generate MultiQC report
-    // genome_index_starsolo()                             // Generate genome index (only once)
-    // ref_genome_parse()                                  // Generate reference genome (only once)
-    // mapping_STARsolo(splitting_parse.out, genome_index_starsolo.out)      // Mapping with STARsolo
-    // mapping_PB(splitting_parse.out, ref_genome_parse.out) // Mapping with Parse Biosciences pipeline
-    // saturation(mapping_PB.out)                          // Saturation analysis
+    download_data(sample_ids)           // Download data
+    splitting_parse(download_data.out)  // Demultiplexing
+    
+    /* Function that retrieves the output from each splitting_parse process 
+       (1 parse sample -> multiple splitted files) and flattens it, 
+       so the next process (fastqc) only gets one file name at a time. */
+    def single_fastqs = splitting_parse.out.splitted_files
+        .flatten()
+        .map { it.toString() }
+    
+    fastqc(single_fastqs)               // Quality control with FastQC 
+    multiqc(fastqc.out.collect())       // Generate MultiQC report - collect(): requires the fastqc step to be finished before proceeding
+    
+    // genome_index_starsolo()          // Generate genome index (only once)
+    ref_genome_parse()               // Generate reference genome (only once)
+    
+//     // Function to handle splitting_parse output
+//     def paired_fastqs = splitting_parse.out.splitted_files
+//         .flatten()
+//         .groupTuple(2) // Group the flattened output into pairs
+
+//     mapping_STARsolo(splitting_parse.out, genome_index_starsolo.out)    // Mapping with STARsolo
+//     mapping_PB(splitting_parse.out, ref_genome_parse.out)               // Mapping with Parse Biosciences pipeline
+//     saturation(mapping_PB.out)                                          // Saturation analysis
 }
 
 
@@ -95,12 +145,13 @@ workflow {
 // the samples during the workflow.                  \\
 process download_data {
     tag "${sample_id}"
+    debug true
     
     input:
-      val sample_id
+    val sample_id
 
     output:
-      tuple val(sample_id), path("${sample_id}_*.fastq.gz")
+    tuple val(sample_id), path("${sample_id}_*.fastq.gz")
 
     script:
     """
@@ -132,12 +183,16 @@ process download_data {
 // only do this for the parse data                        \\
 process splitting_parse {
     tag "${sample_id}"
+    label "big_cpus"
+    publishDir "${params.resDir}/demux_fastq", mode: 'symlink'
+    debug true
+    maxForks 4
     
     input:
-      tuple val(sample_id), path(fastq_files)
+    tuple val(sample_id), path(fastq_files)
 
     output:
-      tuple val(sample_id), path("*.fastq.gz")
+    path("*.fastq.gz"), emit: splitted_files
 
     script:
     """
@@ -147,28 +202,28 @@ process splitting_parse {
     ls -lh ${fastq_files}
 
     # Run the demux code
-    bash ${params.codeDir}/split_parse_data.sh ${params.resDir} ${sample_id} "${fastq_files}" ${params.barcodeDir} \$PWD
+    bash ${params.codeDir}/split_parse_data.sh ${params.resDir} ${sample_id} "${fastq_files}" ${params.barcodeDir} 
     """
 }
 
 // ==================  FASTQC  ================== \\ 
 // Generate Quality Control reports using FASTQC  \\
 process fastqc {
-    tag "${sample_id}"
-    
+    publishDir "${params.resDir}/fastqc", mode: 'symlink'
+    debug true
+
     input:
-      tuple val(sample_id), path(splitted_fastqs) 
+    path(single_fastq)
 
     output:
-      tuple val(sample_id), path("*_fastqc.*")
-
-    publishDir "${params.resDir}/fastqc", mode: 'move'
+    path("*_fastqc.*")
 
     script:
     """
-    echo "Running FastQC for ${splitted_fastqs}"
-    fastqc ${splitted_fastqs} --outdir .
-    echo ${}
+    echo "Running FastQC for ${single_fastq}"
+    echo "Path: ${single_fastq}"
+
+    fastqc ${single_fastq} 
     """
 }
 
@@ -178,18 +233,19 @@ process fastqc {
 // data, including checks which of the files passed \\
 // the quality metrics.                             \\
 process multiqc {
+    publishDir "${params.resDir}/fastqc", mode: 'symlink'
+    debug true
+    
     input:
-    tuple val(sample_id), path(fastqc_reports)
+    path(fastqc_reports)
 
     output:
     file("multiqc_report.html")
 
-    publishDir "${params.resDir}/fastqc", mode: 'move'
-    
     script:
     """
-    echo "Running MultiQC"
-    multiqc . --filename multiqc_report.html
+    echo "Running MultiQC for: ${fastqc_reports.join(' ')}"
+    multiqc ${fastqc_reports.join(' ')} --outdir . --filename multiqc_report.html
     """
 }
 
@@ -198,11 +254,12 @@ process multiqc {
 // Two folders will be created within /genome/,        \\
 // genome_index: contains genome index for STARsolo    \\
 // parse_refgenome: see next process                   \\
-process genome_index_starsolo {
-    publishDir "${params.resDir}/genome/genome_index", mode: 'move'
-        
+process genome_index_starsolo {   
+    publishDir "${params.resDir}/genome/genome_index", mode: 'symlink'
+    debug true
+
     output:
-    file("genome_index/*") into genome_index_files
+    path("*")     
        
     script:
     """
@@ -214,11 +271,9 @@ process genome_index_starsolo {
     sjdb_overhang=\$(zcat "\${first_fastq}" 2>/dev/null | awk 'NR==2 {print length(\$0)-1; exit}' || echo "") 
 
     echo "Generating genome index with STAR"
-    mkdir -p genome_index
     STAR --runMode genomeGenerate \\
-        --genomeDir genome_index \\
-        --genomeFastaFiles ${params.resDir}/genome/Nvec_vc1.1_gDNA_mtDNA.fasta \\
-        --sjdbGTFfile ${params.resDir}/genome/Nvec_v5_merged_annotation_sort.gtf \\
+        --genomeFastaFiles ${params.ref_fasta} \\
+        --sjdbGTFfile ${params.ref_star_gtf} \\
         --sjdbOverhang \${sjdb_overhang} \\
         --genomeSAindexNbases 12
     """
@@ -229,45 +284,41 @@ process genome_index_starsolo {
 // parse_refgenome: contains the reference genome for      \\
 // the Parse Biosciences (split-pipe) pipeline.            \\
 process ref_genome_parse {
-    publishDir "${params.resDir}/genome/parse_refgenome", mode: 'move'
-        
+    publishDir "${params.resDir}/genome/parse_refgenome", mode: 'symlink'
+    debug true
+
     output:
-    file("parse_refgenome/*") into parse_refgenome_files
-       
+    path("*")
+
     script:
     """
-    ref_gtf="${params.resDir}/genome/Nvec_v4_merged_annotation_parse_sort.gtf"
-    ref_fasta="${params.resDir}/genome/Nvec_vc1.1_gDNA_mtDNA.fasta"    
-
-    mkdir -p parse_refgenome
-
     split-pipe -m mkref \\
         --genome_name ${params.species} \\
-        --genes \${ref_gtf} \\
-        --fasta \${ref_fasta} \\
-        --output_dir parse_refgenome
+        --genes ${params.ref_parse_gtf} \\
+        --fasta ${params.ref_fasta} \\
+        --output_dir .
     """
 }
 
+
 // ==================  MAPPING STARSOLO  ================== \\ 
 // Mapping using STARsolo
-process mapping_STARsolo {
-    tag "${demux_sample_id}"
-    
+process mapping_STARsolo {    
+    publishDir "${params.resDir}/mapping_STARsolo/${sample_id}", mode: 'symlink'
+    debug true
+
     input:
-    val demux_sample_id
-    set val(demux_sample_id), file(demux_fastq_files) from demuxed_fastqs.groupTuple()
-    file genome_index_files from genome_index_files.collect()
+    val sample_id
+    val(sample_id), file(demux_fastq_files) 
+    file genome_index_files 
     file config_file from "${params.codeDir}/config_${params.seqTech}_starsolo.txt"
 
     output:
-    set val(demux_sample_id), file("${demux_sample_id}*") into mapping_results
-
-    publishDir "${params.resDir}/mapping_STARsolo/${demux_sample_id}", mode: 'move'
+    val(sample_id), file("${sample_id}*")
 
     script:
     """
-    echo "Mapping sample ${demux_sample_id} with STARsolo"
+    echo "Mapping sample ${sample_id} with STARsolo"
 
     # Read configuration file
     CONFIG_OPTIONS=\$(cat ${config_file})
@@ -276,34 +327,34 @@ process mapping_STARsolo {
     STAR \\
         --genomeDir genome_index_files \\
         --readFilesCommand zcat \\
-        --outFileNamePrefix ${demux_sample_id}_ \\
+        --outFileNamePrefix ${sample_id}_ \\
         --readFilesIn ${demux_fastq_files.join(' ')} \\
         --soloCBwhitelist ${params.barcodeDir} \\
         \${CONFIG_OPTIONS}
 
     # Create the index file
-    samtools index ${demux_sample_id}_Aligned.sortedByCoord.out.bam
+    samtools index ${sample_id}_Aligned.sortedByCoord.out.bam
     """
 }
 
 // ==============  MAPPING PARSE PIPELINE  ============== \\ 
 // Mapping using ParseBiosciences pipeline
 process mapping_PB {
-    tag "${demux_sample_id}"
-    
+    tag "${sample_id}"
+    publishDir "${params.resDir}/mapping_parsepipe/${sample_id}", mode: 'symlink'
+    debug true
+
     input:
-    val demux_sample_id
-    set val(demux_sample_id), file(demux_fastq_files) from demuxed_fastqs.groupTuple()
-    file parse_refgenome_files from parse_refgenome_files.collect()
+    val sample_id
+    path demux_fastq_files
+    path parse_refgenome_files
 
     output:
-    set val(demux_sample_id), file("*") into mapping_PB_results
-
-    publishDir "${params.resDir}/mapping_parsepipe/${demux_sample_id}", mode: 'move'
+    path("*")
 
     script:
     """
-    echo "Mapping sample ${demux_sample_id} with Parse Biosciences pipeline"
+    echo "Mapping sample ${sample_id} with Parse Biosciences pipeline"
 
     # Generate parameter file
     echo "post_min_map_frac 0.01" > config_${params.seqTech}_parsepipe.txt
@@ -320,23 +371,41 @@ process mapping_PB {
 // ========================  SATURATION  ========================= \\ 
 // Creates saturation plots using the tool: 10x_saturate           \\
 process saturation {
-    tag "${demux_sample_id}"
-    
+    publishDir "${params.resDir}/saturation_plots", mode: 'symlink'
+    debug true
+
     input:
-    val demux_sample_id
-    file(mapping_files) from mapping_PB_results.filter{ it[0]==demux_sample_id }.collect()
+    path mapping_files
 
     output:
-    set val(demux_sample_id), file("saturation_${demux_sample_id}.png") into saturation_plots
-
-    publishDir "${params.resDir}/saturation_plots", mode: 'move'
+    file("saturation_plot.png")
 
     script:
     """
-    echo "Running saturation analysis for sample ${demux_sample_id}"
+    echo "Running saturation analysis for sample ${sample_id}"
     10x_saturate \\
         --input ${mapping_files.join(' ')} \\
-        --output saturation_${demux_sample_id}.png
+        --output saturation_${sample_id}.png
     """
 }
 
+
+
+// ==================  RUNTIME INFORMATION  =================== \\ 
+
+workflow.onComplete {
+    summary = """
+        Pipeline execution summary 
+        ---------------------------
+        Completed at: ${workflow.complete} 
+        Duration    : ${workflow.duration} 
+        Success     : ${workflow.success} 
+        workDir     : ${workflow.workDir} 
+        exit status : ${workflow.exitStatus} 
+        """
+    println summary
+}
+
+workflow.onError {
+    println "Error: Pipeline execution stopped with the following message: ${workflow.errorMessage}"
+}
