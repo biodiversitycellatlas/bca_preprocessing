@@ -32,7 +32,7 @@ trap _term TERM
 # Load Environment #
 ####################
 eval "$(conda shell.bash hook)"
-conda activate bca
+conda activate bca_int
 
 
 ####################
@@ -40,7 +40,17 @@ conda activate bca
 ####################
 
 # The command uses the arguments passed to this script, e.g:
-nextflow run -resume -ansi-log false "$@" & pid=$!
+# -resume : 		resumes previous work.
+# -with-report: 	creates execution report, including summary,
+# 			resources and tasks.
+# -with-dag : 		creates a workflow diagram of the pipeline. 
+# 			vertices in the graph represent the pipeline’s 
+#			processes and operators, while the edges represent 
+# 			the data dependencies (i.e. channels) between them.
+# -with-timeline : 	creates execution timeline, displaying the 
+# 			execution-, waiting- and staging times.
+
+nextflow run -resume -with-report -with-dag -with-timeline -ansi-log false "$@" & pid=$!
 
 # Wait for the pipeline to finish
 echo "Waiting for ${pid}"
