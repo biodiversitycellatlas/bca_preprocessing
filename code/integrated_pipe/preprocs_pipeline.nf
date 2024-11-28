@@ -47,7 +47,9 @@ TODO list:
 - save files somewhere outside work directory, now all files are symlink to /work/
 
 - check why 1st splitted fastq files are empty for Nvec
-- error calculating sjdboverhang 
+- ask: why labels not working and how to use arrays/parrelization
+- only do processes under certain conditions (only demultiplexing for parse data etc.)
+- split_parse_data: save unused reads to file and inspect
 
 ==========================
 Help:
@@ -58,18 +60,18 @@ println splitting_parse.out.splitted_files
 ==========================
 Last run:
 Exp: 240810_ParseBio_Nvec_Tcas
-- Nvec: -
-- Tcas: downloading -> multiqc
+- Nvec: downloading -> multiqc (66772b21-a2e5-45e8-acc0-577bc23aab14)
+- Tcas: downloading -> parse index (9c27262f-a3b0-4e1a-a286-c8825afaeb23)
 
 Currently running:
 Exp: 240810_ParseBio_Nvec_Tcas
-- Nvec: up until multiqc from start - gzip in split_parse
-- Tcas: (( next up )) resume: trying to fix mkref parse
+- Nvec: 
+- Tcas: resume: trying to fix starsolo index (jobid: 1975824)
 
 ------------------------------------------------------------------------------
 */
 
-// Define parameters
+// ============== Define CUSTOM parameters ============== \\
 
 // PARSE -- NVEC !!
 // params.dataDir = "/users/asebe/bvanwaardenburg/git/bca_preprocessing/data"
@@ -95,8 +97,11 @@ params.ref_star_gtf = "${params.resDir}/genome/genomic.gtf"
 params.ref_parse_gtf = "${params.resDir}/genome/genomic.gtf"
 params.ref_fasta = "${params.resDir}/genome/GCF_031307605.1_icTriCast1.1_genomic.fna"
 
+// ============== Define BASE parameters ============== \\
+params.star_config = "${params.codeDir}/config_${params.seqTech}_starsolo.txt"
 
-// Define channels
+
+// ====================  Channels ===================== \\
 // Read initial sample IDs from accession list
 Channel.fromPath("${params.dataDir}/accession_lists/${params.species}_accessions.txt")
     .splitText()
@@ -104,7 +109,8 @@ Channel.fromPath("${params.dataDir}/accession_lists/${params.species}_accessions
     .filter { it }
     .set { sample_ids }
 
-// Workflow definition
+
+// ====================  Workflow ===================== \\
 workflow {
     download_data(sample_ids)           // Download data
     splitting_parse(download_data.out)  // Demultiplexing
@@ -116,20 +122,19 @@ workflow {
         .flatten()
         .map { it.toString() }
     
-    fastqc(single_fastqs)               // Quality control with FastQC 
-    multiqc(fastqc.out.collect())       // Generate MultiQC report - collect(): requires the fastqc step to be finished before proceeding
-    
-    // genome_index_starsolo()          // Generate genome index (only once)
+    fastqc(single_fastqs)            // Quality control with FastQC 
+    multiqc(fastqc.out.collect())    // Generate MultiQC report - collect(): requires the fastqc step to be finished before proceeding
+    genome_index_starsolo()          // Generate genome index (only once)
     ref_genome_parse()               // Generate reference genome (only once)
     
-//     // Function to handle splitting_parse output
-//     def paired_fastqs = splitting_parse.out.splitted_files
-//         .flatten()
-//         .groupTuple(2) // Group the flattened output into pairs
+    // Function to handle splitting_parse output
+    def paired_fastqs = splitting_parse.out.splitted_files
+        .flatten()
+        .collate(2) // Group the flattened output into pairs
 
-//     mapping_STARsolo(splitting_parse.out, genome_index_starsolo.out)    // Mapping with STARsolo
-//     mapping_PB(splitting_parse.out, ref_genome_parse.out)               // Mapping with Parse Biosciences pipeline
-//     saturation(mapping_PB.out)                                          // Saturation analysis
+    mapping_STARsolo(paired_fastqs, genome_index_starsolo.out)    // Mapping with STARsolo
+//     mapping_PB(paired_fastqs, ref_genome_parse.out)               // Mapping with Parse Biosciences pipeline
+//     saturation(mapping_STARsolo.out)                                          // Saturation analysis
 }
 
 
@@ -178,9 +183,6 @@ process download_data {
 // the samples are linked to the barcodes, and splitted   \\
 // into n seperate fastq's. This step is repeated for     \\
 // all libraries. 
-// TODO: The unassigned reads are then saved in a separate \\
-// file for manual inspection.                            \\
-// only do this for the parse data                        \\
 process splitting_parse {
     tag "${sample_id}"
     label "big_cpus"
@@ -265,16 +267,21 @@ process genome_index_starsolo {
     """
     # Retrieve the first accession number
     first_accs=\$(head -1 ${params.dataDir}/accession_lists/${params.species}_accessions.txt)
-    first_fastq="${params.resDir}/fastq/\${first_accs}_1.fastq.gz"  
+    first_fastq="${params.resDir}/fastq/\${first_accs}*1*.fastq.gz"  
+
+    echo "\${first_accs}"
+    echo "\${first_fastq}"
 
     # Calculate SJDB overhang using the first read from the first fastq file
-    sjdb_overhang=\$(zcat "\${first_fastq}" 2>/dev/null | awk 'NR==2 {print length(\$0)-1; exit}' || echo "") 
+    sjdb_overhang=\$(zcat \${first_fastq} 2>/dev/null | awk 'NR==2 {print length(\$0)-1; exit}' || echo "") 
+
+    echo "\${sjdb_overhang}"
 
     echo "Generating genome index with STAR"
     STAR --runMode genomeGenerate \\
         --genomeFastaFiles ${params.ref_fasta} \\
         --sjdbGTFfile ${params.ref_star_gtf} \\
-        --sjdbOverhang \${sjdb_overhang} \\
+        --sjdbOverhang "\${sjdb_overhang}" \\
         --genomeSAindexNbases 12
     """
 }
@@ -306,22 +313,22 @@ process ref_genome_parse {
 process mapping_STARsolo {    
     publishDir "${params.resDir}/mapping_STARsolo/${sample_id}", mode: 'symlink'
     debug true
+    label "big_mem"
 
     input:
-    val sample_id
-    val(sample_id), file(demux_fastq_files) 
-    file genome_index_files 
-    file config_file from "${params.codeDir}/config_${params.seqTech}_starsolo.txt"
+    tuple val(sample_id), path(demux_fastq_files)
+    path genome_index_files
 
     output:
-    val(sample_id), file("${sample_id}*")
+    path("*")
 
     script:
     """
     echo "Mapping sample ${sample_id} with STARsolo"
+    echo "Files: ${demux_fastq_files}"
 
     # Read configuration file
-    CONFIG_OPTIONS=\$(cat ${config_file})
+    CONFIG_OPTIONS=\$(cat ${params.star_config})
 
     # Mapping step and generating count matrix using STAR
     STAR \\
@@ -343,6 +350,7 @@ process mapping_PB {
     tag "${sample_id}"
     publishDir "${params.resDir}/mapping_parsepipe/${sample_id}", mode: 'symlink'
     debug true
+    label "big_mem"
 
     input:
     val sample_id
@@ -382,7 +390,7 @@ process saturation {
 
     script:
     """
-    echo "Running saturation analysis for sample ${sample_id}"
+    echo "Running saturation analysis for ${mapping_files}"
     10x_saturate \\
         --input ${mapping_files.join(' ')} \\
         --output saturation_${sample_id}.png
