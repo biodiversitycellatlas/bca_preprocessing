@@ -2,7 +2,7 @@
 #SBATCH --output=/users/asebe/bvanwaardenburg/git/bca_preprocessing/logs/%x.%j.out
 #SBATCH --error=/users/asebe/bvanwaardenburg/git/bca_preprocessing/logs/%x.%j.err
 #SBATCH --no-requeue
-#SBATCH --mem 6G
+#SBATCH --mem 20G
 #SBATCH -p genoa64
 #SBATCH --qos pipelines
 #SBATCH --job-name nextflow_pipeline
@@ -50,7 +50,11 @@ conda activate bca_int
 # -with-timeline : 	creates execution timeline, displaying the 
 # 			execution-, waiting- and staging times.
 
-nextflow run -resume -with-report -with-dag -with-timeline -ansi-log false "$@" & pid=$!
+# nvec
+# nextflow run -resume 66772b21-a2e5-45e8-acc0-577bc23aab14 -with-report -with-dag -with-timeline -ansi-log false "$@" & pid=$!
+
+# tcas 
+nextflow run -resume 9c27262f-a3b0-4e1a-a286-c8825afaeb23 -with-report -with-dag -with-timeline -ansi-log false "$@" & pid=$!
 
 # Wait for the pipeline to finish
 echo "Waiting for ${pid}"
