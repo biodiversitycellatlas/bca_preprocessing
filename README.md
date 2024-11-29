@@ -27,13 +27,14 @@ You might get the following error during execution of the previous steps, here's
 conda install anaconda::pip=23.3.1 
 ```
 
--     Failed building wheel for louvain
+- Failed building wheel for louvain
 ```
 conda install -c conda-forge python-igraph 
 pip install cmake 
 ```
 
 - AttributeError: module 'numpy' has no attribute 'NAN'. Did you mean: 'nan'? 
+
 In the file 'utils.py', in line 'def report_percent_str(num, den=1, round_to=2, zero=np.NAN, perchar=True): ' replace NAN by nan. After saving, rerun:
 ```
 pip install . --no-cache-dir 
