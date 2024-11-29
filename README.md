@@ -45,12 +45,21 @@ To test if the installation of split-pipe was successful:
 split-pipe -h 
 ```
 
-#### 10x_saturation
+#### 10x_saturate
 ```
+git clone https://github.com/zolotarovgl/10x_saturate.git
 ```
 
 #### GeneExt
 ```
+# clone repository
+git clone https://github.com/sebepedroslab/GeneExt.git
+
+# create environment
+conda env create -n geneext -f environment.yaml
+
+# activate environment
+conda activate geneext
 ```
 
 ### Library structure
