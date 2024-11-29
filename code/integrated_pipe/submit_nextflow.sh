@@ -26,13 +26,6 @@ _term() {
 }
  
 trap _term TERM
- 
-
-####################
-# Load Environment #
-####################
-eval "$(conda shell.bash hook)"
-conda activate bca_int
 
 
 ####################
@@ -50,11 +43,14 @@ conda activate bca_int
 # -with-timeline : 	creates execution timeline, displaying the 
 # 			execution-, waiting- and staging times.
 
-# nvec
+# nvec - parse
 # nextflow run -resume 66772b21-a2e5-45e8-acc0-577bc23aab14 -with-report -with-dag -with-timeline -ansi-log false "$@" & pid=$!
 
-# tcas 
-nextflow run -resume 9c27262f-a3b0-4e1a-a286-c8825afaeb23 -with-report -with-dag -with-timeline -ansi-log false "$@" & pid=$!
+# tcas - parse
+# nextflow run -resume 245b71e5-9a04-443e-bcd2-ec69b0f8fa81 -with-report -with-dag -with-timeline -ansi-log false "$@" & pid=$!
+
+# nvec - bd_rhapsody
+nextflow run -resume 95f03e0c-531b-4296-8f0a-d6cd899923b5 -with-report -with-dag -with-timeline -ansi-log false "$@" & pid=$!
 
 # Wait for the pipeline to finish
 echo "Waiting for ${pid}"
