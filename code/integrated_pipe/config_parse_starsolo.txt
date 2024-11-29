@@ -1,0 +1,9 @@
+--soloType CB_UMI_Complex \
+--soloCBposition 0_50_0_57 0_30_0_37 0_10_0_17 \
+--soloUMIposition 0_0_0_9 \
+--soloCBmatchWLtype 1MM \
+--soloCellFilter EmptyDrops_CR \
+--soloStrand Forward \
+--outSAMattributes CR UR CB UB \
+--outSAMunmapped Within KeepPairs \
+--soloFeatures Gene GeneFull

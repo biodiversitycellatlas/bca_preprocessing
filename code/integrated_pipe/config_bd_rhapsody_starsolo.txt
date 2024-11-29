@@ -1,0 +1,10 @@
+--soloType CB_UMI_Complex \
+--soloAdapterSequence NNNNNNNNNGTGANNNNNNNNNGACA \
+--soloCBmatchWLtype EditDist_2 \
+--soloCBposition 2_0_2_8 2_13_2_21 3_1_3_9 \
+--soloUMIposition 3_10_3_17 \
+--soloCellFilter EmptyDrops_CR \
+--soloStrand Forward \
+--outSAMattributes CR UR CB UB \
+--outSAMunmapped Within KeepPairs \
+--soloFeatures Gene GeneFull
