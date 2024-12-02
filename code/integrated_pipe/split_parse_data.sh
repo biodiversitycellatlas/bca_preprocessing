@@ -5,28 +5,13 @@
 ####################
 res_dir=$1
 sample_id=$2
-fastq_files=($3) 	# converted to an array for splicing read names
-barcode_path=$4		# directory with the barcode files for each round
-
-echo "============================"
-echo "res_dir: ${res_dir}"
-echo "sample_id: ${sample_id}"
-echo "fastq_files: ${fastq_files}"
-echo "barcode_path: ${barcode_path}"
-echo "output_dir: "
-echo "============================"
-
-# retrieve FASTQ file names from array
-read_1=${fastq_files[0]}
-read_2=${fastq_files[1]}
+read_1=$3
+read_2=$4
+barcode_path=$5		
 
 echo "read 1: ${read_1}"
 echo "read 2: ${read_2}"
-
-# selects the barcode files (for chemistry v3!!!)
-bc_1="${barcode_path}/bc_data_n26_R1_v3_4.csv"
-bc_2="${barcode_path}/bc_data_v1.csv"
-bc_3="${barcode_path}/bc_data_R3_v3.csv"
+echo "barcode file: ${barcode_path}"
 
 # checks which sample_wells file to use depending on the name 
 sample_num=$( echo ${sample_id} | grep -oP '(?<=BCA00)\d' | head -1 )
@@ -53,7 +38,7 @@ do
   num_wells=$( echo ${wells} | sed 's/[A-Za-z]//g' )
   echo "${name}: ${num_wells}"
   
-  barcodes_r1=$( cat ${bc_1} | grep -E ",A[${num_wells}]," | awk -F ',' '{print $2}' | sed ':a;N;$!ba;s/\n/\|/g' )
+  barcodes_r1=$( cat ${barcode_path} | grep -E ",A[${num_wells}]," | awk -F ',' '{print $2}' | sed ':a;N;$!ba;s/\n/\|/g' )
   echo "barcodes matched: ${barcodes_r1}"
 
   # Step 1: Select sequences matching the barcodes and write to file
