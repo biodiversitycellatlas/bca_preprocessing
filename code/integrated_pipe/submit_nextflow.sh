@@ -44,13 +44,13 @@ trap _term TERM
 # 			execution-, waiting- and staging times.
 
 # nvec - parse
-# nextflow run -resume 66772b21-a2e5-45e8-acc0-577bc23aab14 -with-report -with-dag -with-timeline -ansi-log false "$@" & pid=$!
+# nextflow run -with-report -with-dag -with-timeline -ansi-log false "$@" & pid=$!
 
 # tcas - parse
-# nextflow run -resume 245b71e5-9a04-443e-bcd2-ec69b0f8fa81 -with-report -with-dag -with-timeline -ansi-log false "$@" & pid=$!
+nextflow run -resume 2fee931e-063f-4b8a-9ea2-6aa39c3641a3 -with-report -with-dag -with-timeline -ansi-log false "$@" & pid=$!
 
 # nvec - bd_rhapsody
-nextflow run -resume 95f03e0c-531b-4296-8f0a-d6cd899923b5 -with-report -with-dag -with-timeline -ansi-log false "$@" & pid=$!
+# nextflow run -resume a373b83b-b4de-4e25-908b-75506019f904 -with-report -with-dag -with-timeline -ansi-log false "$@" & pid=$!
 
 # Wait for the pipeline to finish
 echo "Waiting for ${pid}"
