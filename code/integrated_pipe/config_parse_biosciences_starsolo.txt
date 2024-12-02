@@ -4,6 +4,5 @@
 --soloCBmatchWLtype 1MM \
 --soloCellFilter EmptyDrops_CR \
 --soloStrand Forward \
---outSAMattributes CR UR CB UB \
 --outSAMunmapped Within KeepPairs \
 --soloFeatures Gene GeneFull
