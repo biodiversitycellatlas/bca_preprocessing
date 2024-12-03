@@ -47,10 +47,10 @@ trap _term TERM
 # nextflow run -with-report -with-dag -with-timeline -ansi-log false "$@" & pid=$!
 
 # tcas - parse
-nextflow run -resume 2fee931e-063f-4b8a-9ea2-6aa39c3641a3 -with-report -with-dag -with-timeline -ansi-log false "$@" & pid=$!
+nextflow run -with-report -with-dag -with-timeline -ansi-log false "$@" & pid=$!
 
 # nvec - bd_rhapsody
-# nextflow run -resume a373b83b-b4de-4e25-908b-75506019f904 -with-report -with-dag -with-timeline -ansi-log false "$@" & pid=$!
+# nextflow run -with-report -with-dag -with-timeline -ansi-log false "$@" & pid=$!
 
 # Wait for the pipeline to finish
 echo "Waiting for ${pid}"
