@@ -2,7 +2,7 @@
 
 process DOUBLET_DET {
     publishDir "${params.resDir}/doublets", mode: 'symlink'
-    conda '../ext_programs/souporcell/souporcell_env.yaml'
+    conda '${params.codeDir}/ext_programs/souporcell/souporcell_env.yaml'
     debug true
 
     input:
@@ -14,7 +14,7 @@ process DOUBLET_DET {
     echo "BAM filepath: ${mapping_files}"
     echo "BAM file: ${mapping_files}/*.bam"
     
-    ../ext_programs/souporcell/souporcell_pipeline.py \\
+    ${params.codeDir}/ext_programs/souporcell/souporcell_pipeline.py \\
         --bam ${mapping_files}/*.bam \\
         --barcodes ${params.barcodeDoublet} \\
         --fasta ${params.ref_fasta} \\

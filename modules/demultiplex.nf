@@ -32,7 +32,7 @@ process DEMULTIPLEX {
     echo "FQ 2: ${r2_fastq ?: 'Not provided'}"
 
     # Run the demux code
-    bash ${params.codeDir}/split_parse_data.sh ${params.resDir} ${sample_id} ${r1_fastq} ${r2_fastq} ${params.barcodeDemux}
+    bash ${params.codeDir}/scripts/split_parse_data.sh ${params.resDir} ${sample_id} ${r1_fastq} ${r2_fastq} ${params.barcodeDemux}
     """
 }
 
