@@ -4,3 +4,6 @@
 [submodule "ext_programs/GeneExt"]
 	path = ext_programs/GeneExt
 	url = https://github.com/sebepedroslab/GeneExt.git
+[submodule "ext_programs/souporcell"]
+	path = ext_programs/souporcell
+	url = https://github.com/wheaton5/souporcell.git
