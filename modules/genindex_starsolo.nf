@@ -9,7 +9,7 @@ process GENINDEX_STARSOLO {
     debug true
 
     input:
-    file(ref_star_gtf)
+    path(ref_star_gtf)
 
     output:
     path("*")     
