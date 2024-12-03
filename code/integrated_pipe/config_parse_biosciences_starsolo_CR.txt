@@ -1,0 +1,10 @@
+--genomeSAsparseD 3
+--soloCBmatchWLtype 1MM_multi_Nbase_pseudocounts 
+--soloUMIfiltering MultiGeneUMI_CR 
+--soloUMIdedup 1MM_CR
+--soloType CB_UMI_Complex 
+--soloCBposition 0_50_0_57 0_30_0_37 0_10_0_17 
+--soloUMIposition 0_0_0_9 
+--soloStrand Forward 
+--outSAMunmapped Within KeepPairs 
+--soloFeatures Gene GeneFull
