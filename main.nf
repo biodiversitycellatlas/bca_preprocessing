@@ -55,63 +55,6 @@ Exp: 241106_BD_Rhapsody_Nvec
 ------------------------------------------------------------------------------
 */
 
-// ============== Define CUSTOM parameters ============== \\
-
-// PARSE -- NVEC !!
-// params.experiment = "240810_ParseBio_Nvec_Tcas"
-// params.species = "Nvec"
-// params.seqTech = "parse_biosciences"
-// params.dataDir = "/users/asebe/bvanwaardenburg/git/bca_preprocessing/data"
-// params.resDir = "${params.dataDir}/${params.experiment}/${params.species}_testIntegr"
-// params.ref_star_gtf = "${params.resDir}/genome/Nvec_v5_merged_annotation_sort.gtf"
-// params.ref_parse_gtf = "${params.resDir}/genome/Nvec_v4_merged_annotation_parse_sort.gtf"
-// params.ref_fasta = "${params.resDir}/genome/Nvec_vc1.1_gDNA_mtDNA.fasta"
-
-// params.barcodeDir = "${params.baseDir}/seq_techniques/${params.seqTech}/bc_data_n26_R1_v3_4 \
-//                      ${params.baseDir}/seq_techniques/${params.seqTech}/bc_data_v1 \
-//                      ${params.baseDir}/seq_techniques/${params.seqTech}/bc_data_R3_v3"
-
-
-// PARSE -- TCAS !!
-params.outDir = "240810_ParseBio_Nvec_Tcas/Tcas"
-params.seqTech = "parse_biosciences"
-params.dataDir = "/users/asebe/bvanwaardenburg/git/data"
-params.accessions = "/users/asebe/bvanwaardenburg/git/data/accession_lists/Tcas_parse_biosciences_accessions.txt" // optional
-params.ref_star_gtf = "/users/asebe/bvanwaardenburg/git/data/240810_ParseBio_Nvec_Tcas/Tcas/genome/genomic.gtf"
-params.ref_parse_gtf = "/users/asebe/bvanwaardenburg/git/data/240810_ParseBio_Nvec_Tcas/Tcas/genome/genomic.gtf" // optional, otherwise state same file
-params.ref_fasta = "/users/asebe/bvanwaardenburg/git/data/240810_ParseBio_Nvec_Tcas/Tcas/genome/GCF_031307605.1_icTriCast1.1_genomic.fna"
-
-// should be optional, if not given check for sequencing technique and automatically use them
-params.barcodeDemux = "./seq_techniques/${params.seqTech}/bc_data_n26_R1_v3_4.csv"
-params.barcodeDir = "./seq_techniques/${params.seqTech}/bc_data_n26_R1_v3_4 \
-                     ./seq_techniques/${params.seqTech}/bc_data_v1 \
-                     ./seq_techniques/${params.seqTech}/bc_data_R3_v3"
-
-// BD RHAPSODY -- NVEC !!
-// params.experiment = "241106_BD_Rhapsody_Nvec"
-// params.species = "Nvec"
-// params.seqTech = "bd_rhapsody"
-// params.resDir = "${params.dataDir}/${params.experiment}"
-// params.ref_star_gtf = "${params.resDir}/genome/Nvec_v5_merged_annotation_sort.gtf"
-// params.ref_parse_gtf = "${params.resDir}/genome/Nvec_v4_merged_annotation_parse_sort.gtf"
-// params.ref_fasta = "${params.resDir}/genome/Nvec_vc1.1_gDNA_mtDNA.fasta"
-
-// params.barcodeDir = "./seq_techniques/${params.seqTech}/BD_CLS1.txt \
-//                      ./seq_techniques/${params.seqTech}/BD_CLS2.txt \
-//                      ./seq_techniques/${params.seqTech}/BD_CLS3.txt"
-
-
-
-// ============== DEFINE BASE PARAMETERS ============== \\
-params.resDir = "${params.dataDir}/${params.outDir}_Integr" 
-
-params.star_config = "./seq_techniques/${params.seqTech}/config_${params.seqTech}_starsolo.txt"
-params.star_config_CR = "./seq_techniques/${params.seqTech}/config_${params.seqTech}_starsolo_CR.txt"
-params.star_config_CRED = "./seq_techniques/${params.seqTech}/config_${params.seqTech}_starsolo_CRED.txt"
-
-params.barcodeDoublet = params.barcodeDir.split()[0]  // should be a tsv file (or 1 column with barcodes)
-
-
 // ====================  CHANNELS ===================== \\
 // Read initial sample IDs from accession list
 Channel.fromPath("${params.accessions}")
@@ -121,15 +64,15 @@ Channel.fromPath("${params.accessions}")
     .set { sample_ids }
 
 
-// ================= IMPORT WORKFLOWS ================ \\
+// ================= IMPORTS ================ \\
 include { parse_workflow } from './workflows/parse_workflow'
 include { bd_rhapsody_workflow } from './workflows/bd_rhapsody_workflow'
 
 // Import processes
 include { FASTQC } from './modules/fastqc'
 include { MULTIQC } from './modules/multiqc'
-include { GENINDEX_STARSOLO } from './modules/genindex_starsolo'
-include { REINDEX_STARSOLO } from './modules/genindex_starsolo'
+include { GENINDEX_STARSOLO as GENINDEX_STARSOLO } from './modules/genindex_starsolo'
+include { GENINDEX_STARSOLO as REINDEX_STARSOLO } from './modules/genindex_starsolo'
 include { MAPPING_STARSOLO as MAPPING_STARSOLO_N } from './modules/mapping_starsolo'
 include { MAPPING_STARSOLO as MAPPING_STARSOLO_CR } from './modules/mapping_starsolo'
 include { MAPPING_STARSOLO as MAPPING_STARSOLO_CRGE } from './modules/mapping_starsolo'
@@ -190,7 +133,6 @@ workflow {
 
 
 // ==================  RUNTIME INFORMATION  =================== \\ 
-
 workflow.onComplete {
     summary = """
         Pipeline execution summary 
