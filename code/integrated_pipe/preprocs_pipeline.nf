@@ -54,61 +54,69 @@ Exp: 241106_BD_Rhapsody_Nvec
 */
 
 // ============== Define CUSTOM parameters ============== \\
+params.baseDir = "/users/asebe/bvanwaardenburg/git/bca_preprocessing" // Path to package location
+params.codeDir = "${params.baseDir}/code/integrated_pipe"
+params.ext_packgs = "${params.baseDir}/ext_programs"
+
 
 // PARSE -- NVEC !!
 // params.experiment = "240810_ParseBio_Nvec_Tcas"
 // params.species = "Nvec"
 // params.seqTech = "parse_biosciences"
 // params.dataDir = "/users/asebe/bvanwaardenburg/git/bca_preprocessing/data"
-// params.codeDir = "/users/asebe/bvanwaardenburg/git/bca_preprocessing/code/integrated_pipe"
-// params.barcodeDir = "${params.baseDir}/bca_preprocessing/seq_techniques/${params.seqTech}/bc_data_n26_R1_v3_4 \
-//                      ${params.baseDir}/bca_preprocessing/seq_techniques/${params.seqTech}/bc_data_v1 \
-//                      ${params.baseDir}/bca_preprocessing/seq_techniques/${params.seqTech}/bc_data_R3_v3"
 // params.resDir = "${params.dataDir}/${params.experiment}/${params.species}_testIntegr"
 // params.ref_star_gtf = "${params.resDir}/genome/Nvec_v5_merged_annotation_sort.gtf"
 // params.ref_parse_gtf = "${params.resDir}/genome/Nvec_v4_merged_annotation_parse_sort.gtf"
 // params.ref_fasta = "${params.resDir}/genome/Nvec_vc1.1_gDNA_mtDNA.fasta"
 
+// params.barcodeDir = "${params.baseDir}/seq_techniques/${params.seqTech}/bc_data_n26_R1_v3_4 \
+//                      ${params.baseDir}/seq_techniques/${params.seqTech}/bc_data_v1 \
+//                      ${params.baseDir}/seq_techniques/${params.seqTech}/bc_data_R3_v3"
+
+
 // PARSE -- TCAS !!
-params.experiment = "240810_ParseBio_Nvec_Tcas"
-params.species = "Tcas"
+params.outDir = "240810_ParseBio_Nvec_Tcas/Tcas"
 params.seqTech = "parse_biosciences"
-params.baseDir = "/users/asebe/bvanwaardenburg/git/"
 params.dataDir = "/users/asebe/bvanwaardenburg/git/bca_preprocessing/data"
-params.codeDir = "/users/asebe/bvanwaardenburg/git/bca_preprocessing/code/integrated_pipe"
-params.barcodeDemux = "${params.baseDir}/bca_preprocessing/seq_techniques/${params.seqTech}/bc_data_n26_R1_v3_4.csv"
-params.barcodeDir = "${params.baseDir}/bca_preprocessing/seq_techniques/${params.seqTech}/bc_data_n26_R1_v3_4 \
-                     ${params.baseDir}/bca_preprocessing/seq_techniques/${params.seqTech}/bc_data_v1 \
-                     ${params.baseDir}/bca_preprocessing/seq_techniques/${params.seqTech}/bc_data_R3_v3"
-params.resDir = "${params.dataDir}/${params.experiment}/${params.species}"
-params.ref_star_gtf = "${params.resDir}/genome/genomic.gtf"
-params.ref_parse_gtf = "${params.resDir}/genome/genomic.gtf"
-params.ref_fasta = "${params.resDir}/genome/GCF_031307605.1_icTriCast1.1_genomic.fna"
+params.accessions = "/users/asebe/bvanwaardenburg/git/bca_preprocessing/data/accession_lists/Tcas_parse_biosciences_accessions.txt" // optional
+params.ref_star_gtf = "/users/asebe/bvanwaardenburg/git/bca_preprocessing/data/240810_ParseBio_Nvec_Tcas/Tcas/genome/genomic.gtf"
+params.ref_parse_gtf = "/users/asebe/bvanwaardenburg/git/bca_preprocessing/data/240810_ParseBio_Nvec_Tcas/Tcas/genome/genomic.gtf" // optional, otherwise state same file
+params.ref_fasta = "/users/asebe/bvanwaardenburg/git/bca_preprocessing/data/240810_ParseBio_Nvec_Tcas/Tcas/genome/GCF_031307605.1_icTriCast1.1_genomic.fna"
+
+// should be optional, if not given check for sequencing technique and automatically use them
+params.barcodeDemux = "${params.baseDir}/seq_techniques/${params.seqTech}/bc_data_n26_R1_v3_4.csv"
+params.barcodeDir = "${params.baseDir}/seq_techniques/${params.seqTech}/bc_data_n26_R1_v3_4 \
+                     ${params.baseDir}/seq_techniques/${params.seqTech}/bc_data_v1 \
+                     ${params.baseDir}/seq_techniques/${params.seqTech}/bc_data_R3_v3"
 
 // BD RHAPSODY -- NVEC !!
 // params.experiment = "241106_BD_Rhapsody_Nvec"
 // params.species = "Nvec"
 // params.seqTech = "bd_rhapsody"
-// params.baseDir = "/users/asebe/bvanwaardenburg/git/"
-// params.dataDir = "/users/asebe/bvanwaardenburg/git/bca_preprocessing/data"
-// params.codeDir = "/users/asebe/bvanwaardenburg/git/bca_preprocessing/code/integrated_pipe"
-// params.barcodeDir = "${params.baseDir}/bca_preprocessing/seq_techniques/${params.seqTech}/BD_CLS1.txt \
-//                         ${params.baseDir}/bca_preprocessing/seq_techniques/${params.seqTech}/BD_CLS2.txt \
-//                         ${params.baseDir}/bca_preprocessing/seq_techniques/${params.seqTech}/BD_CLS3.txt"
 // params.resDir = "${params.dataDir}/${params.experiment}"
 // params.ref_star_gtf = "${params.resDir}/genome/Nvec_v5_merged_annotation_sort.gtf"
 // params.ref_parse_gtf = "${params.resDir}/genome/Nvec_v4_merged_annotation_parse_sort.gtf"
 // params.ref_fasta = "${params.resDir}/genome/Nvec_vc1.1_gDNA_mtDNA.fasta"
 
+// params.barcodeDir = "${params.baseDir}/seq_techniques/${params.seqTech}/BD_CLS1.txt \
+//                         ${params.baseDir}/seq_techniques/${params.seqTech}/BD_CLS2.txt \
+//                         ${params.baseDir}/seq_techniques/${params.seqTech}/BD_CLS3.txt"
+
+
 
 // ============== DEFINE BASE PARAMETERS ============== \\
+params.resDir = "${params.dataDir}/${params.outDir}" 
+
 params.star_config = "${params.codeDir}/config_${params.seqTech}_starsolo.txt"
-params.saturationPath = "/users/asebe/bvanwaardenburg/git/10x_saturate"
+params.star_config_CR = "${params.codeDir}/config_${params.seqTech}_starsolo_CR.txt"
+params.star_config_CRED = "${params.codeDir}/config_${params.seqTech}_starsolo_CRED.txt"
+
+params.barcodeDoublet = params.barcodeDir.split()[0]  // should be a tsv file (or 1 column with barcodes)
 
 
 // ====================  CHANNELS ===================== \\
 // Read initial sample IDs from accession list
-Channel.fromPath("${params.dataDir}/accession_lists/${params.species}_${params.seqTech}_accessions.txt")
+Channel.fromPath("${params.accessions}")
     .splitText()
     .map { it.trim() }
     .filter { it }
@@ -138,22 +146,11 @@ workflow parse_workflow {
     main:
         DOWNLOAD_DATA(sample_ids)
         DEMULTIPLEX(DOWNLOAD_DATA.out)
-        FASTQC(DEMULTIPLEX.out.splitted_files)
-        MULTIQC(FASTQC.out.collect())
         
-        GENINDEX_STARSOLO()
         REFGEN_PARSEBIO()
-
-        // def mapping_input = DEMULTIPLEX.out.splitted_files
-        // .map { sample_id, fastq_files -> 
-        //     [sample_id, fastq_files.join(' ')]
-        // }
-        star_config = file(params.star_config)
-        MAPPING_STARSOLO(DEMULTIPLEX.out.splitted_files, GENINDEX_STARSOLO.out, star_config)
         MAPPING_PARSEBIO(DEMULTIPLEX.out.splitted_files, REFGEN_PARSEBIO.out)
-        INDEX_BAM(MAPPING_STARSOLO.out)
     emit:
-        MAPPING_STARSOLO.out
+        DEMULTIPLEX.out.splitted_files
 }
 
 // ===================  BD Rhapsody ================  \\ 
@@ -164,20 +161,9 @@ workflow bd_rhapsody_workflow {
     take:
         sample_ids
     main:
-        DOWNLOAD_DATA(sample_ids)
-        FASTQC(DOWNLOAD_DATA.out)
-        MULTIQC(FASTQC.out.collect())
-        GENINDEX_STARSOLO()
-        
-        // def mapping_input = DOWNLOAD_DATA.out
-        // .map { sample_id, fastq_files -> 
-        //     [sample_id, fastq_files.join(' ')]
-        // }
-        star_config = file(params.star_config)
-        MAPPING_STARSOLO(DOWNLOAD_DATA.out, GENINDEX_STARSOLO.out, star_config)
-        INDEX_BAM(MAPPING_STARSOLO.out)
+        DOWNLOAD_DATA(sample_ids)        
     emit:
-        MAPPING_STARSOLO.out
+        DOWNLOAD_DATA.out
 }
 
 // =================  MAIN WORKFLOW  ================= \\ 
@@ -187,20 +173,42 @@ workflow bd_rhapsody_workflow {
 // downstream processes, which are identical for all   \\
 // techniques.                                         \\
 workflow {
-    // 
     if (params.seqTech == 'parse_biosciences') {
         parse_workflow(sample_ids)
-        mapping_output = parse_workflow.out
+        data_output = parse_workflow.out
     } else if (params.seqTech == 'bd_rhapsody') {
         bd_rhapsody_workflow(sample_ids)
-        mapping_output = bd_rhapsody_workflow.out
+        data_output = bd_rhapsody_workflow.out
     } else {
-        error "Invalid sequencing technology specified. Use 'parse' or 'starsolo'."
+        error "Invalid sequencing technology specified. Use 'parse_biosciences' or 'bd_rhapsody'."
     }
+    
+    // Quality Control
+    FASTQC(data_output)
+    MULTIQC(FASTQC.out.collect())
 
-    // Downstream processes
-    SATURATION(mapping_output)
-    GENE_EXT(mapping_output)
+    // Mapping STARsolo
+    GENINDEX_STARSOLO(params.ref_star_gtf)
+
+    // Mapping: standard configuration
+    MAPPING_STARSOLO_N(data_output, GENINDEX_STARSOLO.out, file(params.star_config), 'N')
+    SATURATION(MAPPING_STARSOLO_N.out)
+
+    // Mapping: CR-like
+    MAPPING_STARSOLO_CR(data_output, GENINDEX_STARSOLO.out, file(params.star_config_CRED), 'CR')
+    SATURATION(MAPPING_STARSOLO_CR.out)
+
+    // Mapping: CR-like + Gene extension
+    MAPPING_STARSOLO_CRGE(data_output, GENINDEX_STARSOLO.out, file(params.star_config_CR), 'CRGE')
+    GENE_EXT(MAPPING_STARSOLO_CRGE.out)
+    GENINDEX_STARSOLO(GENE_EXT.out)
+    REMAPPING_STARSOLO(data_output, GENINDEX_STARSOLO.out, file(params.star_config_CRED), 'remappedCRGE')
+    remapped_output = REMAPPING_STARSOLO.out
+    SATURATION(remapped_output)
+
+    // Downstream processes (continuing with config 3)
+    INDEX_BAM(remapped_output)
+    DOUBLET_DET(remapped_output)
 }
 
 
@@ -333,6 +341,9 @@ process GENINDEX_STARSOLO {
     publishDir "${params.resDir}/genome/genome_index", mode: 'symlink'
     debug true
 
+    input:
+    file(ref_star_gtf)
+
     output:
     path("*")     
        
@@ -354,7 +365,7 @@ process GENINDEX_STARSOLO {
     echo "Generating genome index with STAR"
     STAR --runMode genomeGenerate \\
         --genomeFastaFiles ${params.ref_fasta} \\
-        --sjdbGTFfile ${params.ref_star_gtf} \\
+        --sjdbGTFfile ${ref_star_gtf} \\
         --sjdbOverhang "\${sjdb_overhang}" \\
         --genomeSAindexNbases 12
     """
@@ -390,18 +401,19 @@ process REFGEN_PARSEBIO {
 // The settings for STAR are set in the variable     \\
 // config_file, and is specific per sequencing tech. \\
 process MAPPING_STARSOLO {    
-    publishDir "${params.resDir}/mapping_STARsolo/${sample_id}", mode: 'symlink'
+    publishDir "${params.resDir}/mapping_STARsolo_${config_name}/${sample_id}", mode: 'symlink'
     debug true
     label 'big_mem'
-    tag "${fastq_files}"
+    tag "${fastq_files}_${config_name}"
 
     input:
     tuple val(sample_id), path(fastq_files)
     path genome_index_files
     path star_config
+    val config_name
     
     output:
-    path("*")
+    tuple val(sample_id), val(config_name), path("*")
 
     script:
     def fastq_list = fastq_files instanceof List ? fastq_files : [fastq_files]
@@ -421,7 +433,7 @@ process MAPPING_STARSOLO {
     STAR \\
         --genomeDir ${genome_index_files.toRealPath()} \\
         --readFilesCommand zcat \\
-        --outFileNamePrefix ${sample_id}_ \\
+        --outFileNamePrefix ${r1_fastq.baseName}_ \\
         --readFilesIn ${r1_fastq} ${r2_fastq} \\
         --soloCBwhitelist ${params.barcodeDir} \\
         --outSAMtype BAM SortedByCoordinate \\
@@ -498,7 +510,7 @@ process INDEX_BAM {
     echo "\n\n==================  INDEX BAM FILES  =================="
     echo "Processing files: ${mapping_files}"
 
-    samtools index "Aligned.sortedByCoord.out.bam"
+    samtools index ${mapping_files}/Aligned.sortedByCoord.out.bam
     """
 }
 
@@ -507,46 +519,92 @@ process INDEX_BAM {
 // which is an external package linked using the github    \\
 // submodule function.                                     \\
 process SATURATION {
-    publishDir "${params.resDir}/saturation_plots", mode: 'symlink'
+    publishDir "${params.resDir}/saturation_plots_${config_name}", mode: 'symlink'
     debug true
 
     input:
-    path(mapping_files)
+    tuple val(sample_id), val(config_name), path(mapping_files)
+
+    output:
+    path("*")
 
     script:
     """
-    echo "\n\n==================  SATURATION  =================="
+    echo "\n\n==================  SATURATION ${config_name} =================="
     # Verify the input files
-    echo "Processing bam file: ${mapping_files}"
+    echo "Processing bam file in Dir: ${mapping_files}"
+    echo "Directory name: ${mapping_files.baseName}"
 
-    # Run the script
-    bash ${params.codeDir}/calculate_saturation.sh ${mapping_files.toRealPath()} ${params.saturationPath} ${mapping_files}
+    n_cells=\$( cat ${mapping_files}/Solo.out/GeneFull/Summary.csv | grep 'Estimated Number of Cells' | sed 's/,/ /g' | awk '{print \$NF}' )
+    n_reads=\$( cat ${mapping_files}/Log.final.out | grep 'Number of input reads' | awk '{print \$NF}' )
+    MAPREADS=\$( samtools view -F 260 ${mapping_files}/*.bam | wc -l )
+    map_rate=\$( echo "scale=4; \${MAPREADS}/\${n_reads}" | bc )
+    temp_folder="${params.codeDir}/_tmp_${mapping_files.baseName}"
+    echo "cells:\${n_cells} reads:\${n_reads} mapreads:\${MAPREADS} maprate:\${map_rate}"
+
+    python ${params.ext_packgs}/10x_saturate/saturation_table.py \
+            -b \${mapping_files}/*.bam \
+            -n \${n_cells} \
+            -r \${map_rate} \
+            -t \${temp_folder} \
+            -o output.tsv
+
+    python ${params.ext_packgs}/10x_saturate/scripts/plot_curve.py  \
+            output.tsv \
+            saturation.png \
+            --target 0.7
+
     """
 }
 
 // ==================  GENE EXTENSION  =================== \\ 
 process GENE_EXT {
-    publishDir "${params.resDir}/gene_ext", mode: 'symlink'
+    publishDir "${params.resDir}/gene_ext_${config_name}", mode: 'symlink'
     conda '/users/asebe/bvanwaardenburg/miniconda3/envs/geneext'
+    debug true
+
+    input:
+    tuple val(sample_id), val(config_name), path(mapping_files)
+
+    output:
+    tuple val(sample_id), val(config_name), path("result.gtf")
+    
+    script:
+    """
+    echo "\n\n==================  GENE EXTENSION ${config_name} =================="
+    echo "BAM filepath: ${mapping_files}"
+    echo "Original GTF: ${params.ref_star_gtf}"
+    
+    python ${params.ext_packgs}/GeneExt/geneext.py \\
+        -g ${params.ref_star_gtf} \\
+        -b ${mapping_files}/*.bam \\
+        -o result.gtf \\
+        --peak_perc 0
+    """
+}
+
+// ==================  DOUBLET DETECTION  =================== \\ 
+process DOUBLET_DET {
+    publishDir "${params.resDir}/doublets", mode: 'symlink'
+    conda '${params.ext_packgs}/souporcell/souporcell_env.yaml'
     debug true
 
     input:
     path(mapping_files)
 
-    output:
-    file("result.gtf")
-    
     script:
     """
-    echo "\n\n==================  GENE EXTENSION  =================="
+    echo "\n\n===============  DOUBLET DETECTION  ==============="
     echo "BAM filepath: ${mapping_files}"
-    echo "Original GTF: ${params.ref_star_gtf}"
+    echo "BAM file: ${mapping_files}/*.bam"
     
-    python ${params.baseDir}/ext_programs/GeneExt/geneext.py \\
-        -g ${params.ref_star_gtf} \\
-        -b ${mapping_files}/*.bam \\
-        -o result.gtf \\
-        --peak_perc 0
+    ${params.ext_packgs}/souporcell/souporcell_pipeline.py \\
+        --bam ${mapping_files}/*.bam \\
+        --barcodes ${params.barcodeDoublet} \\
+        --fasta ${params.ref_fasta} \\
+        --threads 1 \\
+        --out_dir . \\
+        --clusters 4
     """
 }
 
