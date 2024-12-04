@@ -11,12 +11,17 @@ process DOUBLET_DET {
     script:
     """
     echo "\n\n===============  DOUBLET DETECTION  ==============="
-    echo "BAM filepath: ${mapping_files}"
-    echo "BAM file: ${mapping_files}/*.bam"
+    echo "Mapping files: ${mapping_files}"
+
+    bc_file=\$(ls *_Solo.out/GeneFull/raw/barcodes.tsv | head -n 1)
+    bam_file=\$(ls *Aligned.sortedByCoord.out.bam | head -n 1)
+    
+    echo "Barcodes file: \${bc_file}"
+    echo "BAM file: \${bam_file}"
     
     ${params.codeDir}/ext_programs/souporcell/souporcell_pipeline.py \\
-        --bam ${mapping_files}/*.bam \\
-        --barcodes ${params.barcodeDoublet} \\
+        --bam \${bam_file} \\
+        --barcodes \${bc_file} \\
         --fasta ${params.ref_fasta} \\
         --threads 1 \\
         --out_dir . \\

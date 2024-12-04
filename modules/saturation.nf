@@ -9,6 +9,7 @@ process SATURATION {
 
     input:
     tuple val(sample_id), val(config_name), path(mapping_files)
+    file(bam_index)
 
     output:
     path("*")
@@ -17,24 +18,32 @@ process SATURATION {
     """
     echo "\n\n==================  SATURATION ${config_name} =================="
     # Verify the input files
-    echo "Processing bam file in Dir: ${mapping_files}"
-    echo "Directory name: ${mapping_files.baseName}"
+    echo "Processing files: ${mapping_files}"
 
-    n_cells=\$( cat ${mapping_files}/Solo.out/GeneFull/Summary.csv | grep 'Estimated Number of Cells' | sed 's/,/ /g' | awk '{print \$NF}' )
-    n_reads=\$( cat ${mapping_files}/Log.final.out | grep 'Number of input reads' | awk '{print \$NF}' )
-    MAPREADS=\$( samtools view -F 260 ${mapping_files}/*.bam | wc -l )
+    # Find the correct files from the list (mapping_files)
+    summary_file=\$(ls *Solo.out/Gene/Summary.csv | head -n 1)
+    log_final_file=\$(ls *Log.final.out | head -n 1)
+    bam_file=\$(ls *Aligned.sortedByCoord.out.bam | head -n 1)
+
+    echo "Summary file: \${summary_file}"
+    echo "Log final file: \${log_final_file}"
+    echo "BAM file: \${bam_file}"
+
+    n_cells=\$( cat \${summary_file} | grep 'Estimated Number of Cells' | sed 's/,/ /g' | awk '{print \$NF}' )
+    n_reads=\$( cat \${log_final_file} | grep 'Number of input reads' | awk '{print \$NF}' )
+    MAPREADS=\$( samtools view -F 260 \${bam_file} | wc -l )
     map_rate=\$( echo "scale=4; \${MAPREADS}/\${n_reads}" | bc )
-    temp_folder="${params.codeDir}/_tmp_${mapping_files.baseName}"
+    temp_folder="${params.baseDir}/*_tmp_${mapping_files.baseName}"
     echo "cells:\${n_cells} reads:\${n_reads} mapreads:\${MAPREADS} maprate:\${map_rate}"
 
-    python ${params.codeDir}/ext_programs/10x_saturate/saturation_table.py \
-            -b \${mapping_files}/*.bam \
+    python ${params.baseDir}/ext_programs/10x_saturate/saturation_table.py \
+            -b \${bam_file} \
             -n \${n_cells} \
             -r \${map_rate} \
             -t \${temp_folder} \
             -o output.tsv
 
-    python ${params.codeDir}/ext_programs/10x_saturate/scripts/plot_curve.py  \
+    python ${params.baseDir}/ext_programs/10x_saturate/scripts/plot_curve.py  \
             output.tsv \
             saturation.png \
             --target 0.7
