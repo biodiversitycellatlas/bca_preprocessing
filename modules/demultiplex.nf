@@ -9,7 +9,7 @@
 // all libraries. 
 
 process DEMULTIPLEX {
-    publishDir "${params.resDir}/demux_fastq", mode: 'symlink'
+    publishDir "${params.resDir}/demux_fastq_parse", mode: 'symlink'
     tag "${sample_id}"
     label 'big_mem'
     debug true
@@ -31,8 +31,16 @@ process DEMULTIPLEX {
     echo "FQ 1: ${r1_fastq ?: 'Not provided'}"
     echo "FQ 2: ${r2_fastq ?: 'Not provided'}"
 
-    # Run the demux code
-    bash ${params.baseDir}/scripts/split_parse_data.sh ${params.resDir} ${sample_id} ${r1_fastq} ${r2_fastq} ${params.barcodeDemux}
+    # Run custom demultiplexing script
+    # bash ${params.baseDir}/scripts/split_parse_data.sh ${params.resDir} ${sample_id} ${r1_fastq} ${r2_fastq} ${params.barcodeDemux}
+
+    # Run Parse Biosciences demultiplexing script
+    python ${params.baseDir}/scripts/fastq_sep_groups_v0.5.py \\
+        --chemistry v3 \\
+        --fq1 ${r1_fastq} \\
+        --fq2 ${r2_fastq} \\
+        --opath . \\
+        --group TCasACMEsorb_cold_PR A10-A12
     """
 }
 
