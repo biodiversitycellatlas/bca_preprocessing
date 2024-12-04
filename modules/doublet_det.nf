@@ -2,7 +2,6 @@
 
 process DOUBLET_DET {
     publishDir "${params.resDir}/doublets", mode: 'symlink'
-    conda '${params.codeDir}/ext_programs/souporcell/souporcell_env.yaml'
     debug true
 
     input:

@@ -2,7 +2,6 @@
 
 process GENE_EXT {
     publishDir "${params.resDir}/gene_ext_${config_name}", mode: 'symlink'
-    conda '/users/asebe/bvanwaardenburg/miniconda3/envs/geneext'
     tag "${sample_id}"
     debug true
 
@@ -10,7 +9,7 @@ process GENE_EXT {
     tuple val(sample_id), val(config_name), path(mapping_files)
 
     output:
-    path("*")
+    path("result.gtf")
     
     script:
     """
