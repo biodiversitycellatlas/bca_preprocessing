@@ -5,6 +5,7 @@
 
 process SATURATION {
     publishDir "${params.resDir}/saturation_plots_${config_name}", mode: 'symlink'
+    tag "${sample_id}"
     debug true
 
     input:
@@ -33,15 +34,16 @@ process SATURATION {
     n_reads=\$( cat \${log_final_file} | grep 'Number of input reads' | awk '{print \$NF}' )
     MAPREADS=\$( samtools view -F 260 \${bam_file} | wc -l )
     map_rate=\$( echo "scale=4; \${MAPREADS}/\${n_reads}" | bc )
-    temp_folder="${params.baseDir}/*_tmp_${mapping_files.baseName}"
+    temp_folder="${params.baseDir}/_tmp_${sample_id}_${config_name}"
     echo "cells:\${n_cells} reads:\${n_reads} mapreads:\${MAPREADS} maprate:\${map_rate}"
 
     python ${params.baseDir}/ext_programs/10x_saturate/saturation_table.py \
-            -b \${bam_file} \
-            -n \${n_cells} \
-            -r \${map_rate} \
-            -t \${temp_folder} \
-            -o output.tsv
+            --bam \${bam_file} \
+            --ncells \${n_cells} \
+            --mapping_rate \${map_rate} \
+            --temp \${temp_folder} \
+            --output output.tsv \
+            --code_dir "${params.baseDir}/ext_programs/10x_saturate/scripts"
 
     python ${params.baseDir}/ext_programs/10x_saturate/scripts/plot_curve.py  \
             output.tsv \
