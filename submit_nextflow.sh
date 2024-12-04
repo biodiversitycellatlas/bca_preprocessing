@@ -2,7 +2,7 @@
 #SBATCH --output=/users/asebe/bvanwaardenburg/git/bca_preprocessing/logs/%x.%j.out
 #SBATCH --error=/users/asebe/bvanwaardenburg/git/bca_preprocessing/logs/%x.%j.err
 #SBATCH --no-requeue
-#SBATCH --mem 8G
+#SBATCH --mem 20G
 #SBATCH -p genoa64
 #SBATCH --qos pipelines
 #SBATCH --job-name nextflow_pipeline
