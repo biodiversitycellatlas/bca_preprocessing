@@ -71,7 +71,8 @@ include { bd_rhapsody_workflow } from './workflows/bd_rhapsody_workflow'
 // Import processes
 include { FASTQC } from './modules/fastqc'
 include { MULTIQC } from './modules/multiqc'
-include { GENINDEX_STARSOLO as GENINDEX_STARSOLO } from './modules/genindex_starsolo'
+include { GENINDEX_STARSOLO as GENINDEX_STARSOLO_N } from './modules/genindex_starsolo'
+include { GENINDEX_STARSOLO as GENINDEX_STARSOLO_CR } from './modules/genindex_starsolo'
 include { GENINDEX_STARSOLO as REINDEX_STARSOLO } from './modules/genindex_starsolo'
 include { MAPPING_STARSOLO as MAPPING_STARSOLO_N } from './modules/mapping_starsolo'
 include { MAPPING_STARSOLO as MAPPING_STARSOLO_CR } from './modules/mapping_starsolo'
@@ -110,22 +111,23 @@ workflow {
     MULTIQC(FASTQC.out.collect())
 
     // Mapping STARsolo
-    GENINDEX_STARSOLO(params.ref_star_gtf)
+    GENINDEX_STARSOLO_N(params.ref_star_gff, file(params.star_config_mkref_N), 'N')
+    GENINDEX_STARSOLO_CR(params.ref_star_gff, file(params.star_config_mkref_CR), 'CR')
 
     // Mapping: standard configuration
-    MAPPING_STARSOLO_N(data_output, GENINDEX_STARSOLO.out, file(params.star_config), 'N')
+    MAPPING_STARSOLO_N(data_output, GENINDEX_STARSOLO_N.out, file(params.star_config_ED), 'N')
     INDEX_BAM_N(MAPPING_STARSOLO_N.out)
     SATURATION_N(MAPPING_STARSOLO_N.out, INDEX_BAM_N.out)
 
     // Mapping: CR-like
-    MAPPING_STARSOLO_CR(data_output, GENINDEX_STARSOLO.out, file(params.star_config_CRED), 'CR')
+    MAPPING_STARSOLO_CR(data_output, GENINDEX_STARSOLO_CR.out, file(params.star_config_CRED), 'CR')
     INDEX_BAM_CR(MAPPING_STARSOLO_CR.out)
     SATURATION_CR(MAPPING_STARSOLO_CR.out, INDEX_BAM_CR.out)
 
     // Mapping: CR-like + Gene extension
-    MAPPING_STARSOLO_CRGE(data_output, GENINDEX_STARSOLO.out, file(params.star_config_CR), 'CRGE')
+    MAPPING_STARSOLO_CRGE(data_output, GENINDEX_STARSOLO_CR.out, file(params.star_config_CR), 'CRGE')
     GENE_EXT(MAPPING_STARSOLO_CRGE.out)
-    REINDEX_STARSOLO(GENE_EXT.out)
+    REINDEX_STARSOLO(GENE_EXT.out, file(params.star_config_mkref_CR), 'CR')
     REMAPPING_STARSOLO(data_output, REINDEX_STARSOLO.out, file(params.star_config_CRED), 'remappedCRGE')
     remapped_output = REMAPPING_STARSOLO.out
     INDEX_BAM_CRGE(remapped_output)
