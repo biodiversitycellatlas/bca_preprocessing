@@ -77,11 +77,13 @@ include { MAPPING_STARSOLO as MAPPING_STARSOLO_N } from './modules/mapping_stars
 include { MAPPING_STARSOLO as MAPPING_STARSOLO_CR } from './modules/mapping_starsolo'
 include { MAPPING_STARSOLO as MAPPING_STARSOLO_CRGE } from './modules/mapping_starsolo'
 include { MAPPING_STARSOLO as REMAPPING_STARSOLO } from './modules/mapping_starsolo'
+include { INDEX_BAM as INDEX_BAM_N } from './modules/index_bam'
+include { INDEX_BAM as INDEX_BAM_CR } from './modules/index_bam'
+include { INDEX_BAM as INDEX_BAM_CRGE } from './modules/index_bam'
 include { SATURATION as SATURATION_N } from './modules/saturation'
 include { SATURATION as SATURATION_CR } from './modules/saturation'
 include { SATURATION as SATURATION_CRGE } from './modules/saturation'
 include { GENE_EXT } from './modules/gene_ext'
-include { INDEX_BAM } from './modules/index_bam'
 include { DOUBLET_DET } from './modules/doublet_det'
 
 
@@ -112,11 +114,13 @@ workflow {
 
     // Mapping: standard configuration
     MAPPING_STARSOLO_N(data_output, GENINDEX_STARSOLO.out, file(params.star_config), 'N')
-    SATURATION_N(MAPPING_STARSOLO_N.out)
+    INDEX_BAM_N(MAPPING_STARSOLO_N.out)
+    SATURATION_N(MAPPING_STARSOLO_N.out, INDEX_BAM_N.out)
 
     // Mapping: CR-like
     MAPPING_STARSOLO_CR(data_output, GENINDEX_STARSOLO.out, file(params.star_config_CRED), 'CR')
-    SATURATION_CR(MAPPING_STARSOLO_CR.out)
+    INDEX_BAM_CR(MAPPING_STARSOLO_CR.out)
+    SATURATION_CR(MAPPING_STARSOLO_CR.out, INDEX_BAM_CR.out)
 
     // Mapping: CR-like + Gene extension
     MAPPING_STARSOLO_CRGE(data_output, GENINDEX_STARSOLO.out, file(params.star_config_CR), 'CRGE')
@@ -124,10 +128,10 @@ workflow {
     REINDEX_STARSOLO(GENE_EXT.out)
     REMAPPING_STARSOLO(data_output, REINDEX_STARSOLO.out, file(params.star_config_CRED), 'remappedCRGE')
     remapped_output = REMAPPING_STARSOLO.out
-    SATURATION_CRGE(remapped_output)
+    INDEX_BAM_CRGE(remapped_output)
+    SATURATION_CRGE(remapped_output, INDEX_BAM_CRGE.out)
 
     // Downstream processes (continuing with config 3)
-    INDEX_BAM(remapped_output)
     DOUBLET_DET(remapped_output)
 }
 
