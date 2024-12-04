@@ -2,7 +2,7 @@
 // Generate Quality Control reports using FASTQC  \\
 
 process FASTQC {
-    publishDir "${params.resDir}/fastqc", mode: 'symlink'
+    publishDir "${params.resDir}/fastqc", mode: 'copy'
     tag "${fastq_files}"
     debug true
 
