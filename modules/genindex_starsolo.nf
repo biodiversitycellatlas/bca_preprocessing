@@ -7,6 +7,7 @@
 process GENINDEX_STARSOLO {   
     publishDir "${params.resDir}/genome/genome_index", mode: 'symlink'
     debug true
+    label 'big_mem'
 
     input:
     path(ref_star_gtf)
@@ -32,7 +33,8 @@ process GENINDEX_STARSOLO {
     echo "Generating genome index with STAR"
     STAR --runMode genomeGenerate \\
         --genomeFastaFiles ${params.ref_fasta} \\
-        --sjdbGTFfile ${ref_star_gtf} \\
+        --sjdbGTFfile ${ref_star_gff} \\
+        --sjdbGTFtagExonParentTranscript transcript id
         --sjdbOverhang "\${sjdb_overhang}" \\
         --genomeSAindexNbases 12
     """
