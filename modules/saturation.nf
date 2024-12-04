@@ -37,18 +37,22 @@ process SATURATION {
     temp_folder="${params.baseDir}/_tmp_${sample_id}_${config_name}"
     echo "cells:\${n_cells} reads:\${n_reads} mapreads:\${MAPREADS} maprate:\${map_rate}"
 
+    # Create a directory for results
+    results_dir=${sample_id}
+    mkdir -p \${results_dir}
+
     python ${params.baseDir}/ext_programs/10x_saturate/saturation_table.py \
             --bam \${bam_file} \
             --ncells \${n_cells} \
             --mapping_rate \${map_rate} \
             --temp \${temp_folder} \
-            --output output.tsv \
+            --output \${results_dir}/output.tsv \
             --code_dir "${params.baseDir}/ext_programs/10x_saturate/scripts"
 
     python ${params.baseDir}/ext_programs/10x_saturate/scripts/plot_curve.py  \
-            output.tsv \
-            saturation.png \
-            --target 0.7
+            \${results_dir}/output.tsv \
+            \${results_dir}/saturation.png \
+            --target 0.7    
 
     """
 }
