@@ -5,16 +5,19 @@ process INDEX_BAM {
     debug true
 
     input:
-    path(mapping_files)
+    tuple val(sample_id), val(config_name), path(mapping_files)
 
     output:
-    file("Aligned.sortedByCoord.out.bam.bai")
+    tuple val(sample_id), val(config_name), path("*.bam.bai")
 
     script:
     """
     echo "\n\n==================  INDEX BAM FILES  =================="
     echo "Processing files: ${mapping_files}"
 
-    samtools index ${mapping_files}/Aligned.sortedByCoord.out.bam
+    bam_file=\$(ls *Aligned.sortedByCoord.out.bam | head -n 1)
+    echo "BAM file: \${bam_file}"
+
+    samtools index \${bam_file}
     """
 }
