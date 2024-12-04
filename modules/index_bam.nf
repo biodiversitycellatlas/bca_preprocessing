@@ -2,6 +2,7 @@
 
 process INDEX_BAM {
     publishDir "${params.resDir}/mapping_parsepipe/${sample_id}", mode: 'symlink'
+    tag "${sample_id}"
     debug true
 
     input:
