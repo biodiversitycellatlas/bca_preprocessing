@@ -15,13 +15,15 @@ process GENE_EXT {
     """
     echo "\n\n==================  GENE EXTENSION ${config_name} =================="
     echo "Mapping files: ${mapping_files}"
-    echo "Original GTF: ${params.ref_star_gtf}"
+    echo "Original GTF: ${params.ref_star_gff}"
 
     bam_file=\$(ls *Aligned.sortedByCoord.out.bam | head -n 1)
     echo "BAM file: \${bam_file}"
     
+    rm -r tmp
+
     python ${params.baseDir}/ext_programs/GeneExt/geneext.py \\
-        -g ${params.ref_star_gtf} \\
+        -g ${params.ref_star_gff} \\
         -b \${bam_file} \\
         -o result.gtf \\
         --peak_perc 0
