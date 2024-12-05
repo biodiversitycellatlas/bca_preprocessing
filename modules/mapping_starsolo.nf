@@ -15,7 +15,7 @@ process MAPPING_STARSOLO {
     tuple val(sample_id), path(fastq_files)
     path genome_index_files
     path star_config
-    val barcode_input_param
+    val barcode_whitelist_input
     val config_name
     
     output:
@@ -26,17 +26,7 @@ process MAPPING_STARSOLO {
     def r1_fastq = fastq_list.find { it.name.contains('_R1') }
     def r2_fastq = fastq_list.find { it.name.contains('_R2') }
 
-    // Split the barcodes string into a list
-    def barcode_option = ""
-    if (barcode_input_param) {
-        if (barcode_input_param.toString().contains(' ')) {
-            // Multiple barcodes (barcodeDir case)
-            barcode_option = barcode_input_param.toString().split().collect { "--soloCBwhitelist $it" }.join(' ')
-        } else {
-            // Single barcode file (barcodeDemux case)
-            barcode_option = "--soloCBwhitelist $barcode_input_param"
-        }
-    }
+    def barcode_option = barcode_whitelist_input ? "--soloCBwhitelist ${barcode_whitelist_input.replaceAll('\n', '')}" : ""
 
     """
     echo "\n\n==============  MAPPING STARSOLO ${config_name} ================"
@@ -44,7 +34,7 @@ process MAPPING_STARSOLO {
     echo "FQ 1: ${r1_fastq ?: 'Not provided'}"
     echo "FQ 2: ${r2_fastq ?: 'Not provided'}"
     echo "Genome index directory: ${genome_index_files}"
-    echo "Barcodes: ${barcode_input_param}"
+    echo "Barcodes: ${barcode_whitelist_input}"
     echo "Barcode input STAR: ${barcode_option}"
 
     # Read configuration file

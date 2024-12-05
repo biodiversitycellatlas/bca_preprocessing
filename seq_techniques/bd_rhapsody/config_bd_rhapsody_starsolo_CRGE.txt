@@ -1,4 +1,4 @@
---genomeSAsparseD 3
+--soloCBwhitelist ${params.barcodeDir}
 --soloCBmatchWLtype 1MM_multi_Nbase_pseudocounts 
 --soloUMIfiltering MultiGeneUMI_CR 
 --soloUMIdedup 1MM_CR

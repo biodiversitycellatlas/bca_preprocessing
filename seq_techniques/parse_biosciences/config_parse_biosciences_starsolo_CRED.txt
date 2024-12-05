@@ -5,10 +5,10 @@
 --outFilterScoreMin 30
 --soloType CB_UMI_Simple 
 --soloCBstart 50 
---soloCBlen 9 
---soloBarcodeReadLength 59 
+--soloCBlen 8 
 --soloUMIstart 1 
---soloUMIlen 10
+--soloUMIlen 9
+--soloBarcodeReadLength 58
 --soloCellFilter EmptyDrops_CR
 --soloStrand Forward 
 --outSAMunmapped Within KeepPairs 
