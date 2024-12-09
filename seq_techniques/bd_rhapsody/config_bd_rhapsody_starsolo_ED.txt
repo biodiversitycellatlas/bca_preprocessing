@@ -1,4 +1,3 @@
---soloCBwhitelist ${params.barcodeDir}
 --soloType CB_UMI_Complex 
 --soloAdapterSequence NNNNNNNNNGTGANNNNNNNNNGACA 
 --soloCBmatchWLtype EditDist_2 

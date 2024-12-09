@@ -2,8 +2,7 @@
 --soloCBposition 0_50_0_57 0_30_0_37 0_10_0_17 
 --soloUMIposition 0_0_0_9 
 --soloCBmatchWLtype 1MM 
---soloCellFilter EmptyDrops_CR 000 0.99 10 45000 90000 500 0.01
-20000 0.01 10000 
+--soloCellFilter EmptyDrops_CR  
 --soloStrand Forward 
 --outSAMunmapped Within KeepPairs 
 --soloFeatures Gene GeneFull

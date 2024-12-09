@@ -9,7 +9,7 @@
 --soloUMIstart 1 
 --soloUMIlen 9
 --soloBarcodeReadLength 58
---soloCellFilter EmptyDrops_CR
+--soloCellFilter EmptyDrops_CR 
 --soloStrand Forward 
 --outSAMunmapped Within KeepPairs 
 --soloFeatures Gene GeneFull
