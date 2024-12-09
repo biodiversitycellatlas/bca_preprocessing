@@ -29,29 +29,29 @@ set -o pipefail
 ####################
 # define variables #
 ####################
-species=$1
-dataDir=$2	
-accession=$3
-codeDir="/users/asebe/bvanwaardenburg/git/10x_saturate"
+accession="BCA004_lib_13080AAF_CTTGTAAT-AGTTGGCT"
+baseDir="/users/asebe/bvanwaardenburg/git/data/240810_ParseBio_Nvec_Tcas/Tcas"
+codeDir="/users/asebe/bvanwaardenburg/git/bca_preprocessing/ext_programs/10x_saturate"
+log_out="/users/asebe/bvanwaardenburg/git/bca_preprocessing/logs/"
 
 cd ${codeDir}
 
 # prints the accession number associated with this run
 echo "${accession}"
 
-mappingDir="${dataDir}/${species}/mapping_splitted_starsolo_v1/results_${accession}"
+mappingDir="${baseDir}/mapping_STARsolo_N/${accession}"
 bam_file="${mappingDir}/*.bam"
 
 # create output directory
-output_dir="${dataDir}/${species}/saturation_v1/${accession}"
+output_dir="${baseDir}/saturation/${accession}_N"
 mkdir -p ${output_dir}
 
 
 ###############
 # run command #
 ###############
-n_cells=$( cat ${mappingDir}/Solo.out/GeneFull/Summary.csv | grep 'Estimated Number of Cells' | sed 's/,/ /g' | awk '{print $NF}' )
-n_reads=$( cat ${mappingDir}/Log.final.out | grep 'Number of input reads' | awk '{print $NF}' )
+n_cells=$( cat ${mappingDir}/*Solo.out/GeneFull/Summary.csv | grep 'Estimated Number of Cells' | sed 's/,/ /g' | awk '{print $NF}' )
+n_reads=$( cat ${mappingDir}/*Log.final.out | grep 'Number of input reads' | awk '{print $NF}' )
 MAPREADS=$( samtools view -F 260 ${bam_file} | wc -l )
 map_rate=$( echo "scale=4; ${MAPREADS}/${n_reads}" | bc ) 
 temp_folder="${output_dir}/_tmp_${accession}"
@@ -59,7 +59,7 @@ echo "cells:${n_cells} reads:${n_reads} mapreads:${MAPREADS} maprate:${map_rate}
 
 python ${codeDir}/saturation_table.py \
 	-b ${bam_file} \
-       	-n ${n_cells} \
+    -n ${n_cells} \
 	-r ${map_rate} \
 	-t ${temp_folder} \
 	-o ${output_dir}/output.tsv
@@ -70,7 +70,6 @@ python ${codeDir}/scripts/plot_curve.py  \
 	--target 0.7 
 
 # copy log file to output directory, as it contains the number of reads to reach 0.7 sat
-log_out="/users/asebe/bvanwaardenburg/git/bca_preprocessing/logs/"
 cp ${log_out}*${SLURM_JOB_ID}*.out ${output_dir}
 
 ###############
