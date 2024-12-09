@@ -15,20 +15,24 @@ process DOWNLOAD_DATA {
     val sample_id
 
     output:
-    tuple val(sample_id), path("${sample_id}*R{1,2}*.fastq.gz")
+    tuple val(sample_id), path("${sample_id}_R{1,2}_001.fastq.gz")
 
     script:
     """
-    # Check if FASTQ files already exist
-    if [ -f "${params.resDir}/fastq/${sample_id}_R1_001.fastq.gz" ]; then
-        echo "FASTQ files for sample ${sample_id} already exist."
-        ln -s "${params.resDir}/fastq/${sample_id}_R1_001.fastq.gz" .
-        ln -s "${params.resDir}/fastq/${sample_id}_R2_001.fastq.gz" .
-    else
-        echo "Downloading data for sample ${sample_id}"
+    echo "Contents of ${params.resDir}/fastq/:"
+    ls -l "${params.resDir}/fastq/"
+    
+    ln -s "${params.resDir}/fastq/${sample_id}_R1_001.fastq.gz" .
+    ln -s "${params.resDir}/fastq/${sample_id}_R2_001.fastq.gz" .
+    
+    echo "Contents of current directory after linking:"
+    ls -l
+
+    # else
+        # echo "Downloading data for sample ${sample_id}"
         # prefetch ${sample_id}
         # fastq-dump --split-files --gzip --outdir /${params.resDir}/fastq/ ${sample_id}
         # ln -s "/${params.resDir}/fastq/" .
-    fi
+    # fi
     """
 }
