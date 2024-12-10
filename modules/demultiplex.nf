@@ -9,16 +9,14 @@
 // all libraries. 
 
 process DEMULTIPLEX {
-    publishDir "${params.resDir}/demux_fastq_parse", mode: 'symlink'
-    tag "${sample_id}"
+    tag "${sample_id}_${group}"
     label 'big_mem'
-    debug true
     
     input:
-    tuple val(sample_id), path(fastq_files)
+    tuple val(sample_id), path(fastq_files), val(group), val(wells)
 
     output:
-    tuple val(sample_id), path("*.fastq.gz"), emit: splitted_files
+    tuple val(sample_id), path(fastq_files), emit: splitted_files
 
     script:
     def fastq_list = fastq_files instanceof List ? fastq_files : [fastq_files]
@@ -40,7 +38,7 @@ process DEMULTIPLEX {
         --fq1 ${r1_fastq} \\
         --fq2 ${r2_fastq} \\
         --opath . \\
-        --group TCasACMEsorb_cold_PR A10-A12
+        --group ${group} ${wells} 
     """
 }
 

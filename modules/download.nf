@@ -18,15 +18,9 @@ process DOWNLOAD_DATA {
     tuple val(sample_id), path("${sample_id}_R{1,2}_001.fastq.gz")
 
     script:
-    """
-    echo "Contents of ${params.resDir}/fastq/:"
-    ls -l "${params.resDir}/fastq/"
-    
+    """    
     ln -s "${params.resDir}/fastq/${sample_id}_R1_001.fastq.gz" .
     ln -s "${params.resDir}/fastq/${sample_id}_R2_001.fastq.gz" .
-    
-    echo "Contents of current directory after linking:"
-    ls -l
 
     # else
         # echo "Downloading data for sample ${sample_id}"
