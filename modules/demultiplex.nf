@@ -16,7 +16,7 @@ process DEMULTIPLEX {
     tuple val(sample_id), path(fastq_files), val(group), val(wells)
 
     output:
-    tuple val(sample_id), path(fastq_files), emit: splitted_files
+    tuple val("${sample_id}_${group}"), path("*group*"), emit: splitted_files
 
     script:
     def fastq_list = fastq_files instanceof List ? fastq_files : [fastq_files]
