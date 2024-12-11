@@ -6,10 +6,10 @@
 // config_file, and is specific per sequencing tech. \\
 
 process MAPPING_STARSOLO {    
-    publishDir "${params.resDir}/mapping_STARsolo_${config_name}/${sample_id}", mode: 'symlink'
+    publishDir "${params.resDir}/mapping_STARsolo_${config_name}/${sample_id}", mode: 'symlink', overwrite: false
     debug true
     label 'big_mem'
-    tag "${fastq_files}_${config_name}"
+    tag "${sample_id}_${config_name}"
 
     input:
     tuple val(sample_id), path(fastq_files)
@@ -28,6 +28,18 @@ process MAPPING_STARSOLO {
 
     def barcode_option = barcode_whitelist_input ? "--soloCBwhitelist ${barcode_whitelist_input.replaceAll('\n', '')}" : ""
 
+    // If config_name contains "bd_rhapsody", then cDNA = R2 and CB/UMI = R1
+    // Else by default cDNA = R1 and CB/UMI = R2
+    def cDNA_read
+    def CBUMI_read
+    if (params.seqTech.toLowerCase().contains("bd_rhapsody")) {
+        cDNA_read = r2_fastq
+        CBUMI_read = r1_fastq
+    } else {
+        cDNA_read = r1_fastq
+        CBUMI_read = r2_fastq
+    }
+
     """
     echo "\n\n==============  MAPPING STARSOLO ${config_name} ================"
     echo "Mapping sample ${sample_id} with STARsolo"
@@ -42,10 +54,10 @@ process MAPPING_STARSOLO {
 
     # Mapping step and generating count matrix using STAR
     STAR \\
+        --runThreadN 40 \\
+        --readFilesIn ${cDNA_read} ${CBUMI_read} \\
         --genomeDir ${genome_index_files.toRealPath()} \\
         --readFilesCommand zcat \\
-        --outFileNamePrefix ${r1_fastq.baseName}_ \\
-        --readFilesIn ${r1_fastq} ${r2_fastq} \\
         ${barcode_option} \\
         --outSAMtype BAM SortedByCoordinate \\
         --outSAMattributes CR UR CB UB \\
