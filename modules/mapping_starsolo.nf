@@ -8,7 +8,6 @@
 process MAPPING_STARSOLO {    
     publishDir "${params.resDir}/mapping_STARsolo_${config_name}/${sample_id}", mode: 'symlink', overwrite: false
     debug true
-    label 'big_mem'
     tag "${sample_id}_${config_name}"
 
     input:

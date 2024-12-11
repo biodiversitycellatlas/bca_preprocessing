@@ -12,7 +12,6 @@ process MAPPING_PARSEBIO {
     tag "${fastq_files}"
     publishDir "${params.resDir}/mapping_parsepipe/${sample_id}", mode: 'symlink'
     debug true
-    label 'big_mem'
 
     input:
     tuple val(sample_id), path(fastq_files)
@@ -45,6 +44,7 @@ process MAPPING_PARSEBIO {
         --chemistry v3 \\
         --fq1 ${r1_fastq} \\
         --fq2 ${r2_fastq} \\
+        --nthreads 16 \\
         --genome_dir genome_index \\
         --output_dir . \\
         --parfile config_${params.seqTech}_parsepipe.txt
