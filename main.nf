@@ -85,6 +85,7 @@ include { SATURATION as SATURATION_N } from './modules/saturation'
 include { SATURATION as SATURATION_CR } from './modules/saturation'
 include { SATURATION as SATURATION_CRGE } from './modules/saturation'
 include { GENE_EXT } from './modules/gene_ext'
+include { CALC_MT_RRNA } from './modules/calculate_mt_rrna'
 include { DOUBLET_DET } from './modules/doublet_det'
 
 
@@ -95,13 +96,16 @@ include { DOUBLET_DET } from './modules/doublet_det'
 // downstream processes, which are identical for all   \\
 // techniques.                                         \\
 
+
 workflow {
-    if (params.seqTech == 'parse_biosciences') {
+    if (params.seqTech == 'parse_biosciences') {     
         parse_workflow(sample_ids)
         data_output = parse_workflow.out
+    
     } else if (params.seqTech == 'bd_rhapsody') {
         bd_rhapsody_workflow(sample_ids)
         data_output = bd_rhapsody_workflow.out
+    
     } else {
         error "Invalid sequencing technology specified. Use 'parse_biosciences' or 'bd_rhapsody'."
     }
@@ -133,8 +137,9 @@ workflow {
     INDEX_BAM_CRGE(remapped_output)
     SATURATION_CRGE(remapped_output, INDEX_BAM_CRGE.out)
 
-    // Downstream processes (continuing with config 3)
-    DOUBLET_DET(remapped_output)
+    // Downstream processes (continuing with config 1)
+    CALC_MT_RRNA(MAPPING_STARSOLO_N.out)
+    DOUBLET_DET(MAPPING_STARSOLO_N.out)
 }
 
 
