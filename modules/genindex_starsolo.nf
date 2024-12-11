@@ -21,7 +21,7 @@ process GENINDEX_STARSOLO {
     """
     echo "\n\n==================  GENOME INDEX STARSOLO ${config_name} =================="
     # Retrieve the first accession number
-    first_accs=\$(head -1 ${params.dataDir}/accession_lists/${params.species}_${params.seqTech}_accessions.txt)
+    first_accs=\$(head -1 ${params.accessions})
     first_fastq="${params.resDir}/fastq/\${first_accs}*1*.fastq.gz"  
 
     echo "\${first_accs}"
@@ -37,10 +37,12 @@ process GENINDEX_STARSOLO {
     STAR --runMode genomeGenerate \\
         --genomeFastaFiles ${params.ref_fasta} \\
         --sjdbGTFfile ${ref_star_gff} \\
-        --sjdbGTFtagExonParentTranscript transcript_id \\
         --sjdbOverhang "\${sjdb_overhang}" \\
         --genomeSAindexNbases 12 \\
         \${config_file}
+
+    # Only add this parameter for GFF files
+    # --sjdbGTFtagExonParentTranscript transcript_id \\
     """
 }
 
