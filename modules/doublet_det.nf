@@ -5,14 +5,14 @@ process DOUBLET_DET {
     debug true
 
     input:
-    path(mapping_files)
+    tuple val(sample_id), val(config_name), path(mapping_files)
 
     script:
     """
     echo "\n\n===============  DOUBLET DETECTION  ==============="
     echo "Mapping files: ${mapping_files}"
 
-    bc_file=\$(ls *_Solo.out/GeneFull/raw/barcodes.tsv | head -n 1)
+    bc_file=\$(ls *Solo.out/GeneFull/raw/barcodes.tsv | head -n 1)
     bam_file=\$(ls *Aligned.sortedByCoord.out.bam | head -n 1)
 
     echo "Barcodes file: \${bc_file}"

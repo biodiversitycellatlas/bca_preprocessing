@@ -138,8 +138,8 @@ workflow {
     SATURATION_CRGE(remapped_output, INDEX_BAM_CRGE.out)
 
     // Downstream processes (continuing with config 1)
-    CALC_MT_RRNA(MAPPING_STARSOLO_N.out)
-    DOUBLET_DET(MAPPING_STARSOLO_N.out)
+    CALC_MT_RRNA(remapped_output)
+    DOUBLET_DET(remapped_output)
 }
 
 

@@ -10,7 +10,6 @@
 
 process DEMULTIPLEX {
     tag "${sample_id}_${group}"
-    label 'big_mem'
     
     input:
     tuple val(sample_id), path(fastq_files), val(group), val(wells)

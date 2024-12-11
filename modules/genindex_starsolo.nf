@@ -7,7 +7,6 @@
 process GENINDEX_STARSOLO {   
     publishDir "${params.resDir}/genome/genome_index_${config_name}", mode: 'symlink'
     debug true
-    label 'big_mem'
 
     input:
     path(ref_star_gff)
