@@ -10,3 +10,6 @@
 [submodule "ext_programs/CellBender"]
 	path = ext_programs/CellBender
 	url = https://github.com/broadinstitute/CellBender.git
+[submodule "ext_programs/metacell-downstream-functions"]
+	path = ext_programs/metacell-downstream-functions
+	url = https://github.com/sebepedroslab/metacell-downstream-functions.git
