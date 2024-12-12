@@ -7,3 +7,6 @@
 [submodule "ext_programs/souporcell"]
 	path = ext_programs/souporcell
 	url = https://github.com/wheaton5/souporcell.git
+[submodule "ext_programs/CellBender"]
+	path = ext_programs/CellBender
+	url = https://github.com/broadinstitute/CellBender.git
