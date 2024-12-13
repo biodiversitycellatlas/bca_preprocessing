@@ -7,6 +7,7 @@ process GENE_EXT {
 
     input:
     tuple val(sample_id), val(config_name), path(mapping_files)
+    tuple val(sample_id2), val(config_name2), path(indexed_bam)
 
     output:
     path("result.gtf")
@@ -17,11 +18,12 @@ process GENE_EXT {
     echo "Mapping files: ${mapping_files}"
     echo "Original GTF: ${params.ref_star_gff}"
 
-    bam_file=\$(ls *Aligned.sortedByCoord.out.bam | head -n 1)
+    bam_file=\$(ls ${mapping_files}/*Aligned.sortedByCoord.out.bam | head -n 1)
     echo "BAM file: \${bam_file}"
     
-    rm -r tmp
-
+    # rm -r ${params.baseDir}/ext_programs/GeneExt/tmp
+    # rm ${params.baseDir}/ext_programs/GeneExt/result*
+    
     python ${params.baseDir}/ext_programs/GeneExt/geneext.py \\
         -g ${params.ref_star_gff} \\
         -b \${bam_file} \\
