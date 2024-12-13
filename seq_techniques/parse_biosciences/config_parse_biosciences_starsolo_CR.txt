@@ -1,14 +1,14 @@
---soloCBmatchWLtype 1MM_multi_Nbase_pseudocounts 
---soloUMIfiltering MultiGeneUMI_CR 
---soloUMIdedup 1MM_CR
---clipAdapterType CellRanger4 
---outFilterScoreMin 30
---soloType CB_UMI_Simple 
---soloCBstart 50 
---soloCBlen 8 
---soloUMIstart 1 
---soloUMIlen 9
---soloBarcodeReadLength 58
---soloStrand Forward 
+--soloType CB_UMI_Simple
 --outSAMunmapped Within KeepPairs 
+--soloCBstart 50
+--soloCBlen 8
+--soloUMIstart 1
+--soloUMIlen 10
+--soloBarcodeReadLength 58 
+--soloCBmatchWLtype 1MM_multi_Nbase_pseudocounts
+--soloUMIfiltering MultiGeneUMI_CR
+--soloUMIdedup 1MM_CR
+--clipAdapterType CellRanger4
+--outFilterScoreMin 30
+--clip5pAdapterSeq AACGCAGAGTGAATGGG
 --soloFeatures Gene GeneFull
