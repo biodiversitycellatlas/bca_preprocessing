@@ -25,7 +25,6 @@ TODO list:
 - publishDir: , overwrite: false 
 - save files somewhere outside work directory, now all files are symlink to /work/
 
-- check why 1st splitted fastq files are empty for Nvec
 - incorporate seqspec
 - split_parse_data: save unused reads to file and inspect
 
@@ -34,23 +33,6 @@ Help:
 
 To print the output of processes:
 println DEMULTIPLEX.out.splitted_files
-
-==========================
-Last run:
-Exp: 240810_ParseBio_Nvec_Tcas
-- Nvec_Integr: 
-- Tcas: download_data, parse index, starsolo ref -- 2fee931e-063f-4b8a-9ea2-6aa39c3641a3
-
-Exp: 241106_BD_Rhapsody_Nvec
-- Nvec: started (a373b83b-b4de-4e25-908b-75506019f904)
-
-Currently running:
-Exp: 240810_ParseBio_Nvec_Tcas
-- Nvec_Integr: 
-- Tcas: resume from parse & starsolo index
-
-Exp: 241106_BD_Rhapsody_Nvec
-- Nvec: from start 
 
 ------------------------------------------------------------------------------
 */
@@ -71,20 +53,32 @@ include { bd_rhapsody_workflow } from './workflows/bd_rhapsody_workflow'
 // Import processes
 include { FASTQC } from './modules/fastqc'
 include { MULTIQC } from './modules/multiqc'
+
 include { GENINDEX_STARSOLO as GENINDEX_STARSOLO_N } from './modules/genindex_starsolo'
 include { GENINDEX_STARSOLO as GENINDEX_STARSOLO_CR } from './modules/genindex_starsolo'
-include { GENINDEX_STARSOLO as REINDEX_STARSOLO } from './modules/genindex_starsolo'
+include { GENINDEX_STARSOLO as REINDEX_STARSOLO_N } from './modules/genindex_starsolo'
+include { GENINDEX_STARSOLO as REINDEX_STARSOLO_CR } from './modules/genindex_starsolo'
+
 include { MAPPING_STARSOLO as MAPPING_STARSOLO_N } from './modules/mapping_starsolo'
 include { MAPPING_STARSOLO as MAPPING_STARSOLO_CR } from './modules/mapping_starsolo'
 include { MAPPING_STARSOLO as MAPPING_STARSOLO_CRGE } from './modules/mapping_starsolo'
-include { MAPPING_STARSOLO as REMAPPING_STARSOLO } from './modules/mapping_starsolo'
+include { MAPPING_STARSOLO as REMAPPING_STARSOLO_N } from './modules/mapping_starsolo'
+include { MAPPING_STARSOLO as REMAPPING_STARSOLO_CR } from './modules/mapping_starsolo'
+
 include { INDEX_BAM as INDEX_BAM_N } from './modules/index_bam'
 include { INDEX_BAM as INDEX_BAM_CR } from './modules/index_bam'
 include { INDEX_BAM as INDEX_BAM_CRGE } from './modules/index_bam'
+include { INDEX_BAM as INDEX_BAM_NGE } from './modules/index_bam'
+
 include { SATURATION as SATURATION_N } from './modules/saturation'
 include { SATURATION as SATURATION_CR } from './modules/saturation'
 include { SATURATION as SATURATION_CRGE } from './modules/saturation'
-include { GENE_EXT } from './modules/gene_ext'
+include { SATURATION as SATURATION_NGE } from './modules/saturation'
+
+include { GENE_EXT as GENE_EXT_N } from './modules/gene_ext'
+include { GENE_EXT as GENE_EXT_CR } from './modules/gene_ext'
+
+include { MAPPING_STATS } from './modules/mapping_statistics'
 include { CALC_MT_RRNA } from './modules/calculate_mt_rrna'
 include { DOUBLET_DET } from './modules/doublet_det'
 
@@ -123,23 +117,38 @@ workflow {
     INDEX_BAM_N(MAPPING_STARSOLO_N.out)
     SATURATION_N(MAPPING_STARSOLO_N.out, INDEX_BAM_N.out)
 
+    GENE_EXT_N(MAPPING_STARSOLO_N.out, INDEX_BAM_N.out)
+    REINDEX_STARSOLO_N(GENE_EXT_N.out, file(params.star_config_mkref_N), 'N')
+    REMAPPING_STARSOLO_N(data_output, REINDEX_STARSOLO_N.out, file(params.star_config_ED), params.barcodeDir, 'remappedNGE')
+   
+    INDEX_BAM_NGE(REMAPPING_STARSOLO_N.out)
+    SATURATION_NGE(REMAPPING_STARSOLO_N.out, INDEX_BAM_NGE.out)
+
+
     // Mapping: CR-like
-    MAPPING_STARSOLO_CR(data_output, GENINDEX_STARSOLO_CR.out, file(params.star_config_CRED), params.barcodeDemux, 'CR')
-    INDEX_BAM_CR(MAPPING_STARSOLO_CR.out)
-    SATURATION_CR(MAPPING_STARSOLO_CR.out, INDEX_BAM_CR.out)
+    // MAPPING_STARSOLO_CR(data_output, GENINDEX_STARSOLO_CR.out, file(params.star_config_CRED), params.barcodeDir, 'CR')
+    // INDEX_BAM_CR(MAPPING_STARSOLO_CR.out)
+    // SATURATION_CR(MAPPING_STARSOLO_CR.out, INDEX_BAM_CR.out)
 
     // Mapping: CR-like + Gene extension
-    MAPPING_STARSOLO_CRGE(data_output, GENINDEX_STARSOLO_CR.out, file(params.star_config_CR), params.barcodeDemux, 'CRGE')
-    GENE_EXT(MAPPING_STARSOLO_CRGE.out)
-    REINDEX_STARSOLO(GENE_EXT.out, file(params.star_config_mkref_CR), 'CR')
-    REMAPPING_STARSOLO(data_output, REINDEX_STARSOLO.out, file(params.star_config_CRED), params.barcodeDemux, 'remappedCRGE')
-    remapped_output = REMAPPING_STARSOLO.out
-    INDEX_BAM_CRGE(remapped_output)
-    SATURATION_CRGE(remapped_output, INDEX_BAM_CRGE.out)
+    MAPPING_STARSOLO_CR(data_output, GENINDEX_STARSOLO_CR.out, file(params.star_config_CR), params.barcodeDemux, 'CR')
+    INDEX_BAM_CR(MAPPING_STARSOLO_CR.out)
+    SATURATION_CR(MAPPING_STARSOLO_CR.out, INDEX_BAM_CR.out)
+    
+    // mapping_output = ['BCA001_lib_13077AAF_CAGATCAC-ATGTGAAG_ACMEsorb_GM', 'CRGE', '/users/asebe/bvanwaardenburg/git/data/240810_ParseBio_Nvec_Tcas/Nvec_BCA001_BCA002/mapping_STARsolo_CRGE/BCA001_lib_13077AAF_CAGATCAC-ATGTGAAG_ACMEsorb_GM']
+
+    GENE_EXT_CR(MAPPING_STARSOLO_CR.out, INDEX_BAM_CR.out)
+    REINDEX_STARSOLO_CR(GENE_EXT_CR.out, file(params.star_config_mkref_CR), 'CR')
+    REMAPPING_STARSOLO_CR(data_output, REINDEX_STARSOLO_CR.out, file(params.star_config_CRED), params.barcodeDemux, 'remappedCRGE')
+ 
+    INDEX_BAM_CRGE(REMAPPING_STARSOLO_CR.out)
+    SATURATION_CRGE(REMAPPING_STARSOLO_CR.out, INDEX_BAM_CRGE.out)
+
+    MAPPING_STATS(REMAPPING_STARSOLO_N.out.collect(), REMAPPING_STARSOLO_CR.out.collect())
 
     // Downstream processes (continuing with config 1)
-    CALC_MT_RRNA(remapped_output)
-    DOUBLET_DET(remapped_output)
+    // CALC_MT_RRNA(remapped_output)
+    // DOUBLET_DET(mapping_output)
 }
 
 
