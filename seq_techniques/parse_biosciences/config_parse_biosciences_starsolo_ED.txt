@@ -3,6 +3,5 @@
 --soloUMIposition 0_0_0_9 
 --soloCBmatchWLtype 1MM 
 --soloCellFilter EmptyDrops_CR  
---soloStrand Forward 
 --outSAMunmapped Within KeepPairs 
 --soloFeatures Gene GeneFull

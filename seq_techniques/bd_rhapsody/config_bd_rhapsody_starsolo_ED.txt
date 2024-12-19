@@ -3,6 +3,7 @@
 --soloCBposition 2_-9_2_-1 2_4_2_12 2_17_2_25 
 --soloUMIposition 3_10_3_17 
 --soloCBmatchWLtype 1MM 
---soloCellFilter EmptyDrops_CR 
---outSAMattributes CB UB 
---outSAMtype BAM SortedByCoordinate
+--soloCellFilter EmptyDrops_CR  
+--soloStrand Forward 
+--outSAMunmapped Within KeepPairs 
+--soloFeatures Gene GeneFull

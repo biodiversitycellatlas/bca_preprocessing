@@ -1,6 +1,6 @@
 --soloType CB_UMI_Simple
 --outSAMunmapped Within KeepPairs
---soloCBstart 50
+--soloCBstart 51
 --soloCBlen 8
 --soloUMIstart 1
 --soloUMIlen 10
