@@ -1,6 +1,6 @@
 --soloType CB_UMI_Simple
 --outSAMunmapped Within KeepPairs 
---soloCBstart 50
+--soloCBstart 51
 --soloCBlen 8
 --soloUMIstart 1
 --soloUMIlen 10
@@ -10,5 +10,6 @@
 --soloUMIdedup 1MM_CR
 --clipAdapterType CellRanger4
 --outFilterScoreMin 30
---clip5pAdapterSeq AACGCAGAGTGAATGGG
+--clip5pAdapterSeq AAGCAGTGGTATCAACGCAGAGTGAATGGG
 --soloFeatures Gene GeneFull
+--soloStrand Unstranded 
