@@ -18,9 +18,13 @@ process DOWNLOAD_DATA {
     tuple val(sample_id), path("${sample_id}_R{1,2}_001.fastq.gz")
 
     script:
-    """    
+    """
+    echo "sample id: ${sample_id}"
+
     ln -s "${params.resDir}/fastq/${sample_id}_R1_001.fastq.gz" .
     ln -s "${params.resDir}/fastq/${sample_id}_R2_001.fastq.gz" .
+
+    ls
 
     # else
         # echo "Downloading data for sample ${sample_id}"
