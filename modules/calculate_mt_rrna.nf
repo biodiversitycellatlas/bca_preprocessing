@@ -2,7 +2,7 @@
 // 
 
 process CALC_MT_RRNA {   
-    publishDir "{params.resDir}/mapping_STARsolo_${config_name}/${sample_id}_rRNA", mode: 'copy'
+    publishDir "${params.resDir}/rRNA_mtDNA/${sample_id}_${config_name}", mode: 'copy'
     debug true
 
     input:
@@ -13,16 +13,24 @@ process CALC_MT_RRNA {
        
     script:
     """
-    echo "\n\n==================  CALCULATION rRNA & mtRNA ${config_name} =================="
+    echo "\n\n==================  CALCULATION rRNA & mtDNA ${config_name} =================="
     echo "Sample ID: ${sample_id}"
     echo "Config name: ${config_name}"
     echo "Mapping files: ${mapping_files}"
 
     # Calculation rRNA
-    featureCounts -M --fraction -f \\
+    featureCounts \\
         -t rRNA \\
-        -a ${params.gtf_file} \\
+        -a ${params.ref_star_gtf} \\
         -o feat_counts_rRNA.txt \\
-        ${mapping_files}/*Aligned.sortedByCoord.out.bam
+        Aligned.sortedByCoord.out.bam
+
+    # Calculation mtDNA
+    grep 'mtDNA' ${params.ref_star_gtf} > mtDNA_only.gtf
+    featureCounts \\
+        -t exon \\
+        -a mtDNA_only.gtf \\
+        -o feat_counts_mtDNA.txt \\
+        Aligned.sortedByCoord.out.bam
     """
 }

@@ -16,9 +16,3 @@
 [submodule "ext_programs/minimap2"]
 	path = ext_programs/minimap2
 	url = https://github.com/lh3/minimap2.git
-[submodule "ext_programs/Jellyfish"]
-	path = ext_programs/Jellyfish
-	url = https://github.com/gmarcais/Jellyfish.git
-[submodule "ext_programs/bowtie2"]
-	path = ext_programs/bowtie2
-	url = https://github.com/BenLangmead/bowtie2.git
