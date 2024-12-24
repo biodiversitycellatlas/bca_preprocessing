@@ -61,10 +61,10 @@ process MAPPING_STARSOLO {
         ${barcode_option} \\
         --outSAMtype BAM SortedByCoordinate \\
         --outSAMattributes CR UR CB UB \\
-        --limitBAMsortRAM 4344372597 \\
+        --limitBAMsortRAM 6353859023 \\
         \${config_file} 
     
     # BD rhapsody data:
-    # --limitBAMsortRAM 4344372597
+    # --limitBAMsortRAM 6353859023
     """
 }
