@@ -10,7 +10,7 @@
 
 process MAPPING_PARSEBIO {
     tag "${fastq_files}"
-    publishDir "${params.resDir}/mapping_parsepipe/${sample_id}", mode: 'symlink'
+    publishDir "${params.resDir}/mapping_parsepipe/${sample_id}", mode: 'symlink', overwrite: false
     debug true
 
     input:

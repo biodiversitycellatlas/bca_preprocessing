@@ -5,7 +5,8 @@
 // The settings for STAR are set in the variable     \\
 // config_file, and is specific per sequencing tech. \\
 
-process MAPPING_STARSOLO {    
+process MAPPING_STARSOLO {
+    conda = "${params.baseDir}/bca_int_env.yml"    
     publishDir "${params.resDir}/mapping_STARsolo_${config_name}/${sample_id}", mode: 'symlink', overwrite: false
     debug true
     tag "${sample_id}_${config_name}"
@@ -60,6 +61,10 @@ process MAPPING_STARSOLO {
         ${barcode_option} \\
         --outSAMtype BAM SortedByCoordinate \\
         --outSAMattributes CR UR CB UB \\
+        --limitBAMsortRAM 4344372597 \\
         \${config_file} 
+    
+    # BD rhapsody data:
+    # --limitBAMsortRAM 4344372597
     """
 }

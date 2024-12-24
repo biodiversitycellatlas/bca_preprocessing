@@ -11,5 +11,5 @@
 --clipAdapterType CellRanger4
 --soloCellFilter EmptyDrops_CR
 --outFilterScoreMin 30
---clip5pAdapterSeq AACGCAGAGTGAATGGG
+--clip5pAdapterSeq AAGCAGTGGTATCAACGCAGAGTGAATGGG
 --soloFeatures Gene GeneFull
