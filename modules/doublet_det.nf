@@ -2,6 +2,7 @@
 
 process DOUBLET_DET {
     publishDir "${params.resDir}/doublets/${sample_id}", mode: 'symlink'
+    tag "${sample_id}"
     debug true
 
     input:
@@ -9,7 +10,8 @@ process DOUBLET_DET {
 
     script:
     """
-    echo "\n\n===============  DOUBLET DETECTION  ==============="
+    echo "\n\n===============  DOUBLET DETECTION ${config_name}  ==============="
+    echo "Sample ID: ${sample_id}"
     echo "Mapping files: ${mapping_files}"
 
     bc_file=\$(ls ${mapping_files}/Solo.out/GeneFull/raw/barcodes.tsv | head -n 1)
@@ -22,7 +24,7 @@ process DOUBLET_DET {
         --bam \${bam_file} \\
         --barcodes \${bc_file} \\
         --fasta ${params.ref_fasta} \\
-        --threads 1 \\
+        --threads 40 \\
         --out_dir . \\
         --clusters 4
     """

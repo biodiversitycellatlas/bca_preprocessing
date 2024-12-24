@@ -5,8 +5,8 @@
 ##################
 #SBATCH --output=/users/asebe/bvanwaardenburg/git/bca_preprocessing/logs/%x.%j.out
 #SBATCH --error=/users/asebe/bvanwaardenburg/git/bca_preprocessing/logs/%x.%j.err
-#SBATCH --time=00:50:00
-#SBATCH --qos=vshort
+#SBATCH --time=09:00:00
+#SBATCH --qos=normal
 #SBATCH --mem=64G
 #SBATCH --job-name trinity
 
