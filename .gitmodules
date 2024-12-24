@@ -16,3 +16,6 @@
 [submodule "ext_programs/minimap2"]
 	path = ext_programs/minimap2
 	url = https://github.com/lh3/minimap2.git
+[submodule "ext_programs/kraken2"]
+	path = ext_programs/kraken2
+	url = https://github.com/DerrickWood/kraken2.git

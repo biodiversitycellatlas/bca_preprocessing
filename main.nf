@@ -75,11 +75,11 @@ include { SATURATION as SATURATION_CR } from './modules/saturation'
 include { SATURATION as SATURATION_CRGE } from './modules/saturation'
 include { SATURATION as SATURATION_NGE } from './modules/saturation'
 
-include { GENE_EXT as GENE_EXT_N } from './modules/gene_ext'
-include { GENE_EXT as GENE_EXT_CR } from './modules/gene_ext'
+include { GENE_EXT } from './modules/gene_ext'
 
 include { MAPPING_STATS } from './modules/mapping_statistics'
-include { CALC_MT_RRNA } from './modules/calculate_mt_rrna'
+include { CALC_MT_RRNA as CALC_MT_RRNA_N } from './modules/calculate_mt_rrna'
+include { CALC_MT_RRNA as CALC_MT_RRNA_CR } from './modules/calculate_mt_rrna'
 include { DOUBLET_DET } from './modules/doublet_det'
 
 
@@ -116,38 +116,30 @@ workflow {
     MAPPING_STARSOLO_N(data_output, GENINDEX_STARSOLO_N.out, file(params.star_config_ED), params.barcodeDir, 'N')
     INDEX_BAM_N(MAPPING_STARSOLO_N.out)
     SATURATION_N(MAPPING_STARSOLO_N.out, INDEX_BAM_N.out)
+    CALC_MT_RRNA_N(MAPPING_STARSOLO_N.out)
 
-    GENE_EXT_N(MAPPING_STARSOLO_N.out, INDEX_BAM_N.out)
-    REINDEX_STARSOLO_N(GENE_EXT_N.out, file(params.star_config_mkref_N), 'N')
-    REMAPPING_STARSOLO_N(data_output, REINDEX_STARSOLO_N.out, file(params.star_config_ED), params.barcodeDir, 'remappedNGE')
+    // GENE_EXT(MAPPING_STARSOLO_N.out) //INDEX_BAM_N.out
+    // REINDEX_STARSOLO_N(GENE_EXT.out, file(params.star_config_mkref_N), 'N')
+    // REMAPPING_STARSOLO_N(data_output, REINDEX_STARSOLO_N.out, file(params.star_config_ED), params.barcodeDir, 'remappedNGE')
    
-    INDEX_BAM_NGE(REMAPPING_STARSOLO_N.out)
-    SATURATION_NGE(REMAPPING_STARSOLO_N.out, INDEX_BAM_NGE.out)
-
-
-    // Mapping: CR-like
-    // MAPPING_STARSOLO_CR(data_output, GENINDEX_STARSOLO_CR.out, file(params.star_config_CRED), params.barcodeDir, 'CR')
-    // INDEX_BAM_CR(MAPPING_STARSOLO_CR.out)
-    // SATURATION_CR(MAPPING_STARSOLO_CR.out, INDEX_BAM_CR.out)
+    // INDEX_BAM_NGE(REMAPPING_STARSOLO_N.out)
+    // SATURATION_NGE(REMAPPING_STARSOLO_N.out, INDEX_BAM_NGE.out)
 
     // Mapping: CR-like + Gene extension
-    MAPPING_STARSOLO_CR(data_output, GENINDEX_STARSOLO_CR.out, file(params.star_config_CR), params.barcodeDemux, 'CR')
+    MAPPING_STARSOLO_CR(data_output, GENINDEX_STARSOLO_CR.out, file(params.star_config_CRED), params.barcodeDemux, 'CR')
     INDEX_BAM_CR(MAPPING_STARSOLO_CR.out)
     SATURATION_CR(MAPPING_STARSOLO_CR.out, INDEX_BAM_CR.out)
-    
-    // mapping_output = ['BCA001_lib_13077AAF_CAGATCAC-ATGTGAAG_ACMEsorb_GM', 'CRGE', '/users/asebe/bvanwaardenburg/git/data/240810_ParseBio_Nvec_Tcas/Nvec_BCA001_BCA002/mapping_STARsolo_CRGE/BCA001_lib_13077AAF_CAGATCAC-ATGTGAAG_ACMEsorb_GM']
+    CALC_MT_RRNA_CR(MAPPING_STARSOLO_CR.out)
 
-    GENE_EXT_CR(MAPPING_STARSOLO_CR.out, INDEX_BAM_CR.out)
-    REINDEX_STARSOLO_CR(GENE_EXT_CR.out, file(params.star_config_mkref_CR), 'CR')
-    REMAPPING_STARSOLO_CR(data_output, REINDEX_STARSOLO_CR.out, file(params.star_config_CRED), params.barcodeDemux, 'remappedCRGE')
+    // GENE_EXT_CR(MAPPING_STARSOLO_CR.out)
+    // REINDEX_STARSOLO_CR(GENE_EXT_CR.out, file(params.star_config_mkref_CR), 'CR')
+    // REMAPPING_STARSOLO_CR(data_output, REINDEX_STARSOLO_CR.out, file(params.star_config_CRED), params.barcodeDemux, 'remappedCRGE')
  
-    INDEX_BAM_CRGE(REMAPPING_STARSOLO_CR.out)
-    SATURATION_CRGE(REMAPPING_STARSOLO_CR.out, INDEX_BAM_CRGE.out)
-
-    MAPPING_STATS(REMAPPING_STARSOLO_N.out.collect(), REMAPPING_STARSOLO_CR.out.collect())
+    // INDEX_BAM_CRGE(REMAPPING_STARSOLO_CR.out)
+    // SATURATION_CRGE(REMAPPING_STARSOLO_CR.out, INDEX_BAM_CRGE.out)
 
     // Downstream processes (continuing with config 1)
-    // CALC_MT_RRNA(remapped_output)
+    // MAPPING_STATS() 
     // DOUBLET_DET(mapping_output)
 }
 
