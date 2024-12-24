@@ -21,7 +21,7 @@ process GENINDEX_STARSOLO {
     echo "\n\n==================  GENOME INDEX STARSOLO ${config_name} =================="
     # Retrieve the first accession number
     first_accs=\$(head -1 ${params.accessions})
-    first_fastq="${params.resDir}/fastq/\${first_accs}*1*.fastq.gz"  
+    first_fastq="${params.resDir}/fastq/\${first_accs}*R1*.fastq.gz"  
 
     echo "\${first_accs}"
     echo "\${first_fastq}"
