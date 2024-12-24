@@ -2,7 +2,7 @@
 #SBATCH --output=/users/asebe/bvanwaardenburg/git/bca_preprocessing/logs/%x.%j.out
 #SBATCH --error=/users/asebe/bvanwaardenburg/git/bca_preprocessing/logs/%x.%j.err
 #SBATCH --no-requeue
-#SBATCH --mem 20G
+#SBATCH --mem 6G
 #SBATCH -p genoa64
 #SBATCH --qos pipelines
 #SBATCH --job-name nextflow_pipeline
@@ -12,7 +12,7 @@
 # Configure bash #
 ##################
 
-set -e          # exit immediately on error
+# set -e          # exit immediately on error
 set -u          # exit immidiately if using undefined variables
 set -o pipefail # ensure bash pipelines return non-zero status if any of their command fails
 
@@ -43,14 +43,8 @@ trap _term TERM
 # -with-timeline : 	creates execution timeline, displaying the 
 # 			execution-, waiting- and staging times.
 
-# nvec - parse
-# nextflow run -ansi-log false "$@" & pid=$!
 
-# tcas - parse
-nextflow run -resume f24394cb-5403-47eb-8e23-630f6ac8035a -ansi-log false "$@" & pid=$!
-
-# nvec - bd_rhapsody
-# nextflow run -ansi-log false "$@" & pid=$!
+nextflow run -resume 74446874-f0dc-4c86-b5ea-00474b2be541 -with-conda -profile slurm -ansi-log false "$@" & pid=$! # test reference
 
 # Wait for the pipeline to finish
 echo "Waiting for ${pid}"
