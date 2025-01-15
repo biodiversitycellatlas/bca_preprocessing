@@ -44,7 +44,7 @@ trap _term TERM
 # 			execution-, waiting- and staging times.
 
 
-nextflow run -resume 74446874-f0dc-4c86-b5ea-00474b2be541 -with-conda -profile slurm -ansi-log false "$@" & pid=$! # test reference
+nextflow run -with-conda -profile slurm -ansi-log false "$@" & pid=$! # test reference
 
 # Wait for the pipeline to finish
 echo "Waiting for ${pid}"

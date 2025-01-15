@@ -11,7 +11,7 @@
 #SBATCH --job-name mapping_stats
 
 echo -e "\n\n===============  MAPPING STATISTICS  ==============="
-resDir="/users/asebe/bvanwaardenburg/git/data/241204_ParseBio_Nvec_Tcas_nuclei/Nvec"
+resDir="/users/asebe/bvanwaardenburg/git/data/240810_ParseBio_Nvec_Tcas/Nvec_BCA001_BCA002_TestREF/"
 
 # Change to the directory that contains the data
 cd ${resDir} || { echo "Error: Could not cd to script directory"; exit 1; }
@@ -78,8 +78,8 @@ for map_dir in ${resDir}/mapping_STARsolo_*; do
         mapName=$(basename "$sample_dir")
         pick_config=$(echo "$map_dir" | grep -oE '_(CR|N)$')
 
-        rRNA_summary="$resDir/rRNA_mtDNA/${mapName}${pick_config}/feat_counts_rRNA.txt.summary"
-        mtDNA_summary="$resDir/rRNA_mtDNA/${mapName}${pick_config}/feat_counts_mtDNA.txt.summary"
+        rRNA_summary="$sample_dir/feat_counts_rRNA.txt.summary"
+        mtDNA_summary="$sample_dir/feat_counts_mtDNA.txt.summary"
 
         if [ -f "$rRNA_summary" ] && [ -f "$mtDNA_summary" ]; then
             rRNA_assigned=$(grep "^Assigned" "$rRNA_summary" | awk '{print $2}')
