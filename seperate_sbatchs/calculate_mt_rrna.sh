@@ -26,7 +26,7 @@ gtf_file="${resDir}/genome/Nvec_v5_merged_annotation_sort.gtf"
 
 
 # For each STARsolo mapping directory
-for map_dir in ${resDir}/mapping_STARsolo_*; do
+for map_dir in ${resDir}/mapping_STARsolo_N_addattrib; do
     echo "mapping dir: ${map_dir}"
 
     # For each sample directory under the mapping directory
@@ -34,21 +34,28 @@ for map_dir in ${resDir}/mapping_STARsolo_*; do
       echo "sample dir: ${sample_dir} "
       
       # Create seperate BAM with filtered results - filter for multimapped reads only present in primary alignment
-      samtools view -F 256 ${sample_dir}/Aligned.sortedByCoord.out.bam | grep -E "^\@|NH:i:[2-9]" > ${sample_dir}/multimapped_primealign.bam
+      samtools view -h -F 256 ${sample_dir}/Aligned.sortedByCoord.out.bam | grep -E "^\@|NH:i:[2-9]" | samtools view -b -o ${sample_dir}/multimapped_primealign.bam
       # Create seperate BAM with filtered results - filter for multimapped reads present in both secondary and primary alignments
-      samtools view ${sample_dir}/Aligned.sortedByCoord.out.bam | grep -E "^\@|NH:i:[2-9]" > ${sample_dir}/multimapped_allalign.bam
+      samtools view -h ${sample_dir}/Aligned.sortedByCoord.out.bam | grep -E "^\@|NH:i:[2-9]" | samtools view -b -o ${sample_dir}/multimapped_allalign.bam
 
       # rRNA
       featureCounts -t rRNA -a ${gtf_file} -o ${sample_dir}/feat_counts_rRNA.txt ${sample_dir}/Aligned.sortedByCoord.out.bam
-      featureCounts -t rRNA -a ${gtf_file} -o ${sample_dir}/feat_counts_rRNA_mmpa.txt ${sample_dir}/multimapped_primealign.bam
-      featureCounts -t rRNA -a ${gtf_file} -o ${sample_dir}/feat_counts_rRNA_mmaa.txt ${sample_dir}/multimapped_allalign.bam
+      featureCounts -M --fraction -t rRNA -a ${gtf_file} -o ${sample_dir}/feat_counts_rRNA_mmpa.txt ${sample_dir}/multimapped_primealign.bam
+      featureCounts -M --fraction -t rRNA -a ${gtf_file} -o ${sample_dir}/feat_counts_rRNA_mmaa.txt ${sample_dir}/multimapped_allalign.bam
       
-      #mtDNA
+      # mtDNA
       grep 'mtDNA' ${gtf_file} > ${sample_dir}/mtDNA_only.gtf
       featureCounts -t exon -a ${sample_dir}/mtDNA_only.gtf -o ${sample_dir}/feat_counts_mtDNA.txt ${sample_dir}/Aligned.sortedByCoord.out.bam
-      featureCounts -t exon -a ${sample_dir}/mtDNA_only.gtf -o ${sample_dir}/feat_counts_mtDNA_mmpa.txt ${sample_dir}/multimapped_primealign.bam
-      featureCounts -t exon -a ${sample_dir}/mtDNA_only.gtf -o ${sample_dir}/feat_counts_mtDNA_mmaa.txt ${sample_dir}/multimapped_allalign.bam
-      
+      featureCounts -M --fraction -t exon -a ${sample_dir}/mtDNA_only.gtf -o ${sample_dir}/feat_counts_mtDNA_mmpa.txt ${sample_dir}/multimapped_primealign.bam
+      featureCounts -M --fraction -t exon -a ${sample_dir}/mtDNA_only.gtf -o ${sample_dir}/feat_counts_mtDNA_mmaa.txt ${sample_dir}/multimapped_allalign.bam
+
+      # Per-gene counts for multimappers
+      featureCounts -M --fraction -a ${gtf_file} -o ${sample_dir}/feat_counts_multimappers_genelevel.txt ${sample_dir}/multimapped_allalign.bam
+      # Saves feature counts as clean gene counts table
+      tail -n +3 ${sample_dir}/feat_counts_multimappers_genelevel.txt | cut -f1,7 > ${sample_dir}/multimapper_gene_counts.txt
+      # Sort the counts
+      sort -k2,2nr ${sample_dir}/multimapper_gene_counts.txt > ${sample_dir}/sorted_multimapper_gene_counts.txt
+
     done
 done
 
