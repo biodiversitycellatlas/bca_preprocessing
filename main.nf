@@ -105,18 +105,18 @@ workflow {
     }
     
     // Quality Control
-    FASTQC(data_output)
-    MULTIQC(FASTQC.out.collect())
+    // FASTQC(data_output)
+    // MULTIQC(FASTQC.out.collect())
 
     // Mapping STARsolo
     GENINDEX_STARSOLO_N(params.ref_star_gff, file(params.star_config_mkref_N), 'N')
-    GENINDEX_STARSOLO_CR(params.ref_star_gff, file(params.star_config_mkref_CR), 'CR')
+    // GENINDEX_STARSOLO_CR(params.ref_star_gff, file(params.star_config_mkref_CR), 'CR')
 
     // Mapping: standard configuration
     MAPPING_STARSOLO_N(data_output, GENINDEX_STARSOLO_N.out, file(params.star_config_ED), params.barcodeDir, 'N')
-    INDEX_BAM_N(MAPPING_STARSOLO_N.out)
-    SATURATION_N(MAPPING_STARSOLO_N.out, INDEX_BAM_N.out)
-    CALC_MT_RRNA_N(MAPPING_STARSOLO_N.out)
+    // INDEX_BAM_N(MAPPING_STARSOLO_N.out)
+    // SATURATION_N(MAPPING_STARSOLO_N.out, INDEX_BAM_N.out)
+    // CALC_MT_RRNA_N(MAPPING_STARSOLO_N.out)
 
     // GENE_EXT(MAPPING_STARSOLO_N.out) //INDEX_BAM_N.out
     // REINDEX_STARSOLO_N(GENE_EXT.out, file(params.star_config_mkref_N), 'N')
@@ -125,11 +125,11 @@ workflow {
     // INDEX_BAM_NGE(REMAPPING_STARSOLO_N.out)
     // SATURATION_NGE(REMAPPING_STARSOLO_N.out, INDEX_BAM_NGE.out)
 
-    // Mapping: CR-like + Gene extension
-    MAPPING_STARSOLO_CR(data_output, GENINDEX_STARSOLO_CR.out, file(params.star_config_CRED), params.barcodeDemux, 'CR')
-    INDEX_BAM_CR(MAPPING_STARSOLO_CR.out)
-    SATURATION_CR(MAPPING_STARSOLO_CR.out, INDEX_BAM_CR.out)
-    CALC_MT_RRNA_CR(MAPPING_STARSOLO_CR.out)
+    // // Mapping: CR-like + Gene extension
+    // MAPPING_STARSOLO_CR(data_output, GENINDEX_STARSOLO_CR.out, file(params.star_config_CRED), params.barcodeDemux, 'CR')
+    // INDEX_BAM_CR(MAPPING_STARSOLO_CR.out)
+    // SATURATION_CR(MAPPING_STARSOLO_CR.out, INDEX_BAM_CR.out)
+    // CALC_MT_RRNA_CR(MAPPING_STARSOLO_CR.out)
 
     // GENE_EXT_CR(MAPPING_STARSOLO_CR.out)
     // REINDEX_STARSOLO_CR(GENE_EXT_CR.out, file(params.star_config_mkref_CR), 'CR')

@@ -29,8 +29,8 @@ set -o pipefail
 ####################
 # define variables #
 ####################
-accession="BCA004_lib_13080AAF_CTTGTAAT-AGTTGGCT"
-baseDir="/users/asebe/bvanwaardenburg/git/data/240810_ParseBio_Nvec_Tcas/Tcas"
+accession="BCA006_15789AAF_CGAGGCTG-AGGCTATA"
+baseDir="/users/asebe/bvanwaardenburg/git/data/241106_BD_Rhapsody_Nvec/"
 codeDir="/users/asebe/bvanwaardenburg/git/bca_preprocessing/ext_programs/10x_saturate"
 log_out="/users/asebe/bvanwaardenburg/git/bca_preprocessing/logs/"
 
@@ -39,11 +39,11 @@ cd ${codeDir}
 # prints the accession number associated with this run
 echo "${accession}"
 
-mappingDir="${baseDir}/mapping_STARsolo_N/${accession}"
+mappingDir="${baseDir}/mapping_STARsolo_CR/${accession}"
 bam_file="${mappingDir}/*.bam"
 
 # create output directory
-output_dir="${baseDir}/saturation/${accession}_N"
+output_dir="${baseDir}/saturation/${accession}_CR"
 mkdir -p ${output_dir}
 
 
