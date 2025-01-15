@@ -7,7 +7,7 @@
 
 process MAPPING_STARSOLO {
     conda = "${params.baseDir}/bca_int_env.yml"    
-    publishDir "${params.resDir}/mapping_STARsolo_${config_name}/${sample_id}", mode: 'symlink', overwrite: false
+    publishDir "${params.resDir}/mapping_STARsolo_${config_name}_addattrib/${sample_id}", mode: 'symlink', overwrite: false
     debug true
     tag "${sample_id}_${config_name}"
 
@@ -60,8 +60,8 @@ process MAPPING_STARSOLO {
         --readFilesCommand zcat \\
         ${barcode_option} \\
         --outSAMtype BAM SortedByCoordinate \\
-        --outSAMattributes CR UR CB UB \\
-        --limitBAMsortRAM 6353859023 \\
+        --outSAMattributes NH HI AS nM CR UR CB UB \\
+        --soloMultiMappers EM \\
         \${config_file} 
     
     # BD rhapsody data:
