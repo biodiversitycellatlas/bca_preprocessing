@@ -4,9 +4,8 @@
 // submodule function.                                     \\
 
 process SATURATION {
-    publishDir "${params.resDir}/saturation/saturation_plots_${config_name}/${sample_id}", mode: 'symlink'
+    publishDir "${params.resDir}/saturation/saturation_plots_${config_name}/${sample_id}", mode: 'copy'
     tag "${sample_id}"
-    debug true
 
     input:
     tuple val(sample_id), val(config_name), path(mapping_files)

@@ -5,10 +5,8 @@
 // The settings for STAR are set in the variable     \\
 // config_file, and is specific per sequencing tech. \\
 
-process MAPPING_STARSOLO {
-    conda = "${params.baseDir}/bca_int_env.yml"    
-    publishDir "${params.resDir}/mapping_STARsolo_${config_name}_addattrib/${sample_id}", mode: 'symlink', overwrite: false
-    debug true
+process MAPPING_STARSOLO { 
+    publishDir "${params.resDir}/mapping_STARsolo_${config_name}_addattrib/${sample_id}", mode: 'copy', overwrite: false
     tag "${sample_id}_${config_name}"
 
     input:
@@ -22,6 +20,8 @@ process MAPPING_STARSOLO {
     tuple val(sample_id), val(config_name), path("*")
 
     script:
+    def bd_mem_arg   = task.ext.args ?: ''          // If ext.args is defined assign it to bd_mem_arg
+
     def fastq_list = fastq_files instanceof List ? fastq_files : [fastq_files]
     def r1_fastq = fastq_list.find { it.name.contains('_R1') }
     def r2_fastq = fastq_list.find { it.name.contains('_R2') }
@@ -62,9 +62,8 @@ process MAPPING_STARSOLO {
         --outSAMtype BAM SortedByCoordinate \\
         --outSAMattributes NH HI AS nM CR UR CB UB \\
         --soloMultiMappers EM \\
+        ${bd_mem_arg} \\
         \${config_file} 
-    
-    # BD rhapsody data:
-    # --limitBAMsortRAM 6353859023
+
     """
 }

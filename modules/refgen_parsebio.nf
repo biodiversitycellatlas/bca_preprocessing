@@ -4,9 +4,6 @@
 // Parse Biosciences (split-pipe) pipeline.                \\
 
 process REFGEN_PARSEBIO {
-    publishDir "${params.resDir}/genome/parse_refgenome", mode: 'symlink'
-    debug true
-
     output:
     path("*")
 

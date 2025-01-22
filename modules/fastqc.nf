@@ -4,7 +4,6 @@
 process FASTQC {
     publishDir "${params.resDir}/fastqc", mode: 'copy'
     tag "${fastq_files}"
-    debug true
 
     input:
     tuple val(sample_id), path(fastq_files)

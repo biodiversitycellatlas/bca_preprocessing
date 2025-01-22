@@ -1,7 +1,7 @@
 // =================  INDEX BAM FILES  ================== \\ 
 
 process INDEX_BAM {
-    publishDir "${params.resDir}/mapping_parsepipe/${sample_id}", mode: 'symlink'
+    publishDir "${params.resDir}/mapping_parsepipe/${sample_id}", mode: 'copy'
     tag "${sample_id}"
     debug true
 

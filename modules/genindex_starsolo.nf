@@ -5,11 +5,8 @@
 // parse_refgenome: see next process                   \\
 
 process GENINDEX_STARSOLO {   
-    publishDir "${params.resDir}/genome/genome_index_${config_name}", mode: 'symlink'
-    debug true
-
     input:
-    path(ref_star_gff)
+    path(ref_star_gtf)
     path(config_mkref)
     val config_name
 
@@ -17,6 +14,8 @@ process GENINDEX_STARSOLO {
     path("*")     
        
     script:
+    def gff_arg   = task.ext.args ?: ''          // If ext.args is defined assign it to gff_arg
+
     """
     echo "\n\n==================  GENOME INDEX STARSOLO ${config_name} =================="
     # Retrieve the first accession number
@@ -35,13 +34,11 @@ process GENINDEX_STARSOLO {
     echo "Generating genome index with STAR"
     STAR --runMode genomeGenerate \\
         --genomeFastaFiles ${params.ref_fasta} \\
-        --sjdbGTFfile ${ref_star_gff} \\
+        --sjdbGTFfile ${ref_star_gtf} \\
+        ${gff_arg} \\
         --sjdbOverhang "\${sjdb_overhang}" \\
         --genomeSAindexNbases 12 \\
         \${config_file}
-
-    # Only add this parameter for GFF files
-    # --sjdbGTFtagExonParentTranscript transcript_id \\
     """
 }
 

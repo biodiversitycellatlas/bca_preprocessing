@@ -1,8 +1,7 @@
 // ==================  GENE EXTENSION  =================== \\ 
 
 process GENE_EXT {
-    conda "${params.baseDir}/ext_programs/GeneExt/environment.yaml"
-    publishDir "${params.resDir}/genome/gene_ext/${sample_id}_${config_name}", mode: 'symlink'
+    publishDir "${params.resDir}/genome/gene_ext/${sample_id}_${config_name}", mode: 'copy'
     tag "${sample_id}"
     debug true
 
