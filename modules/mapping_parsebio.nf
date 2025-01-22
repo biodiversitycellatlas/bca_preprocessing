@@ -9,10 +9,9 @@
 // directory.                                        \\
 
 process MAPPING_PARSEBIO {
+    publishDir "${params.resDir}/mapping_parsepipe/${sample_id}", mode: 'copy', overwrite: false
     tag "${fastq_files}"
-    publishDir "${params.resDir}/mapping_parsepipe/${sample_id}", mode: 'symlink', overwrite: false
-    debug true
-
+    
     input:
     tuple val(sample_id), path(fastq_files)
     path parse_refgenome_files
