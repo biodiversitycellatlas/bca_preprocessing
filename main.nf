@@ -17,16 +17,16 @@ Pre-requisites:
 Optional:
 - seqspec (.yaml) file
 
+Run:
+sbatch submit_nextflow.sh main.nf
+
 ==========================
 TODO list: 
 
 - enable workflow notification -> sends an email upon completion:
     nextflow run <pipeline name> -N <recipient address>
-- publishDir: , overwrite: false 
-- save files somewhere outside work directory, now all files are symlink to /work/
 
 - incorporate seqspec
-- split_parse_data: save unused reads to file and inspect
 
 ==========================
 Help:
@@ -76,11 +76,7 @@ include { SATURATION as SATURATION_CRGE } from './modules/saturation'
 include { SATURATION as SATURATION_NGE } from './modules/saturation'
 
 include { GENE_EXT } from './modules/gene_ext'
-
 include { MAPPING_STATS } from './modules/mapping_statistics'
-include { CALC_MT_RRNA as CALC_MT_RRNA_N } from './modules/calculate_mt_rrna'
-include { CALC_MT_RRNA as CALC_MT_RRNA_CR } from './modules/calculate_mt_rrna'
-include { DOUBLET_DET } from './modules/doublet_det'
 
 
 // =================  MAIN WORKFLOW  ================= \\ 
@@ -105,15 +101,15 @@ workflow {
     }
     
     // Quality Control
-    // FASTQC(data_output)
-    // MULTIQC(FASTQC.out.collect())
+    FASTQC(data_output)
+    MULTIQC(FASTQC.out.collect())
 
     // Mapping STARsolo
-    GENINDEX_STARSOLO_N(params.ref_star_gff, file(params.star_config_mkref_N), 'N')
-    // GENINDEX_STARSOLO_CR(params.ref_star_gff, file(params.star_config_mkref_CR), 'CR')
+    // GENINDEX_STARSOLO_N(params.ref_star_gtf, file(params.star_config_mkref_N), 'N')
+    // GENINDEX_STARSOLO_CR(params.ref_star_gtf, file(params.star_config_mkref_CR), 'CR')
 
     // Mapping: standard configuration
-    MAPPING_STARSOLO_N(data_output, GENINDEX_STARSOLO_N.out, file(params.star_config_ED), params.barcodeDir, 'N')
+    // MAPPING_STARSOLO_N(data_output, GENINDEX_STARSOLO_N.out, file(params.star_config_ED), params.barcodeDir, 'N')
     // INDEX_BAM_N(MAPPING_STARSOLO_N.out)
     // SATURATION_N(MAPPING_STARSOLO_N.out, INDEX_BAM_N.out)
     // CALC_MT_RRNA_N(MAPPING_STARSOLO_N.out)

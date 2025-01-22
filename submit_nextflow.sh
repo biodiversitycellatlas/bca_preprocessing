@@ -33,18 +33,11 @@ trap _term TERM
 ####################
 
 # The command uses the arguments passed to this script, e.g:
-# -resume : 		resumes previous work.
-# -with-report: 	creates execution report, including summary,
-# 			resources and tasks.
-# -with-dag : 		creates a workflow diagram of the pipeline. 
-# 			vertices in the graph represent the pipeline’s 
-#			processes and operators, while the edges represent 
-# 			the data dependencies (i.e. channels) between them.
-# -with-timeline : 	creates execution timeline, displaying the 
-# 			execution-, waiting- and staging times.
+# -resume       : 	resumes previous work, followed by hash name of used working directory
+# -c            :       config file (required)
+# -profile      :       
 
-
-nextflow run -with-conda -profile slurm -ansi-log false "$@" & pid=$! # test reference
+nextflow run -profile slurm,240810_ParseBio_Nvec_BCA1_BCA2 -ansi-log false "$@" & pid=$! 
 
 # Wait for the pipeline to finish
 echo "Waiting for ${pid}"

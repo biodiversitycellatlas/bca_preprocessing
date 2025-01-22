@@ -15,22 +15,11 @@ workflow parse_workflow {
     take:
         sample_ids
     main:
-        data = DOWNLOAD_DATA(sample_ids)
+        DOWNLOAD_DATA(sample_ids)
         
-        // include BCA00.. in both channels to not have to split nvec. Match on these then and it should work
-        // Nvec - BCA001/2
-        groups = Channel.of(['ACMEsorb_GM', 'A1-A3'], ['EMA_ACME_GM', 'A4-A6'], ['DSP', 'A7-A9'], ['Parse_fix', 'A10-A12'])
-        // Nvec - BCA003/4
-        // groups = Channel.of(['ACMEsorb_cold_PR', 'A1-A3'], ['Vivophix_sonic', 'A4-A6'], ['DSP_CMFSW', 'A7-A9'])
-        // Nvec nuclei - BCA007/8
-        // groups = Channel.of(['DCE_PRS', 'A1-A3'], ['DCE_FH', 'A10-A12'])
+        groups = Channel.fromList(params.groups)
+        comb_data = DOWNLOAD_DATA.out.fastq_files.combine(groups)
 
-        // Tcas - BCA003/4
-        // groups = Channel.of(['all', 'A10-A12'], ['A10', 'A10'], ['A11', 'A11'], ['A12', 'A12'])
-        // Tcas nuclei - BCA007/8
-        // groups = Channel.of(['DCE_PRS', 'A4-A6'], ['DCE_FH', 'A7-A9'])
-
-        comb_data = data.combine(groups)
         DEMULTIPLEX(comb_data)
         
         REFGEN_PARSEBIO()
