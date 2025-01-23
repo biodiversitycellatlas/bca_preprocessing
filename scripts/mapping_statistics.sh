@@ -10,14 +10,31 @@
 #SBATCH --mem=10G
 #SBATCH --job-name mapping_stats
 
-echo -e "\n\n===============  MAPPING STATISTICS  ==============="
-resDir="/users/asebe/bvanwaardenburg/git/data/240810_ParseBio_Nvec_Tcas/Tcas_FINAL"
+
+#################
+# # start message #
+# #################
+# start_epoch=`date +%s`
+# echo [$(date +"%Y-%m-%d %H:%M:%S")] starting on $(hostname)
+
+
+####################
+# define variables #
+####################	
+
+# example var 1: resDir="/users/asebe/bvanwaardenburg/git/data/240810_ParseBio_Nvec_Tcas/Nvec_BCA001_BCA002_FINAL/"
+resDir=$1
 
 # Change to the directory that contains the data
-cd ${resDir} || { echo "Error: Could not cd to script directory"; exit 1; }
+cd ${resDir} || { echo "Error: Could not cd to data directory"; exit 1; }
 
 # Define output file
-output_file="${resDir}/star_mapping_stats.tsv"
+output_file="${resDir}/mapping_stats.tsv"
+
+
+###############
+# run command #
+###############
 
 # Print header to output file
 echo -e "Directory\tSample\tN reads/sample\tN R1 >Q30\tN R2 >Q30\tN uniquely mapped reads\t% uniquely mapped reads\t% multi-mapped reads\t% multi-mapped reads: too many\t% unmapped: too short\t% unmapped: other\tExpected % Doublets\tTarget N cells\tN cells\tUMI cutoff used for cell calling\tsaturation\tNoise (% UMIs in non-cell barcodes)\t% rRNA in Unique reads\t%rRNA in multimappers all pos\t%rRNA in multimappers primary pos\t% mtDNA in Unique reads\t%mtDNA in multimappers all pos\t%mtDNA in multimappers primary pos\t3 most freq genes in multimappers" > "$output_file"
