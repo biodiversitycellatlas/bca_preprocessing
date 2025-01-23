@@ -9,31 +9,30 @@ process GENE_EXT {
     tuple val(sample_id), val(config_name), path(mapping_files)
 
     output:
-    path("result.gtf")
+    path("${sample_id}_geneext.gtf")
     
     script:
     """
     echo "\n\n==================  GENE EXTENSION ${config_name} =================="
     echo "Sample ID: ${sample_id}"
     echo "Mapping files: ${mapping_files}"
-    echo "Original GTF: ${params.ref_star_gff}"
+    echo "Original GTF: ${params.ref_star_gtf}"
+    echo "Conda environment: \$CONDA_DEFAULT_ENV"
 
-    conda list 
-
-    which python
-    python -c "import gffutils; print('gffutils found!')"
-
-    # bam_file=\$(ls Aligned.sortedByCoord.out.bam | head -n 1)
-    # echo "BAM file: \${bam_file}"
-    
-    if [ -d "tmp" ]; then rm -Rf tmp; fi
-    if [ -d "${params.baseDir}/ext_programs/GeneExt/tmp" ]; then rm -Rf ${params.baseDir}/ext_programs/GeneExt/tmp; fi
-    if [ -d "${params.baseDir}/ext_programs/GeneExt/result*" ]; then rm -Rf ${params.baseDir}/ext_programs/GeneExt/result*; fi
+    if [ -d "tmp" ]; then rm -r tmp; fi
+    if [ -d "${params.baseDir}/ext_programs/GeneExt/tmp" ]; then rm -r ${params.baseDir}/ext_programs/GeneExt/tmp; fi
+    # if [ -d "${params.baseDir}/ext_programs/GeneExt/result*" ]; then rm -r ${params.baseDir}/ext_programs/GeneExt/result*; fi
     
     python ${params.baseDir}/ext_programs/GeneExt/geneext.py \\
-        -g /users/asebe/bvanwaardenburg/git/data/240810_ParseBio_Nvec_Tcas/Nvec_BCA001_BCA002_TestREF/genome/Nvec_v5_merged_annotation_sort.gtf \\ 
+        -g ${params.ref_star_gtf} \\
         -b Aligned.sortedByCoord.out.bam \\
-        -o result.gtf \\
-        --peak_perc 0
+        -o ${sample_id}_geneext.gtf \\
+        -j 40
+
+    # Wait for output file to exist
+    while [ ! -f ${sample_id}_geneext.gtf ]; do
+        echo "Waiting for output file..."
+        sleep 10
+    done
     """
 }

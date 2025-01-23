@@ -9,7 +9,7 @@
 // directory.                                        \\
 
 process MAPPING_PARSEBIO {
-    publishDir "${params.resDir}/mapping_parsepipe/${sample_id}", mode: 'copy', overwrite: false
+    publishDir "${params.resDir}/mapping_splitpipe/${sample_id}", mode: 'copy', overwrite: false
     tag "${fastq_files}"
     
     input:
@@ -20,6 +20,7 @@ process MAPPING_PARSEBIO {
     path("*")
 
     script:
+    def kitskip_arg   = task.ext.args ?: ''          // If ext.args is defined assign it to kitskip_arg
     def fastq_list = fastq_files instanceof List ? fastq_files : [fastq_files]
     def r1_fastq = fastq_list.find { it.name.contains('_R1') }
     def r2_fastq = fastq_list.find { it.name.contains('_R2') }
@@ -29,6 +30,7 @@ process MAPPING_PARSEBIO {
     echo "FQ 1: ${r1_fastq ?: 'Not provided'}"
     echo "FQ 2: ${r2_fastq ?: 'Not provided'}"
     echo "Genome index directory: ${parse_refgenome_files}"
+    echo "Conda environment: \$CONDA_DEFAULT_ENV"
 
     # Generate parameter file
     echo "post_min_map_frac 0.01" > config_${params.seqTech}_parsepipe.txt
@@ -41,6 +43,8 @@ process MAPPING_PARSEBIO {
         
     split-pipe -m all \\
         --chemistry v3 \\
+	--kit WT_mini \\
+	${kitskip_arg} \\
         --fq1 ${r1_fastq} \\
         --fq2 ${r2_fastq} \\
         --nthreads 16 \\
