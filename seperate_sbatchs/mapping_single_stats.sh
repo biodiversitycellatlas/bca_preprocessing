@@ -75,6 +75,8 @@ for map_dir in ${resDir}/mapping_STARsolo_N_addattrib; do
         fi
 
         # Extract mtDNA & rRNA values
+	reads_mmpa=$(samtools view -c "$sample_dir/multimapped_primealign.bam")
+	reads_mmaa=$(samtools view -c "$sample_dir/multimapped_allalign.bam")
         rRNA_summary="$sample_dir/feat_counts_rRNA.txt.summary"
         mtDNA_summary="$sample_dir/feat_counts_mtDNA.txt.summary"
         rRNA_mmpa_summary="$sample_dir/feat_counts_rRNA_mmpa.txt.summary"
@@ -87,19 +89,19 @@ for map_dir in ${resDir}/mapping_STARsolo_N_addattrib; do
             rRNA_assigned=$(grep "^Assigned" "$rRNA_summary" | awk '{print $2}')
             mtDNA_assigned=$(grep "^Assigned" "$mtDNA_summary" | awk '{print $2}')
             rRNA_percentage=$(awk -v sum=$n_uniquely_mapped -v assigned=$rRNA_assigned 'BEGIN{if(assigned>0){printf("%.6f", (assigned/sum))}else{print("NA")}}')
-            mtDNA_percentage=$(awk -v sum2=$n_uniquely_mapped -v assigned2=$mtDNA_assigned 'BEGIN{if(assigned2>0){printf("%.6f", (assigned2/sum2))}else{print("NA")}}')
+            mtDNA_percentage=$(awk -v sum=$n_uniquely_mapped -v assigned2=$mtDNA_assigned 'BEGIN{if(assigned2>0){printf("%.6f", (assigned2/sum))}else{print("NA")}}')
 
             # percentage of multimappers, in only the first alignment
             rRNA_mmpa_assigned=$(grep "^Assigned" "$rRNA_mmpa_summary" | awk '{print $2}')
             mtDNA_mmpa_assigned=$(grep "^Assigned" "$mtDNA_mmpa_summary" | awk '{print $2}')
-            rRNA_mmpa_percentage=$(awk -v sum=$n_reads -v assigned=$rRNA_mmpa_assigned 'BEGIN{if(assigned>0){printf("%.6f", (assigned/sum))}else{print("NA")}}')
-            mtDNA_mmpa_percentage=$(awk -v sum2=$n_reads -v assigned2=$mtDNA_mmpa_assigned 'BEGIN{if(assigned2>0){printf("%.6f", (assigned2/sum2))}else{print("NA")}}')
+            rRNA_mmpa_percentage=$(awk -v sum2=$reads_mmpa -v assigned3=$rRNA_mmpa_assigned 'BEGIN{if(assigned3>0){printf("%.6f", (assigned3/sum2))}else{print("NA")}}')
+            mtDNA_mmpa_percentage=$(awk -v sum2=$reads_mmpa -v assigned4=$mtDNA_mmpa_assigned 'BEGIN{if(assigned4>0){printf("%.6f", (assigned4/sum2))}else{print("NA")}}')
 
             # percentage of multimappers, in all alignments (primary + secondary in featureCounts)
             rRNA_mmaa_assigned=$(grep "^Assigned" "$rRNA_mmaa_summary" | awk '{print $2}')
             mtDNA_mmaa_assigned=$(grep "^Assigned" "$mtDNA_mmaa_summary" | awk '{print $2}')
-            rRNA_mmaa_percentage=$(awk -v sum=$n_reads -v assigned=$rRNA_mmaa_assigned 'BEGIN{if(assigned>0){printf("%.6f", (assigned/sum))}else{print("NA")}}')
-            mtDNA_mmaa_percentage=$(awk -v sum2=$n_reads -v assigned2=$mtDNA_mmaa_assigned 'BEGIN{if(assigned2>0){printf("%.6f", (assigned2/sum2))}else{print("NA")}}')
+            rRNA_mmaa_percentage=$(awk -v sum3=$reads_mmaa -v assigned5=$rRNA_mmaa_assigned 'BEGIN{if(assigned5>0){printf("%.6f", (assigned5/sum3))}else{print("NA")}}')
+            mtDNA_mmaa_percentage=$(awk -v sum3=$reads_mmaa -v assigned6=$mtDNA_mmaa_assigned 'BEGIN{if(assigned6>0){printf("%.6f", (assigned6/sum3))}else{print("NA")}}')
             
             # finds most frequent genes among multimappers (all positions)
             freq_mm_genes=$(head -n 3 $sample_dir/sorted_multimapper_gene_counts.txt | tr '\t' ':' | tr '\n' ',')
@@ -110,8 +112,19 @@ for map_dir in ${resDir}/mapping_STARsolo_N_addattrib; do
             mtDNA_percentage="NA"
         fi
 
+	raw_path="$solo_dir/raw/matrix.mtx"
+	filtered_path="$solo_dir/filtered/matrix.mtx"
+
+	# Total UMIs in all barcodes
+	total_umis_all=$( cat $raw_path | awk '{s+=$3} END {print s}')
+	# Total UMIs in cell barcodes
+	total_umis_cells=$(cat $filtered_path | awk '{s+=$3} END {print s}')
+
+	# Calculate noise percentage
+	noise=$(echo "scale=4; ($total_umis_all - $total_umis_cells) / $total_umis_all" | bc)
+
         # Append results to the output file
-        echo -e "$(basename "$map_dir")\t$(basename "$sample_dir")\t$n_reads\t$R1_Q30\t$R2_Q30\t$n_uniquely_mapped\t$p_uniquely_mapped\t$p_multi_mapped\t$p_multi_too_many\t$p_unmapped_short\t$p_unmapped_other\t\t\t$N_cells\t$UMI_cutoff\t$saturation\t\t$rRNA_percentage\t$rRNA_mmaa_percentage\t$rRNA_mmpa_percentage\t$mtDNA_percentage\t$mtDNA_mmaa_percentage\t$mtDNA_mmpa_percentage\t$freq_mm_genes" >> "$output_file"
+        echo -e "$(basename "$map_dir")\t$(basename "$sample_dir")\t$n_reads\t$R1_Q30\t$R2_Q30\t$n_uniquely_mapped\t$p_uniquely_mapped\t$p_multi_mapped\t$p_multi_too_many\t$p_unmapped_short\t$p_unmapped_other\t\t\t$N_cells\t$UMI_cutoff\t$saturation\t$noise\t$rRNA_percentage\t$rRNA_mmaa_percentage\t$rRNA_mmpa_percentage\t$mtDNA_percentage\t$mtDNA_mmaa_percentage\t$mtDNA_mmpa_percentage\t$freq_mm_genes" >> "$output_file"
     done
 done
 

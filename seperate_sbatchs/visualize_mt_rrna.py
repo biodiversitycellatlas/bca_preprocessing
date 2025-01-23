@@ -42,11 +42,12 @@ print(comparison_df.head())
 
 
 # Remove zero counts to avoid the warning during variance calculation
-filtered_data = single_data[single_data["Count"] > 0]  
+filtered_data = single_data[(single_data["Count"] > 1) & (single_data["Count"] < 600)]
+  
 
 # Histogram of log scaled number of counts across genes
 plt.figure(figsize=(10, 6))
-sns.histplot(filtered_data["Count"], bins=30, log_scale=True, kde=True)
+sns.histplot(filtered_data["Count"], bins=100, kde=True)
 plt.xlabel("Read Counts (log scale)")
 plt.ylabel("Frequency")
 plt.title("Diversity of gene counts among multi-mapped reads (log scaled)")
