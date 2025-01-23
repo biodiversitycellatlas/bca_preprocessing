@@ -1,17 +1,49 @@
-# BCA_preprocessing
+# RNA-seq Pipeline for preprocessing single-cell and single-nucleus data
 
-## Installation
+---
+
+## Table of Contents
+
+1. [Overview](#overview)
+2. [Tools](#tool-overview)
+3. [Requirements](#requirements)
+4. [Installation & Setup](#installation--setup)
+5. [Usage](#usage)
+6. [Example Execution](#example-execution)
+7. [Output & Logs](#output--logs)
+
+---
+
+## Overview
+
+### Data Types
+- **Single-cell RNA-seq** (scRNA-seq)
+- **Single-nucleus RNA-seq** (snRNA-seq)
+
+### Sequencing Technologies
+- **Parse Biosciences**
+- **BD Rhapsody**
+
+This pipeline reads input samples from an accession list and automates:
+1. Preprocessing
+2. Quality control (FastQC, MultiQC)
+3. Alignment
+4. Optional gene extension and reindexing
+5. Mapping statistics & saturation metrics
+6. Ambient RNA removal
+
+---
+
+## Installation & Setup
 
 ### Conda environment
-The packages for this project were installed using conda, and installed in the environment called 'bca_int'. To run the Nextflow pipeline, you can replicate our conda environment by running the following line of code:
+The packages for this project were installed using conda, in the environment called 'bca_int'. To run the Nextflow pipeline, you can replicate our conda environment by running the following line of code:
 ```
 conda create --name bca_int --file bca_int_environment.txt
 ```
-This will create a new conda environment using the mentioned txt file, which contains an (explicit) list of packages, and their download/installation links. 
-
-This environment is automatically activated when running the pipeline, from within the 'submit_nextflow.sh' script.
 
 ### Installing external packages
+
 
 #### Parse Biosciences
 ```
@@ -21,22 +53,18 @@ pip install . --no-cache-dir
 ```
 
 You might get the following error during execution of the previous steps, here's how we handled the following errors:
-
-- Pip not installed:
 ```
+# Pip not installed
 conda install anaconda::pip=23.3.1 
-```
 
-- Failed building wheel for louvain
-```
+# Failed building wheel for louvain
 conda install -c conda-forge python-igraph 
 pip install cmake 
-```
 
-- AttributeError: module 'numpy' has no attribute 'NAN'. Did you mean: 'nan'? 
-
-In the file 'utils.py', in line 'def report_percent_str(num, den=1, round_to=2, zero=np.NAN, perchar=True): ' replace NAN by nan. After saving, rerun:
-```
+# AttributeError: module 'numpy' has no attribute 'NAN'. Did you mean: 'nan'? 
+# In the file 'utils.py', in line 'def report_percent_str(num, den=1, round_to=2, zero=np.NAN, perchar=True): ' 
+# replace NAN by nan. 
+After saving, rerun:
 pip install . --no-cache-dir 
 ```
 
@@ -45,10 +73,6 @@ To test if the installation of split-pipe was successful:
 split-pipe -h 
 ```
 
-#### 10x_saturate
-```
-git clone https://github.com/zolotarovgl/10x_saturate.git
-```
 
 #### GeneExt
 ```
@@ -88,5 +112,5 @@ conda activate geneext
 
 ### Running the Pipeline
 ```
-sbatch submit_nextflow.sh preprocs_pipeline.nf
+sbatch submit_nextflow.sh main.nf
 ```
