@@ -2,7 +2,7 @@
 // 
 
 process CALC_MT_RRNA {   
-    publishDir "${params.resDir}/rRNA_mtDNA/${sample_id}_${config_name}", mode: 'copy'
+    publishDir "${params.resDir}/rRNA_mtDNA/rRNA_mtDNA_${config_name}/${sample_id}", mode: 'copy'
     debug true
 
     input:

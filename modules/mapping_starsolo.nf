@@ -6,7 +6,7 @@
 // config_file, and is specific per sequencing tech. \\
 
 process MAPPING_STARSOLO { 
-    publishDir "${params.resDir}/mapping_STARsolo_${config_name}_addattrib/${sample_id}", mode: 'copy', overwrite: false
+    publishDir "${params.resDir}/mapping_STARsolo/mapping_STARsolo_${config_name}/${sample_id}", mode: 'copy', overwrite: false
     tag "${sample_id}_${config_name}"
 
     input:

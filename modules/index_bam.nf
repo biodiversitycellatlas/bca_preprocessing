@@ -1,7 +1,7 @@
 // =================  INDEX BAM FILES  ================== \\ 
 
 process INDEX_BAM {
-    publishDir "${params.resDir}/mapping_parsepipe/${sample_id}", mode: 'copy'
+    publishDir "${params.resDir}/mapping_STARsolo/mapping_STARsolo_${config_name}/${sample_id}", mode: 'copy'
     tag "${sample_id}"
     debug true
 
@@ -9,7 +9,7 @@ process INDEX_BAM {
     tuple val(sample_id), val(config_name), path(mapping_files)
 
     output:
-    tuple val(sample_id), val(config_name), path("*.bam.bai")
+    path("*.bai")
 
     script:
     """

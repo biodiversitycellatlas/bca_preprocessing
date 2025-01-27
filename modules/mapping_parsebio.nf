@@ -33,7 +33,7 @@ process MAPPING_PARSEBIO {
     echo "Conda environment: \$CONDA_DEFAULT_ENV"
 
     # Generate parameter file
-    echo "post_min_map_frac 0.01" > config_${params.seqTech}_parsepipe.txt
+    echo "post_min_map_frac 0.01" > config_${params.seqTech}_splitpipe.txt
 
     # Create directory for the genome index files
     mkdir -p genome_index
@@ -43,13 +43,13 @@ process MAPPING_PARSEBIO {
         
     split-pipe -m all \\
         --chemistry v3 \\
-	--kit WT_mini \\
-	${kitskip_arg} \\
+        --kit WT_mini \\
+        ${kitskip_arg} \\
         --fq1 ${r1_fastq} \\
         --fq2 ${r2_fastq} \\
         --nthreads 16 \\
         --genome_dir genome_index \\
         --output_dir . \\
-        --parfile config_${params.seqTech}_parsepipe.txt
+        --parfile config_${params.seqTech}_splitpipe.txt
     """
 }

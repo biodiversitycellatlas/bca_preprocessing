@@ -5,14 +5,15 @@ process MAPPING_STATS {
     debug true
 
     input:
-    // tuple val(sample_id_N), val(config_name_N), path(files_N)
-    // tuple val(sample_id_CR), val(config_name_CR), path(files_CR)
-
+    val(trigger)
+    
     output:
     file("mapping_stats.tsv")
 
     script:
     """
+    echo "\n\n==================  MAPPING STATISTICS  =================="
+
     sbatch ${params.baseDir}/scripts/mapping_statistics.sh ${params.dataDir}
     """
 }
