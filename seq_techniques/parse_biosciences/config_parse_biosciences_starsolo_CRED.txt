@@ -10,6 +10,5 @@
 --soloUMIdedup 1MM_CR
 --clipAdapterType CellRanger4
 --soloCellFilter EmptyDrops_CR
---outFilterScoreMin 30
 --clip5pAdapterSeq AAGCAGTGGTATCAACGCAGAGTGAATGGG
 --soloFeatures Gene GeneFull
