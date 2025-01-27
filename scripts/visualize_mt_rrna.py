@@ -8,44 +8,32 @@ import seaborn as sns
 import upsetplot
 
 # Import data and load it into a df
-base_dir = "/users/asebe/bvanwaardenburg/git/data/240810_ParseBio_Nvec_Tcas/Nvec_BCA001_BCA002_TestREF/mapping_STARsolo_N_addattrib"
+mapping_dir = "/users/asebe/bvanwaardenburg/git/data/240810_ParseBio_Nvec_Tcas/Nvec_BCA001_BCA002_TestREF/mapping_STARsolo_N_addattrib"
 
-single_file = base_dir + "/BCA001_lib_13077AAF_CAGATCAC-ATGTGAAG_ACMEsorb_GM/sorted_multimapper_gene_counts.txt"
-single_data = pd.read_csv(single_file, sep="\t", header=None, names=["GeneID", "Count"])
-
-# Loop through all directories in the base_dir and append the file names to a list
+# Loop through all directories in the mapping_dir and append the file names to a list
 comparison_files = []
-for base, dirs, files in os.walk(base_dir):
+for base, dirs, files in os.walk(mapping_dir):
     for file in files:
         if file == "sorted_multimapper_gene_counts.txt":
             comparison_files.append(os.path.join(base, file))
-
 print(comparison_files)
 
+# Read the files and append the basename and columns to comparison_data
 comparison_data = []
 for file in comparison_files:
-    # Get the base name of the file
     base_name = os.path.basename(os.path.dirname(file))
-
-    # Read the file contents
     df = pd.read_csv(file, sep="\t", header=None, names=["GeneID", "Count"])
-
-    # Append the base name and the columns to comparison_data
     for _, row in df.iterrows():
         comparison_data.append([base_name, row["GeneID"], row["Count"]])
 
-# Convert to DataFrame for easier handling
+# Convert to df
 comparison_df = pd.DataFrame(comparison_data, columns=["BaseName", "GeneID", "Count"])
-
-# Display the DataFrame
 print(comparison_df.head())
 
-
 # Remove zero counts to avoid the warning during variance calculation
-filtered_data = single_data[(single_data["Count"] > 1) & (single_data["Count"] < 600)]
+filtered_data = comparison_df[(comparison_df["Count"] > 1) & (comparison_df["Count"] < 600)]
   
-
-# Histogram of log scaled number of counts across genes
+# Histogram of (log scaled) number of counts across genes
 plt.figure(figsize=(10, 6))
 sns.histplot(filtered_data["Count"], bins=100, kde=True)
 plt.xlabel("Read Counts (log scale)")
@@ -69,23 +57,23 @@ plt.close()
 
 
 # Count occurrences of each GeneID in BaseName
-gene_base_counts = comparison_df.groupby(["GeneID", "BaseName"])["Count"].sum().reset_index(name="Occurrences")
+gene_counts = comparison_df.groupby(["GeneID", "BaseName"])["Count"].sum().reset_index(name="Occurrences")
 
 # Identify the top 20 genes by total count
 top_genes = comparison_df.groupby("GeneID")["Count"].sum().nlargest(20).index
 
 # Filter the data for only the top 20 genes
-filtered_gene_base_counts = gene_base_counts[gene_base_counts["GeneID"].isin(top_genes)]
+filtered_gene_counts = gene_counts[gene_counts["GeneID"].isin(top_genes)]
 
 # Create a pivot table for the filtered data
-filtered_heatmap_data = filtered_gene_base_counts.pivot(
+filtered_heatmap = filtered_gene_counts.pivot(
     index="GeneID", columns="BaseName", values="Occurrences"
 ).fillna(0)
 
 # Plot heatmap for the top 20 genes
 plt.figure(figsize=(12, 8))
 sns.heatmap(
-    filtered_heatmap_data,
+    filtered_heatmap,
     annot=True,
     fmt="g",
     cmap="coolwarm",
@@ -99,7 +87,6 @@ plt.ylabel("GeneID", fontsize=10)
 plt.xticks(fontsize=8, rotation=45, ha='right') 
 plt.yticks(fontsize=8)
 plt.tight_layout()
-
 plt.savefig("heatmap_gene_occurences.png", dpi=300)
 plt.close()
 

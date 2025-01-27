@@ -1,4 +1,4 @@
-// ===================  Filtering Workflow ================  \\ 
+// ==============  Filtering Workflow ==============  \\ 
 // 
 
 include { CELLBENDER } from '../modules/cellbender'

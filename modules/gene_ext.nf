@@ -1,7 +1,7 @@
 // ==================  GENE EXTENSION  =================== \\ 
 
 process GENE_EXT {
-    publishDir "${params.resDir}/gene_ext/gene_ext_${config_name}/${sample_id}", mode: 'copy'
+    publishDir "${params.resDir}/gene_ext/gene_ext_${config_name}/${sample_id}", mode: 'copy', overwrite: false
     tag "${sample_id}"
     debug true
 

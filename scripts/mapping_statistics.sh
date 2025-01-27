@@ -22,7 +22,7 @@
 # define variables #
 ####################	
 
-# example var 1: resDir="/users/asebe/bvanwaardenburg/git/data/240810_ParseBio_Nvec_Tcas/Nvec_BCA001_BCA002_FINAL/"
+# example var 1: resDir="/users/asebe/bvanwaardenburg/git/data/240810_ParseBio_Nvec_Tcas/Nvec_BCA003_BCA004_FINAL/"
 resDir=$1
 
 # Change to the directory that contains the data
