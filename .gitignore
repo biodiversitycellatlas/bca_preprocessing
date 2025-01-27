@@ -1,8 +1,10 @@
- # Ignore ALL .log and nextflow files
+# Ignore all .log and nextflow files
 *.log
 .next*
 
-# Ignore ALL files in ANY directory named logs and work
+# Ignore all files in the following directories
 logs/*
 work/*
+work_dir/*
+workDir/*
 

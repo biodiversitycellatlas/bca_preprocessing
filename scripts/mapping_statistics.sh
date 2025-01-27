@@ -29,7 +29,7 @@ resDir=$1
 cd ${resDir} || { echo "Error: Could not cd to data directory"; exit 1; }
 
 # Define output file
-output_file="${resDir}/mapping_stats.tsv"
+output_file="mapping_stats.tsv"
 
 
 ###############
