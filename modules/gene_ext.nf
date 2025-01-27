@@ -1,12 +1,13 @@
 // ==================  GENE EXTENSION  =================== \\ 
 
 process GENE_EXT {
-    publishDir "${params.resDir}/genome/gene_ext/${sample_id}_${config_name}", mode: 'copy'
+    publishDir "${params.resDir}/gene_ext/gene_ext_${config_name}/${sample_id}", mode: 'copy'
     tag "${sample_id}"
     debug true
 
     input:
     tuple val(sample_id), val(config_name), path(mapping_files)
+    file(bam_index)
 
     output:
     path("${sample_id}_geneext.gtf")
@@ -16,23 +17,19 @@ process GENE_EXT {
     echo "\n\n==================  GENE EXTENSION ${config_name} =================="
     echo "Sample ID: ${sample_id}"
     echo "Mapping files: ${mapping_files}"
+    echo "BAM index: ${bam_index}"
     echo "Original GTF: ${params.ref_star_gtf}"
     echo "Conda environment: \$CONDA_DEFAULT_ENV"
 
     if [ -d "tmp" ]; then rm -r tmp; fi
-    if [ -d "${params.baseDir}/ext_programs/GeneExt/tmp" ]; then rm -r ${params.baseDir}/ext_programs/GeneExt/tmp; fi
-    # if [ -d "${params.baseDir}/ext_programs/GeneExt/result*" ]; then rm -r ${params.baseDir}/ext_programs/GeneExt/result*; fi
     
     python ${params.baseDir}/ext_programs/GeneExt/geneext.py \\
         -g ${params.ref_star_gtf} \\
         -b Aligned.sortedByCoord.out.bam \\
         -o ${sample_id}_geneext.gtf \\
-        -j 40
-
-    # Wait for output file to exist
-    while [ ! -f ${sample_id}_geneext.gtf ]; do
-        echo "Waiting for output file..."
-        sleep 10
-    done
+        --force \\
+        -j 4 \\
+        --verbose 0 \\
+        --keep_intermediate_files
     """
 }
