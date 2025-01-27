@@ -1,49 +1,46 @@
-# RNA-seq Pipeline for preprocessing single-cell and single-nucleus data
+# Nextflow pipeline for pre-processing single-cell and single-nucleus data
 
 ---
 
 ## Table of Contents
 
 1. [Overview](#overview)
-2. [Tools](#tool-overview)
-3. [Requirements](#requirements)
-4. [Installation & Setup](#installation--setup)
-5. [Usage](#usage)
-6. [Example Execution](#example-execution)
-7. [Output & Logs](#output--logs)
+2. [Installation & Setup](#installation--setup)
+3. [Usage](#usage)
+4. [Output & Logs](#output--logs)
 
 ---
 
 ## Overview
+This nextflow pipeline is designed to pre-process single-cell and single-nucleus RNA-seq data. It accepts FASTQ files from multiple sequencing platforms, at the moment being: 
+- Parse Biosciences
+- BD Rhapsody
 
-### Data Types
-- **Single-cell RNA-seq** (scRNA-seq)
-- **Single-nucleus RNA-seq** (snRNA-seq)
+Depending on the chosen sequencing technique, it handles the FASTQ files accordingly. 
+Parse Biosciences data will be demultiplexed depending on the groups parameter, which seperates possible different techniques or samples within the same plate. After demultiplexing, it is mapped using the official split-pipe code from Parse Biosciences, to offer a comparation between their data processing platform and the results of our pipeline. BD Rhapsody does not require demultiplexing, and is therefore sent straight to the mapping using STARsolo. 
 
-### Sequencing Technologies
-- **Parse Biosciences**
-- **BD Rhapsody**
-
-This pipeline reads input samples from an accession list and automates:
-1. Preprocessing
-2. Quality control (FastQC, MultiQC)
-3. Alignment
-4. Optional gene extension and reindexing
-5. Mapping statistics & saturation metrics
-6. Ambient RNA removal
+![pipeline](/img/Preprocs_Pipeline.png)
 
 ---
 
 ## Installation & Setup
 
-### Conda environment
-The packages for this project were installed using conda, in the environment called 'bca_int'. To run the Nextflow pipeline, you can replicate our conda environment by running the following line of code:
+In order to run the pipeline, you must have Nextflow and Conda installed. Here is the official Nextflow GitHub page and a link to their documentation. The conda installation can be either Anaconda or Miniconda. 
+
+### Conda environments
+The default conda environment is called 'bca_int', which is automatically created and activated using the .yml file upon running the pipeline. For a few subprocesses, different conda environments were created as they were conflicting with certain versions of packages. All of them, except for spipe (see below) are installed and activated automatically upon execution using the same approach. 
+
+To manually activate the conda environment:
 ```
-conda create --name bca_int --file bca_int_environment.txt
+# Create environment
+conda env create -n bca_int -f bca_int_env.yaml
+
+# Activate environment
+conda activate bca_int
 ```
+
 
 ### Installing external packages
-
 
 #### Parse Biosciences
 ```
@@ -52,7 +49,7 @@ bash ./install_dependencies_conda.sh -i -y
 pip install . --no-cache-dir 
 ```
 
-You might get the following error during execution of the previous steps, here's how we handled the following errors:
+We encountered a few errors durring the creation of the spipe environment. Below, there are a few fixes to common set up problems of spipe: 
 ```
 # Pip not installed
 conda install anaconda::pip=23.3.1 
@@ -64,7 +61,7 @@ pip install cmake
 # AttributeError: module 'numpy' has no attribute 'NAN'. Did you mean: 'nan'? 
 # In the file 'utils.py', in line 'def report_percent_str(num, den=1, round_to=2, zero=np.NAN, perchar=True): ' 
 # replace NAN by nan. 
-After saving, rerun:
+# After saving, rerun:
 pip install . --no-cache-dir 
 ```
 
@@ -73,42 +70,18 @@ To test if the installation of split-pipe was successful:
 split-pipe -h 
 ```
 
-
-#### GeneExt
-```
-# clone repository
-git clone https://github.com/sebepedroslab/GeneExt.git
-
-# create environment
-conda env create -n geneext -f environment.yaml
-
-# activate environment
-conda activate geneext
-```
-
-### Library structure
-```
- ┌─ code/ ────┌─ integrated_pipe/
- │            └─ seperate_sbatchs/
- │
- │            ┌─ accession_lists/
- ├─ data/ ────┼─ experiment/
- │            └─ ..
- │
- ├─ seq_techniques/ ────┌─ bd_rhapsody/
- │                      └─ parse_biosciences/
- │    
- └─ logs/
-```
-
+---
 
 ## Usage
 
-### Prerequisites
-- [ ] Accession list (example) when wanting to download data from the SRA or a /data/fastq folder with raw data.
+### Required files & parameters
+- [ ] Accession list (to download directly from SRA) or a /data/fastq folder with raw FASTQ files.
+- [ ] Genome annotation files (FASTA and GFF/GTF files)
+- [ ] split-pipe (spipe) environment
+
+### Optional files & parameters
 - [ ] spec.yaml - created using seqspec
-- [ ] Genome annotation files
-- [ ] Downloaded required external packages using this README
+- [ ] Configuration file
 
 ### Running the Pipeline
 ```
