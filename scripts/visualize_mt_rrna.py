@@ -1,14 +1,17 @@
 #!/usr/bin/env python
 
+import sys
 import os
 import pandas as pd
 import matplotlib.pyplot as plt
 import numpy as np
 import seaborn as sns
-import upsetplot
 
 # Import data and load it into a df
-mapping_dir = "/users/asebe/bvanwaardenburg/git/data/240810_ParseBio_Nvec_Tcas/Nvec_BCA001_BCA002_TestREF/mapping_STARsolo_N_addattrib"
+# mapping_dir = "/users/asebe/bvanwaardenburg/git/data/240810_ParseBio_Nvec_Tcas/Nvec_BCA001_BCA002_TestREF/mapping_STARsolo_N_addattrib"
+mapping_dir = sys.argv[1]
+
+# change to rrna dir
 
 # Loop through all directories in the mapping_dir and append the file names to a list
 comparison_files = []
@@ -39,7 +42,7 @@ sns.histplot(filtered_data["Count"], bins=100, kde=True)
 plt.xlabel("Read Counts (log scale)")
 plt.ylabel("Frequency")
 plt.title("Diversity of gene counts among multi-mapped reads (log scaled)")
-plt.savefig("count_histogram.png", dpi=300)
+plt.savefig("%s/count_histogram.png" %(mapping_dir), dpi=300)
 plt.close()
 
 
@@ -52,7 +55,7 @@ plt.xlabel("Read Counts")
 plt.ylabel("Gene ID")
 plt.title("Top 20 genes with the highest gene counts among multi-mapped reads")
 plt.tight_layout()
-plt.savefig("top_20_genes_histogram.png", dpi=300)
+plt.savefig("%s/top_20_genes_histogram.png" %(mapping_dir), dpi=300)
 plt.close()
 
 
@@ -87,6 +90,6 @@ plt.ylabel("GeneID", fontsize=10)
 plt.xticks(fontsize=8, rotation=45, ha='right') 
 plt.yticks(fontsize=8)
 plt.tight_layout()
-plt.savefig("heatmap_gene_occurences.png", dpi=300)
+plt.savefig("%s/heatmap_gene_occurences.png" %(mapping_dir), dpi=300)
 plt.close()
 
