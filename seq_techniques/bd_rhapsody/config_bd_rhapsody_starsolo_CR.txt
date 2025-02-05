@@ -1,13 +1,8 @@
---soloType CB_UMI_Simple
+--soloType CB_UMI_Complex 
+--soloCBmatchWLtype EditDist_2
+--soloCBposition 0_0_0_8 0_13_0_21 0_26_0_34
+--soloUMIposition 0_35_0_42
+--soloStrand Forward 
+--soloCellFilter EmptyDrops_CR 
 --outSAMunmapped Within KeepPairs 
---soloCBstart 1
---soloCBlen 9
---soloUMIstart 53
---soloUMIlen 8
---soloBarcodeReadLength 151 
---soloCBmatchWLtype 1MM_multi_Nbase_pseudocounts
---soloUMIfiltering MultiGeneUMI_CR
---soloUMIdedup 1MM_CR
---clipAdapterType CellRanger4
---outFilterScoreMin 30
---soloFeatures Gene GeneFull
+--soloFeatures Gene GeneFull_Ex50pAS

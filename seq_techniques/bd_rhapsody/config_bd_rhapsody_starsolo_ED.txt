@@ -1,9 +1,8 @@
 --soloType CB_UMI_Complex 
---soloAdapterSequence GTGANNNNNNNNNGACA 
---soloCBposition 2_-9_2_-1 2_4_2_12 2_17_2_25 
---soloUMIposition 3_10_3_17 
---soloCBmatchWLtype 1MM 
---soloCellFilter EmptyDrops_CR  
+--soloCBmatchWLtype EditDist_2
+--soloCBposition 0_0_0_8 0_13_0_21 0_26_0_34
+--soloUMIposition 0_35_0_42
 --soloStrand Forward 
+--soloCellFilter  CellRanger2.2 
 --outSAMunmapped Within KeepPairs 
 --soloFeatures Gene GeneFull

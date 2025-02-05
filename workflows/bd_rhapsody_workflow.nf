@@ -4,12 +4,14 @@
 // sequences.                                         \\
 
 include { DOWNLOAD_DATA } from '../modules/download'
+include { RM_VARBASES } from '../modules/rm_varbases_bdrhap'
 
 workflow bd_rhapsody_workflow {
     take:
         sample_ids
     main:
-        DOWNLOAD_DATA(sample_ids)        
+        DOWNLOAD_DATA(sample_ids)     
+        RM_VARBASES(DOWNLOAD_DATA.out)   
     emit:
-        DOWNLOAD_DATA.out
+        RM_VARBASES.out
 }
