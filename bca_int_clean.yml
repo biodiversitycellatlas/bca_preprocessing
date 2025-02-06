@@ -1,0 +1,19 @@
+name: bca_int
+channels:
+  - conda-forge
+  - bioconda
+dependencies:
+  - bioconda::fastqc
+  - bioconda::nextflow
+  - bioconda::seqtk
+  - bioconda::star
+  - pigz
+  - numpy=2.0.0
+  - conda-forge::bc
+  - bioconda::subread
+  - bioconda::seqkit
+  - bioconda::gffread
+  - bioconda::bcftools
+  - openjdk=11
+  - nf-core
+prefix: /users/asebe/bvanwaardenburg/miniconda3/envs/bca_int
