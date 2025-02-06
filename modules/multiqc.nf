@@ -5,7 +5,7 @@
 // the quality metrics.                             \\
 
 process MULTIQC {
-    publishDir "${params.resDir}/fastqc", mode: 'copy'
+    publishDir "${params.resDir}/multiqc", mode: 'copy'
     tag "all"
     
     input:
