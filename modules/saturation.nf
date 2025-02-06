@@ -4,7 +4,7 @@
 // submodule function.                                     \\
 
 process SATURATION {
-    publishDir "${params.resDir}/saturation/saturation_plots_${config_name}/${sample_id}", mode: 'copy'
+    publishDir "${params.resDir}/saturation/saturation_${config_name}/${sample_id}", mode: 'copy'
     tag "${sample_id}"
 
     input:
@@ -12,12 +12,11 @@ process SATURATION {
     file(bam_index)
 
     output:
-    path("*")
+    path("saturation*")
 
     script:
     """
     echo "\n\n==================  SATURATION ${config_name} =================="
-    # Verify the input files
     echo "Processing files: ${mapping_files}"
 
     # Find the correct files from the list (mapping_files)
@@ -36,18 +35,20 @@ process SATURATION {
     temp_folder="_tmp_${sample_id}_${config_name}"
     echo "cells:\${n_cells} reads:\${n_reads} mapreads:\${MAPREADS} maprate:\${map_rate}"
 
-    python ${params.baseDir}/ext_programs/10x_saturate/saturation_table.py \
-            --bam \${bam_file} \
-            --ncells \${n_cells} \
-            --mapping_rate \${map_rate} \
-            --temp \${temp_folder} \
-            --output output.tsv 
-    # --code_dir "${params.baseDir}/ext_programs/10x_saturate/scripts"
+    python ${params.baseDir}/ext_programs/10x_saturate/saturation_table.py \\
+            --bam \${bam_file} \\
+            --ncells \${n_cells} \\
+            --mapping_rate \${map_rate} \\
+            --temp \${temp_folder} \\
+            --output saturation_output.tsv 
 
-    python ${params.baseDir}/ext_programs/10x_saturate/scripts/plot_curve.py  \
-            output.tsv \
-            saturation.png \
-            --target 0.7    
+    python ${params.baseDir}/ext_programs/10x_saturate/scripts/plot_curve.py  \\
+            saturation_output.tsv \\
+            saturation.png \\
+            --target 0.7 \\
+            > saturation.log 2>&1   
 
+    # Delete temporary folder
+    rm -r _*
     """
 }
