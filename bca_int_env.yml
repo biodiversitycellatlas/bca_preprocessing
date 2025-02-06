@@ -1,6 +1,5 @@
 name: bca_int
 channels:
-  - defaults
   - conda-forge
   - bioconda
 dependencies:
