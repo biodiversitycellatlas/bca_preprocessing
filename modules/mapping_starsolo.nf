@@ -18,6 +18,7 @@ process MAPPING_STARSOLO {
     
     output:
     tuple val(sample_id), val(config_name), path("*")
+    tuple val(meta), path('*.out'), emit: logs
 
     script:
     def bd_mem_arg   = task.ext.args ?: ''          // If ext.args is defined assign it to bd_mem_arg
