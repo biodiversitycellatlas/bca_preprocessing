@@ -22,14 +22,18 @@
 # define variables #
 ####################	
 
-# example var 1: resDir="/users/asebe/bvanwaardenburg/git/data/240810_ParseBio_Nvec_Tcas/Nvec_BCA003_BCA004_FINAL/"
-resDir=$1
+# test: 
+   resDir="/users/asebe/bvanwaardenburg/git/data/240810_ParseBio_Nvec_Tcas/Tcas_sep"
+   workDir="/users/asebe/bvanwaardenburg/git/data/240810_ParseBio_Nvec_Tcas/Tcas_sep"
+
+# resDir=$1
+# workDir=$2 
 
 # Change to the directory that contains the data
 cd ${resDir} || { echo "Error: Could not cd to data directory"; exit 1; }
 
 # Define output file
-output_file="mapping_stats.tsv"
+output_file="${workDir}/mapping_stats.tsv"
 
 
 ###############
@@ -37,7 +41,7 @@ output_file="mapping_stats.tsv"
 ###############
 
 # Print header to output file
-echo -e "Directory\tSample\tN reads/sample\tN R1 >Q30\tN R2 >Q30\tN uniquely mapped reads\t% uniquely mapped reads\t% multi-mapped reads\t% multi-mapped reads: too many\t% unmapped: too short\t% unmapped: other\tExpected % Doublets\tTarget N cells\tN cells\tUMI cutoff used for cell calling\tsaturation\tNoise (% UMIs in non-cell barcodes)\t% rRNA in Unique reads\t%rRNA in multimappers all pos\t%rRNA in multimappers primary pos\t% mtDNA in Unique reads\t%mtDNA in multimappers all pos\t%mtDNA in multimappers primary pos\t3 most freq genes in multimappers" > "$output_file"
+echo -e "Directory\tSample\tN reads/sample\tN R1 >Q30\tN R2 >Q30\tN uniquely mapped reads\t% uniquely mapped reads\t% multi-mapped reads\t% multi-mapped reads: too many\t% unmapped: too short\t% unmapped: other\tExpected % Doublets\tTarget N cells\tN cells\tUMI cutoff used for cell calling\tsaturation\tReads for 0.7 saturation\tNoise (% UMIs in non-cell barcodes)\t% Intronic reads\t% rRNA in Unique reads\t%rRNA in multimappers all pos\t%rRNA in multimappers primary pos\t% mtDNA in Unique reads\t%mtDNA in multimappers all pos\t%mtDNA in multimappers primary pos\t3 most freq genes in multimappers" > "$output_file"
 
 # For each STARsolo mapping directory
 for map_dir in ${resDir}/mapping_STARsolo/*; do
@@ -92,16 +96,22 @@ for map_dir in ${resDir}/mapping_STARsolo/*; do
         fi
 
         # Extract mtDNA & rRNA values
-	    reads_mmpa=$(samtools view -c "$sample_dir/multimapped_primealign.bam")
-	    reads_mmaa=$(samtools view -c "$sample_dir/multimapped_allalign.bam")
-        rRNA_summary="$sample_dir/feat_counts_rRNA.txt.summary"
-        mtDNA_summary="$sample_dir/feat_counts_mtDNA.txt.summary"
-        rRNA_mmpa_summary="$sample_dir/feat_counts_rRNA_mmpa.txt.summary"
-        mtDNA_mmpa_summary="$sample_dir/feat_counts_mtDNA_mmpa.txt.summary"
-        rRNA_mmaa_summary="$sample_dir/feat_counts_rRNA_mmaa.txt.summary"
-        mtDNA_mmaa_summary="$sample_dir/feat_counts_mtDNA_mmaa.txt.summary"
+        sample_name=$(basename ${sample_dir})
+        config="${map_dir##*_}"
+        featcounts_dir="${resDir}/rRNA_mtDNA/rRNA_mtDNA_${config}/${sample_name}"
+        echo ${featcounts_dir}
+
+        rRNA_summary="$featcounts_dir/feat_counts_rRNA.txt.summary"
+        mtDNA_summary="$featcounts_dir/feat_counts_mtDNA.txt.summary"
 
         if [ -f "$rRNA_summary" ] && [ -f "$mtDNA_summary" ]; then
+            reads_mmpa=$(samtools view -c "$featcounts_dir/multimapped_primealign.bam")
+	        reads_mmaa=$(samtools view -c "$featcounts_dir/multimapped_allalign.bam")
+            rRNA_mmpa_summary="$featcounts_dir/feat_counts_rRNA_mmpa.txt.summary"
+            mtDNA_mmpa_summary="$featcounts_dir/feat_counts_mtDNA_mmpa.txt.summary"
+            rRNA_mmaa_summary="$featcounts_dir/feat_counts_rRNA_mmaa.txt.summary"
+            mtDNA_mmaa_summary="$featcounts_dir/feat_counts_mtDNA_mmaa.txt.summary"
+
             # counts in uniquely mapped reads
             rRNA_assigned=$(grep "^Assigned" "$rRNA_summary" | awk '{print $2}')
             mtDNA_assigned=$(grep "^Assigned" "$mtDNA_summary" | awk '{print $2}')
@@ -121,27 +131,40 @@ for map_dir in ${resDir}/mapping_STARsolo/*; do
             mtDNA_mmaa_percentage=$(awk -v sum3=$reads_mmaa -v assigned6=$mtDNA_mmaa_assigned 'BEGIN{if(assigned6>0){printf("%.6f", (assigned6/sum3))}else{print("NA")}}')
             
             # finds most frequent genes among multimappers (all positions)
-            freq_mm_genes=$(head -n 3 $sample_dir/sorted_multimapper_gene_counts.txt | tr '\t' ':' | tr '\n' ',')
+            freq_mm_genes=$(head -n 3 $featcounts_dir/sorted_multimapper_gene_counts.txt | tr '\t' ':' | tr '\n' ',')
 
         else
             echo "Error: rRNA or mtDNA summary file missing in $dir"
             rRNA_percentage="NA"
             mtDNA_percentage="NA"
+            rRNA_mmpa_percentage="NA"
+            mtDNA_mmpa_percentage="NA"
+            rRNA_mmaa_percentage="NA"
+            mtDNA_mmaa_percentage="NA"
+            freq_mm_genes="NA"
         fi
-
-        raw_path="$solo_dir/raw/matrix.mtx"
-        filtered_path="$solo_dir/filtered/matrix.mtx"
-
-        # Total UMIs in all barcodes
-        total_umis_all=$( cat $raw_path | awk '{s+=$3} END {print s}')
-        # Total UMIs in cell barcodes
-        total_umis_cells=$(cat $filtered_path | awk '{s+=$3} END {print s}')
-
-        # Calculate noise percentage
+        
+        # ------------------------------------------------------------------
+        # Noise Percentage
+        # ------------------------------------------------------------------
+        total_umis_all=$(grep "yesUMIs" "${solo_dir}/Features.stats" | awk '{print $2}')
+        total_umis_cells=$(grep "UMIs in Cells" "$solo_dir/Summary.csv" | awk -F ',' '{print $NF}' || echo "NA")
         noise=$(echo "scale=4; ($total_umis_all - $total_umis_cells) / $total_umis_all" | bc)
 
+        # ------------------------------------------------------------------
+        # Percentage Intronic Reads
+        # ------------------------------------------------------------------
+        exonic_sum=$(cat ${work_dir}/Solo.out/Gene/raw/matrix.mtx | awk 'NR>3 {sum+=$3} END{print sum}')
+        fullgene_sum=$(cat ${work_dir}/Solo.out/GeneFull/raw/matrix.mtx | awk 'NR>3 {sum+=$3} END{print sum}')
+        intronic_sum=$(( fullgene_sum - exonic_sum ))
+
+        fraction_intronic=$(awk -v i="$intronic_sum" -v t="$fullgene_sum" \
+                            'BEGIN{printf("%.4f", (i)/t)}')
+
+        # ------------------------------------------------------------------
         # Append results to the output file
-        echo -e "$(basename "$map_dir")\t$(basename "$sample_dir")\t$n_reads\t$R1_Q30\t$R2_Q30\t$n_uniquely_mapped\t$p_uniquely_mapped\t$p_multi_mapped\t$p_multi_too_many\t$p_unmapped_short\t$p_unmapped_other\t\t\t$N_cells\t$UMI_cutoff\t$saturation\t$noise\t$rRNA_percentage\t$rRNA_mmaa_percentage\t$rRNA_mmpa_percentage\t$mtDNA_percentage\t$mtDNA_mmaa_percentage\t$mtDNA_mmpa_percentage\t$freq_mm_genes" >> "$output_file"
+        # ------------------------------------------------------------------
+        echo -e "$(basename "$map_dir")\t$(basename "$sample_dir")\t$n_reads\t$R1_Q30\t$R2_Q30\t$n_uniquely_mapped\t$p_uniquely_mapped\t$p_multi_mapped\t$p_multi_too_many\t$p_unmapped_short\t$p_unmapped_other\t\t\t$N_cells\t$UMI_cutoff\t$saturation\t\t$noise\t$fraction_intronic\t$rRNA_percentage\t$rRNA_mmaa_percentage\t$rRNA_mmpa_percentage\t$mtDNA_percentage\t$mtDNA_mmaa_percentage\t$mtDNA_mmpa_percentage\t$freq_mm_genes" >> "$output_file"
     done
 done
 
@@ -182,7 +205,7 @@ if [ -d "${resDir}/mapping_splitpipe" ]; then
             p_tso_trim="NA"
         fi
 
-        echo -e "mapping_splitpipe\t$(basename "$splitpipe_dir")\t$reads_align_input\t$cDNA_Q30\t\t$reads_align_unique\t$p_uniquely_mapped\t$p_multi_mapped\t$p_too_many_loci\t$p_too_short\t$p_tso_trim\t\t\t$Nvec_number_of_cells\t\t$sequencing_saturation\t\t" >> "$output_file"
+        echo -e "mapping_splitpipe\t$(basename "$splitpipe_dir")\t$reads_align_input\t$cDNA_Q30\t\t$reads_align_unique\t$p_uniquely_mapped\t$p_multi_mapped\t$p_too_many_loci\t$p_too_short\t$p_tso_trim\t\t\t$Nvec_number_of_cells\t\t$sequencing_saturation\t\t\t" >> "$output_file"
     done
 fi
 
