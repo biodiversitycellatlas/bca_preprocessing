@@ -34,7 +34,7 @@ process GENINDEX_STARSOLO {
     echo "Generating genome index with STAR"
     STAR --runMode genomeGenerate \\
         --genomeFastaFiles ${params.ref_fasta} \\
-        --sjdbGTFfile ${ref_star_gtf} \\
+        --sjdbGTFfile ${params.ref_star_gtf} \\
         ${gff_arg} \\
         --sjdbOverhang "\${sjdb_overhang}" \\
         --genomeSAindexNbases 12 \\

@@ -15,7 +15,7 @@ process DOUBLET_DET {
     echo "Mapping files: ${mapping_files}"
 
     bc_file=\$(ls ${mapping_files}/Solo.out/GeneFull/raw/barcodes.tsv | head -n 1)
-    bam_file=\$(ls ${mapping_files}/Aligned.sortedByCoord.out.bam | head -n 1)
+    bam_file=\$(ls ${mapping_files}/${sample_id}_${config_name}_Aligned.sortedByCoord.out.bam | head -n 1)
 
     echo "Barcodes file: \${bc_file}"
     echo "BAM file: \${bam_file}"

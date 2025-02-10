@@ -18,7 +18,6 @@ process MAPPING_STARSOLO {
     
     output:
     tuple val(sample_id), val(config_name), path("*")
-    tuple val(meta), path('*.out'), emit: logs
 
     script:
     def bd_mem_arg   = task.ext.args ?: ''          // If ext.args is defined assign it to bd_mem_arg
@@ -29,7 +28,7 @@ process MAPPING_STARSOLO {
 
     def barcode_option = barcode_whitelist_input ? "--soloCBwhitelist ${barcode_whitelist_input.replaceAll('\n', '')}" : ""
 
-    // If config_name contains "bd_rhapsody", then cDNA = R2 and CB/UMI = R1
+    // If seqTech is "bd_rhapsody", then cDNA = R2 and CB/UMI = R1
     // Else by default cDNA = R1 and CB/UMI = R2
     def cDNA_read
     def CBUMI_read
@@ -63,6 +62,7 @@ process MAPPING_STARSOLO {
         --outSAMtype BAM SortedByCoordinate \\
         --outSAMattributes NH HI AS nM CR UR CB UB \\
         --soloMultiMappers EM \\
+        --outFileNamePrefix ${sample_id}_${config_name}_ \\
         ${bd_mem_arg} \\
         \${config_file} 
 

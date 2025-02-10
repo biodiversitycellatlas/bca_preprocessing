@@ -1,7 +1,7 @@
 // ==================  GENE EXTENSION  =================== \\ 
 
 process GENE_EXT {
-    publishDir "${params.resDir}/gene_ext/gene_ext_${config_name}/${sample_id}", mode: 'copy', overwrite: false
+    publishDir "${params.resDir}/gene_ext/gene_ext_${config_name}/${sample_id}", mode: 'copy'
     tag "${sample_id}"
     debug true
 
@@ -10,7 +10,7 @@ process GENE_EXT {
     file(bam_index)
 
     output:
-    path("${sample_id}_geneext.gtf")
+    path("${sample_id}*")
     
     script:
     """
@@ -23,13 +23,25 @@ process GENE_EXT {
 
     if [ -d "tmp" ]; then rm -r tmp; fi
     
+    if [ ${params.annot_type} == "GFF" ];
+    then
+        gtf_input="reference.gff"
+        gtf_output="${sample_id}_geneext.gff"
+        cp ${params.ref_star_gtf} \${gtf_input}
+    else
+        gtf_input="reference.gtf"
+        gtf_output="${sample_id}_geneext.gtf"
+        cp ${params.ref_star_gtf} \${gtf_input}
+    fi
+    echo \${gtf_output}
+    bam_file=\$(ls ${sample_id}_${config_name}_Aligned.sortedByCoord.out.bam | head -n 1)
+    
     python ${params.baseDir}/ext_programs/GeneExt/geneext.py \\
-        -g ${params.ref_star_gtf} \\
-        -b Aligned.sortedByCoord.out.bam \\
-        -o ${sample_id}_geneext.gtf \\
+        -g \${gtf_input} \\
+        -b \${bam_file} \\
+        -o \${gtf_output} \\
         --force \\
         -j 4 \\
-        --verbose 0 \\
         --keep_intermediate_files
     """
 }
