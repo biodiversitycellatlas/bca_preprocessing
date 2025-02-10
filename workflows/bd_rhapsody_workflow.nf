@@ -13,5 +13,5 @@ workflow bd_rhapsody_workflow {
         DOWNLOAD_DATA(sample_ids)     
         RM_VARBASES(DOWNLOAD_DATA.out)   
     emit:
-        RM_VARBASES.out
+        RM_VARBASES.out.fastq_noVB_files
 }
