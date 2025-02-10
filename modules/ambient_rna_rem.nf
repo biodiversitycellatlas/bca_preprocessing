@@ -1,7 +1,7 @@
-// ==================  DOUBLET DETECTION  =================== \\ 
+// ==================  AMBIENT_RNA_RM =================== \\ 
 
 process AMBIENT_RNA_RM {
-    publishDir "${params.resDir}/ambient_rna_rm/${sample_id}", mode: 'symlink'
+    publishDir "${params.resDir}/ambient_rna_rm/${sample_id}", mode: 'copy'
     tag "${sample_id}"
     debug true
 
@@ -10,7 +10,7 @@ process AMBIENT_RNA_RM {
 
     script:
     """
-    echo "\n\n===============  DOUBLET DETECTION ${config_name}  ==============="
+    echo "\n\n===============  AMBIENT_RNA_RM ${config_name}  ==============="
     echo "Sample ID: ${sample_id}"
     
     """

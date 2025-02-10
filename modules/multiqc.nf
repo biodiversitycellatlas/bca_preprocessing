@@ -9,7 +9,7 @@ process MULTIQC {
     tag "all"
     
     input:
-    path('*')
+    val(trigger)
 
     output:
     file("multiqc_report.html")
@@ -18,6 +18,13 @@ process MULTIQC {
     """
     echo "\n\n==================  Multi qc  =================="
     echo "Running MULTIQC"
-    multiqc .
+    ls -l
+
+    multiqc ${params.resDir} \\
+        --dirs \\
+        --dirs-depth 3 \\
+        -v \\
+        -f \\
+        -m cutadapt -m star -m fastqc -m featureCounts
     """
 }
