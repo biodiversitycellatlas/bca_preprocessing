@@ -1,4 +1,4 @@
-name: bca_int
+name: bca_env
 channels:
   - conda-forge
   - bioconda
@@ -6,9 +6,8 @@ dependencies:
   - bioconda::fastqc
   - bioconda::nextflow
   - bioconda::seqtk
-  - bioconda::star
   - pigz
-  - numpy=2.0.0
+  - numpy
   - conda-forge::bc
   - bioconda::subread
   - bioconda::seqkit
@@ -16,4 +15,8 @@ dependencies:
   - bioconda::bcftools
   - openjdk=11
   - nf-core
-prefix: /users/asebe/bvanwaardenburg/miniconda3/envs/bca_int
+  - bioconda::multiqc
+  - bioconda::samtools
+  - conda-forge::r-base
+  - bioconda::star
+prefix: /users/asebe/bvanwaardenburg/miniconda3/envs/bca_env
