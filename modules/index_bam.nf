@@ -16,7 +16,7 @@ process INDEX_BAM {
     echo "\n\n==================  INDEX BAM FILES  =================="
     echo "Processing files: ${mapping_files}"
 
-    bam_file=\$(ls *Aligned.sortedByCoord.out.bam | head -n 1)
+    bam_file=\$(ls ${sample_id}_${config_name}_Aligned.sortedByCoord.out.bam | head -n 1)
     echo "BAM file: \${bam_file}"
 
     samtools index \${bam_file}

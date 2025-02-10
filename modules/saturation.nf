@@ -22,7 +22,7 @@ process SATURATION {
     # Find the correct files from the list (mapping_files)
     summary_file=\$(ls *Solo.out/Gene/Summary.csv | head -n 1)
     log_final_file=\$(ls *Log.final.out | head -n 1)
-    bam_file=\$(ls *Aligned.sortedByCoord.out.bam | head -n 1)
+    bam_file=\$(ls ${sample_id}_${config_name}_Aligned.sortedByCoord.out.bam | head -n 1)
 
     echo "Summary file: \${summary_file}"
     echo "Log final file: \${log_final_file}"
