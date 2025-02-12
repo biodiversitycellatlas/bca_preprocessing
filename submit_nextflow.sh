@@ -5,16 +5,15 @@
 #SBATCH --mem 6G
 #SBATCH -p genoa64
 #SBATCH --qos pipelines
-#SBATCH --job-name nextflow_pipeline
-
+#SBATCH --job-name nextflow_250115_ParseBio_Nvec_BCA13_BCA14
 
 ##################
 # Configure bash #
 ##################
 
-# set -e          # exit immediately on error
-set -u          # exit immidiately if using undefined variables
-set -o pipefail # ensure bash pipelines return non-zero status if any of their command fails
+# set -e                # exit immediately on error
+set -u                  # exit immidiately if using undefined variables
+set -o pipefail         # ensure bash pipelines return non-zero status if any of their command fails
 
 # Setup trap function to be run when canceling the pipeline job. 
 # It will propagate the SIGTERM signal to Nextlflow so that all 
@@ -36,7 +35,7 @@ trap _term TERM
 # -resume       : 	resumes previous work, followed by hash name of used working directory
 # -profile      :       
 
-nextflow run -profile slurm,240810_ParseBio_Nvec_BCA3_BCA4 -ansi-log false "$@" & pid=$! 
+nextflow run -profile slurm,250115_ParseBio_Nvec_BCA13_BCA14 -ansi-log false "$@" & pid=$! 
 
 # Wait for the pipeline to finish
 echo "Waiting for ${pid}"
