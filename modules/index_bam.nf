@@ -9,11 +9,12 @@ process INDEX_BAM {
     tuple val(sample_id), val(config_name), path(mapping_files)
 
     output:
-    path("*.bai")
+    path("${sample_id}_${config_name}_Aligned.sortedByCoord.out.bam.bai")
 
     script:
     """
     echo "\n\n==================  INDEX BAM FILES  =================="
+    echo "Sample ID: ${sample_id}"
     echo "Processing files: ${mapping_files}"
 
     bam_file=\$(ls ${sample_id}_${config_name}_Aligned.sortedByCoord.out.bam | head -n 1)
