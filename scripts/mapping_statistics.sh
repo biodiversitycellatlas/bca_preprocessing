@@ -23,17 +23,16 @@
 ####################	
 
 # test: 
-   resDir="/users/asebe/bvanwaardenburg/git/data/240810_ParseBio_Nvec_Tcas/Tcas_sep"
-   workDir="/users/asebe/bvanwaardenburg/git/data/240810_ParseBio_Nvec_Tcas/Tcas_sep"
+#   resDir="/no_backup/asebe/bvanwaardenburg/data/250115_ParseBio_Nvec_Tcas_Pliv_Cele/Nvec_BCA009_BCA010"
+#   workDir="/users/asebe/bvanwaardenburg/git/data/240810_ParseBio_Nvec_Tcas/Tcas_sep"
 
-# resDir=$1
-# workDir=$2 
+resDir=$1
 
 # Change to the directory that contains the data
 cd ${resDir} || { echo "Error: Could not cd to data directory"; exit 1; }
 
 # Define output file
-output_file="${workDir}/mapping_stats.tsv"
+output_file="mapping_stats.tsv"
 
 
 ###############
@@ -51,7 +50,10 @@ for map_dir in ${resDir}/mapping_STARsolo/*; do
     for sample_dir in $map_dir/*; do
         echo "sample dir: ${sample_dir} "
 
-        LOG="$sample_dir/Log.final.out"
+        sample_name=$(basename ${sample_dir})
+        config="${map_dir##*_}"
+
+        LOG="$sample_dir/${sample_name}_${config}_Log.final.out"
         [ -f "$LOG" ] || continue
 
         # Extract from STAR Log
@@ -64,8 +66,8 @@ for map_dir in ${resDir}/mapping_STARsolo/*; do
         p_unmapped_other=$(grep "% of reads unmapped: other" "$LOG" | awk '{print $NF}')
 
         # Check Gene and GeneFull directories in Solo.out
-        solo_gene_dir="$sample_dir/Solo.out/Gene"
-        solo_genefull_dir="$sample_dir/Solo.out/GeneFull"
+        solo_gene_dir="$sample_dir/${sample_name}_${config}_Solo.out/Gene"
+        solo_genefull_dir="$sample_dir/${sample_name}_${config}_Solo.out/GeneFull"
 
         if [ -d "$solo_genefull_dir" ]; then
             solo_dir="$solo_genefull_dir"
@@ -74,11 +76,15 @@ for map_dir in ${resDir}/mapping_STARsolo/*; do
         else
             solo_dir=""
         fi
+        echo "solo dir: $solo_dir"
 
         # N cells (if barcodes.tsv is available)
         if [ -n "$solo_dir" ] && [ -f "$solo_dir/filtered/barcodes.tsv" ]; then
+            echo "getting cells"
             N_cells=$(wc -l < "$solo_dir/filtered/barcodes.tsv")
+            echo $N_cells
         else
+            echo "error here"
             N_cells="NA"
         fi
 
@@ -86,7 +92,7 @@ for map_dir in ${resDir}/mapping_STARsolo/*; do
         if [ -n "$solo_dir" ] && [ -f "$solo_dir/Summary.csv" ]; then
             R1_Q30=$(grep "RNA" "$solo_dir/Summary.csv" | awk -F ',' '{print $NF}' || echo "NA")
             R2_Q30=$(grep "CB+UMI" "$solo_dir/Summary.csv" | awk -F ',' '{print $NF}' || echo "NA")
-            UMI_cutoff=$(grep "nUMImin" "$sample_dir/Log.out" | awk -F ';' '{print $2}' | head -n 1 | awk -F '=' '{print $2}' || echo "NA")
+            UMI_cutoff=$(grep "nUMImin" "$sample_dir/${sample_name}_${config}_Log.out" | awk -F ';' '{print $2}' | head -n 1 | awk -F '=' '{print $2}' || echo "NA")
             saturation=$(grep "Saturation" "$solo_dir/Summary.csv" | awk -F ',' '{print $NF}' || echo "NA")
         else
             R1_Q30="NA"
@@ -95,11 +101,12 @@ for map_dir in ${resDir}/mapping_STARsolo/*; do
             saturation="NA"
         fi
 
+        # ------------------------------------------------------------------
+        # ribosomal RNA & mitochondrial DNA (unique & multimapped reads)
+        # ------------------------------------------------------------------
         # Extract mtDNA & rRNA values
-        sample_name=$(basename ${sample_dir})
-        config="${map_dir##*_}"
         featcounts_dir="${resDir}/rRNA_mtDNA/rRNA_mtDNA_${config}/${sample_name}"
-        echo ${featcounts_dir}
+        echo "featurecounts dir: ${featcounts_dir}"
 
         rRNA_summary="$featcounts_dir/feat_counts_rRNA.txt.summary"
         mtDNA_summary="$featcounts_dir/feat_counts_mtDNA.txt.summary"
@@ -154,17 +161,24 @@ for map_dir in ${resDir}/mapping_STARsolo/*; do
         # ------------------------------------------------------------------
         # Percentage Intronic Reads
         # ------------------------------------------------------------------
-        exonic_sum=$(cat ${work_dir}/Solo.out/Gene/raw/matrix.mtx | awk 'NR>3 {sum+=$3} END{print sum}')
-        fullgene_sum=$(cat ${work_dir}/Solo.out/GeneFull/raw/matrix.mtx | awk 'NR>3 {sum+=$3} END{print sum}')
+        exonic_sum=$(cat ${work_dir}/${sample_name}_${config}_Solo.out/Gene/raw/matrix.mtx | awk 'NR>3 {sum+=$3} END{print sum}')
+        fullgene_sum=$(cat ${work_dir}/${sample_name}_${config}_Solo.out/GeneFull/raw/matrix.mtx | awk 'NR>3 {sum+=$3} END{print sum}')
         intronic_sum=$(( fullgene_sum - exonic_sum ))
 
         fraction_intronic=$(awk -v i="$intronic_sum" -v t="$fullgene_sum" \
                             'BEGIN{printf("%.4f", (i)/t)}')
 
         # ------------------------------------------------------------------
+        # 10x_saturate results
+        # - reads needed for 0.7 saturation
+        # ------------------------------------------------------------------
+        saturation_dir="${resDir}/saturation/saturation_${config}/${sample_name}"
+        saturate_07=$(cat $saturation_dir/saturation.log | grep "approximately: " | awk '{print $(NF-2) " M"}')
+        
+        # ------------------------------------------------------------------
         # Append results to the output file
         # ------------------------------------------------------------------
-        echo -e "$(basename "$map_dir")\t$(basename "$sample_dir")\t$n_reads\t$R1_Q30\t$R2_Q30\t$n_uniquely_mapped\t$p_uniquely_mapped\t$p_multi_mapped\t$p_multi_too_many\t$p_unmapped_short\t$p_unmapped_other\t\t\t$N_cells\t$UMI_cutoff\t$saturation\t\t$noise\t$fraction_intronic\t$rRNA_percentage\t$rRNA_mmaa_percentage\t$rRNA_mmpa_percentage\t$mtDNA_percentage\t$mtDNA_mmaa_percentage\t$mtDNA_mmpa_percentage\t$freq_mm_genes" >> "$output_file"
+        echo -e "$(basename "$map_dir")\t$(basename "$sample_dir")\t$n_reads\t$R1_Q30\t$R2_Q30\t$n_uniquely_mapped\t$p_uniquely_mapped\t$p_multi_mapped\t$p_multi_too_many\t$p_unmapped_short\t$p_unmapped_other\t\t\t$N_cells\t$UMI_cutoff\t$saturation\t$saturate_07\t$noise\t$fraction_intronic\t$rRNA_percentage\t$rRNA_mmaa_percentage\t$rRNA_mmpa_percentage\t$mtDNA_percentage\t$mtDNA_mmaa_percentage\t$mtDNA_mmpa_percentage\t$freq_mm_genes" >> "$output_file"
     done
 done
 
