@@ -15,16 +15,17 @@ process MULTIQC {
     file("multiqc_report.html")
 
     script:
+    def rtitle = workflow.runName ? "--title \"${workflow.runName}\"" : ''
+    def rfilename = workflow.runName ? "--filename " + workflow.runName.replaceAll('\\W','_').replaceAll('_+','_') + "_multiqc_report" : ''
+    
     """
     echo "\n\n==================  Multi qc  =================="
     echo "Running MULTIQC"
-    ls -l
-
+    
     multiqc ${params.resDir} \\
-        --dirs \\
-        --dirs-depth 3 \\
-        -v \\
-        -f \\
-        -m cutadapt -m star -m fastqc -m featureCounts
+        $rtitle \\
+        $rfilename \\
+        --config ${params.baseDir}/scripts/multiqc_config.yaml
+        --cl-config "report_header_info: 'Sequencing technology: ${params.seqTech}'"
     """
 }
