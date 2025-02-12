@@ -4,7 +4,6 @@
 
 // Import processes
 include { FASTQC } from '../modules/fastqc'
-include { MULTIQC } from '../modules/multiqc'
 
 include { GENINDEX_STARSOLO as GENINDEX_STARSOLO_N } from '../modules/genindex_starsolo'
 include { GENINDEX_STARSOLO as GENINDEX_STARSOLO_CR } from '../modules/genindex_starsolo'
@@ -42,7 +41,6 @@ workflow QC_mapping_workflow {
     main:
         // Quality Control
         FASTQC(data_output)
-        MULTIQC(FASTQC.out.collect())
 
         // Mapping STARsolo
         GENINDEX_STARSOLO_N(params.ref_star_gtf, file(params.star_config_mkref_N), 'N')
@@ -50,41 +48,42 @@ workflow QC_mapping_workflow {
 
         // Mapping: Normal
         MAPPING_STARSOLO_N(data_output, GENINDEX_STARSOLO_N.out, file(params.star_config_ED), params.barcodeDir, 'N')
-        // INDEX_BAM_N(MAPPING_STARSOLO_N.out)
-        // SATURATION_N(MAPPING_STARSOLO_N.out, INDEX_BAM_N.out)
-        //CALC_MT_RRNA_N(MAPPING_STARSOLO_N.out)
+        INDEX_BAM_N(MAPPING_STARSOLO_N.out)
+        SATURATION_N(MAPPING_STARSOLO_N.out, INDEX_BAM_N.out)
+        CALC_MT_RRNA_N(MAPPING_STARSOLO_N.out)
         
-        // // Mapping: Normal + Gene Extension
-        // GENE_EXT_N(MAPPING_STARSOLO_N.out, INDEX_BAM_N.out)
-        // REINDEX_STARSOLO_N(GENE_EXT_N.out, file(params.star_config_mkref_N), 'NGE')
-        // REMAPPING_STARSOLO_N(data_output, REINDEX_STARSOLO_N.out, file(params.star_config_ED), params.barcodeDir, 'NGE')
-        // INDEX_BAM_NGE(REMAPPING_STARSOLO_N.out)
-        // SATURATION_NGE(REMAPPING_STARSOLO_N.out, INDEX_BAM_NGE.out)
-        //CALC_MT_RRNA_NGE(REMAPPING_STARSOLO_N.out)
+        // Mapping: Normal + Gene Extension
+        GENE_EXT_N(MAPPING_STARSOLO_N.out, INDEX_BAM_N.out)
+        REINDEX_STARSOLO_N(GENE_EXT_N.out, file(params.star_config_mkref_N), 'NGE')
+        REMAPPING_STARSOLO_N(data_output, REINDEX_STARSOLO_N.out, file(params.star_config_ED), params.barcodeDir, 'NGE')
+        INDEX_BAM_NGE(REMAPPING_STARSOLO_N.out)
+        SATURATION_NGE(REMAPPING_STARSOLO_N.out, INDEX_BAM_NGE.out)
+        CALC_MT_RRNA_NGE(REMAPPING_STARSOLO_N.out)
 
         // Mapping: CR-like
-        MAPPING_STARSOLO_CR(data_output, GENINDEX_STARSOLO_CR.out, file(params.star_config_CRED), params.barcodeDir, 'CR') // original: barcodeDemux
-        // INDEX_BAM_CR(MAPPING_STARSOLO_CR.out)
-        // SATURATION_CR(MAPPING_STARSOLO_CR.out, INDEX_BAM_CR.out)
-        //CALC_MT_RRNA_CR(MAPPING_STARSOLO_CR.out)
+        MAPPING_STARSOLO_CR(data_output, GENINDEX_STARSOLO_CR.out, file(params.star_config_CRED), params.barcodeDemux, 'CR') // original: barcodeDemux
+        INDEX_BAM_CR(MAPPING_STARSOLO_CR.out)
+        SATURATION_CR(MAPPING_STARSOLO_CR.out, INDEX_BAM_CR.out)
+        CALC_MT_RRNA_CR(MAPPING_STARSOLO_CR.out)
 
-        // // Mapping: CR-like + Gene Extension
-        // GENE_EXT_CR(MAPPING_STARSOLO_CR.out, INDEX_BAM_CR.out)
-        // REINDEX_STARSOLO_CR(GENE_EXT_CR.out, file(params.star_config_mkref_CR), 'CRGE')
-        // REMAPPING_STARSOLO_CR(data_output, REINDEX_STARSOLO_CR.out, file(params.star_config_CRED), params.barcodeDemux, 'CRGE')
-        // INDEX_BAM_CRGE(REMAPPING_STARSOLO_CR.out)
-        // SATURATION_CRGE(REMAPPING_STARSOLO_CR.out, INDEX_BAM_CRGE.out)
-        //CALC_MT_RRNA_CRGE(REMAPPING_STARSOLO_CR.out)
+        // Mapping: CR-like + Gene Extension
+        GENE_EXT_CR(MAPPING_STARSOLO_CR.out, INDEX_BAM_CR.out)
+        REINDEX_STARSOLO_CR(GENE_EXT_CR.out, file(params.star_config_mkref_CR), 'CRGE')
+        REMAPPING_STARSOLO_CR(data_output, REINDEX_STARSOLO_CR.out, file(params.star_config_CRED), params.barcodeDemux, 'CRGE')
+        INDEX_BAM_CRGE(REMAPPING_STARSOLO_CR.out)
+        SATURATION_CRGE(REMAPPING_STARSOLO_CR.out, INDEX_BAM_CRGE.out)
+        CALC_MT_RRNA_CRGE(REMAPPING_STARSOLO_CR.out)
 
         // Generate mtx files
         // ...
 
     emit:
-        MAPPING_STARSOLO_CR.out
-        // calc_mt_rrna_n = CALC_MT_RRNA_N.out.collect()
-        // calc_mt_rrna_nge = CALC_MT_RRNA_NGE.out.collect()
-        // calc_mt_rrna_cr = CALC_MT_RRNA_CR.out.collect()
-        // calc_mt_rrna_crge = CALC_MT_RRNA_CRGE.out.collect()
+        // MAPPING_STARSOLO_N.out.collect()
+        // MAPPING_STARSOLO_CR.out.collect()
+        calc_mt_rrna_n = CALC_MT_RRNA_N.out.collect()
+        calc_mt_rrna_nge = CALC_MT_RRNA_NGE.out.collect()
+        calc_mt_rrna_cr = CALC_MT_RRNA_CR.out.collect()
+        calc_mt_rrna_crge = CALC_MT_RRNA_CRGE.out.collect()
 
         // intron.mtx, exon.mtx, fullgenome.mtx
 }

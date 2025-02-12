@@ -9,6 +9,7 @@
 --soloUMIfiltering MultiGeneUMI_CR
 --soloUMIdedup 1MM_CR
 --clipAdapterType CellRanger4
---soloCellFilter EmptyDrops_CR
+--soloCellFilter CellRanger2.2 2500 0.99 10
+--outFilterScoreMin 30
 --clip5pAdapterSeq AAGCAGTGGTATCAACGCAGAGTGAATGGG
 --soloFeatures Gene GeneFull

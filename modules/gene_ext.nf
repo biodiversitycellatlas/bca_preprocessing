@@ -41,7 +41,6 @@ process GENE_EXT {
         -b \${bam_file} \\
         -o \${gtf_output} \\
         --force \\
-        -j 4 \\
-        --keep_intermediate_files
+        -j 4 
     """
 }
