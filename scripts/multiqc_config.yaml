@@ -1,0 +1,29 @@
+# MultiQC Configuration File
+
+# General settings
+dirs: true
+dirs_depth: 3
+verbose: true
+force: true
+
+report_header_info:
+  - Contact E-mail: "example_email@crg.es"
+  - Application Type: "scRNA & snRNA-seq data"
+
+# Include custom plots
+# sp:
+#   starsolo:
+#     fn: '*Solo.out/*'
+# custom_data_dir: 'multiqc_starsolo.py'
+
+# Modules
+module_order:
+  - cutadapt
+  - star
+  - featurecounts
+  - fastqc
+
+
+# Custom settings
+custom_logo: "../img/BCALogotypeDesign_2024_Primary_Logo_Color.png"
+custom_logo_title: "Biodiversity Cell Atlas"
