@@ -19,14 +19,11 @@ process GENINDEX_STARSOLO {
     """
     echo "\n\n==================  GENOME INDEX STARSOLO ${config_name} =================="
     # Retrieve the first accession number
-    first_accs=\$(head -1 ${params.accessions})
-    first_fastq="${params.resDir}/fastq/\${first_accs}*R1*.fastq.gz"  
-
-    echo "\${first_accs}"
+    first_fastq=\$(ls "${params.resDir}/fastq/" | head -n1)  
     echo "\${first_fastq}"
 
     # Calculate SJDB overhang using the first read from the first fastq file
-    sjdb_overhang=\$(zcat \${first_fastq} 2>/dev/null | awk 'NR==2 {print length(\$0)-1; exit}' || echo "") 
+    sjdb_overhang=\$(zcat ${params.resDir}/fastq/\${first_fastq} 2>/dev/null | awk 'NR==2 {print length(\$0)-1; exit}' || echo "") 
 
     # Read configuration file
     config_file=\$(cat ${config_mkref})

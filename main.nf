@@ -39,11 +39,17 @@ println DEMULTIPLEX.out.splitted_files
 
 // ================     CHANNELS    ================= \\
 // Read initial sample IDs from accession list
-Channel.fromPath("${params.accessions}")
-    .splitText()
-    .map { it.trim() }
-    .filter { it }
-    .set { sample_ids }
+// Channel.fromPath("${params.accessions}")
+//     .splitText()
+//     .map { it.trim() }
+//     .filter { it }
+//     .set { sample_ids }
+
+sample_ids = Channel.fromPath("${params.resDir}/fastq/*_R*_001.fastq.gz")
+    .map { file -> 
+        file.name.replaceAll(/_R.*_001\.fastq\.gz$/, '')
+    }
+    .distinct()
 
 
 // =================     IMPORTS    ================= \\
@@ -53,6 +59,7 @@ include { bd_rhapsody_workflow } from './workflows/bd_rhapsody_workflow'
 include { QC_mapping_workflow } from './workflows/QC_mapping_workflow'
 
 // Import processes
+include { MULTIQC } from './modules/multiqc'
 include { MAPPING_STATS } from './modules/mapping_statistics'
 
 
@@ -78,9 +85,11 @@ workflow {
     // MultiQC and mapping steps using STARsolo including gene extension and testing different configurations
     qc_output = QC_mapping_workflow(data_output)
 
-    // Collect all outputs into a single channel and create trigger to summarize mapping steps into excel format
+    // Collect all outputs into a single channel and create trigger
     all_outputs = data_output.mix(qc_output)
     mapping_stats_trigger = all_outputs.collect().map { it -> true }
+    
+    MULTIQC(mapping_stats_trigger)
     MAPPING_STATS(mapping_stats_trigger) 
 
     // Filtering raw matrices of ambient RNA and detecting doublets
