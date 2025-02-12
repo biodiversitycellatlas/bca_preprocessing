@@ -19,4 +19,9 @@ dependencies:
   - bioconda::samtools
   - conda-forge::r-base
   - bioconda::star
+  - bioconda::pysam
+  - pandas
+  - matplotlib
+  - scipy
+  - scikit-learn
 prefix: /users/asebe/bvanwaardenburg/miniconda3/envs/bca_env
