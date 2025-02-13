@@ -1,0 +1,9 @@
+name: alevin
+channels:
+  - conda-forge
+  - bioconda
+dependencies:
+  - piscem
+  - simpleaf
+  - bioconda::macs3
+prefix: /users/asebe/bvanwaardenburg/miniconda3/envs/alevin

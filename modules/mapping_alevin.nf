@@ -1,13 +1,15 @@
-process MAPPING_ALEVIN {   
+process MAPPING_ALEVIN {
+    publishDir "${params.resDir}/mapping_alevin/${sample_id}", mode: 'copy'
+    tag "${sample_id}"
+    debug true
+
     input:
     tuple val(sample_id), path(fastq_files)
     path index
     path transcript_tsv
-    path whitelist
 
     output:
     tuple val(meta), path("*_alevin_results"), emit: alevin_results
-    path  "versions.yml"                     , emit: versions
        
     script:
     def fastq_list = fastq_files instanceof List ? fastq_files : [fastq_files]
@@ -24,32 +26,26 @@ process MAPPING_ALEVIN {
     } else {
         cDNA_read = r1_fastq
         CBUMI_read = r2_fastq
+        protocol = "splitseqV2"
     }
     """
     echo "\n\n==================  GENOME INDEX ALEVIN =================="
+    echo "Sample ID: ${sample_id}"
+    echo "Transcript TSV: ${transcript_tsv}"
     echo "Reference fasta: ${params.ref_fasta}"
 
-    # Define filename pattern
-    reads1_pat="_R1_"
-    reads2_pat="_R2_"
-
-    # Obtain and sort filenames
-    reads1="\$(find -L ${FASTQ_DIR} -name "*\$reads1_pat*" -type f | sort | awk -v OFS=, '{\$1=\$1;print}' | paste -sd, -)"
-    reads2="\$(find -L ${FASTQ_DIR} -name "*\$reads2_pat*" -type f | sort | awk -v OFS=, '{\$1=\$1;print}' | paste -sd, -)"
-
-    # Export required var
+    # Export required vars
     export ALEVIN_FRY_HOME=.
-    export NUMBA_CACHE_DIR=.
 
     # simpleaf configuration
     simpleaf set-paths
 
     # Quantify the sample
     simpleaf quant \\
-        --reads1 \${reads1} \\
-        --reads2 \${reads2} \\
+        --reads1 ${cDNA_read} \\
+        --reads2 ${CBUMI_read} \\
         --index ${index} \\
         --t2g-map ${transcript_tsv} \\
-        --chemistry "$protocol" 
+        --chemistry $protocol
     """
 }
