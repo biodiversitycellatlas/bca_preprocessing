@@ -27,3 +27,30 @@ module_order:
 # Custom settings
 custom_logo: "../img/BCALogotypeDesign_2024_Primary_Logo_Color.png"
 custom_logo_title: "Biodiversity Cell Atlas"
+
+custom_content:
+  - section_name: "Saturation"
+    description: "Line plots generated from saturation data for each sample."
+    plot_type: "xy_line"
+
+    data:
+      saturation_data:
+        # The pattern used to find the data files
+        pattern: "saturation/saturation_*/*/saturation_output.tsv"
+        
+        # Tab-delimited files:
+        table_type: "csv"
+        delim: "\t"
+        
+        # If your TSVs have a header line, keep skip: 0
+        skip: 1
+
+        header_names: ["ninput", "sat"]
+
+    # Plot-level configurations 
+    pconfig:
+      id: "saturation_line_plot"
+      title: "Saturation Plot"
+      xlab: "Coverage (M reads)"
+      ylab: "Saturation"
+

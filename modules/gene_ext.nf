@@ -26,11 +26,11 @@ process GENE_EXT {
     if [ ${params.annot_type} == "GFF" ];
     then
         gtf_input="reference.gff"
-        gtf_output="${sample_id}_geneext.gff"
+        gtf_output="${sample_id}_${config_name}_geneext.gff"
         cp ${params.ref_star_gtf} \${gtf_input}
     else
         gtf_input="reference.gtf"
-        gtf_output="${sample_id}_geneext.gtf"
+        gtf_output="${sample_id}_${config_name}_geneext.gtf"
         cp ${params.ref_star_gtf} \${gtf_input}
     fi
     echo \${gtf_output}
