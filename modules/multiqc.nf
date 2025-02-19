@@ -25,7 +25,7 @@ process MULTIQC {
     multiqc ${params.resDir} \\
         $rtitle \\
         $rfilename \\
-        --config ${params.baseDir}/scripts/multiqc_config.yaml
+        --config ${params.baseDir}/scripts/multiqc_config.yaml \\
         --cl-config "report_header_info: '- Sequencing technology: ${params.seqTech}'"
     """
 }
