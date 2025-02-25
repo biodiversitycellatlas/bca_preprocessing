@@ -19,3 +19,6 @@
 [submodule "ext_programs/kraken2"]
 	path = ext_programs/kraken2
 	url = https://github.com/DerrickWood/kraken2.git
+[submodule "zUMIs"]
+	path = zUMIs
+	url = https://github.com/sdparekh/zUMIs.git

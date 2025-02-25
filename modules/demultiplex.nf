@@ -1,4 +1,4 @@
-// ==================  DEMULTIPLEXING  ================== \\ 
+// ==================  DEMUX_SPIPE  ================== \\ 
 // To split the fastq files of each library into separate \\
 // fastq files for each fixation method, a script for     \\
 // demultiplexing the reads is called. From a txt file    \\
@@ -8,7 +8,8 @@
 // into n seperate fastq's. This step is repeated for     \\
 // all libraries. 
 
-process DEMULTIPLEX {
+process DEMUX_SPIPE {
+    publishDir "${params.resDir}/demultiplex/demux_spipe/${sample_id}", mode: 'copy'
     tag "${sample_id}_${group}"
     
     input:
@@ -24,7 +25,6 @@ process DEMULTIPLEX {
     """
     echo "\n\n==================  splitting  =================="
     echo "Processing sample: ${sample_id}"
-    echo "First barcode path: ${params.barcodeDemux}"
     echo "FQ 1: ${r1_fastq ?: 'Not provided'}"
     echo "FQ 2: ${r2_fastq ?: 'Not provided'}"
 

@@ -7,6 +7,7 @@ process CALC_MT_RRNA {
 
     input:
     tuple val(sample_id), val(config_name), path(mapping_files)
+    file(bam_index)
 
     output:
     path("*")     

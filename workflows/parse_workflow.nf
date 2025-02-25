@@ -7,7 +7,10 @@
 // validation of steps.       
 
 include { DOWNLOAD_DATA } from '../modules/download'
-include { DEMULTIPLEX } from '../modules/demultiplex'
+
+include { DEMUX_SPIPE } from '../modules/demultiplex'
+include { DEMUX_UMITOOLS } from '../modules/demux_umitools'
+
 include { REFGEN_PARSEBIO } from '../modules/refgen_parsebio'
 include { MAPPING_PARSEBIO } from '../modules/mapping_parsebio'
 
@@ -20,10 +23,11 @@ workflow parse_workflow {
         groups = Channel.fromList(params.groups)
         comb_data = DOWNLOAD_DATA.out.fastq_files.combine(groups)
 
-        DEMULTIPLEX(comb_data)
+        DEMUX_SPIPE(comb_data)
+        DEMUX_UMITOOLS(comb_data)
         
         REFGEN_PARSEBIO()
-        MAPPING_PARSEBIO(DEMULTIPLEX.out.splitted_files, REFGEN_PARSEBIO.out)
+        MAPPING_PARSEBIO(DEMUX_SPIPE.out.splitted_files, REFGEN_PARSEBIO.out)
     emit:
-        DEMULTIPLEX.out.splitted_files
+        DEMUX_UMITOOLS.out.splitted_files
 }
