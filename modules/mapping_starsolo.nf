@@ -6,7 +6,7 @@
 // config_file, and is specific per sequencing tech. \\
 
 process MAPPING_STARSOLO { 
-    publishDir "${params.resDir}/mapping_STARsolo/mapping_STARsolo_${config_name}/${sample_id}", mode: 'copy', overwrite: false
+    publishDir "${params.resDir}/mapping_STARsolo/mapping_STARsolo_${config_name}/${sample_id}", mode: 'copy'
     tag "${sample_id}_${config_name}"
 
     input:
@@ -54,17 +54,22 @@ process MAPPING_STARSOLO {
 
     # Mapping step and generating count matrix using STAR
     STAR \\
-        --runThreadN 40 \\
-        --readFilesIn ${cDNA_read} ${CBUMI_read} \\
+        --runThreadN 4 \\
+        --readFilesIn ${cDNA_read} \\
         --genomeDir ${genome_index_files.toRealPath()} \\
         --readFilesCommand zcat \\
-        ${barcode_option} \\
         --outSAMtype BAM SortedByCoordinate \\
-        --outSAMattributes NH HI AS nM CR UR CB UB \\
-        --soloMultiMappers EM \\
-        --outFileNamePrefix ${sample_id}_${config_name}_ \\
-        ${bd_mem_arg} \\
-        \${config_file} 
+        --soloFeatures Gene GeneFull \\
+        --outFileNamePrefix ${sample_id}_${config_name}_ 
 
+    # Assign reads to genes
+    featureCounts -a ${params.ref_star_gtf} -o gene_assigned -R BAM *_Aligned.sortedByCoord.out.bam -T 4
+
+    # Sort the output
+    samtools sort *_Aligned.sortedByCoord.out.bam.featureCounts.bam -o assigned_sorted.bam
+    samtools index assigned_sorted.bam
+
+    # Counting molecules
+    umi_tools count --per-gene --gene-tag=XT --assigned-status-tag=XS --per-cell -I assigned_sorted.bam -S counts.tsv.gz
     """
 }
