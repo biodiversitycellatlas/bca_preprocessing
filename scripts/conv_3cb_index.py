@@ -25,10 +25,10 @@ from collections import defaultdict
 
 def parse_args():
     parser = argparse.ArgumentParser()
-    parser.add_argument("--input_cDNA", default="/users/asebe/bvanwaardenburg/git/data/241106_BD_Rhapsody_Nvec/Nvec_FINAL/demultiplex/demux_umitools/demux_BCA005_R2.fastq.gz", help="R2 FASTQ.gz (cDNA)")
-    parser.add_argument("--output_cDNA", default="/users/asebe/bvanwaardenburg/git/data/241106_BD_Rhapsody_Nvec/Nvec_FINAL/demultiplex/demux_umitools/indexed_BCA005_R2.fastq.gz", help="Output R2 FASTQ.gz")
-    parser.add_argument("--workdir", default="/users/asebe/bvanwaardenburg/git/data/241106_BD_Rhapsody_Nvec/Nvec_FINAL/demultiplex/demux_umitools", help="Work directory")
-    parser.add_argument("--bcdir", default="/users/asebe/bvanwaardenburg/git/bca_preprocessing/seq_techniques/bd_rhapsody", help="Directory containing barcode files")
+    parser.add_argument("--input_cDNA", required=True, help="R2 FASTQ.gz (cDNA)")
+    parser.add_argument("--output_cDNA", required=True, help="Output R2 FASTQ.gz")
+    parser.add_argument("--workdir", required=True, help="Work directory")
+    parser.add_argument("--bcdir", required=True, help="Directory containing barcode files")
     return parser.parse_args()
 
 
