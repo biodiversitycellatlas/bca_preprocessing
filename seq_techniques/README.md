@@ -12,3 +12,8 @@ The original barcode file names were:
     barcodes_R1.txt : BD_CLS1.txt
     barcodes_R2.txt : BD_CLS2.txt 
     barcodes_R3.txt : BD_CLS3.txt
+    
+    
+- OAK-seq:
+    barcodes_R1.txt : i5 indices (experiment)
+    barcodes_R2.txt : 3M-february-2018.txt

@@ -5,36 +5,34 @@
 // Import processes
 include { FASTQC } from '../modules/fastqc'
 
-include { GENINDEX_STARSOLO as GENINDEX_STARSOLO_N } from '../modules/genindex_starsolo'
-include { GENINDEX_STARSOLO as GENINDEX_STARSOLO_CR } from '../modules/genindex_starsolo'
-include { GENINDEX_STARSOLO as REINDEX_STARSOLO_N } from '../modules/genindex_starsolo'
-include { GENINDEX_STARSOLO as REINDEX_STARSOLO_CR } from '../modules/genindex_starsolo'
+include { GENINDEX_STARSOLO } from '../modules/genindex_starsolo'
 
-include { MAPPING_STARSOLO as MAPPING_STARSOLO_N } from '../modules/mapping_starsolo'
-include { MAPPING_STARSOLO as MAPPING_STARSOLO_CR } from '../modules/mapping_starsolo'
-include { MAPPING_STARSOLO as REMAPPING_STARSOLO_N } from '../modules/mapping_starsolo'
-include { MAPPING_STARSOLO as REMAPPING_STARSOLO_CR } from '../modules/mapping_starsolo'
+include { MAPPING_STARSOLO_SINGLE as MAPPING_STARSOLO_SINGLE } from '../modules/mapping_starsolo_single'
+include { MAPPING_STARSOLO_SINGLE as REMAPPING_STARSOLO_SINGLE } from '../modules/mapping_starsolo_single'
+
+include { MAPPING_STARSOLO_PAIRED as MAPPING_STARSOLO_PAIRED } from '../modules/mapping_starsolo_paired'
+include { MAPPING_STARSOLO_PAIRED as REMAPPING_STARSOLO_PAIRED } from '../modules/mapping_starsolo_paired'
 
 include { GENINDEX_ALEVIN } from '../modules/genindex_alevin'
 include { MAPPING_ALEVIN } from '../modules/mapping_alevin'
 
-include { INDEX_BAM as INDEX_BAM_N } from '../modules/index_bam'
-include { INDEX_BAM as INDEX_BAM_NGE } from '../modules/index_bam'
-include { INDEX_BAM as INDEX_BAM_CR } from '../modules/index_bam'
-include { INDEX_BAM as INDEX_BAM_CRGE } from '../modules/index_bam'
+include { INDEX_BAM as INDEX_BAM_SINGLE } from '../modules/index_bam'
+include { INDEX_BAM as INDEX_BAM_SINGLE_GE } from '../modules/index_bam'
+include { INDEX_BAM as INDEX_BAM_PAIRED } from '../modules/index_bam'
+include { INDEX_BAM as INDEX_BAM_PAIRED_GE } from '../modules/index_bam'
 
-include { SATURATION as SATURATION_N } from '../modules/saturation'
-include { SATURATION as SATURATION_NGE } from '../modules/saturation'
-include { SATURATION as SATURATION_CR } from '../modules/saturation'
-include { SATURATION as SATURATION_CRGE } from '../modules/saturation'
+include { SATURATION as SATURATION_SINGLE } from '../modules/saturation'
+include { SATURATION as SATURATION_SINGLE_GE } from '../modules/saturation'
+include { SATURATION as SATURATION_PAIRED } from '../modules/saturation'
+include { SATURATION as SATURATION_PAIRED_GE } from '../modules/saturation'
 
-include { CALC_MT_RRNA as CALC_MT_RRNA_N } from '../modules/calculate_mt_rrna'
-include { CALC_MT_RRNA as CALC_MT_RRNA_NGE } from '../modules/calculate_mt_rrna'
-include { CALC_MT_RRNA as CALC_MT_RRNA_CR } from '../modules/calculate_mt_rrna'
-include { CALC_MT_RRNA as CALC_MT_RRNA_CRGE } from '../modules/calculate_mt_rrna'
+include { CALC_MT_RRNA as CALC_MT_RRNA_SINGLE } from '../modules/calculate_mt_rrna'
+include { CALC_MT_RRNA as CALC_MT_RRNA_SINGLE_GE } from '../modules/calculate_mt_rrna'
+include { CALC_MT_RRNA as CALC_MT_RRNA_PAIRED } from '../modules/calculate_mt_rrna'
+include { CALC_MT_RRNA as CALC_MT_RRNA_PAIRED_GE } from '../modules/calculate_mt_rrna'
 
-include { GENE_EXT as GENE_EXT_N } from '../modules/gene_ext'
-include { GENE_EXT as GENE_EXT_CR } from '../modules/gene_ext'
+include { GENE_EXT as GENE_EXT_SINGLE } from '../modules/gene_ext'
+include { GENE_EXT as GENE_EXT_PAIRED } from '../modules/gene_ext'
 
 
 workflow QC_mapping_workflow {
@@ -45,37 +43,31 @@ workflow QC_mapping_workflow {
         // Quality Control
         FASTQC(data_output)
 
-        // Mapping STARsolo
-        // GENINDEX_STARSOLO_N(params.ref_star_gtf, file(params.star_config_mkref_N), 'N')
-        GENINDEX_STARSOLO_CR(params.ref_star_gtf, file(params.star_config_mkref_CR), 'CR')
+        // Create STAR index
+        GENINDEX_STARSOLO()
 
-        // // Mapping: Normal
-        // MAPPING_STARSOLO_N(data_output, GENINDEX_STARSOLO_N.out, file(params.star_config_ED), params.barcodeDir, 'N')
-        // INDEX_BAM_N(MAPPING_STARSOLO_N.out)
-        // SATURATION_N(MAPPING_STARSOLO_N.out, INDEX_BAM_N.out)
-        // CALC_MT_RRNA_N(MAPPING_STARSOLO_N.out, INDEX_BAM_N.out)
-        
-        // // Mapping: Normal + Gene Extension
-        // GENE_EXT_N(MAPPING_STARSOLO_N.out, INDEX_BAM_N.out)
-        // REINDEX_STARSOLO_N(GENE_EXT_N.out, file(params.star_config_mkref_N), 'NGE')
-        // REMAPPING_STARSOLO_N(data_output, REINDEX_STARSOLO_N.out, file(params.star_config_ED), params.barcodeDir, 'NGE')
-        // INDEX_BAM_NGE(REMAPPING_STARSOLO_N.out)
-        // SATURATION_NGE(REMAPPING_STARSOLO_N.out, INDEX_BAM_NGE.out)
-        // CALC_MT_RRNA_NGE(REMAPPING_STARSOLO_N.out, INDEX_BAM_NGE.out)
+        // ----------- Paired end workflow -----------
+        MAPPING_STARSOLO_PAIRED(data_output, GENINDEX_STARSOLO.out)
+        INDEX_BAM_PAIRED(MAPPING_STARSOLO_PAIRED.out)
+        // SATURATION_PAIRED(MAPPING_STARSOLO_PAIRED.out, INDEX_BAM_PAIRED.out)
+        // CALC_MT_RRNA_PAIRED(MAPPING_STARSOLO_PAIRED.out, INDEX_BAM_PAIRED.out)
 
-        // Mapping: CR-like
-        MAPPING_STARSOLO_CR(data_output, GENINDEX_STARSOLO_CR.out, file(params.star_config_CR), params.barcodeDir, 'CRNF_SPIPE_v2') // original: barcodeDemux
-        INDEX_BAM_CR(MAPPING_STARSOLO_CR.out)
-        // SATURATION_CR(MAPPING_STARSOLO_CR.out, INDEX_BAM_CR.out)
-        CALC_MT_RRNA_CR(MAPPING_STARSOLO_CR.out, INDEX_BAM_CR.out)
+        // Mapping: Paired + Gene Extension
+        // GENE_EXT_PAIRED(MAPPING_STARSOLO_PAIRED.out, INDEX_BAM_PAIRED.out)
+        // INDEX_BAM_PAIRED_GE(GENE_EXT_PAIRED.out)
+        // REMAPPING_STARSOLO_PAIRED(data_output, INDEX_BAM_PAIRED_GE.out)
+        // SATURATION_PAIRED_GE(REMAPPING_STARSOLO_PAIRED.out, INDEX_BAM_PAIRED_GE.out)
+        // CALC_MT_RRNA_PAIRED_GE(REMAPPING_STARSOLO_PAIRED.out, INDEX_BAM_PAIRED_GE.out)
 
-        // Mapping: CR-like + Gene Extension
-        // GENE_EXT_CR(MAPPING_STARSOLO_CR.out, INDEX_BAM_CR.out)
-        // REINDEX_STARSOLO_CR(GENE_EXT_CR.out, file(params.star_config_mkref_CR), 'CRNF_GE')
-        // REMAPPING_STARSOLO_CR(data_output, REINDEX_STARSOLO_CR.out, file(params.star_config_CR), params.barcodeDir, 'CRNF_GE')
-        // INDEX_BAM_CRGE(REMAPPING_STARSOLO_CR.out)
-        // SATURATION_CRGE(REMAPPING_STARSOLO_CR.out, INDEX_BAM_CRGE.out)
-        // CALC_MT_RRNA_CRGE(REMAPPING_STARSOLO_CR.out, INDEX_BAM_CRGE.out)
+
+        // ----------- Single end workflow -----------
+        // MAPPING_STARSOLO_SINGLE(data_output, GENINDEX_STARSOLO.out)
+        // INDEX_BAM_SINGLE(MAPPING_STARSOLO_SINGLE.out)
+
+        // Mapping: Single + Gene Extension
+        // GENE_EXT_SINGLE(MAPPING_STARSOLO_SINGLE.out, INDEX_BAM_SINGLE.out)
+        // REINDEX_STARSOLO_SINGLE(GENE_EXT_SINGLE.out)
+        // REMAPPING_STARSOLO_SINGLE(data_output, REINDEX_STARSOLO_SINGLE.out)        
 
         // Mapping: Alevin-fry
         // GENINDEX_ALEVIN()
@@ -85,12 +77,12 @@ workflow QC_mapping_workflow {
         // ...
 
     emit:
-        // SATURATION_NGE.out.collect()
-        // SATURATION_CR.out.collect()
-        // calc_mt_rrna_n = CALC_MT_RRNA_N.out.collect()
-        // calc_mt_rrna_nge = CALC_MT_RRNA_NGE.out.collect()
-        calc_mt_rrna_cr = CALC_MT_RRNA_CR.out.collect()
-        // calc_mt_rrna_crge = CALC_MT_RRNA_CRGE.out.collect()
+        // SATURATION_SINGLE_GE.out.collect()
+        // SATURATION_PAIRED.out.collect()
+        // calc_mt_rrna_n = CALC_MT_RRNA_SINGLE.out.collect()
+        // calc_mt_rrna_nge = CALC_MT_RRNA_SINGLE_GE.out.collect()
+        INDEX_BAM_PAIRED.out.collect()
+        // calc_mt_rrna_crge = CALC_MT_RRNA_PAIRED_GE.out.collect()
 
         // MAPPING_ALEVIN.out.collect()
         // intron.mtx, exon.mtx, fullgenome.mtx

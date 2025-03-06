@@ -74,10 +74,13 @@ workflow {
     // Sequencing-specific analysis of data:
     //  - Parse Bioscience: Demultiplexing using groups and mapping using split-pipe
     //  - BD Rhapsody: Demultiplexing using groups
+    //  - OAK seq: Creating symlinks to the fastq files
     if (params.seqTech == 'parse_biosciences') {     
         data_output = parse_workflow(sample_ids)
     } else if (params.seqTech == 'bd_rhapsody') {
         data_output = bd_rhapsody_workflow(sample_ids)
+    } else if (params.seqTech == 'oak_seq') {
+        data_output = oak_seq_workflow(sample_ids)
     } else {
         error "Invalid sequencing technology specified. Use 'parse_biosciences' or 'bd_rhapsody'."
     }
@@ -89,7 +92,7 @@ workflow {
     all_outputs = data_output.mix(qc_output)
     mapping_stats_trigger = all_outputs.collect().map { it -> true }
     
-    MULTIQC(mapping_stats_trigger)
+    // MULTIQC(mapping_stats_trigger)
     MAPPING_STATS(mapping_stats_trigger) 
 
     // Filtering raw matrices of ambient RNA and detecting doublets
