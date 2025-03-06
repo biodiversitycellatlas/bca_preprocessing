@@ -52,8 +52,9 @@ for map_dir in ${resDir}/mapping_STARsolo/*; do
 
         sample_name=$(basename ${sample_dir})
         config="${map_dir##*_}"
+        echo "config: $config"
 
-        LOG="$sample_dir/${sample_name}_${config}_Log.final.out"
+        LOG="$sample_dir/${sample_name}_Log.final.out"
         [ -f "$LOG" ] || continue
 
         # Extract from STAR Log
@@ -66,8 +67,8 @@ for map_dir in ${resDir}/mapping_STARsolo/*; do
         p_unmapped_other=$(grep "% of reads unmapped: other" "$LOG" | awk '{print $NF}')
 
         # Check Gene and GeneFull directories in Solo.out
-        solo_gene_dir="$sample_dir/${sample_name}_${config}_Solo.out/Gene"
-        solo_genefull_dir="$sample_dir/${sample_name}_${config}_Solo.out/GeneFull"
+        solo_gene_dir="$sample_dir/${sample_name}_Solo.out/Gene"
+        solo_genefull_dir="$sample_dir/${sample_name}_Solo.out/GeneFull"
 
         if [ -d "$solo_genefull_dir" ]; then
             solo_dir="$solo_genefull_dir"
@@ -86,26 +87,28 @@ for map_dir in ${resDir}/mapping_STARsolo/*; do
         else
             echo "error here"
             N_cells="NA"
+            break
         fi
 
         # Extract other metrics from summary file 
         if [ -n "$solo_dir" ] && [ -f "$solo_dir/Summary.csv" ]; then
             R1_Q30=$(grep "RNA" "$solo_dir/Summary.csv" | awk -F ',' '{print $NF}' || echo "NA")
             R2_Q30=$(grep "CB+UMI" "$solo_dir/Summary.csv" | awk -F ',' '{print $NF}' || echo "NA")
-            UMI_cutoff=$(grep "nUMImin" "$sample_dir/${sample_name}_${config}_Log.out" | awk -F ';' '{print $2}' | head -n 1 | awk -F '=' '{print $2}' || echo "NA")
+            UMI_cutoff=$(grep "nUMImin" "$sample_dir/${sample_name}_Log.out" | awk -F ';' '{print $2}' | head -n 1 | awk -F '=' '{print $2}' || echo "NA")
             saturation=$(grep "Saturation" "$solo_dir/Summary.csv" | awk -F ',' '{print $NF}' || echo "NA")
         else
             R1_Q30="NA"
             R2_Q30="NA"
             UMI_cutoff="NA"
             saturation="NA"
+            echo "error summary file"
         fi
 
         # ------------------------------------------------------------------
         # ribosomal RNA & mitochondrial DNA (unique & multimapped reads)
         # ------------------------------------------------------------------
         # Extract mtDNA & rRNA values
-        featcounts_dir="${resDir}/rRNA_mtDNA/rRNA_mtDNA_${config}/${sample_name}"
+        featcounts_dir="${resDir}/rRNA_mtDNA/rRNA_mtDNA/${sample_name}"
         echo "featurecounts dir: ${featcounts_dir}"
 
         rRNA_summary="$featcounts_dir/feat_counts_rRNA.txt.summary"
@@ -154,27 +157,30 @@ for map_dir in ${resDir}/mapping_STARsolo/*; do
         # ------------------------------------------------------------------
         # Noise Percentage
         # ------------------------------------------------------------------
-        total_umis_all=$(grep "yesUMIs" "${solo_dir}/Features.stats" | awk '{print $2}')
+        total_umis_all=$(grep "yesUMIs" "${solo_dir}/Features.stats" | awk '{print $2}' || echo "NA")
         total_umis_cells=$(grep "UMIs in Cells" "$solo_dir/Summary.csv" | awk -F ',' '{print $NF}' || echo "NA")
-        noise=$(echo "scale=4; ($total_umis_all - $total_umis_cells) / $total_umis_all" | bc)
+        noise=$(echo "scale=4; ($total_umis_all - $total_umis_cells) / $total_umis_all" | bc || echo "NA")
+        echo "done noise"
 
         # ------------------------------------------------------------------
         # Percentage Intronic Reads
         # ------------------------------------------------------------------
-        exonic_sum=$(cat ${work_dir}/${sample_name}_${config}_Solo.out/Gene/raw/matrix.mtx | awk 'NR>3 {sum+=$3} END{print sum}')
-        fullgene_sum=$(cat ${work_dir}/${sample_name}_${config}_Solo.out/GeneFull/raw/matrix.mtx | awk 'NR>3 {sum+=$3} END{print sum}')
+        exonic_sum=$(cat ${work_dir}/${sample_name}_Solo.out/Gene/raw/matrix.mtx | awk 'NR>3 {sum+=$3} END{print sum}' || echo "0")
+        fullgene_sum=$(cat ${work_dir}/${sample_name}_Solo.out/GeneFull/raw/matrix.mtx | awk 'NR>3 {sum+=$3} END{print sum}' || echo "0")
         intronic_sum=$(( fullgene_sum - exonic_sum ))
 
         fraction_intronic=$(awk -v i="$intronic_sum" -v t="$fullgene_sum" \
-                            'BEGIN{printf("%.4f", (i)/t)}')
-
+                            'BEGIN{printf("%.4f", (i)/t)}' || echo "NA")
+        echo "done intronic"
+        
         # ------------------------------------------------------------------
         # 10x_saturate results
         # - reads needed for 0.7 saturation
         # ------------------------------------------------------------------
-        saturation_dir="${resDir}/saturation/saturation_${config}/${sample_name}"
-        saturate_07=$(cat $saturation_dir/saturation.log | grep "approximately: " | awk '{print $(NF-2) " M"}')
-        
+        saturation_dir="${resDir}/saturation/saturation/${sample_name}"
+        saturate_07=$(cat $saturation_dir/saturation.log | grep "approximately: " | awk '{print $(NF-2) " M"}' || echo "NA")
+        echo "done saturation"
+
         # ------------------------------------------------------------------
         # Append results to the output file
         # ------------------------------------------------------------------
