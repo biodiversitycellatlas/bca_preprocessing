@@ -4,11 +4,11 @@
 // submodule function.                                     \\
 
 process SATURATION {
-    publishDir "${params.resDir}/saturation/saturation_${config_name}/${sample_id}", mode: 'copy'
+    publishDir "${params.resDir}/saturation/saturation/${sample_id}", mode: 'copy'
     tag "${sample_id}"
 
     input:
-    tuple val(sample_id), val(config_name), path(mapping_files)
+    tuple val(sample_id), path(mapping_files)
     file(bam_index)
 
     output:
@@ -16,13 +16,13 @@ process SATURATION {
 
     script:
     """
-    echo "\n\n==================  SATURATION ${config_name} =================="
+    echo "\n\n==================  SATURATION =================="
     echo "Processing files: ${mapping_files}"
 
     # Find the correct files from the list (mapping_files)
     summary_file=\$(ls *Solo.out/Gene/Summary.csv | head -n 1)
     log_final_file=\$(ls *Log.final.out | head -n 1)
-    bam_file=\$(ls ${sample_id}_${config_name}_Aligned.sortedByCoord.out.bam | head -n 1)
+    bam_file=\$(ls ${sample_id}_Aligned.sortedByCoord.out.bam | head -n 1)
 
     echo "Summary file: \${summary_file}"
     echo "Log final file: \${log_final_file}"
@@ -32,7 +32,7 @@ process SATURATION {
     n_reads=\$( cat \${log_final_file} | grep 'Number of input reads' | awk '{print \$NF}' )
     MAPREADS=\$( samtools view -F 260 \${bam_file} | wc -l )
     map_rate=\$( echo "scale=4; \${MAPREADS}/\${n_reads}" | bc )
-    temp_folder="_tmp_${sample_id}_${config_name}"
+    temp_folder="_tmp_${sample_id}"
     echo "cells:\${n_cells} reads:\${n_reads} mapreads:\${MAPREADS} maprate:\${map_rate}"
 
     python ${params.baseDir}/ext_programs/10x_saturate/saturation_table.py \\

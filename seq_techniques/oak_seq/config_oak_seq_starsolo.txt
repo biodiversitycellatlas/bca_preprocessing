@@ -8,3 +8,4 @@
 --clipAdapterType CellRanger4
 --soloStrand Forward
 --outFilterScoreMin 30
+--outSAMunmapped Within

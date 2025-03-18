@@ -2,11 +2,11 @@
 // 
 
 process CALC_MT_RRNA {   
-    publishDir "${params.resDir}/rRNA_mtDNA/rRNA_mtDNA_${config_name}/${sample_id}", mode: 'copy'
+    publishDir "${params.resDir}/rRNA_mtDNA/rRNA_mtDNA/${sample_id}", mode: 'copy'
     debug true
 
     input:
-    tuple val(sample_id), val(config_name), path(mapping_files)
+    tuple val(sample_id), path(mapping_files)
     file(bam_index)
 
     output:
@@ -14,9 +14,8 @@ process CALC_MT_RRNA {
        
     script:
     """
-    echo "\n\n==================  CALCULATION rRNA & mtDNA ${config_name} =================="
+    echo "\n\n==================  CALCULATION rRNA & mtDNA =================="
     echo "Sample ID: ${sample_id}"
-    echo "Config name: ${config_name}"
     echo "Mapping files: ${mapping_files}"
 
     # Editing the GFF file format if needed
@@ -28,7 +27,7 @@ process CALC_MT_RRNA {
     else
         new_ref=${params.ref_star_gtf}
     fi
-    bam_file=\$(ls ${sample_id}_${config_name}_Aligned.sortedByCoord.out.bam | head -n 1)
+    bam_file=\$(ls ${sample_id}_Aligned.sortedByCoord.out.bam | head -n 1)
 
     # Create seperate BAM with filtered results - filter for multimapped reads only present in primary alignment
     samtools view -h -F 256 \${bam_file} | grep -E "^\\@|NH:i:[2-9]" | samtools view -b -o multimapped_primealign.bam
