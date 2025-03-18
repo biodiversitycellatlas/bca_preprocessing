@@ -4,21 +4,9 @@
 [submodule "ext_programs/GeneExt"]
 	path = ext_programs/GeneExt
 	url = https://github.com/sebepedroslab/GeneExt.git
-[submodule "ext_programs/souporcell"]
-	path = ext_programs/souporcell
-	url = https://github.com/wheaton5/souporcell.git
-[submodule "ext_programs/CellBender"]
-	path = ext_programs/CellBender
-	url = https://github.com/broadinstitute/CellBender.git
 [submodule "ext_programs/metacell-downstream-functions"]
 	path = ext_programs/metacell-downstream-functions
 	url = https://github.com/sebepedroslab/metacell-downstream-functions.git
 [submodule "ext_programs/minimap2"]
 	path = ext_programs/minimap2
 	url = https://github.com/lh3/minimap2.git
-[submodule "ext_programs/kraken2"]
-	path = ext_programs/kraken2
-	url = https://github.com/DerrickWood/kraken2.git
-[submodule "zUMIs"]
-	path = zUMIs
-	url = https://github.com/sdparekh/zUMIs.git

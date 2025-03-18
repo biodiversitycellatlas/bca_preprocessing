@@ -1,7 +1,5 @@
 name: cellbender
 channels:
-  - anaconda
-  - defaults
   - conda-forge
   - bioconda
 dependencies:
