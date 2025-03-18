@@ -4,7 +4,7 @@
 // submodule function.                                     \\
 
 process SATURATION {
-    publishDir "${params.resDir}/saturation/saturation/${sample_id}", mode: 'copy'
+    publishDir "${params.resDir}/saturation/${sample_id}", mode: 'copy'
     tag "${sample_id}"
 
     input:

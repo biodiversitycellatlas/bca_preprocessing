@@ -17,7 +17,7 @@ process MAPPING_STARSOLO {
     tuple val(sample_id), path("*")
 
     script:
-    def bd_mem_arg   = task.ext.args ?: '--limitBAMsortRAM 2743000959'          // If ext.args is defined assign it to bd_mem_arg
+    def bd_mem_arg   = task.ext.args ?: '' 
     def barcode_option = "--soloCBwhitelist ${params.barcodeDir.replaceAll('\n', '')}" 
 
     def fastq_list = fastq_files instanceof List ? fastq_files : [fastq_files]
@@ -30,6 +30,10 @@ process MAPPING_STARSOLO {
     if (params.seqTech.toLowerCase().contains("bd_rhapsody")) {
         cDNA_read = r2_fastq
         CBUMI_read = r1_fastq
+    } if else (params.seqTech.toLowerCase().contains("oak_seq")) {
+        cDNA_read = r2_fastq
+        CBUMI_read = r1_fastq
+        barcode_option = "--soloCBwhitelist ${params.barcodeDir[1]}" 
     } else {
         cDNA_read = r1_fastq
         CBUMI_read = r2_fastq
@@ -41,7 +45,7 @@ process MAPPING_STARSOLO {
     echo "FQ 1: ${r1_fastq ?: 'Not provided'}"
     echo "FQ 2: ${r2_fastq ?: 'Not provided'}"
     echo "Genome index directory: ${genome_index_files}"
-    echo "Barcodes: ${params.barcodeDir}"
+    echo "Barcodes: ${barcode_option}"
 
     # Read configuration file
     config_file=\$(cat ${params.star_config})

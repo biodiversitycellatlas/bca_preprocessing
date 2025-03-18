@@ -1,11 +1,12 @@
---soloType CB_UMI_Complex 
---soloCBposition 0_0_0_9 0_10_0_25
---soloUMIposition 0_26_0_37 
---soloCBmatchWLtype 1MM
---soloUMIfiltering MultiGeneUMI_CR
+--soloType CB_UMI_Simple
+--soloCBstart 1
+--soloCBlen 16
+--soloUMIstart 17
+--soloUMIlen 12
+--soloCBmatchWLtype 1MM_multi_Nbase_pseudocounts 
+--soloUMIfiltering MultiGeneUMI_CR 
 --soloUMIdedup 1MM_CR
 --soloFeatures Gene GeneFull GeneFull_Ex50pAS Velocyto
---clipAdapterType CellRanger4
---soloStrand Forward
+--clipAdapterType CellRanger4 
 --outFilterScoreMin 30
 --outSAMunmapped Within
