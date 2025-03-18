@@ -5,11 +5,6 @@
 // parse_refgenome: see next process                   \\
 
 process GENINDEX_STARSOLO {   
-    input:
-    path(ref_star_gtf)
-    path(config_mkref)
-    val config_name
-
     output:
     path("*")     
        
@@ -17,7 +12,7 @@ process GENINDEX_STARSOLO {
     def gff_arg   = task.ext.args ?: ''          // If ext.args is defined assign it to gff_arg
 
     """
-    echo "\n\n==================  GENOME INDEX STARSOLO ${config_name} =================="
+    echo "\n\n==================  GENOME INDEX STARSOLO =================="
     # Retrieve the first accession number
     first_fastq=\$(ls "${params.resDir}/fastq/" | head -n1)  
     echo "\${first_fastq}"
@@ -26,7 +21,7 @@ process GENINDEX_STARSOLO {
     sjdb_overhang=\$(zcat ${params.resDir}/fastq/\${first_fastq} 2>/dev/null | awk 'NR==2 {print length(\$0)-1; exit}' || echo "") 
 
     # Read configuration file
-    config_file=\$(cat ${config_mkref})
+    config_file=\$(cat ${params.star_config_mkref})
 
     echo "Generating genome index with STAR"
     STAR --runMode genomeGenerate \\

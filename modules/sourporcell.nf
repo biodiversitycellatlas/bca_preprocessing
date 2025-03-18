@@ -6,16 +6,16 @@ process DOUBLET_DET {
     debug true
 
     input:
-    tuple val(sample_id), val(config_name), path(mapping_files)
+    tuple val(sample_id), path(mapping_files)
 
     script:
     """
-    echo "\n\n===============  DOUBLET DETECTION ${config_name}  ==============="
+    echo "\n\n===============  DOUBLET DETECTION  ==============="
     echo "Sample ID: ${sample_id}"
     echo "Mapping files: ${mapping_files}"
 
     bc_file=\$(ls ${mapping_files}/Solo.out/GeneFull/raw/barcodes.tsv | head -n 1)
-    bam_file=\$(ls ${mapping_files}/${sample_id}_${config_name}_Aligned.sortedByCoord.out.bam | head -n 1)
+    bam_file=\$(ls ${mapping_files}/${sample_id}_Aligned.sortedByCoord.out.bam | head -n 1)
 
     echo "Barcodes file: \${bc_file}"
     echo "BAM file: \${bam_file}"

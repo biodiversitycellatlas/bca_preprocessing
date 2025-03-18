@@ -1,0 +1,14 @@
+--soloType CB_UMI_Complex 
+--soloCBposition 0_0_0_8 0_13_0_21 0_26_0_34
+--soloUMIposition 0_35_0_42
+--outFilterScoreMinOverLread 0
+--outFilterMatchNminOverLread 0
+--outFilterMultimapScoreRange 0
+--clip3pAdapterSeq AAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAA
+--seedSearchStartLmax 50
+--outFilterMatchNmin 25
+--limitOutSJcollapsed 2000000
+--soloCBmatchWLtype 1MM
+--soloUMIfiltering MultiGeneUMI_CR
+--soloUMIdedup 1MM_CR
+--soloFeatures Gene GeneFull GeneFull_Ex50pAS Velocyto

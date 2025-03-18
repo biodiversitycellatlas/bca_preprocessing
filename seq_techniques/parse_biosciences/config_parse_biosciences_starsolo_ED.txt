@@ -1,7 +1,0 @@
---soloType CB_UMI_Complex 
---soloCBposition 0_50_0_57 0_30_0_37 0_10_0_17 
---soloUMIposition 0_0_0_9 
---soloCBmatchWLtype 1MM 
---soloCellFilter CellRanger2.2 2500 0.99 10
---outSAMunmapped Within KeepPairs 
---soloFeatures Gene GeneFull
