@@ -4,7 +4,5 @@
 
 # Ignore all files in the following directories
 logs/*
-work/*
-work_dir/*
-workDir/*
+seperate_scripts/*
 

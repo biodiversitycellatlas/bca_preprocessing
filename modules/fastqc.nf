@@ -1,6 +1,3 @@
-// ==================  FASTQC  ================== \\ 
-// Generate Quality Control reports using FASTQC  \\
-
 process FASTQC {
     publishDir "${params.resDir}/fastqc", mode: 'copy'
     tag "${fastq_files}"

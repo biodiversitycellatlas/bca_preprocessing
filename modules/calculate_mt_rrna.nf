@@ -1,8 +1,5 @@
-// =============  CALCULATION rRNA & mtRNA  ============= \\ 
-// 
-
 process CALC_MT_RRNA {   
-    publishDir "${params.resDir}/rRNA_mtDNA/rRNA_mtDNA/${sample_id}", mode: 'copy'
+    publishDir "${params.resDir}/rRNA_mtDNA/${sample_id}", mode: 'copy'
     debug true
 
     input:

@@ -1,22 +1,11 @@
 #!/bin/bash
 
-##################
-# slurm settings #
-##################
-#SBATCH --output=/users/asebe/bvanwaardenburg/git/bca_preprocessing/logs/%x.%j.out
-#SBATCH --error=/users/asebe/bvanwaardenburg/git/bca_preprocessing/logs/%x.%j.err
-#SBATCH --time=00:30:00
-#SBATCH --qos=vshort
-#SBATCH --mem=6G
-#SBATCH --job-name create_intron_mtx
-
 # ------------------------------------------------------------------
 # Define Variables
 # ------------------------------------------------------------------
-# e.g. work_dir="/users/asebe/bvanwaardenburg/git/data/240810_ParseBio_Nvec_Tcas/Nvec_BCA001_BCA002/mapping_STARsolo/mapping_STARsolo_N/BCA001_lib_13077AAF_CAGATCAC-ATGTGAAG_ACMEsorb_GM"
 work_dir=$1
-
 mkdir -p ${work_dir}/Solo.out/Intronic/raw
+
 exonic_mtx="${work_dir}/Solo.out/Gene/raw/matrix.mtx"
 full_mtx="${work_dir}/Solo.out/GeneFull/raw/matrix.mtx"
 

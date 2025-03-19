@@ -11,13 +11,13 @@
 # Configure bash #
 ##################
 
-# set -e                # exit immediately on error
+set -e                # exit immediately on error
 set -u                  # exit immidiately if using undefined variables
 set -o pipefail         # ensure bash pipelines return non-zero status if any of their command fails
 
 # Setup trap function to be run when canceling the pipeline job. 
 # It will propagate the SIGTERM signal to Nextlflow so that all 
-# jobs launche by the pipeline will be cancelled too.
+# jobs launched by the pipeline will be cancelled too.
 _term() {
         echo "Caught SIGTERM signal!"
         kill -s SIGTERM $pid
@@ -35,7 +35,7 @@ trap _term TERM
 # -resume       : 	resumes previous work, followed by hash name of used working directory
 # -profile      :       
 
-nextflow run -resume e5dc88d7-6707-4146-aa6f-0e0a2900fdb2 -profile slurm,250221_OAKseq_Nvec -ansi-log false "$@" & pid=$! 
+nextflow run -profile slurm,250221_OAKseq_Nvec -ansi-log false "$@" & pid=$! 
 
 # Wait for the pipeline to finish
 echo "Waiting for ${pid}"

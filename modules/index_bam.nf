@@ -1,5 +1,3 @@
-// =================  INDEX BAM FILES  ================== \\ 
-
 process INDEX_BAM {
     publishDir "${params.resDir}/mapping_STARsolo/mapping_STARsolo/${sample_id}", mode: 'copy'
     tag "${sample_id}"

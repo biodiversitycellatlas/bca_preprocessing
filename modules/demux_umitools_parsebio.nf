@@ -1,13 +1,3 @@
-// ==================  DEMULTIPLEXING  ================== \\ 
-// To split the fastq files of each library into separate \\
-// fastq files for each fixation method, a script for     \\
-// demultiplexing the reads is called. From a txt file    \\
-// 'sample_wells', wells associated with each fixation    \\
-// method are given. Based on the provided barcode file,  \\
-// the samples are linked to the barcodes, and splitted   \\
-// into n seperate fastq's. This step is repeated for     \\
-// all libraries. 
-
 process DEMUX_UMITOOLS_PARSEBIO {
     publishDir "${params.resDir}/demultiplex/demux_umitools/${sample_id}", mode: 'copy'
     tag "${sample_id}_${group}"

@@ -1,9 +1,10 @@
-// ==============  MAPPING STARSOLO  =============== \\ 
-// Mapping using STAR (version 2.7.11b).             \\
-// The functions specify read 1 and read 2 from      \\
-// the channel, and otherwise state if not provided. \\
-// The settings for STAR are set in the variable     \\
-// config_file, and is specific per sequencing tech. \\
+
+/* Mapping using STAR (version 2.7.11b).             
+ * The functions specify read 1 and read 2 from      
+ * the channel, and otherwise state if not provided. 
+ * The settings for STAR are set in the variable     
+ * config_file, and is specific per sequencing tech. 
+*/
 
 process MAPPING_STARSOLO { 
     publishDir "${params.resDir}/mapping_STARsolo/mapping_STARsolo_fastqsplitted_v6_merged_incl_unmapped/${sample_id}", mode: 'copy'
@@ -52,7 +53,7 @@ process MAPPING_STARSOLO {
 
     # Mapping step and generating count matrix using STAR
     STAR \\
-        --runThreadN 4 \\
+        --runThreadN 8 \\
         --readFilesIn ${cDNA_read} ${CBUMI_read} \\
         --genomeDir ${genome_index_files.toRealPath()} \\
         --readFilesCommand zcat \\

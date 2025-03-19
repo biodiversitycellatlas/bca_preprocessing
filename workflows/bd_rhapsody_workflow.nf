@@ -1,12 +1,8 @@
-// ===================  BD Rhapsody ================  \\ 
-// A basic approach, where first quality control is   \\
-// performed and mapping using the (complete) fastq   \\
-// sequences.                                         \\
-
 include { DOWNLOAD_DATA } from '../modules/download'
 include { RM_VARBASES } from '../modules/rm_varbases_bdrhap'
 include { DEMUX_UMITOOLS_BDRHAP } from '../modules/demux_umitools_bdrhap'
 include { CONV_3CB_INDEX } from '../modules/conv_3cb_index'
+include { BDRHAP_PIPELINE } from '../modules/bdrhap_pipeline'
 
 workflow bd_rhapsody_workflow {
     take:
@@ -19,11 +15,14 @@ workflow bd_rhapsody_workflow {
         RM_VARBASES(DOWNLOAD_DATA.out)
 
         // Extract the CBs and UMI's and add them to the header of the cDNA file
-        DEMUX_UMITOOLS_BDRHAP(RM_VARBASES.out)
+        // DEMUX_UMITOOLS_BDRHAP(RM_VARBASES.out)
 
         // Convert 3CBs to an index, to compare cells with the BD rhapsody pipeline
-        CONV_3CB_INDEX(DEMUX_UMITOOLS_BDRHAP.out.splitted_files)
+        // CONV_3CB_INDEX(DEMUX_UMITOOLS_BDRHAP.out.splitted_files)
+
+        // Run the BD Rhapsody pipeline
+        BDRHAP_PIPELINE()
 
     emit:
-        CONV_3CB_INDEX.out
+        RM_VARBASES.out
 }

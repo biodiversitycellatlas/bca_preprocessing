@@ -19,7 +19,7 @@ process CONV_3CB_INDEX {
     echo "Sample ID: ${sample_id}"
     echo "FASTQ files: ${fastq_files}"
 
-    python ${params.baseDir}/scripts/conv_3cb_index.py \\
+    python ${params.baseDir}/bin/conv_3cb_index.py \\
         --input_cDNA ${r2_fastq} \\
         --output_cDNA indexed_${sample_id}_R2.fastq.gz \\
         --workdir . \\
