@@ -1,5 +1,3 @@
-// ==================  DOUBLET DETECTION  =================== \\ 
-
 process DOUBLET_DET {
     publishDir "${params.resDir}/doublets/${sample_id}", mode: 'symlink'
     tag "${sample_id}"

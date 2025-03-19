@@ -1,46 +1,25 @@
 #!/bin/bash
 
-##################
-# slurm settings #
-##################
-#SBATCH --output=/users/asebe/bvanwaardenburg/git/bca_preprocessing/logs/%x.%j.out
-#SBATCH --error=/users/asebe/bvanwaardenburg/git/bca_preprocessing/logs/%x.%j.err
-#SBATCH --time=00:30:00
-#SBATCH --qos=vshort
-#SBATCH --mem=10G
-#SBATCH --job-name mapping_stats
-
-
-#################
-# # start message #
-# #################
-# start_epoch=`date +%s`
-# echo [$(date +"%Y-%m-%d %H:%M:%S")] starting on $(hostname)
-
-
-####################
-# define variables #
-####################	
-
+# ------------------------------------------------------------------
+# Define Variables
+# ------------------------------------------------------------------
 # test: 
 #   resDir="/no_backup/asebe/bvanwaardenburg/data/250115_ParseBio_Nvec_Tcas_Pliv_Cele/Nvec_BCA009_BCA010"
 #   workDir="/users/asebe/bvanwaardenburg/git/data/240810_ParseBio_Nvec_Tcas/Tcas_sep"
 
 resDir=$1
+output_file="mapping_stats.tsv"
 
 # Change to the directory that contains the data
 cd ${resDir} || { echo "Error: Could not cd to data directory"; exit 1; }
 
-# Define output file
-output_file="mapping_stats.tsv"
 
-
-###############
-# run command #
-###############
-
-# Print header to output file
+# ------------------------------------------------------------------
+# Create the output file and print the header
+# ------------------------------------------------------------------
 echo -e "Directory\tSample\tN reads/sample\tN R1 >Q30\tN R2 >Q30\tN uniquely mapped reads\t% uniquely mapped reads\t% multi-mapped reads\t% multi-mapped reads: too many\t% unmapped: too short\t% unmapped: other\tExpected % Doublets\tTarget N cells\tN cells\tUMI cutoff used for cell calling\tsaturation\tReads for 0.7 saturation\tNoise (% UMIs in non-cell barcodes)\t% Intronic reads\t% rRNA in Unique reads\t%rRNA in multimappers all pos\t%rRNA in multimappers primary pos\t% mtDNA in Unique reads\t%mtDNA in multimappers all pos\t%mtDNA in multimappers primary pos\t3 most freq genes in multimappers" > "$output_file"
+
+
 
 # For each STARsolo mapping directory
 for map_dir in ${resDir}/mapping_STARsolo/*; do
@@ -50,10 +29,12 @@ for map_dir in ${resDir}/mapping_STARsolo/*; do
     for sample_dir in $map_dir/*; do
         echo "sample dir: ${sample_dir} "
 
+        # Extract sample name and config
         sample_name=$(basename ${sample_dir})
         config="${map_dir##*_}"
         echo "config: $config"
 
+        # Check for Log.final.out file and skip if not found
         LOG="$sample_dir/${sample_name}_Log.final.out"
         [ -f "$LOG" ] || continue
 

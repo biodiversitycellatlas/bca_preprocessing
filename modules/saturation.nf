@@ -1,8 +1,3 @@
-// ====================  SATURATION  ===================== \\ 
-// Creates saturation plots using the tool: 10x_saturate   \\
-// which is an external package linked using the github    \\
-// submodule function.                                     \\
-
 process SATURATION {
     publishDir "${params.resDir}/saturation/${sample_id}", mode: 'copy'
     tag "${sample_id}"
@@ -48,7 +43,5 @@ process SATURATION {
             --target 0.7 \\
             > saturation.log 2>&1   
 
-    # Delete temporary folder
-    rm -r _*
     """
 }

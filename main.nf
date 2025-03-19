@@ -11,8 +11,10 @@ data downloading, quality control, genome indexing, demultiplexing, mapping, and
 SATURATION analysis.
 
 Pre-requisites:
-- Accession list file with sample IDs (e.g., accession_lists/species_accessions.txt)
-- Annotation files (FASTA & GTF/GFF) in the genome directory
+- /fastq/ directory
+- Annotation files (FASTA & GTF/GFF) in the /genome/ directory
+- Configured the config.yaml file
+- Configured the submit_nextflow.sh file
 
 Optional:
 - seqspec (.yaml) file
@@ -20,31 +22,16 @@ Optional:
 Run:
 sbatch submit_nextflow.sh main.nf
 
-==========================
-TODO list: 
 
-- enable workflow notification -> sends an email upon completion:
-    nextflow run <pipeline name> -N <recipient address>
-
-- incorporate seqspec
-
-==========================
 Help:
-
 To print the output of processes:
 println DEMULTIPLEX.out.splitted_files
 
 ------------------------------------------------------------------------------
 */
 
-// ================     CHANNELS    ================= \\
-// Read initial sample IDs from accession list
-// Channel.fromPath("${params.accessions}")
-//     .splitText()
-//     .map { it.trim() }
-//     .filter { it }
-//     .set { sample_ids }
 
+// Set up the sampleID channel
 sample_ids = Channel.fromPath("${params.resDir}/fastq/*_R1_001.fastq.gz")
     .map { file -> 
         file.name.replaceAll(/_R.*_001\.fastq\.gz$/, '')
@@ -52,26 +39,27 @@ sample_ids = Channel.fromPath("${params.resDir}/fastq/*_R1_001.fastq.gz")
     .distinct()
 
 
-// =================     IMPORTS    ================= \\
 // Import sub-workflows
 include { parse_workflow } from './workflows/parse_workflow'
 include { bd_rhapsody_workflow } from './workflows/bd_rhapsody_workflow'
 include { QC_mapping_workflow } from './workflows/QC_mapping_workflow'
 include { oak_seq_workflow } from './workflows/oak_seq_workflow'
-// include { filtering_workflow } from './workflows/filtering_workflow'
+include { filtering_workflow } from './workflows/filtering_workflow'
 
 // Import processes
 include { MULTIQC } from './modules/multiqc'
 include { MAPPING_STATS } from './modules/mapping_statistics'
 
 
-// =================   MAIN WORKFLOW  ================ \\ 
-// Selects pre-processing workflow depending on the    \\
-// sequencing technique and returns a bam file         \\
-// (output alignment step). This will be used in       \\
-// downstream processes, which are identical for all   \\
-// techniques.                                         \\
-
+/* 
+ * MAIN WORKFLOW
+ * 
+ * Selects pre-processing workflow depending on the    
+ * sequencing technique and returns a bam file         
+ * (output alignment step). This will be used in       
+ * downstream processes, which are identical for all   
+ * techniques.    
+*/                                     
 workflow {
     // Sequencing-specific analysis of data:
     //  - Parse Bioscience: Demultiplexing using groups and mapping using split-pipe
@@ -94,7 +82,7 @@ workflow {
     all_outputs = data_output.mix(qc_output)
     mapping_stats_trigger = all_outputs.collect().map { it -> true }
     
-    // MULTIQC(mapping_stats_trigger)
+    MULTIQC(mapping_stats_trigger)
     MAPPING_STATS(mapping_stats_trigger) 
 
     // Filtering raw matrices of ambient RNA and detecting doublets
@@ -102,7 +90,7 @@ workflow {
 }
 
 
-// ============  RUNTIME INFORMATION  ============ \\ 
+// Runtime Information
 workflow.onComplete {
     summary = """
         Pipeline execution summary 

@@ -28,11 +28,8 @@ process DEMUX_SPIPE {
     echo "FQ 1: ${r1_fastq ?: 'Not provided'}"
     echo "FQ 2: ${r2_fastq ?: 'Not provided'}"
 
-    # Run custom demultiplexing script
-    # bash ${params.baseDir}/scripts/split_parse_data.sh ${params.resDir} ${sample_id} ${r1_fastq} ${r2_fastq} ${params.barcodeDemux}
-
     # Run Parse Biosciences demultiplexing script
-    python ${params.baseDir}/scripts/fastq_sep_groups_v0.5.py \\
+    python ${params.baseDir}/bin/fastq_sep_groups_v0.5.py \\
         --chemistry v3 \\
         --fq1 ${r1_fastq} \\
         --fq2 ${r2_fastq} \\

@@ -1,8 +1,3 @@
-// =============  REF GENOME PARSE PIPELINE  ============= \\ 
-// Creates the Genome Indeces required for mapping.        \\
-// parse_refgenome: contains the reference genome for the  \\
-// Parse Biosciences (split-pipe) pipeline.                \\
-
 process REFGEN_PARSEBIO {
     output:
     path("*")
