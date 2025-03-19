@@ -6,7 +6,7 @@
 // config_file, and is specific per sequencing tech. \\
 
 process MAPPING_STARSOLO { 
-    publishDir "${params.resDir}/mapping_STARsolo/${sample_id}", mode: 'copy'
+    publishDir "${params.resDir}/mapping_STARsolo/mapping_STARsolo_fastqsplitted_v6_merged_incl_unmapped/${sample_id}", mode: 'copy'
     tag "${sample_id}_STARsolo"
 
     input:
@@ -30,10 +30,10 @@ process MAPPING_STARSOLO {
     if (params.seqTech.toLowerCase().contains("bd_rhapsody")) {
         cDNA_read = r2_fastq
         CBUMI_read = r1_fastq
-    } if else (params.seqTech.toLowerCase().contains("oak_seq")) {
+    } else if (params.seqTech.toLowerCase().contains("oak_seq")) {
         cDNA_read = r2_fastq
         CBUMI_read = r1_fastq
-        barcode_option = "--soloCBwhitelist ${params.barcodeDir[1]}" 
+        barcode_option = "--soloCBwhitelist ${params.baseDir}/seq_techniques/${params.seqTech}/barcodes_R2.txt"
     } else {
         cDNA_read = r1_fastq
         CBUMI_read = r2_fastq
@@ -58,7 +58,7 @@ process MAPPING_STARSOLO {
         --readFilesCommand zcat \\
         ${barcode_option} \\
         --outSAMtype BAM SortedByCoordinate \\
-        --outSAMattributes NH HI AS nM CR UR CB UB uT \\
+        --outSAMattributes NH HI AS nM CR UR CB UB \\
         --soloMultiMappers EM \\
         --outFileNamePrefix ${sample_id}_ \\
         ${bd_mem_arg} \\
