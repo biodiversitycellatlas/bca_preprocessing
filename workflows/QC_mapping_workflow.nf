@@ -11,7 +11,7 @@ include { MAPPING_STARSOLO } from '../modules/mapping_starsolo'
 include { GENINDEX_ALEVIN } from '../modules/genindex_alevin'
 include { MAPPING_ALEVIN } from '../modules/mapping_alevin'
 
-include { INDEX_BAM as INDEX_BAM } from '../modules/index_bam'
+include { INDEX_BAM } from '../modules/index_bam'
 
 include { SATURATION as SATURATION_PAIRED } from '../modules/saturation'
 include { SATURATION as SATURATION_PAIRED_GE } from '../modules/saturation'
@@ -58,7 +58,7 @@ workflow QC_mapping_workflow {
         // SATURATION_PAIRED.out.collect()
         // calc_mt_rrna_n = CALC_MT_RRNA_SINGLE.out.collect()
         // calc_mt_rrna_nge = CALC_MT_RRNA_SINGLE_GE.out.collect()
-        INDEX_BAM_PAIRED.out.collect()
+        MAPPING_STARSOLO.out.collect()
         // calc_mt_rrna_crge = CALC_MT_RRNA_PAIRED_GE.out.collect()
 
         // MAPPING_ALEVIN.out.collect()

@@ -8,7 +8,7 @@
 // into n seperate fastq's. This step is repeated for     \\
 // all libraries. 
 
-process DEMUX_UMITOOLS {
+process DEMUX_UMITOOLS_PARSEBIO {
     publishDir "${params.resDir}/demultiplex/demux_umitools/${sample_id}", mode: 'copy'
     tag "${sample_id}_${group}"
     debug true

@@ -45,7 +45,7 @@ println DEMULTIPLEX.out.splitted_files
 //     .filter { it }
 //     .set { sample_ids }
 
-sample_ids = Channel.fromPath("${params.resDir}/fastq/*_R*_001.fastq.gz")
+sample_ids = Channel.fromPath("${params.resDir}/fastq/*_R1_001.fastq.gz")
     .map { file -> 
         file.name.replaceAll(/_R.*_001\.fastq\.gz$/, '')
     }
@@ -57,6 +57,8 @@ sample_ids = Channel.fromPath("${params.resDir}/fastq/*_R*_001.fastq.gz")
 include { parse_workflow } from './workflows/parse_workflow'
 include { bd_rhapsody_workflow } from './workflows/bd_rhapsody_workflow'
 include { QC_mapping_workflow } from './workflows/QC_mapping_workflow'
+include { oak_seq_workflow } from './workflows/oak_seq_workflow'
+// include { filtering_workflow } from './workflows/filtering_workflow'
 
 // Import processes
 include { MULTIQC } from './modules/multiqc'
