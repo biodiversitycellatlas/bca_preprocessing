@@ -1,6 +1,3 @@
-// ==================  PLOT FIGURES  ================== \\ 
-//
-
 process PLOT_FIGURES {
     script:
     """

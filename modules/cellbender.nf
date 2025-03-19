@@ -1,5 +1,3 @@
-// ==================  Cellbender: Ambient RNA removal  =================== \\ 
-
 process CELLBENDER {
     publishDir "${params.resDir}/Cellbender/${sample_id}", mode: 'copy'
     tag "${sample_id}"

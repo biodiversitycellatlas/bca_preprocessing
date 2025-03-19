@@ -1,15 +1,13 @@
-// =============  GENOME INDEX STARSOLO  ============= \\ 
-// Creates the Genome Indeces required for mapping.    \\
-// Two folders will be created within /genome/,        \\
-// genome_index: contains genome index for STARsolo    \\
-// parse_refgenome: see next process                   \\
+/* GENOME INDEX STARSOLO
+ * Creates the Genome Indeces required for mapping.    
+*/                  
 
 process GENINDEX_STARSOLO {   
     output:
     path("*")     
        
     script:
-    def gff_arg   = task.ext.args ?: ''          // If ext.args is defined assign it to gff_arg
+    def gff_arg   = task.ext.args ?: ''
 
     """
     echo "\n\n==================  GENOME INDEX STARSOLO =================="

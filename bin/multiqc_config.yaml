@@ -1,0 +1,42 @@
+# MultiQC Configuration File
+
+# General settings
+dirs: true
+verbose: true
+force: true
+filesearch_depth: -1  # Set to -1 for unlimited
+
+report_header_info:
+  - Contact E-mail: "example_email@crg.es"
+  - Application Type: "scRNA & snRNA-seq data"
+
+
+# Modules
+module_order:
+  - cutadapt
+  - star
+  - featurecounts
+  - saturation_plot
+  - fastqc
+
+
+# Custom settings
+custom_logo: "/users/asebe/bvanwaardenburg/git/bca_preprocessing/img/BCALogotypeDesign_2024_Primary_Logo_Color.png"
+custom_logo_title: "Biodiversity Cell Atlas"
+
+
+custom_data:
+  saturation_plot:
+    file_format: 'tsv'
+    section_name: 'My Custom Line Plot'
+    description: 'This is a line plot created from my custom data'
+    plot_type: 'linegraph'
+    pconfig:
+      id: 'custom_data_linegraph'
+      title: 'My Custom Line Plot'
+      ylab: 'Y-axis Label'
+      xlab: 'X-axis Label'
+
+sp:
+  saturation_plot:
+    fn: '*_mqc.tsv'

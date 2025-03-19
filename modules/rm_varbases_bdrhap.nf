@@ -1,5 +1,3 @@
-// =============  REMOVE VARIABLE BASES FROM FASTQ ============= \\ 
-
 process RM_VARBASES {
     tag "${sample_id}"
     debug true
