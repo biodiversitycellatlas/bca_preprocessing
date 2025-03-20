@@ -12,8 +12,10 @@ The original barcode file names were:
     barcodes_R1.txt : BD_CLS1.txt
     barcodes_R2.txt : BD_CLS2.txt 
     barcodes_R3.txt : BD_CLS3.txt
+    Source: https://teichlab.github.io/scg_lib_structs/methods_html/BD_Rhapsody.html
     
     
 - OAK-seq:
     barcodes_R1.txt : i5 indices (experiment)
-    barcodes_R2.txt : 3M-february-2018.txt
+    barcodes_R2.txt : 3M-3pgex-may-2023.txt
+    Source: https://teichlab.github.io/scg_lib_structs/data/10X-Genomics/3M-3pgex-may-2023.txt.gz

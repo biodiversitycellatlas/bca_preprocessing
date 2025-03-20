@@ -27,22 +27,47 @@ Parse Biosciences data will be demultiplexed depending on the groups parameter, 
 
 ## Installation & Setup
 
-In order to run the pipeline, you must have Nextflow and Conda installed. Here is the official Nextflow GitHub page and a link to their documentation. The conda installation can be either Anaconda or Miniconda. 
+In order to run the pipeline, you must have [Nextflow](https://www.nextflow.io/) and [Conda](https://anaconda.org/) installed.
 
 ### Conda environments
-The default conda environment is called 'bca_int', which is automatically created and activated using the .yml file upon running the pipeline. For a few subprocesses, different conda environments were created as they were conflicting with certain versions of packages. All of them, except for spipe (see below) are installed and activated automatically upon execution using the same approach. 
+The default conda environment is called 'bca_env', which is automatically created and activated using the .yml file upon running the pipeline. For a few subprocesses, different conda environments were created as they were conflicting with certain versions of packages. All of them, except for spipe (see below) are installed and activated automatically upon execution using the same approach. 
 
-To manually activate the conda environment:
+To manually activate any of the conda environments:
 ```
 # Create environment
-conda env create -n bca_int -f bca_int_env.yaml
+conda env create -n bca_env -f bca_env.yaml
 
 # Activate environment
-conda activate bca_int
+conda activate bca_env
 ```
 
 
-### Installing external packages
+### Installing external/commercial packages
+
+### Cell Ranger
+Followed the installation guide on the [10x Genomics website](https://www.10xgenomics.com/support/software/cell-ranger/latest/tutorials/cr-tutorial-in), and downloaded Cell Ranger version 9.0.1.
+```
+# Downloading Cell Ranger using wget
+wget -O cellranger-9.0.1.tar.gz "https://cf.10xgenomics.com/releases/cell-exp/cellranger-9.0.1.tar.gz?Expires=1742511989&Key-Pair-Id=APKAI7S6A5RYOXBWRPDA&Signature=cr3Sw2Q~GjIzwmorEmEGgU7eKfFqTfz14Gd5Dt329DuPX549cfXVEsLJo7oq3xcijzJpNIFbbxDL7JyP0-2LA4GyQhyyKvEjoBuHNjDkdB8qo8lQ4yJ57oThwz8kTPvc3NVBy8jHQYfA8ywcz4dWrrt0--K5bnp4OMEi6A0QTFaUUfINjPjaFqUoOrMuYtJdOSBcj11h9xI~eVbF4d~-bB4zKiqwjnKlW0aJ2K6jWt7Ho22V8YXSN3o70hJOPnklf2hVpfvKmKqfGFC1IeHGEOvoEcBAPUI9qnmoIKAn3FYvIhnqtkOrAH42naArGmFfiSGl8iaOgBOBYCIQUohMmA__"
+
+# Unpack
+tar -xzvf cellranger-9.0.1.tar.gz
+
+# Add Cell Ranger to PATH
+export PATH=/path/to/cellranger-9.0.1:$PATH
+```
+
+### BD Rhapsody
+
+First, download the ['cwl' folder](https://bitbucket.org/CRSwDev/cwl/src/master/) of the BD Single-Cell Multiomics Software, hosted on Bitbucket. This repository contains the CWL and YML files required to run the BD Rhapsody pipeline locally. Then, create and activate the conda environment 'bd_pipe', add the cwlref-runner to the PATH variable and finally pull the docker image. In our case, we pulled the container using Apptainer. 
+
+```
+# Add cwlref-runner to PATH
+export PATH=$PATH:/path/to/bd_pipe/env/lib/python3.13/site-packages
+
+# Pull docker image using Apptainer
+apptainer pull docker://bdgenomics/rhapsody
+```
 
 #### Parse Biosciences
 ```
@@ -77,13 +102,12 @@ split-pipe -h
 ## Usage
 
 ### Required files & parameters
-- [ ] Accession list (to download directly from SRA) or a /data/fastq folder with raw FASTQ files.
+- [ ] /fastq/ folder with raw FASTQ files.
 - [ ] Genome annotation files (FASTA and GFF/GTF files)
-- [ ] split-pipe (spipe) environment
+- [ ] Configuration file
 
 ### Optional files & parameters
 - [ ] spec.yaml - created using seqspec
-- [ ] Configuration file
 
 ### Running the Pipeline
 ```
