@@ -1,8 +1,9 @@
 include { DOWNLOAD_DATA } from '../modules/download'
-include { DEMUX_SPIPE } from '../modules/demux_spipe'
 include { DEMUX_UMITOOLS } from '../modules/demux_umitools_parsebio'
-include { REFGEN_PARSEBIO } from '../modules/refgen_parsebio'
-include { MAPPING_PARSEBIO } from '../modules/mapping_parsebio'
+
+include { PARSEBIO_PIPELINE_DEMUX } from '../modules/parsbio_pipeline_demux'
+include { PARSEBIO_PIPELINE_MKREF } from '../modules/parsebio_pipeline_mkref'
+include { PARSEBIO_PIPELINE } from '../modules/parsebio_pipeline'
 
 
 /*
@@ -26,14 +27,14 @@ workflow parse_workflow {
         comb_data = DOWNLOAD_DATA.out.fastq_files.combine(groups)
 
         // Demultiplex the fastq files based on the sample wells
-        DEMUX_SPIPE(comb_data)
+        PARSEBIO_PIPELINE_DEMUX(comb_data)
         DEMUX_UMITOOLS_PARSEBIO(comb_data)
         
         // Run the Parse Biosciences pipeline
-        REFGEN_PARSEBIO()
-        MAPPING_PARSEBIO(DEMUX_SPIPE.out.splitted_files, REFGEN_PARSEBIO.out)
+        PARSEBIO_PIPELINE_MKREF()
+        PARSEBIO_PIPELINE(PARSEBIO_PIPELINE_DEMUX.out.splitted_files, PARSEBIO_PIPELINE_MKREF.out)
     
     emit:
         // Result: demultiplexed fastq files from split-pipe
-        DEMUX_SPIPE.out.splitted_files
+        PARSEBIO_PIPELINE_DEMUX.out.splitted_files
 }

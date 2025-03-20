@@ -8,7 +8,7 @@
 // into n seperate fastq's. This step is repeated for     \\
 // all libraries. 
 
-process DEMUX_SPIPE {
+process PARSEBIO_PIPELINE_DEMUX {
     publishDir "${params.resDir}/demultiplex/demux_spipe/${sample_id}", mode: 'copy'
     tag "${sample_id}_${group}"
     

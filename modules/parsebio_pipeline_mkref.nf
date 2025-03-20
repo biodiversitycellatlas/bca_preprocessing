@@ -1,4 +1,4 @@
-process REFGEN_PARSEBIO {
+process PARSEBIO_PIPELINE_MKREF {
     output:
     path("*")
 

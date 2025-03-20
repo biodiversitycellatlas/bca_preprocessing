@@ -25,4 +25,3 @@ dependencies:
   - scipy
   - scikit-learn
   - bioconda::umi_tools
-prefix: /users/asebe/bvanwaardenburg/miniconda3/envs/bca_env
