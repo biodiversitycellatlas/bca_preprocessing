@@ -1,5 +1,5 @@
 process BDRHAP_PIPELINE {
-    publishDir "${params.resDir}/BD_Rhapsody_pipeline", mode: 'copy'
+    publishDir "${params.resDir}/BD_Rhapsody_pipeline/\${basename_ref}", mode: 'copy', overwrite: false
 
     input:
     file("BD_Rhapsody_Reference_Files.tar.gz")
@@ -8,6 +8,9 @@ process BDRHAP_PIPELINE {
     """
     echo "\n\n===============  BD Rhapsody pipeline  ==============="
     cd ${params.bdrhap_pipeline_dir}
+
+    # Define name of reference genome
+    basename_ref=\$(basename ${params.ref_star_gtf})
 
     cwl-runner \\
         --outdir . \\

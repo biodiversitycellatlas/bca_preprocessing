@@ -1,5 +1,5 @@
 process CR_PIPELINE {
-    publishDir "${params.resDir}/CellRanger_pipeline", mode: 'copy'
+    publishDir "${params.resDir}/CellRanger_pipeline/\${basename_ref}", mode: 'copy', overwrite: false
     tag "${sample_id}"
     debug true
 
@@ -14,6 +14,9 @@ process CR_PIPELINE {
     
     # Add CellRanger to PATH
     export PATH=${params.cellranger_dir}:$PATH
+
+    # Define name of reference genome
+    basename_ref=\$(basename ${params.ref_star_gtf})
 
     cellranger count \\
         --id=${sample_id}_count \\
