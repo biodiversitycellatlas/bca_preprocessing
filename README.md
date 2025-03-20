@@ -19,7 +19,7 @@ This nextflow pipeline is designed to pre-process single-cell and single-nucleus
 - 10x Genomics
 
 Depending on the chosen sequencing technique, it handles the FASTQ files accordingly. 
-Parse Biosciences data will be demultiplexed depending on the groups parameter, which seperates possible different techniques or samples within the same plate. After demultiplexing, it is mapped using the official split-pipe code from Parse Biosciences, to offer a comparation between their data processing platform and the results of our pipeline. BD Rhapsody does not require demultiplexing, and is therefore sent straight to the mapping using STARsolo. 
+Parse Biosciences data will be demultiplexed depending on the groups parameter, which seperates possible different techniques or samples within the same plate based on the wells. After demultiplexing, it is mapped using the official split-pipe pipeline from Parse Biosciences, to offer a comparation between their data processing platform and the results of our pipeline. The same comparisons are provided for BD Rhapsody (using BD-Rhapsody pipeline), OAKseq and 10x data (using Cell Ranger).   
 
 ![pipeline](/img/Preprocs_Pipeline.png)
 
@@ -44,7 +44,7 @@ conda activate bca_env
 
 ### Installing external/commercial packages
 
-### Cell Ranger
+#### Cell Ranger
 Followed the installation guide on the [10x Genomics website](https://www.10xgenomics.com/support/software/cell-ranger/latest/tutorials/cr-tutorial-in), and downloaded Cell Ranger version 9.0.1.
 ```
 # Downloading Cell Ranger using wget
@@ -57,7 +57,7 @@ tar -xzvf cellranger-9.0.1.tar.gz
 export PATH=/path/to/cellranger-9.0.1:$PATH
 ```
 
-### BD Rhapsody
+#### BD Rhapsody
 
 First, download the ['cwl' folder](https://bitbucket.org/CRSwDev/cwl/src/master/) of the BD Single-Cell Multiomics Software, hosted on Bitbucket. This repository contains the CWL and YML files required to run the BD Rhapsody pipeline locally. Then, create and activate the conda environment 'bd_pipe', add the cwlref-runner to the PATH variable and finally pull the docker image. In our case, we pulled the container using Apptainer. 
 
