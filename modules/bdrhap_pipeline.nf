@@ -1,6 +1,9 @@
 process BDRHAP_PIPELINE {
     publishDir "${params.resDir}/BD_Rhapsody_pipeline", mode: 'copy'
 
+    input:
+    file("BD_Rhapsody_Reference_Files.tar.gz")
+
     script:
     """
     echo "\n\n===============  BD Rhapsody pipeline  ==============="

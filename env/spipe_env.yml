@@ -1,0 +1,10 @@
+name: spipe
+channels:
+  - conda-forge
+  - bioconda
+dependencies:
+  - conda-forge::python==3.10
+  - samtools[version='>=1.16']
+  - star[version='>=2.7']
+  - unzip
+  - pigz

@@ -33,9 +33,9 @@ trap _term TERM
 
 # The command uses the arguments passed to this script, e.g:
 # -resume       : 	resumes previous work, followed by hash name of used working directory
-# -profile      :       
+# -c            : 	configuration file (e.g. /config/250221_OAKseq_Nvec.config)
 
-nextflow run -profile slurm,250221_OAKseq_Nvec -ansi-log false "$@" & pid=$! 
+nextflow run -profile slurm -ansi-log false "$@" & pid=$! 
 
 # Wait for the pipeline to finish
 echo "Waiting for ${pid}"
