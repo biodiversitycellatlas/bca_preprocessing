@@ -2,11 +2,13 @@ process BDRHAP_PIPELINE {
     publishDir "${params.resDir}/BD_Rhapsody_pipeline/\${basename_ref}", mode: 'copy', overwrite: false
 
     input:
-    file("BD_Rhapsody_Reference_Files.tar.gz")
+    path(BD_ref_path)
 
     script:
     """
     echo "\n\n===============  BD Rhapsody pipeline  ==============="
+    echo ${BD_ref_path}
+
     cd ${params.bdrhap_pipeline_dir}
 
     # Define name of reference genome
