@@ -1,6 +1,7 @@
 # Ignore all .log and nextflow files
 *.log
 .next*
+seq_techniques/oak_seq/barcodes_R2.txt
 
 # Ignore all files in the following directories
 logs/*

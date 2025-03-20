@@ -8,8 +8,8 @@
 // given as one string, these are added to a new     \\
 // directory.                                        \\
 
-process MAPPING_PARSEBIO {
-    publishDir "${params.resDir}/mapping_splitpipe/${sample_id}", mode: 'copy', overwrite: false
+process PARSEBIO_PIPELINE {
+    publishDir "${params.resDir}/ParseBio_pipeline/${sample_id}", mode: 'copy', overwrite: false
     tag "${fastq_files}"
     
     input:

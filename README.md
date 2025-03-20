@@ -1,4 +1,4 @@
-# Nextflow pipeline for pre-processing single-cell and single-nucleus data
+# BCA Pre-Processing Pipeline
 
 ---
 
@@ -15,6 +15,8 @@
 This nextflow pipeline is designed to pre-process single-cell and single-nucleus RNA-seq data. It accepts FASTQ files from multiple sequencing platforms, at the moment being: 
 - Parse Biosciences
 - BD Rhapsody
+- OAK-seq 
+- 10x Genomics
 
 Depending on the chosen sequencing technique, it handles the FASTQ files accordingly. 
 Parse Biosciences data will be demultiplexed depending on the groups parameter, which seperates possible different techniques or samples within the same plate. After demultiplexing, it is mapped using the official split-pipe code from Parse Biosciences, to offer a comparation between their data processing platform and the results of our pipeline. BD Rhapsody does not require demultiplexing, and is therefore sent straight to the mapping using STARsolo. 

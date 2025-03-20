@@ -1,0 +1,7 @@
+name: bd_pipe
+channels:
+  - conda-forge
+  - bioconda
+dependencies:
+  - pip
+  - conda-forge::nodejs
