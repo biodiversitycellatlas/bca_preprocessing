@@ -1,11 +1,11 @@
 #!/usr/bin/env bash
-#SBATCH --output=/users/asebe/bvanwaardenburg/git/bca_preprocessing/logs/%x.%j.out
-#SBATCH --error=/users/asebe/bvanwaardenburg/git/bca_preprocessing/logs/%x.%j.err
+#SBATCH --output=./logs/%x.%j.out
+#SBATCH --error=./logs/%x.%j.err
 #SBATCH --no-requeue
 #SBATCH --mem 6G
 #SBATCH -p genoa64
 #SBATCH --qos pipelines
-#SBATCH --job-name nextflow_250221_OAKseq_Nvec
+#SBATCH --job-name nextflow_241106_BD_Rhapsody_Nvec
 
 ##################
 # Configure bash #
@@ -35,7 +35,7 @@ trap _term TERM
 # -resume       : 	resumes previous work, followed by hash name of used working directory
 # -c            : 	configuration file (e.g. /config/250221_OAKseq_Nvec.config)
 
-nextflow run -profile slurm -ansi-log false "$@" & pid=$! 
+nextflow run -profile slurm,241106_BD_Rhapsody_Nvec -ansi-log false "$@" & pid=$! 
 
 # Wait for the pipeline to finish
 echo "Waiting for ${pid}"

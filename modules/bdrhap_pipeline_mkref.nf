@@ -8,21 +8,25 @@ process BDRHAP_PIPELINE_MKREF {
 
     ref_dir="${params.resDir}/genome/BDrhap_reference/star_index"
     
-    mkdir -p $ref_dir
-    cd $ref_dir
+    mkdir -p \$ref_dir
+    cd \$ref_dir
+
+    # Retrieve the first accession number
+    first_fastq=\$(ls "${params.resDir}/fastq/" | head -n1)  
+    echo "\${first_fastq}"
 
     # Calculate SJDB overhang using the first read from the first fastq file
-    sjdb_overhang=$(zcat ${params.resDir}/fastq/${first_fastq} 2>/dev/null | awk 'NR==2 {print length($0)-1; exit}' || echo "") 
+    sjdb_overhang=\$(zcat ${params.resDir}/fastq/\${first_fastq} 2>/dev/null | awk 'NR==2 {print length(\$0)-1; exit}' || echo "") 
 
-    STAR --runMode genomeGenerate \
-        --genomeFastaFiles ${params.ref_fasta} \
-        --sjdbGTFfile ${params.ref_star_gtf} \
-        --sjdbOverhang 150 \
-        --genomeSAindexNbases 12 \
+    STAR --runMode genomeGenerate \\
+        --genomeFastaFiles ${params.ref_fasta} \\
+        --sjdbGTFfile ${params.ref_star_gtf} \\
+        --sjdbOverhang 150 \\
+        --genomeSAindexNbases 12 \\
         --genomeSAsparseD 1
 
     # Copy the reference file to the BD Rhapsody reference directory
-    cp ${params.ref_star_gtf} $ref_dir
+    cp ${params.ref_star_gtf} \$ref_dir
 
     # Navigate two directories down to compress the reference files
     cd ../../

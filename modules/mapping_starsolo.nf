@@ -7,7 +7,7 @@
 */
 
 process MAPPING_STARSOLO { 
-    publishDir "${params.resDir}/mapping_STARsolo/mapping_STARsolo_fastqsplitted_v6_merged_incl_unmapped/${sample_id}", mode: 'copy'
+    publishDir "${params.resDir}/mapping_STARsolo/\${basename_ref}/${sample_id}", mode: 'copy', overwrite: false
     tag "${sample_id}_STARsolo"
 
     input:
@@ -50,6 +50,9 @@ process MAPPING_STARSOLO {
 
     # Read configuration file
     config_file=\$(cat ${params.star_config})
+
+    # Define name of reference genome
+    basename_ref=\$(basename ${params.ref_star_gtf})
 
     # Mapping step and generating count matrix using STAR
     STAR \\

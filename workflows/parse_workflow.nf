@@ -1,7 +1,7 @@
 include { DOWNLOAD_DATA } from '../modules/download'
-include { DEMUX_UMITOOLS } from '../modules/demux_umitools_parsebio'
+include { DEMUX_UMITOOLS_PARSEBIO } from '../modules/demux_umitools_parsebio'
 
-include { PARSEBIO_PIPELINE_DEMUX } from '../modules/parsbio_pipeline_demux'
+include { PARSEBIO_PIPELINE_DEMUX } from '../modules/parsebio_pipeline_demux'
 include { PARSEBIO_PIPELINE_MKREF } from '../modules/parsebio_pipeline_mkref'
 include { PARSEBIO_PIPELINE } from '../modules/parsebio_pipeline'
 
