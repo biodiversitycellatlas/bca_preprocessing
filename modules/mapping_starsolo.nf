@@ -7,7 +7,7 @@
 */
 
 process MAPPING_STARSOLO { 
-    publishDir "${params.resDir}/mapping_STARsolo/\${basename_ref}/${sample_id}", mode: 'copy', overwrite: false
+    publishDir "${params.resDir}/mapping_STARsolo/\${basename_ref}_incl_unmapped/${sample_id}", mode: 'copy', overwrite: false
     tag "${sample_id}_STARsolo"
 
     input:
@@ -52,7 +52,7 @@ process MAPPING_STARSOLO {
     config_file=\$(cat ${params.star_config})
 
     # Define name of reference genome
-    basename_ref=\$(basename ${params.ref_star_gtf})
+    basename_ref=\$(basename ${params.ref_star_gtf} .gtf)
 
     # Mapping step and generating count matrix using STAR
     STAR \\

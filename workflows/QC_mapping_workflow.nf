@@ -32,9 +32,9 @@ workflow QC_mapping_workflow {
 
         // Mapping: STARsolo
         MAPPING_STARSOLO(data_output, GENINDEX_STARSOLO.out)
-        // INDEX_BAM_PAIRED(MAPPING_STARSOLO_PAIRED.out)
-        // SATURATION_PAIRED(MAPPING_STARSOLO_PAIRED.out, INDEX_BAM_PAIRED.out)
-        // CALC_MT_RRNA_PAIRED(MAPPING_STARSOLO_PAIRED.out, INDEX_BAM_PAIRED.out)
+        INDEX_BAM(MAPPING_STARSOLO.out)
+        SATURATION(MAPPING_STARSOLO.out, INDEX_BAM.out)
+        CALC_MT_RRNA(MAPPING_STARSOLO.out, INDEX_BAM.out)
 
         // Mapping: STARsolo + Gene Extension
         // GENE_EXT_PAIRED(MAPPING_STARSOLO_PAIRED.out, INDEX_BAM_PAIRED.out)

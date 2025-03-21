@@ -14,6 +14,9 @@ process SATURATION {
     echo "\n\n==================  SATURATION =================="
     echo "Processing files: ${mapping_files}"
 
+    # Load R module
+    module load R/4.3.3-gfbf-2023b
+
     # Find the correct files from the list (mapping_files)
     summary_file=\$(ls *Solo.out/Gene/Summary.csv | head -n 1)
     log_final_file=\$(ls *Log.final.out | head -n 1)

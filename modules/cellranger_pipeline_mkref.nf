@@ -3,7 +3,7 @@ process CR_PIPELINE_MKREF {
     debug true
 
     output:
-    path "${params.resDir}/genome/cellranger_ref/\${basename_ref}"
+    path "*"
 
     script:
     """
