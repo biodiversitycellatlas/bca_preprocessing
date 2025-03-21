@@ -13,42 +13,32 @@ process CALC_MT_RRNA {
     """
     echo "\n\n==================  CALCULATION rRNA & mtDNA =================="
     echo "Sample ID: ${sample_id}"
-    echo "Mapping files: ${mapping_files}"
+    echo "GTF: ${params.ref_star_gtf}"
+    echo "rRNA: ${params.grep_rrna}"
+    echo "MT contig: ${params.mt_contig}"
 
-    # Editing the GFF file format if needed
-    if [ "${params.annot_type}" == "GFF" ]; then
-        echo "Checking whether the GFF file is correctly formatted..."
-        cp ${params.ref_star_gtf} .
-        cat *.gff | sed 's/ID=/gene_id=/g' > genomic_v2.gff
-        new_ref=genomic_v2.gff
-    else
-        new_ref=${params.ref_star_gtf}
-    fi
     bam_file=\$(ls ${sample_id}_Aligned.sortedByCoord.out.bam | head -n 1)
+
+    # Total number of mapped reads
+    samtools view -F 4 \${bam_file} | wc -l
+
+    # Number of ribosomal RNA reads
+    samtools view \${bam_file} | grep ${params.grep_rrna} | wc -l
+
+    # Number of reads mapping to mtDNA contig
+    samtools view \${bam_file} | grep ${params.mt_contig} | wc -l
 
     # Create seperate BAM with filtered results - filter for multimapped reads only present in primary alignment
     samtools view -h -F 256 \${bam_file} | grep -E "^\\@|NH:i:[2-9]" | samtools view -b -o multimapped_primealign.bam
+
+    # Number of multimapped reads (primary alignment) mapping to mtDNA contig
+    samtools view multimapped_primealign.bam | grep ${params.mt_contig} | wc -l
+    
     # Create seperate BAM with filtered results - filter for multimapped reads present in both secondary and primary alignments
     samtools view -h \${bam_file} | grep -E "^\\@|NH:i:[2-9]" | samtools view -b -o multimapped_allalign.bam
 
-    # Calculation rRNA
-    featureCounts -t rRNA -a \${new_ref} -o feat_counts_rRNA.txt \${bam_file}
-    featureCounts -M --fraction -t rRNA -a \${new_ref} -o feat_counts_rRNA_mmpa.txt multimapped_primealign.bam
-    featureCounts -M --fraction -t rRNA -a \${new_ref} -o feat_counts_rRNA_mmaa.txt multimapped_allalign.bam
+    # Number of multimapped reads (primary + secondary alignment) mapping to mtDNA contig
+    samtools view multimapped_allalign.bam | grep ${params.mt_contig} | wc -l
 
-    # Calculation mtDNA
-    grep 'mtDNA' \${new_ref} > mtDNA_only.gtf
-    featureCounts -t exon -a mtDNA_only.gtf -o feat_counts_mtDNA.txt \${bam_file}
-    featureCounts -M --fraction -t exon -a mtDNA_only.gtf -o feat_counts_mtDNA_mmpa.txt multimapped_primealign.bam
-    featureCounts -M --fraction -t exon -a mtDNA_only.gtf -o feat_counts_mtDNA_mmaa.txt multimapped_allalign.bam
-
-    # Per-gene counts for multimappers
-    featureCounts -M --fraction -a \${new_ref} -o feat_counts_multimappers_genelevel.txt multimapped_allalign.bam
-    
-    # Saves feature counts as clean gene counts table
-    tail -n +3 feat_counts_multimappers_genelevel.txt | cut -f1,7 > multimapper_gene_counts.txt
-    
-    # Sort the counts
-    sort -k2,2nr multimapper_gene_counts.txt > sorted_multimapper_gene_counts.txt
     """
 }

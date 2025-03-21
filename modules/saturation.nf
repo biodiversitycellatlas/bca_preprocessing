@@ -30,14 +30,14 @@ process SATURATION {
     temp_folder="_tmp_${sample_id}"
     echo "cells:\${n_cells} reads:\${n_reads} mapreads:\${MAPREADS} maprate:\${map_rate}"
 
-    python ${params.baseDir}/ext_programs/10x_saturate/saturation_table.py \\
+    python ${params.baseDir}/submodules/10x_saturate/saturation_table.py \\
             --bam \${bam_file} \\
             --ncells \${n_cells} \\
             --mapping_rate \${map_rate} \\
             --temp \${temp_folder} \\
             --output saturation_output.tsv 
 
-    python ${params.baseDir}/ext_programs/10x_saturate/scripts/plot_curve.py  \\
+    python ${params.baseDir}/submodules/10x_saturate/scripts/plot_curve.py  \\
             saturation_output.tsv \\
             saturation.png \\
             --target 0.7 \\
