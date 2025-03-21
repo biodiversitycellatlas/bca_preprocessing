@@ -8,7 +8,7 @@ process BDRHAP_PIPELINE_MKREF {
     """
     echo "\n\n===============  BD Rhapsody pipeline - mkref  ==============="
 
-    ref_dir="./BDrhap_reference/star_index"
+    ref_dir="./BDrhap_reference"
     
     mkdir -p \${ref_dir}
     cd \${ref_dir}
@@ -28,7 +28,7 @@ process BDRHAP_PIPELINE_MKREF {
         --genomeSAsparseD 1
     
     # Navigate a directory down to copy the GTF inside the folder
-    cd ../
+    mv GenomeDir/ star_index/
 
     # Copy the reference file to the BD Rhapsody reference directory
     cp ${params.ref_star_gtf} .

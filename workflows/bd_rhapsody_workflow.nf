@@ -27,7 +27,7 @@ workflow bd_rhapsody_workflow {
         BDRHAP_PIPELINE_MKREF()
 
         // Run the BD Rhapsody pipeline
-        BDRHAP_PIPELINE(BDRHAP_PIPELINE_MKREF.out)
+        BDRHAP_PIPELINE(sample_ids, BDRHAP_PIPELINE_MKREF.out)
 
     emit:
         RM_VARBASES.out

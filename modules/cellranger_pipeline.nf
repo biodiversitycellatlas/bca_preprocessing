@@ -15,8 +15,9 @@ process CR_PIPELINE {
     # Add CellRanger to PATH
     export PATH=${params.cellranger_dir}:$PATH
 
-    # Define name of reference genome
-    basename_ref=\$(basename ${params.ref_star_gtf})
+    # Define name of reference used during analysis
+    basename_ref=\$(basename ${params.ref_star_gtf} .gtf)
+    echo "basename: \${basename_ref}"
 
     cellranger count \\
         --id=${sample_id}_count \\

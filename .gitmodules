@@ -1,12 +1,6 @@
-[submodule "ext_programs/10x_saturate"]
-	path = ext_programs/10x_saturate
+[submodule "submodules/10x_saturate"]
+	path = submodules/10x_saturate
 	url = https://github.com/zolotarovgl/10x_saturate.git
-[submodule "ext_programs/GeneExt"]
-	path = ext_programs/GeneExt
+[submodule "submodules/GeneExt"]
+	path = submodules/GeneExt
 	url = https://github.com/sebepedroslab/GeneExt.git
-[submodule "ext_programs/metacell-downstream-functions"]
-	path = ext_programs/metacell-downstream-functions
-	url = https://github.com/sebepedroslab/metacell-downstream-functions.git
-[submodule "ext_programs/minimap2"]
-	path = ext_programs/minimap2
-	url = https://github.com/lh3/minimap2.git
