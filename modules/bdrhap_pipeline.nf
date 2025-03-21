@@ -1,6 +1,4 @@
 process BDRHAP_PIPELINE {
-    publishDir "${params.resDir}/BD_Rhapsody_pipeline/\${basename_ref}", mode: 'copy', overwrite: false
-
     input:
     val sample_id
     path bd_ref_path
@@ -18,9 +16,12 @@ process BDRHAP_PIPELINE {
     basename_ref=\$(basename ${params.ref_star_gtf} .gtf)
     echo "basename: \${basename_ref}"
 
+    ls -lah
+
     cwl-runner \\
-        --outdir . \\
+        --outdir ${params.resDir}/BD_Rhapsody_pipeline/\${basename_ref} \\
         --singularity \\
+        --reference-archive ${params.resDir}/genome/BDrhap_reference/BD_Rhapsody_Reference_Files.tar.gz \\
         rhapsody_pipeline_2.2.1.cwl \\
         pipeline_inputs_${sample_id}_2.2.1.yml
     """

@@ -13,7 +13,7 @@ workflow oak_seq_workflow {
         CR_PIPELINE_MKREF()
 
         // Run CellRanger pipeline
-        CR_PIPELINE(CR_PIPELINE_MKREF.out)
+        CR_PIPELINE(sample_ids, CR_PIPELINE_MKREF.out)
 
     emit:
         DOWNLOAD_DATA.out

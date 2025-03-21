@@ -4,8 +4,8 @@ process CR_PIPELINE {
     debug true
 
     input:
-    tuple val(sample_id), path(fastq_files)
-    path (cr_reference_dir)
+    val(sample_id)
+    path(cr_reference_dir)
 
     script:
     """
@@ -19,11 +19,14 @@ process CR_PIPELINE {
     basename_ref=\$(basename ${params.ref_star_gtf} .gtf)
     echo "basename: \${basename_ref}"
 
+    clean_sample_id=\$(echo "$sample_id" | sed 's/_S1//')
+    echo "cleaned sample id: \${clean_sample_id}"
+
     cellranger count \\
-        --id=${sample_id}_count \\
-        --transcriptome=${cr_reference_dir} \\
+        --id=\${clean_sample_id}_count \\
+        --transcriptome=. \\
         --fastqs=${params.resDir}/fastq/ \\
-        --sample=${sample_id} \\
+        --sample=\${clean_sample_id} \\
         --chemistry=auto \\
         --create-bam true
     """

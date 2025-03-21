@@ -8,3 +8,8 @@ dependencies:
   - star[version='>=2.7']
   - unzip
   - pigz
+  - python-igraph
+  - pip
+  - pip:
+    - cmake
+    - /users/asebe/bvanwaardenburg/pkgs/ParseBiosciences-Pipeline.1.3.1

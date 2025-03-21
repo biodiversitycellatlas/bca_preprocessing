@@ -28,7 +28,7 @@ workflow parse_workflow {
 
         // Demultiplex the fastq files based on the sample wells
         PARSEBIO_PIPELINE_DEMUX(comb_data)
-        DEMUX_UMITOOLS_PARSEBIO(comb_data)
+        // DEMUX_UMITOOLS_PARSEBIO(comb_data)
         
         // Run the Parse Biosciences pipeline
         PARSEBIO_PIPELINE_MKREF()
