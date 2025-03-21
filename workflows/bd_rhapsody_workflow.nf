@@ -24,10 +24,10 @@ workflow bd_rhapsody_workflow {
         // CONV_3CB_INDEX(DEMUX_UMITOOLS_BDRHAP.out.splitted_files)
 
         // Create the reference files for the BD Rhapsody pipeline
-        BDRHAP_PIPELINE_MKREF()
+        // BDRHAP_PIPELINE_MKREF()
 
         // Run the BD Rhapsody pipeline
-        BDRHAP_PIPELINE(sample_ids, BDRHAP_PIPELINE_MKREF.out)
+        // BDRHAP_PIPELINE(sample_ids, BDRHAP_PIPELINE_MKREF.out)
 
     emit:
         RM_VARBASES.out
