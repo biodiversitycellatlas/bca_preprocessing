@@ -34,7 +34,7 @@ process GENE_EXT {
     echo \${gtf_output}
     bam_file=\$(ls ${sample_id}_${config_name}_Aligned.sortedByCoord.out.bam | head -n 1)
     
-    python ${params.baseDir}/ext_programs/GeneExt/geneext.py \\
+    python ${params.baseDir}/submodules/GeneExt/geneext.py \\
         -g \${gtf_input} \\
         -b \${bam_file} \\
         -o \${gtf_output} \\

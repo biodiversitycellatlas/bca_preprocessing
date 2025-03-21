@@ -18,7 +18,7 @@ process DOUBLET_DET {
     echo "Barcodes file: \${bc_file}"
     echo "BAM file: \${bam_file}"
     
-    ${params.baseDir}/ext_programs/souporcell/souporcell_pipeline.py \\
+    ${params.baseDir}/submodules/souporcell/souporcell_pipeline.py \\
         --bam \${bam_file} \\
         --barcodes \${bc_file} \\
         --fasta ${params.ref_fasta} \\
