@@ -24,7 +24,7 @@ process CR_PIPELINE {
 
     cellranger count \\
         --id=\${clean_sample_id}_count \\
-        --transcriptome=. \\
+        --transcriptome=${cr_reference_dir} \\
         --fastqs=${params.resDir}/fastq/ \\
         --sample=\${clean_sample_id} \\
         --chemistry=auto \\
