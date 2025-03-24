@@ -10,13 +10,14 @@ process BDRHAP_PIPELINE {
     echo "BD Rhapsody reference files: ${bd_ref_path}"
     echo "Conda environment: \$CONDA_DEFAULT_ENV"
 
+    # Add cwlref-runner to PATH
+    export PATH=$PATH:\$CONDA_DEFAULT_ENV/env/lib/python3.13/site-packages
+
     cd ${params.bdrhap_pipeline_dir}
 
     # Define name of reference used during analysis
     basename_ref=\$(basename ${params.ref_star_gtf} .gtf)
     echo "basename: \${basename_ref}"
-
-    ls -lah
 
     cwl-runner \\
         --outdir ${params.resDir}/BD_Rhapsody_pipeline/\${basename_ref} \\
