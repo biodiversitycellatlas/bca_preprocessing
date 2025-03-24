@@ -7,7 +7,7 @@
 */
 
 process MAPPING_STARSOLO { 
-    publishDir "${params.resDir}/mapping_STARsolo/\${basename_ref}_incl_unmapped/${sample_id}", mode: 'copy', overwrite: false
+    publishDir "${params.resDir}/mapping_STARsolo/STARsolo_incl_unmapped/${sample_id}", mode: 'copy', overwrite: false
     tag "${sample_id}_STARsolo"
 
     input:

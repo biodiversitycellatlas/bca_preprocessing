@@ -1,4 +1,7 @@
 process BDRHAP_PIPELINE {
+    publishDir "${params.resDir}/BDrhapsody_pipeline/${sample_id}", mode: 'copy', overwrite: false
+    tag "${sample_id}_BDrhapsody"
+
     input:
     val sample_id
     path bd_ref_path
