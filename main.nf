@@ -55,16 +55,19 @@ include { MAPPING_STATS } from './modules/mapping_statistics'
  * MAIN WORKFLOW
  * 
  * Selects pre-processing workflow depending on the    
- * sequencing technique and returns a bam file         
- * (output alignment step). This will be used in       
- * downstream processes, which are identical for all   
- * techniques.    
+ * sequencing technique and returns the pre-processed
+ * FASTQ files, and possibly results from the equivalent 
+ * commercial pipeline (depending on if the path to the 
+ * local installation is given). The pre-processed files
+ * are then used for mapping and quality control, and once
+ * all outputs are finished, the pipeline triggers MultiQC
+ * and the filtering workflow.  
 */                                     
 workflow {
     // Sequencing-specific analysis of data:
-    //  - Parse Bioscience: Demultiplexing using groups and mapping using split-pipe
-    //  - BD Rhapsody: Demultiplexing using groups
-    //  - OAK seq: Creating symlinks to the fastq files
+    //  - Parse Bioscience: Demultiplexing using groups of wells and mapping using split-pipe
+    //  - BD Rhapsody: Removing variable bases and mapping using BD rhapsody pipeline
+    //  - OAK seq: Mapping using CellRanger
     if (params.seqTech == 'parse_biosciences') {     
         data_output = parse_workflow(sample_ids)
     } else if (params.seqTech == 'bd_rhapsody') {
@@ -75,13 +78,14 @@ workflow {
         error "Invalid sequencing technology specified. Use 'parse_biosciences' or 'bd_rhapsody'."
     }
     
-    // MultiQC and mapping steps using STARsolo including gene extension and testing different configurations
+    // Mapping using STARsolo, Alevin, and/or comparison to commercial pipelines
     qc_output = QC_mapping_workflow(data_output)
 
     // Collect all outputs into a single channel and create trigger
     all_outputs = data_output.mix(qc_output)
     mapping_stats_trigger = all_outputs.collect().map { it -> true }
     
+    // MultiQC and mapping statistics, only triggered after all outputs are finished
     MULTIQC(mapping_stats_trigger)
     MAPPING_STATS(mapping_stats_trigger) 
 
