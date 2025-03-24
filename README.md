@@ -34,7 +34,7 @@ git clone https://github.com/biodiversitycellatlas/bca_preprocessing.git
 ```
 In order to run the pipeline, you must have [Conda](https://anaconda.org/) installed.
 
-When working with OAK-seq or 10x Genomics data, the CellRanger whitelist must be uncompressed:
+When working with OAK-seq or 10x Genomics data, the CellRanger whitelist must be decompressed:
 ```
 gunzip /seq_techniques/oak_seq/barcodes_R2.txt.gz
 ```
@@ -113,13 +113,13 @@ split-pipe -h
 
 ## Setup
 
-1. Create a new Nextflow configuration file
+### 1. Create a new Nextflow configuration file
 
-To set the custom parameters for each run, a nextflow configuration file is created that extends the general nextflow.config file in the base of this repository. The custom configuration files can be stored within the /config/ directory, and will be based upon the example config file in'./examples/config/'. If you have a multiple-species experiment, one configuration file per species must be created in order to analyze the data with the corresponding genome annotation files. 
+To set the custom parameters for each run, a nextflow configuration file is created that extends the general nextflow.config file in the base of this repository. The custom configuration files can be stored within the /config/ directory, and should be based upon the example config file in'[/examples/config/](https://github.com/biodiversitycellatlas/bca_preprocessing/blob/main/examples/config/example.config)'. If you have a multiple-species experiment, one configuration file per species must be created in order to analyze the data with the corresponding genome annotation files. 
 
-2. Add custom configuration file as a new profile
+### 2. Add custom configuration file as a new profile
 
-After creating a new configuration file, it has to be added as a profile in the 'nextflow.config' file. Define an unique name and set the path, for example within the /config/ directory. 
+After creating a new configuration file, it has to be added as a profile in the ['nextflow.config'](https://github.com/biodiversitycellatlas/bca_preprocessing/blob/main/nextflow.config) file. Define an unique name and set the path, for example within the /config/ directory. 
 ```
 ## file: nextflow.config
 
@@ -138,7 +138,7 @@ profiles {
 }
 ```
 
-3. Edit submit_nextflow.sh
+### 3. Edit submit_nextflow.sh
 
 ```
 ## file: submit_nextflow.sh
