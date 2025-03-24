@@ -5,7 +5,7 @@
 #SBATCH --mem 6G
 #SBATCH -p genoa64
 #SBATCH --qos pipelines
-#SBATCH --job-name nextflow
+#SBATCH --job-name nextflow_PB_test
 
 ##################
 # Configure bash #
@@ -34,7 +34,7 @@ trap _term TERM
 # The command uses the arguments passed to this script, e.g:
 # -resume       : 	resumes previous work, followed by hash name of used working directory
 
-nextflow run -profile slurm,250221_OAKseq_Nvec -ansi-log false "$@" & pid=$! 
+nextflow run -profile slurm,240810_ParseBio_Nvec_BCA3_BCA4 -ansi-log false "$@" & pid=$! 
 
 # Wait for the pipeline to finish
 echo "Waiting for ${pid}"
