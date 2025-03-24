@@ -1,0 +1,6 @@
+[submodule "submodules/10x_saturate"]
+	path = submodules/10x_saturate
+	url = https://github.com/zolotarovgl/10x_saturate.git
+[submodule "submodules/GeneExt"]
+	path = submodules/GeneExt
+	url = https://github.com/sebepedroslab/GeneExt.git
