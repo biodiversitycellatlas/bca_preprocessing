@@ -5,7 +5,7 @@
 #SBATCH --mem 6G
 #SBATCH -p genoa64
 #SBATCH --qos pipelines
-#SBATCH --job-name nextflow_250221_OAKseq_Nvec
+#SBATCH --job-name nextflow
 
 ##################
 # Configure bash #

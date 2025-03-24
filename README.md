@@ -5,7 +5,8 @@
 ## Table of Contents
 
 1. [Overview](#overview)
-2. [Installation & Setup](#installation--setup)
+2. [Installation](#installation)
+3. [Setup](#setup)
 3. [Usage](#usage)
 4. [Output & Logs](#output--logs)
 
@@ -25,24 +26,32 @@ Parse Biosciences data will be demultiplexed depending on the groups parameter, 
 
 ---
 
-## Installation & Setup
+## Installation
 
-In order to run the pipeline, you must have [Nextflow](https://www.nextflow.io/) and [Conda](https://anaconda.org/) installed.
+Clone the bca_preprocessing repository:
+```
+git clone https://github.com/biodiversitycellatlas/bca_preprocessing.git
+```
+In order to run the pipeline, you must have [Conda](https://anaconda.org/) installed.
+
+When working with OAK-seq or 10x Genomics data, the CellRanger whitelist must be uncompressed:
+```
+gunzip /seq_techniques/oak_seq/barcodes_R2.txt.gz
+```
 
 ### Conda environments
-The default conda environment is called 'bca_env', which is automatically created and activated using the .yml file upon running the pipeline. For a few subprocesses, different conda environments were created as they were conflicting with certain versions of packages. All of them, except for spipe (see below) are installed and activated automatically upon execution using the same approach. 
+The main environment of the pipeline is 'bca_env', which must be created and activated before running the pre-processing pipeline. This is the only conda environment that needs to be created prior to running the pipeline, as the other environments within the /env/ directory are automatically created and activated by Nextflow. 
 
-To manually activate any of the conda environments:
+To create & activate the 'bca_env' conda environment:
 ```
 # Create environment
-conda env create -n bca_env -f bca_env.yaml
+conda env create -n bca_env -f ./env/bca_env.yml
 
 # Activate environment
 conda activate bca_env
 ```
 
-
-### Installing external/commercial packages
+### Installing commercial pipelines
 
 #### Cell Ranger
 Followed the installation guide on the [10x Genomics website](https://www.10xgenomics.com/support/software/cell-ranger/latest/tutorials/cr-tutorial-in), and downloaded Cell Ranger version 9.0.1.
@@ -52,28 +61,31 @@ wget -O cellranger-9.0.1.tar.gz "https://cf.10xgenomics.com/releases/cell-exp/ce
 
 # Unpack
 tar -xzvf cellranger-9.0.1.tar.gz
-
-# Add Cell Ranger to PATH
-export PATH=/path/to/cellranger-9.0.1:$PATH
 ```
 
 #### BD Rhapsody
 
-First, download the ['cwl' folder](https://bitbucket.org/CRSwDev/cwl/src/master/) of the BD Single-Cell Multiomics Software, hosted on Bitbucket. This repository contains the CWL and YML files required to run the BD Rhapsody pipeline locally. Then, create and activate the conda environment 'bd_pipe', add the cwlref-runner to the PATH variable and finally pull the docker image. In our case, we pulled the container using Apptainer. 
+First, download the ['cwl' folder](https://bitbucket.org/CRSwDev/cwl/src/master/) of the BD Single-Cell Multiomics Software, hosted on Bitbucket. This repository contains the CWL and YML files required to run the BD Rhapsody pipeline locally. Secondly, pull the docker image using Docker or Apptainer (see code for Apptainer example). 
 
 ```
-# Add cwlref-runner to PATH
-export PATH=$PATH:/path/to/bd_pipe/env/lib/python3.13/site-packages
-
 # Pull docker image using Apptainer
 apptainer pull docker://bdgenomics/rhapsody
 ```
 
 #### Parse Biosciences
+In order to incorporate the commercial Parse Biosciences pipeline (also called split-pipe), we first have to install the code from the personal account page on the Parse Biosciences website, and then create a new conda environment. 
+
 ```
+# Move to new split-pipe installation
+cd /installation_pipeline/
+
+# Create a new conda environment
 conda create –name spipe 
 bash ./install_dependencies_conda.sh -i -y 
 pip install . --no-cache-dir 
+
+# Activate environment
+conda activate spipe
 ```
 
 We encountered a few errors durring the creation of the spipe environment. Below, there are a few fixes to common set up problems of spipe: 
@@ -99,17 +111,59 @@ split-pipe -h
 
 ---
 
+## Setup
+
+1. Create a new Nextflow configuration file
+
+To set the custom parameters for each run, a nextflow configuration file is created that extends the general nextflow.config file in the base of this repository. The custom configuration files can be stored within the /config/ directory, and will be based upon the example config file in'./examples/config/'. If you have a multiple-species experiment, one configuration file per species must be created in order to analyze the data with the corresponding genome annotation files. 
+
+2. Add custom configuration file as a new profile
+
+After creating a new configuration file, it has to be added as a profile in the 'nextflow.config' file. Define an unique name and set the path, for example within the /config/ directory. 
+```
+## file: nextflow.config
+
+profiles {
+    slurm {
+        process {
+            queue = 'genoa64'
+            executor = "slurm"
+            clusterOptions = '--qos=short'
+        }
+    }
+    'test_config' {
+        includeConfig 'config/test.config'
+    }
+    ...
+}
+```
+
+3. Edit submit_nextflow.sh
+
+```
+## file: submit_nextflow.sh
+
+# Include both slurm & custom config profile
+nextflow run -profile slurm,test_config -ansi-log false "$@" & pid=$! 
+```
+
+---
+
 ## Usage
 
 ### Required files & parameters
+- [ ] Nextflow configuration file
 - [ ] /fastq/ folder with raw FASTQ files.
-- [ ] Genome annotation files (FASTA and GFF/GTF files)
-- [ ] Configuration file
+- [ ] /genome/ folder with genome annotation files (FASTA and GFF/GTF files)
 
 ### Optional files & parameters
 - [ ] spec.yaml - created using seqspec
 
 ### Running the Pipeline
 ```
+# Activate environment
+conda activate bca_env
+
+# Submit pipeline to SLURM queue
 sbatch submit_nextflow.sh main.nf
 ```
