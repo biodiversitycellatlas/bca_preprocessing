@@ -1,6 +1,0 @@
-[submodule "ext_programs/10x_saturate"]
-	path = ext_programs/10x_saturate
-	url = https://github.com/zolotarovgl/10x_saturate.git
-[submodule "ext_programs/GeneExt"]
-	path = ext_programs/GeneExt
-	url = https://github.com/sebepedroslab/GeneExt.git
