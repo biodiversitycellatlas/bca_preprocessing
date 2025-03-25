@@ -11,14 +11,6 @@ report_header_info:
   - Application Type: "BCA Pre-Processing Pipeline"
   - Application Version: "1.0.0"
 
-# Modules
-module_order:
-  - cutadapt
-  - star
-  - featurecounts
-  - saturation_plot
-  - fastqc
-
 # Custom settings
 custom_logo: "../img/BCALogotypeDesign_2024_Primary_Logo_Color.png"
 custom_logo_title: "Biodiversity Cell Atlas"

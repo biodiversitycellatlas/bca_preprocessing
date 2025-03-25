@@ -1,0 +1,8 @@
+name: trinity
+channels:
+  - conda-forge
+  - bioconda
+dependencies:
+  - bioconda::trinity
+  - bioconda::blast
+  - bioconda::kraken2
