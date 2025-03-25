@@ -20,6 +20,9 @@ include { CALC_MT_RRNA as CALC_MT_RRNA_GENEEXT } from '../modules/calculate_mt_r
 
 include { GENE_EXT } from '../modules/gene_ext'
 
+include { KRAKEN_CREATE_DB } from '../modules/kraken_create_db'
+include { KRAKEN } from '../modules/kraken'
+
 
 workflow QC_mapping_workflow {
     take:
@@ -53,7 +56,11 @@ workflow QC_mapping_workflow {
 
         // Calculate percentages mitochondrial DNA and ribosomal RNA
         CALC_MT_RRNA(MAPPING_STARSOLO.out, INDEX_BAM.out, params.gtf_name)
-        CALC_MT_RRNA_GENEEXT(MAPPING_STARSOLO_GENEEXT.out, INDEX_BAM_GENEEXT.out, "${params.gtf_name}_geneext")     
+        CALC_MT_RRNA_GENEEXT(MAPPING_STARSOLO_GENEEXT.out, INDEX_BAM_GENEEXT.out, "${params.gtf_name}_geneext")
+
+        // Inspecting unmapped reads
+        KRAKEN_CREATE_DB()
+        KRAKEN(KRAKEN_CREATE_DB.out.db_path_file, MAPPING_STARSOLO.out)     
 
     emit:
         SATURATION_GENEEXT.out.collect()
