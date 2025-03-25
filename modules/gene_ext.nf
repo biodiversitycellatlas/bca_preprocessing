@@ -19,8 +19,6 @@ process GENE_EXT {
     echo "BAM index: ${bam_index}"
     echo "Original GTF: ${params.ref_star_gtf}"
     echo "Conda environment: \$CONDA_DEFAULT_ENV"
-
-    if [ -d "tmp" ]; then rm -r tmp; fi
     
     if [ ${params.annot_type} == "GFF" ];
     then
