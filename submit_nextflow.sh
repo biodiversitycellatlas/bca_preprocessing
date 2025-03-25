@@ -34,7 +34,7 @@ trap _term TERM
 # The command uses the arguments passed to this script, e.g:
 # -resume       : 	resumes previous work, followed by hash name of used working directory
 
-nextflow run -profile slurm,240810_ParseBio_Nvec_BCA3_BCA4 -ansi-log false "$@" & pid=$! 
+nextflow run -resume 6113f228-cf54-4e9b-b4d5-72dabd62f5fa -profile slurm,240810_ParseBio_Nvec_BCA3_BCA4 -ansi-log false "$@" & pid=$! 
 
 # Wait for the pipeline to finish
 echo "Waiting for ${pid}"

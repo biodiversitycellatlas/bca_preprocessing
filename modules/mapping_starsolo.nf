@@ -7,12 +7,13 @@
 */
 
 process MAPPING_STARSOLO { 
-    publishDir "${params.resDir}/mapping_STARsolo/STARsolo_incl_unmapped/${sample_id}", mode: 'copy', overwrite: false
+    publishDir "${params.resDir}/mapping_STARsolo/${config}_incl_unmapped/${sample_id}", mode: 'copy', overwrite: false
     tag "${sample_id}_STARsolo"
 
     input:
     tuple val(sample_id), path(fastq_files)
     path genome_index_files
+    val config
     
     output:
     tuple val(sample_id), path("*")
@@ -41,7 +42,7 @@ process MAPPING_STARSOLO {
     }
 
     """
-    echo "\n\n==============  MAPPING STARSOLO ================"
+    echo "\n\n==============  MAPPING STARSOLO !{config} ================"
     echo "Mapping sample ${sample_id} with STARsolo"
     echo "FQ 1: ${r1_fastq ?: 'Not provided'}"
     echo "FQ 2: ${r2_fastq ?: 'Not provided'}"
