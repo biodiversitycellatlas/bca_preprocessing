@@ -17,7 +17,7 @@ dependencies:
   - nf-core
   - bioconda::multiqc
   - bioconda::samtools
-  - conda-forge::r-base
+  - conda-forge::r-essentials
   - bioconda::star
   - bioconda::pysam
   - pandas

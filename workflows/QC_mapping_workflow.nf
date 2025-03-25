@@ -1,6 +1,8 @@
 include { FASTQC } from '../modules/fastqc'
 
 include { GENINDEX_STARSOLO } from '../modules/genindex_starsolo'
+include { GENINDEX_STARSOLO as GENINDEX_STARSOLO_GENEEXT} from '../modules/genindex_starsolo'
+
 include { MAPPING_STARSOLO as MAPPING_STARSOLO } from '../modules/mapping_starsolo'
 include { MAPPING_STARSOLO as MAPPING_STARSOLO_GENEEXT } from '../modules/mapping_starsolo'
 
@@ -27,21 +29,16 @@ workflow QC_mapping_workflow {
         // Quality Control
         FASTQC(data_output)
 
-        // Create STAR index
-        GENINDEX_STARSOLO()
-
         // Mapping: STARsolo
-        MAPPING_STARSOLO(data_output, GENINDEX_STARSOLO.out)
+        GENINDEX_STARSOLO(params.ref_star_gtf)
+        MAPPING_STARSOLO(data_output, GENINDEX_STARSOLO.out, params.gtf_name)
         INDEX_BAM(MAPPING_STARSOLO.out)
-        SATURATION(MAPPING_STARSOLO.out, INDEX_BAM.out)
-        CALC_MT_RRNA(MAPPING_STARSOLO.out, INDEX_BAM.out)
 
         // Mapping: STARsolo + Gene Extension
-        // GENE_EXT_PAIRED(MAPPING_STARSOLO_PAIRED.out, INDEX_BAM_PAIRED.out)
-        // INDEX_BAM_PAIRED_GE(GENE_EXT_PAIRED.out)
-        // REMAPPING_STARSOLO_PAIRED(data_output, INDEX_BAM_PAIRED_GE.out)
-        // SATURATION_PAIRED_GE(REMAPPING_STARSOLO_PAIRED.out, INDEX_BAM_PAIRED_GE.out)
-        // CALC_MT_RRNA_PAIRED_GE(REMAPPING_STARSOLO_PAIRED.out, INDEX_BAM_PAIRED_GE.out)     
+        GENE_EXT(MAPPING_STARSOLO.out, INDEX_BAM.out, params.gtf_name)
+        GENINDEX_STARSOLO_GENEEXT(GENE_EXT.out)
+        MAPPING_STARSOLO_GENEEXT(data_output, GENINDEX_STARSOLO_GENEEXT.out, "${params.gtf_name}_geneext")
+        INDEX_BAM_GENEEXT(MAPPING_STARSOLO_GENEEXT.out)
 
         // Mapping: Alevin-fry
         // GENINDEX_ALEVIN()
@@ -50,6 +47,15 @@ workflow QC_mapping_workflow {
         // Generate mtx files
         // ...
 
+        // Calculate saturation
+        SATURATION(MAPPING_STARSOLO.out, INDEX_BAM.out, params.gtf_name)
+        SATURATION_GENEEXT(MAPPING_STARSOLO_GENEEXT.out, INDEX_BAM_GENEEXT.out, "${params.gtf_name}_geneext")
+
+        // Calculate percentages mitochondrial DNA and ribosomal RNA
+        CALC_MT_RRNA(MAPPING_STARSOLO.out, INDEX_BAM.out, params.gtf_name)
+        CALC_MT_RRNA_GENEEXT(MAPPING_STARSOLO_GENEEXT.out, INDEX_BAM_GENEEXT.out, "${params.gtf_name}_geneext")     
+
     emit:
-        MAPPING_STARSOLO.out.collect()
+        SATURATION_GENEEXT.out.collect()
+        CALC_MT_RRNA_GENEEXT.out.collect()
 }
