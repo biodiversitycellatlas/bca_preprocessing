@@ -1,10 +1,12 @@
 process SATURATION {
-    publishDir "${params.resDir}/saturation/${sample_id}", mode: 'copy'
+    publishDir "${params.resDir}/saturation/${config}/${sample_id}", mode: 'copy'
     tag "${sample_id}"
+    debug true
 
     input:
     tuple val(sample_id), path(mapping_files)
     file(bam_index)
+    val(config)
 
     output:
     path("saturation*")
@@ -13,9 +15,6 @@ process SATURATION {
     """
     echo "\n\n==================  SATURATION =================="
     echo "Processing files: ${mapping_files}"
-
-    # Load R module
-    module load R/4.3.3-gfbf-2023b
 
     # Find the correct files from the list (mapping_files)
     summary_file=\$(ls *Solo.out/Gene/Summary.csv | head -n 1)
