@@ -4,7 +4,6 @@
 dirs: true
 verbose: true
 force: true
-filesearch_depth: -1  # Set to -1 for unlimited
 
 report_header_info:
   - Contact E-mail: "bca@biodiversitycellatlas.org"

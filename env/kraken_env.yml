@@ -3,6 +3,7 @@ channels:
   - conda-forge
   - bioconda
 dependencies:
+  - bioconda::samtools
   - bioconda::trinity
   - bioconda::blast
   - bioconda::kraken2
