@@ -23,11 +23,13 @@ workflow bd_rhapsody_workflow {
         // Convert 3CBs to an index, to compare cells with the BD rhapsody pipeline
         // CONV_3CB_INDEX(DEMUX_UMITOOLS_BDRHAP.out.splitted_files)
 
-        // Create the reference files for the BD Rhapsody pipeline
-        BDRHAP_PIPELINE_MKREF()
-
-        // Run the BD Rhapsody pipeline
-        BDRHAP_PIPELINE(sample_ids, BDRHAP_PIPELINE_MKREF.out)
+        // Only run BD Rhapsody pipeline if the path is defined and exists
+        if (params.bdrhap_pipeline_dir && file(params.bdrhap_pipeline_dir).exists()) {
+            BDRHAP_PIPELINE_MKREF()
+            BDRHAP_PIPELINE(sample_ids, BDRHAP_PIPELINE_MKREF.out)
+        } else {
+            log.warn "BD Rhapsody pipeline directory not provided or doesn't exist: '${params.bdrhap_pipeline_dir}'"
+        }
 
     emit:
         RM_VARBASES.out

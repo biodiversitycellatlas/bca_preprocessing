@@ -30,9 +30,13 @@ workflow parse_workflow {
         PARSEBIO_PIPELINE_DEMUX(comb_data)
         // DEMUX_UMITOOLS_PARSEBIO(comb_data)
         
-        // Run the Parse Biosciences pipeline
-        PARSEBIO_PIPELINE_MKREF()
-        PARSEBIO_PIPELINE(PARSEBIO_PIPELINE_DEMUX.out.splitted_files, PARSEBIO_PIPELINE_MKREF.out)
+        // Only run Parse pipeline if the path is defined and exists
+        if (params.parsebio_pipeline_dir && file(params.parsebio_pipeline_dir).exists()) {
+            PARSEBIO_PIPELINE_MKREF()
+            PARSEBIO_PIPELINE(PARSEBIO_PIPELINE_DEMUX.out.splitted_files, PARSEBIO_PIPELINE_MKREF.out)
+        } else {
+            log.warn "Parse Biosciences pipeline directory not provided or doesn't exist: '${params.parsebio_pipeline_dir}'"
+        }
     
     emit:
         // Result: demultiplexed fastq files from split-pipe

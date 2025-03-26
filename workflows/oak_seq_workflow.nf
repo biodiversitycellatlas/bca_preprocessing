@@ -9,11 +9,13 @@ workflow oak_seq_workflow {
         // Import the fastq files into the nf workdir using sym links to the original files
         DOWNLOAD_DATA(sample_ids)
 
-        // Create reference for CellRanger pipeline
-        CR_PIPELINE_MKREF()
-
-        // Run CellRanger pipeline
-        CR_PIPELINE(sample_ids, CR_PIPELINE_MKREF.out)
+        // Only run Cell Ranger pipeline if the path is defined and exists
+        if (params.cellranger_dir && file(params.cellranger_dir).exists()) {
+            CR_PIPELINE_MKREF()
+            CR_PIPELINE(sample_ids, CR_PIPELINE_MKREF.out)
+        } else {
+            log.warn "Cell Ranger pipeline directory not provided or doesn't exist: '${params.cellranger_dir}'"
+        }
 
     emit:
         DOWNLOAD_DATA.out

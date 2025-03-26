@@ -37,11 +37,25 @@ workflow QC_mapping_workflow {
         MAPPING_STARSOLO(data_output, GENINDEX_STARSOLO.out, params.gtf_name)
         INDEX_BAM(MAPPING_STARSOLO.out)
 
-        // Mapping: STARsolo + Gene Extension
-        GENE_EXT(MAPPING_STARSOLO.out, INDEX_BAM.out, params.gtf_name)
-        GENINDEX_STARSOLO_GENEEXT(GENE_EXT.out)
-        MAPPING_STARSOLO_GENEEXT(data_output, GENINDEX_STARSOLO_GENEEXT.out, "${params.gtf_name}_geneext")
-        INDEX_BAM_GENEEXT(MAPPING_STARSOLO_GENEEXT.out)
+        // Calculate saturation
+        SATURATION(MAPPING_STARSOLO.out, INDEX_BAM.out, params.gtf_name)
+
+        // Calculate percentages mitochondrial DNA and ribosomal RNA
+        CALC_MT_RRNA(MAPPING_STARSOLO.out, INDEX_BAM.out, params.gtf_name)
+
+        // Conditionally run Gene Extension + Remapping branch
+        // params.perform_geneext (boolean) must be true
+        if (params.perform_geneext) {
+            GENE_EXT(MAPPING_STARSOLO.out, INDEX_BAM.out, params.gtf_name)
+            GENINDEX_STARSOLO_GENEEXT(GENE_EXT.out)
+            MAPPING_STARSOLO_GENEEXT(data_output, GENINDEX_STARSOLO_GENEEXT.out, "${params.gtf_name}_geneext")
+            INDEX_BAM_GENEEXT(MAPPING_STARSOLO_GENEEXT.out)
+
+            SATURATION_GENEEXT(MAPPING_STARSOLO_GENEEXT.out, INDEX_BAM_GENEEXT.out, "${params.gtf_name}_geneext")
+            CALC_MT_RRNA_GENEEXT(MAPPING_STARSOLO_GENEEXT.out, INDEX_BAM_GENEEXT.out, "${params.gtf_name}_geneext")
+        } else {
+            log.info "Skipping Gene Extension steps as 'perform_geneext' is false."
+        }
 
         // Mapping: Alevin-fry
         // GENINDEX_ALEVIN()
@@ -50,17 +64,14 @@ workflow QC_mapping_workflow {
         // Generate mtx files
         // ...
 
-        // Calculate saturation
-        SATURATION(MAPPING_STARSOLO.out, INDEX_BAM.out, params.gtf_name)
-        SATURATION_GENEEXT(MAPPING_STARSOLO_GENEEXT.out, INDEX_BAM_GENEEXT.out, "${params.gtf_name}_geneext")
-
-        // Calculate percentages mitochondrial DNA and ribosomal RNA
-        CALC_MT_RRNA(MAPPING_STARSOLO.out, INDEX_BAM.out, params.gtf_name)
-        CALC_MT_RRNA_GENEEXT(MAPPING_STARSOLO_GENEEXT.out, INDEX_BAM_GENEEXT.out, "${params.gtf_name}_geneext")
-
         // Inspecting unmapped reads
-        KRAKEN_CREATE_DB()
-        KRAKEN(KRAKEN_CREATE_DB.out.db_path_file, MAPPING_STARSOLO.out)     
+        // Conditionally run Kraken only if params.perform_kraken is true and DB path is valid
+        if (params.perform_kraken && file(params.kraken_db_path).exists()) {
+            KRAKEN_CREATE_DB()
+            KRAKEN(KRAKEN_CREATE_DB.out.db_path_file, MAPPING_STARSOLO.out) 
+        } else {
+            log.info "Skipping Kraken steps as 'perform_kraken' is false."
+        }
 
     emit:
         SATURATION_GENEEXT.out.collect()

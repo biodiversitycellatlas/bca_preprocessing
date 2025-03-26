@@ -21,7 +21,6 @@ process KRAKEN_CREATE_DB {
 
     """
     echo "\n\n==================  KRAKEN CREATE DB  =================="
-    echo "Conda environment: \$CONDA_DEFAULT_ENV"
 
     if [ -z "${params.kraken_db_path}" ]; then
         echo "No kraken_db_path provided. Downloading default database..."
