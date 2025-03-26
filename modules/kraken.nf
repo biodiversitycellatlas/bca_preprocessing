@@ -9,28 +9,26 @@ process KRAKEN {
     script:
     """
     echo "\n\n==================  KRAKEN  =================="
+    echo "Conda environment: \$CONDA_DEFAULT_ENV"
     echo "Running KRAKEN for ${sample_id}"
     echo "Path: ${mapping_files}"
 
     kraken_db_path=\$(cat ${db_path_file})
     echo "Using Kraken2 DB at: \$kraken_db_path"
 
-    # Saving unmapped reads to a new bam file, where the 0x4 flag specifies unmapped reads
-    samtools view -f 0x4 *_Aligned.sortedByCoord.out.bam > unmapped.sortedByCoord.out.bam
-
     # Saving unmapped reads to a fasta file
-    samtools view -f 0x4 *_Aligned.sortedByCoord.out.bam | samtools fasta - > unmapped.fasta
+    samtools view -f 0x4 -b *_Aligned.sortedByCoord.out.bam | samtools fasta - > ${sample_id}_unmapped.fasta
 
     # Run Kraken2
-    k2 classify \
-        --threads 8 \
-        --db \${kraken_db_path} \
-        --report kraken_taxonomy.txt \
-        --report-minimizer-data \
-        --use-names \
-        --memory-mapping \
-        --log kraken.log \
-        --output kraken_output.txt \
+    k2 classify \\
+        --threads 8 \\
+        --db \${kraken_db_path} \\
+        --report ${sample_id}_kraken_taxonomy.txt \\
+        --report-minimizer-data \\
+        --use-names \\
+        --memory-mapping \\
+        --log ${sample_id}_kraken.log \\
+        --output ${sample_id}_kraken_output.txt \\
         ${sample_id}_unmapped.fasta
 
     """

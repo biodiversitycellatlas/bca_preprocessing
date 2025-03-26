@@ -4,6 +4,7 @@
 --outFilterScoreMinOverLread 0
 --outFilterMatchNminOverLread 0
 --outFilterMultimapScoreRange 0
+--outSAMunmapped Within
 --clip3pAdapterSeq AAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAA
 --seedSearchStartLmax 50
 --outFilterMatchNmin 25
