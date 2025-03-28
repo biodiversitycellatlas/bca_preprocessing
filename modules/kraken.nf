@@ -6,6 +6,9 @@ process KRAKEN {
     path db_path_file 
     tuple val(sample_id), path(mapping_files)
 
+    output:
+    path("*")     
+
     script:
     """
     echo "\n\n==================  KRAKEN  =================="
