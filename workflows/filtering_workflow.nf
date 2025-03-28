@@ -5,8 +5,9 @@ workflow filtering_workflow {
         raw_matrix
     main:
         // Ambient RNA removal using CellBender
-        CELLBENDER(raw_matrix)
-    emit:
-        CELLBENDER.out
-        
+        if (params.perform_cellbender) {
+            CELLBENDER(raw_matrix)
+        } else {
+            log.info "Skipping Cellbender steps as 'perform_cellbender' is false."
+        }
 }
