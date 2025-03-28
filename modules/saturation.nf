@@ -15,6 +15,7 @@ process SATURATION {
     """
     echo "\n\n==================  SATURATION =================="
     echo "Processing files: ${mapping_files}"
+    echo "Conda environment: \$CONDA_DEFAULT_ENV"
 
     # Find the correct files from the list (mapping_files)
     summary_file=\$(ls *Solo.out/Gene/Summary.csv | head -n 1)
@@ -29,7 +30,7 @@ process SATURATION {
     n_reads=\$( cat \${log_final_file} | grep 'Number of input reads' | awk '{print \$NF}' )
     MAPREADS=\$( samtools view -F 260 \${bam_file} | wc -l )
     map_rate=\$( echo "scale=4; \${MAPREADS}/\${n_reads}" | bc )
-    temp_folder="_tmp_${sample_id}"
+    temp_folder="_tmp"
     echo "cells:\${n_cells} reads:\${n_reads} mapreads:\${MAPREADS} maprate:\${map_rate}"
 
     python ${params.baseDir}/submodules/10x_saturate/saturation_table.py \\
@@ -38,6 +39,9 @@ process SATURATION {
             --mapping_rate \${map_rate} \\
             --temp \${temp_folder} \\
             --output saturation_output.tsv 
+
+    echo "Created saturation_output.tsv"
+    ls saturation*
 
     python ${params.baseDir}/submodules/10x_saturate/scripts/plot_curve.py  \\
             saturation_output.tsv \\

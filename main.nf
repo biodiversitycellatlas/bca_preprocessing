@@ -81,16 +81,16 @@ workflow {
     // Mapping using STARsolo, Alevin, and/or comparison to commercial pipelines
     qc_output = QC_mapping_workflow(data_output)
 
+    // Filtering raw matrices of ambient RNA and detecting doublets
+    filter_out = filtering_workflow(qc_output.mapping_files)
+
     // Collect all outputs into a single channel and create trigger
-    all_outputs = data_output.mix(qc_output)
+    all_outputs = data_output.mix(qc_output.all_outputs)
     mapping_stats_trigger = all_outputs.collect().map { it -> true }
     
     // MultiQC and mapping statistics, only triggered after all outputs are finished
     MULTIQC(mapping_stats_trigger)
-    MAPPING_STATS(mapping_stats_trigger) 
-
-    // Filtering raw matrices of ambient RNA and detecting doublets
-    // filtering_workflow()
+    MAPPING_STATS(mapping_stats_trigger, sample_ids.collect()) 
 }
 
 

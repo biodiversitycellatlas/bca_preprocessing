@@ -61,9 +61,6 @@ workflow QC_mapping_workflow {
         // GENINDEX_ALEVIN()
         // MAPPING_ALEVIN(data_output) //, GENINDEX_ALEVIN.out.index, GENINDEX_ALEVIN.out.transcript_tsv
 
-        // Generate mtx files
-        // ...
-
         // Inspecting unmapped reads
         // Conditionally run Kraken only if params.perform_kraken is true and DB path is valid
         if (params.perform_kraken && file(params.kraken_db_path).exists()) {
@@ -73,7 +70,24 @@ workflow QC_mapping_workflow {
             log.info "Skipping Kraken steps as 'perform_kraken' is false."
         }
 
+        // Combine outputs 
+        ch_sat      = SATURATION.out
+        ch_calc     = CALC_MT_RRNA.out
+        all_outputs = ch_sat.mix(ch_calc)
+
+        // Mix in Kraken outputs if available
+        if ( params.perform_kraken && file(params.kraken_db_path).exists() ) {
+            all_outputs = all_outputs.mix(KRAKEN.out)
+        }
+
+        // Optionally mix in Gene Extension outputs
+        if ( params.perform_geneext ) {
+            all_outputs = all_outputs.mix(SATURATION_GENEEXT.out)
+                                     .mix(CALC_MT_RRNA_GENEEXT.out)
+        }
+
     emit:
-        SATURATION_GENEEXT.out.collect()
-        CALC_MT_RRNA_GENEEXT.out.collect()
+        mapping_files = MAPPING_STARSOLO.out.collect()       // for filtering workflow
+        all_outputs   = all_outputs.collect()                // for mapping stats and MultiQC
+
 }

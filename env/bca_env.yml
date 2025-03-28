@@ -25,3 +25,8 @@ dependencies:
   - scipy
   - scikit-learn
   - bioconda::umi_tools
+  - pip
+  - pip:
+    - argparse
+    - findpython
+
