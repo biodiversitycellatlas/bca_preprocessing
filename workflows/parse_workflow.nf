@@ -1,5 +1,5 @@
 include { DOWNLOAD_DATA } from '../modules/download'
-include { DEMUX_UMITOOLS_PARSEBIO } from '../modules/demux_umitools_parsebio'
+include { PARSEBIO_CUSTOM_DEMUX } from '../modules/parsebio_custom_demux'
 
 include { PARSEBIO_PIPELINE_DEMUX } from '../modules/parsebio_pipeline_demux'
 include { PARSEBIO_PIPELINE_MKREF } from '../modules/parsebio_pipeline_mkref'
@@ -28,7 +28,7 @@ workflow parse_workflow {
 
         // Demultiplex the fastq files based on the sample wells
         PARSEBIO_PIPELINE_DEMUX(comb_data)
-        // DEMUX_UMITOOLS_PARSEBIO(comb_data)
+        PARSEBIO_CUSTOM_DEMUX(comb_data)
         
         // Only run Parse pipeline if the path is defined and exists
         if (params.parsebio_pipeline_dir && file(params.parsebio_pipeline_dir).exists()) {
