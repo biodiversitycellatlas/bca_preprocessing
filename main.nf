@@ -40,10 +40,12 @@ sample_ids = Channel.fromPath("${params.resDir}/fastq/*_R1_001.fastq.gz")
 
 
 // Import sub-workflows
+include { seqspec_workflow } from './workflows/seqspec_workflow'
 include { parse_workflow } from './workflows/parse_workflow'
 include { bd_rhapsody_workflow } from './workflows/bd_rhapsody_workflow'
 include { QC_mapping_workflow } from './workflows/QC_mapping_workflow'
 include { oak_seq_workflow } from './workflows/oak_seq_workflow'
+include { tenx_genomics_workflow } from './workflows/10x_genomics_workflow'
 include { filtering_workflow } from './workflows/filtering_workflow'
 
 // Import processes
@@ -68,12 +70,16 @@ workflow {
     //  - Parse Bioscience: Demultiplexing using groups of wells and mapping using split-pipe
     //  - BD Rhapsody: Removing variable bases and mapping using BD rhapsody pipeline
     //  - OAK seq: Mapping using CellRanger
-    if (params.seqTech == 'parse_biosciences') {     
+    if (params.seqspec && file(params.seqspec).exists()) {     
+        data_output = seqspec_workflow(sample_ids)
+    } else if (params.seqTech == 'parse_biosciences') {     
         data_output = parse_workflow(sample_ids)
     } else if (params.seqTech == 'bd_rhapsody') {
         data_output = bd_rhapsody_workflow(sample_ids)
     } else if (params.seqTech == 'oak_seq') {
         data_output = oak_seq_workflow(sample_ids)
+    } else if (params.seqTech == '10x_genomics') {
+        data_output = tenx_genomics_workflow(sample_ids)
     } else {
         error "Invalid sequencing technology specified. Use 'parse_biosciences' or 'bd_rhapsody'."
     }

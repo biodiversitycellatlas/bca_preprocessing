@@ -9,7 +9,7 @@ process SATURATION {
     val(config)
 
     output:
-    path("saturation*")
+    file("saturation_output.tsv")
 
     script:
     """
@@ -17,10 +17,14 @@ process SATURATION {
     echo "Processing files: ${mapping_files}"
     echo "Conda environment: \$CONDA_DEFAULT_ENV"
 
+    # Remove unmapped reads from the BAM file
+    samtools view -b -F 4 ${sample_id}_Aligned.sortedByCoord.out.bam > ${sample_id}_Aligned.sortedByCoord.out.mapped.bam
+    samtools index ${sample_id}_Aligned.sortedByCoord.out.mapped.bam
+
     # Find the correct files from the list (mapping_files)
     summary_file=\$(ls *Solo.out/Gene/Summary.csv | head -n 1)
     log_final_file=\$(ls *Log.final.out | head -n 1)
-    bam_file=\$(ls ${sample_id}_Aligned.sortedByCoord.out.bam | head -n 1)
+    bam_file=\$(ls ${sample_id}_Aligned.sortedByCoord.out.mapped.bam | head -n 1)
 
     echo "Summary file: \${summary_file}"
     echo "Log final file: \${log_final_file}"
@@ -40,14 +44,7 @@ process SATURATION {
             --temp \${temp_folder} \\
             --output saturation_output.tsv 
 
+    ls -lah
     echo "Created saturation_output.tsv"
-    ls saturation*
-
-    python ${params.baseDir}/submodules/10x_saturate/scripts/plot_curve.py  \\
-            saturation_output.tsv \\
-            saturation.png \\
-            --target 0.7 \\
-            > saturation.log 2>&1   
-
     """
 }
