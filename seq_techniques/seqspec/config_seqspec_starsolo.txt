@@ -1,0 +1,11 @@
+--soloType CB_UMI_Complex 
+--soloCBposition 
+--soloUMIposition  
+--soloCBmatchWLtype 1MM
+--soloUMIfiltering MultiGeneUMI_CR
+--soloUMIdedup 1MM_CR
+--soloFeatures Gene GeneFull GeneFull_Ex50pAS Velocyto
+--clipAdapterType CellRanger4
+--soloStrand Forward
+--outFilterScoreMin 30
+--outSAMunmapped Within

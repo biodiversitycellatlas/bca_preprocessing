@@ -92,7 +92,9 @@ apptainer pull docker://bdgenomics/rhapsody
 ```
 
 #### Parse Biosciences
-In order to incorporate the commercial Parse Biosciences pipeline (also called split-pipe), we first have to install the code from the personal account page on the Parse Biosciences website, and then create a new conda environment. 
+In order to incorporate the commercial Parse Biosciences pipeline (also called split-pipe), first install the code from the personal account page on the Parse Biosciences website. For this project, we tested version 1.3.1, 
+
+Instructions on creating the split-pipe conda environment:
 
 ```
 # Move to new split-pipe installation
