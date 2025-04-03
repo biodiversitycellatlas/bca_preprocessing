@@ -70,9 +70,7 @@ workflow {
     //  - Parse Bioscience: Demultiplexing using groups of wells and mapping using split-pipe
     //  - BD Rhapsody: Removing variable bases and mapping using BD rhapsody pipeline
     //  - OAK seq: Mapping using CellRanger
-    if (params.seqspec && file(params.seqspec).exists()) {     
-        data_output = seqspec_workflow(sample_ids)
-    } else if (params.seqTech == 'parse_biosciences') {     
+    if (params.seqTech == 'parse_biosciences') {     
         data_output = parse_workflow(sample_ids)
     } else if (params.seqTech == 'bd_rhapsody') {
         data_output = bd_rhapsody_workflow(sample_ids)
@@ -80,8 +78,17 @@ workflow {
         data_output = oak_seq_workflow(sample_ids)
     } else if (params.seqTech == '10x_genomics') {
         data_output = tenx_genomics_workflow(sample_ids)
+    } else if (params.seqspec && file(params.seqspec).exists() && params.seqTech == 'seqspec') {     
+        data_output = seqspec_workflow(sample_ids)
     } else {
-        error "Invalid sequencing technology specified. Use 'parse_biosciences' or 'bd_rhapsody'."
+        error """
+        Invalid sequencing technology specified. Use one of the following parameters for 'seqTech': 
+        - 'parse_biosciences' 
+        - 'bd_rhapsody' 
+        - 'oak_seq' 
+        - '10x_genomics'
+        Or use 'seqspec' to specify a custom workflow.
+        """
     }
     
     // Mapping using STARsolo, Alevin, and/or comparison to commercial pipelines

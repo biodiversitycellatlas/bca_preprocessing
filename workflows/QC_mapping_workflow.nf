@@ -60,14 +60,6 @@ workflow QC_mapping_workflow {
 
             SATURATION_GENEEXT(MAPPING_STARSOLO_GENEEXT.out, INDEX_BAM_GENEEXT.out, "${params.gtf_name}_geneext")
             SATURATION_PLOT_GENEEXT(MAPPING_STARSOLO_GENEEXT.out, SATURATION_GENEEXT.out, "${params.gtf_name}_geneext")
-            
-            // Calculate percentages mitochondrial DNA and ribosomal RNA for gene extension
-            // Only run if params.perform_featurecounts is true
-            if (params.perform_featurecounts) {
-                CALC_MT_RRNA_GENEEXT(MAPPING_STARSOLO_GENEEXT.out, INDEX_BAM_GENEEXT.out, "${params.gtf_name}_geneext")
-            } else {
-                log.info "Skipping mtDNA/rRNA calculation for gene extension as 'perform_featurecounts' is false."
-            }
         
         } else {
             log.info "Skipping Gene Extension steps as 'perform_geneext' is false."
@@ -104,13 +96,8 @@ workflow QC_mapping_workflow {
             all_outputs = all_outputs.mix(SATURATION_PLOT_GENEEXT.out)
         }
 
-        // Optionally include FeatureCounts outputs for Gene Extension
-        if ( params.perform_featurecounts && params.perform_geneext ) {
-            all_outputs = all_outputs.mix(CALC_MT_RRNA_GENEEXT.out)
-        }
-
     emit:
-        mapping_files = MAPPING_STARSOLO.out.collect()       // for filtering workflow
+        mapping_files = MAPPING_STARSOLO.out                 // for filtering workflow
         all_outputs   = all_outputs.collect()                // for mapping stats and MultiQC
 
 }
