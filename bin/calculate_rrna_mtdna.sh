@@ -3,26 +3,11 @@
 # ------------------------------------------------------------------
 # Define Variables
 # ------------------------------------------------------------------
-# test: 
-# resDir="/users/asebe/bvanwaardenburg/git/data/240810_ParseBio_Nvec_Tcas/Nvec_BCA003_BCA004_TestREF/mapping_STARsolo/Nvec_v5_merged_annotation_sort_incl_unmapped/BCA003_lib_13079AAF_GATCAGTC-AGAGTCAA_ACMEsorb_cold_PR"
-# sample_id="BCA003_lib_13079AAF_GATCAGTC-AGAGTCAA_ACMEsorb_cold_PR"
-# config="Nvec_v5_merged_annotation_sort"
-# ref_star_gtf="/users/asebe/bvanwaardenburg/git/data/240810_ParseBio_Nvec_Tcas/Nvec_BCA003_BCA004_TestREF/genome/Nvec_v5_merged_annotation_sort.gtf"
-# grep_rrna="rRNA"
-# mt_contig="OW052000.1"
-
-resDir=$1
-sample_id=$2
-config=$3
-ref_star_gtf=$4
-grep_rrna=$5
-mt_contig=$6
-
-# Change to the directory that contains the data
-cd ${resDir} || { echo "Error: Could not cd to data directory"; exit 1; }
-
-# Specify path to BAM file
-bam_file=$(ls ${sample_id}_Aligned.sortedByCoord.out.bam | head -n 1)
+bam_file=$1
+outfile=$2
+ref_star_gtf=$3
+grep_rrna=$4
+mt_contig=$5
 
 
 # ------------------------------------------------------------------
@@ -30,9 +15,7 @@ bam_file=$(ls ${sample_id}_Aligned.sortedByCoord.out.bam | head -n 1)
 # ------------------------------------------------------------------
 
 # Create output file
-outfile="${sample_id}_${config}_mt_rrna_metrics.txt"
 echo -e "Metric,Count" > $outfile
-echo -e "Sample ID,${sample_id}" >> $outfile
 echo -e "GTF file,${ref_star_gtf}" >> $outfile
 echo -e "rRNA Grep command,${grep_rrna}" >> $outfile
 echo -e "MT Contig,${mt_contig}" >> $outfile
