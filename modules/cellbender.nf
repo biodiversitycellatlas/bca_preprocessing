@@ -9,18 +9,20 @@ process CELLBENDER {
     script:
     """
     echo "\n\n===============  Ambient RNA removal  ==============="
+    echo "Conda environment: \$CONDA_DEFAULT_ENV"
     echo "Sample ID: ${sample_id}"
     echo "Mapping files: ${mapping_files}"
     
+    matrix_path=\$(echo ./*_Solo.out/GeneFull_Ex50pAS/raw)
+
     # Copy features file as cellbender expects the file to be named genes.tsv
-    cp ${mapping_files}/features.tsv ${mapping_files}/genes.tsv
+    cp \${matrix_path}/features.tsv \${matrix_path}/genes.tsv
 
     cellbender remove-background \\
-        --input ${mapping_files}/Solo.out/Gene/raw/ \\
+        --input \${matrix_path} \\
         --output cellbender_output.h5 \\
         --epochs 150 \\
         --expected-cells 2500 \\
-        --fpr 0.01 \\
-        --cuda
+        --fpr 0.01
     """
 }
