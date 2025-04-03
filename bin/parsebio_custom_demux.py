@@ -100,8 +100,8 @@ def main():
     parser.add_argument("--group", nargs=2, metavar=("SAMPLE", "WELLS"),
                         help="Group specification: sample name and well range (e.g., A1-A3)")
     parser.add_argument("--output", required=True, help="Output directory for split fastq files")
-    parser.add_argument("--barcode_start", type=int, default=10, help="Barcode start index (0-based)")
-    parser.add_argument("--barcode_end", type=int, default=18, help="Barcode end index (exclusive)")
+    parser.add_argument("--barcode_start", type=int, default=50, help="Barcode start index (0-based)")
+    parser.add_argument("--barcode_end", type=int, default=58, help="Barcode end index (exclusive)")
     args = parser.parse_args()
 
     # Load the full whitelist from CSV

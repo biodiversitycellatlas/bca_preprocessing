@@ -16,7 +16,7 @@ process CALC_MT_RRNA {
     echo "Sample ID: ${sample_id}"
     echo "Config: ${config}"
 
-    sbatch ${params.baseDir}/bin/mapping_statistics.sh \\
+    sbatch ${params.baseDir}/bin/calculate_rrna_mtdna.sh \\
         ${params.resDir} \\
         ${sample_id} \\
         ${config} \\

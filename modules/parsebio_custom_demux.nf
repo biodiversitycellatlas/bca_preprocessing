@@ -1,6 +1,7 @@
 process PARSEBIO_CUSTOM_DEMUX {
     publishDir "${params.resDir}/demultiplex/demux_custom/${sample_id}", mode: 'copy'
     tag "${sample_id}_${group}"
+    debug true
     
     input:
     tuple val(sample_id), path(fastq_files), val(group), val(wells)
@@ -13,10 +14,12 @@ process PARSEBIO_CUSTOM_DEMUX {
     def r1_fastq = fastq_list.find { it.name.contains('_R1') }
     def r2_fastq = fastq_list.find { it.name.contains('_R2') }
     """
-    echo "\n\n==================  splitting  =================="
+    echo "\n\n==================  Parse Biosciences: Custom Demultiplexing  =================="
     echo "Processing sample: ${sample_id}"
     echo "FQ 1: ${r1_fastq ?: 'Not provided'}"
     echo "FQ 2: ${r2_fastq ?: 'Not provided'}"
+    echo "Group: ${group}"
+    echo "Wells: ${wells}"
 
     # Run Parse Biosciences demultiplexing script
     python ${params.baseDir}/bin/parsebio_custom_demux.py \\
@@ -26,8 +29,8 @@ process PARSEBIO_CUSTOM_DEMUX {
         --whitelist ${params.baseDir}/seq_techniques/parse_biosciences/bc_data_n26_R1_v3_4.csv \\
         --group ${group} ${wells} \\
         --output . \\
-        --barcode_start 10 \\
-        --barcode_end 18 
+        --barcode_start 50 \\
+        --barcode_end 58 
     """
 }
 
