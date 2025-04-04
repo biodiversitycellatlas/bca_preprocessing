@@ -1,36 +1,39 @@
-process GENINDEX_ALEVIN {   
+process GENINDEX_ALEVIN { 
+    publishDir "${params.resDir}/genome/genindex_alevin", mode: 'copy'
+    debug true
+
     output:
-    path("index")                   , emit: index
-    path("ref/*_t2g_3col.tsv")      , emit: transcript_tsv
-    path("*")                       , emit: salmon
+    path("*")
        
     script:
     """
     echo "\n\n==================  GENOME INDEX ALEVIN =================="
     echo "Reference fasta: ${params.ref_fasta}"
     echo "Reference ref_star_gtf: ${params.ref_star_gtf}"
+
+    # Retrieve the first accession number
+    first_fastq=\$(ls ${params.resDir}/fastq/*_R1* | head -n1)  
+    readlen=\$(zcat \${first_fastq} | awk 'NR==2 {print length(\$0)}') 
+
+    echo "First FASTQ file: \${first_fastq}"
+    echo "Read length: \${readlen}"
+
+    # Create splici reference
+    Rscript ${params.baseDir}/bin/salmon_create_splici_ref.R \\
+        --ref_fasta ${params.ref_fasta} \\
+        --ref_gtf ${params.ref_star_gtf} \\
+        --readlen \${readlen} \\
+        --flanklen 5 \\
+        --prefix "transcriptome_splici" \\
+        --out_dir ./splici_index_reference
     
-    # Filter transcripts spanning multiple chromosomes or strands
-    awk '\$3 == "exon" {print \$12, \$1}' ${params.ref_star_gtf} | sort | uniq | awk '{print \$1}' | uniq -c | awk '\$1 > 1 {print \$2}' > transcripts_multiple_chromosomes.txt
-    awk '\$3 == "exon" {print \$12, \$7}' ${params.ref_star_gtf} | sort | uniq | awk '{print \$1}' | uniq -c | awk '\$1 > 1 {print \$2}' > transcripts_multiple_strands.txt
-    awk '\$3 == "exon" {print \$10, \$1}' ${params.ref_star_gtf} | sort | uniq | awk '{print \$1}' | uniq -c | awk '\$1 > 1 {print \$2}' > genes_multiple_chromosomes.txt
-    awk '\$3 == "exon" {print \$10, \$7}' ${params.ref_star_gtf} | sort | uniq | awk '{print \$1}' | uniq -c | awk '\$1 > 1 {print \$2}' > genes_multiple_strands.txt
-
-    grep -Fv -f transcripts_multiple_chromosomes.txt ${params.ref_star_gtf} | \\
-        grep -Fv -f transcripts_multiple_strands.txt | \\
-        grep -Fv -f genes_multiple_chromosomes.txt | \\
-        grep -Fv -f genes_multiple_strands.txt > filtered_annotation.gtf
-
-    # Export required vars
-    export ALEVIN_FRY_HOME=.
-
-    # simpleaf configuration
-    simpleaf set-paths
+    # Define the reference fasta file created by the R script
+    ref_fasta=\$(ls ./splici_index_reference/*.fa)
 
     # Build reference index
-    simpleaf index \\
-        --fasta ${params.ref_fasta} \\
-        --gtf filtered_annotation.gtf \\
-        --output .
+    salmon index \\
+        -t \${ref_fasta} \\
+        -i ./salmon_index \\
+        -p 32
     """
 }

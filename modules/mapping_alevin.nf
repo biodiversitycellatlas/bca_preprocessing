@@ -5,11 +5,10 @@ process MAPPING_ALEVIN {
 
     input:
     tuple val(sample_id), path(fastq_files)
-    path index
-    path transcript_tsv
+    path(index)
 
     output:
-    tuple val(meta), path("*_alevin_results"), emit: alevin_results
+    path("*")
        
     script:
     def fastq_list = fastq_files instanceof List ? fastq_files : [fastq_files]
@@ -26,26 +25,52 @@ process MAPPING_ALEVIN {
     } else {
         cDNA_read = r1_fastq
         CBUMI_read = r2_fastq
-        protocol = "splitseqV2"
     }
     """
     echo "\n\n==================  GENOME INDEX ALEVIN =================="
     echo "Sample ID: ${sample_id}"
-    echo "Transcript TSV: ${transcript_tsv}"
+    echo "Index: ${index}"
     echo "Reference fasta: ${params.ref_fasta}"
+    echo "Reference ref_star_gtf: ${params.ref_star_gtf}"
+    echo "cDNA read: ${cDNA_read}"
+    echo "CB/UMI read: ${CBUMI_read}"
 
-    # Export required vars
-    export ALEVIN_FRY_HOME=.
 
-    # simpleaf configuration
-    simpleaf set-paths
+    echo "\n\n-------------  Salmon Alevin -------------------"
+    salmon alevin \\
+        -i salmon_index \\
+        -l A \\
+        -1 ${cDNA_read} \\
+        -2 ${CBUMI_read} \\
+        -p 32 \\
+        --bc-geometry 2[51-58,31-38,11-18] \\
+        --umi-geo 2[1-10] \\
+        --read-geo 1[1-end] \\
+        -o ./${sample_id}_run \\
+        --justAlign
 
-    # Quantify the sample
-    simpleaf quant \\
-        --reads1 ${cDNA_read} \\
-        --reads2 ${CBUMI_read} \\
-        --index ${index} \\
-        --t2g-map ${transcript_tsv} \\
-        --chemistry $protocol
+    echo "\n\n-------------  generate permit -------------------"
+    alevin-fry generate-permit-list \\
+        -i ./${sample_id}_run \\
+        -d both \\
+        --output-dir ./${sample_id}_out_permit_knee \\
+        -k
+
+    echo "\n\n-------------  collate -------------------"
+    alevin-fry collate \\
+        -i ./${sample_id}_out_permit_knee \\
+        -t 16 \\
+        -r ./${sample_id}_run  
+
+    echo "\n\n-------------  quant -------------------"
+    txp2gene=\$(ls ./splici_index_reference/*.tsv)
+
+    alevin-fry quant \\
+        -m \${txp2gene} \\
+        -i ./${sample_id}_out_permit_knee  \\
+        -o ./${sample_id}_counts \\
+        -t 16 \\
+        -r full \\
+        --use-mtx 
     """
 }

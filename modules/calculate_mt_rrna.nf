@@ -8,7 +8,7 @@ process CALC_MT_RRNA {
     val(config)
 
     output:
-    path("*")     
+    file("${sample_id}_${config}_mt_rrna_metrics.txt")     
        
     script:
     """
@@ -20,11 +20,13 @@ process CALC_MT_RRNA {
     bam_file=\$(ls ${sample_id}_Aligned.sortedByCoord.out.bam | head -n 1)
     echo "BAM file: \${bam_file}"
 
-    sbatch ${params.baseDir}/bin/calculate_rrna_mtdna.sh \\
+    bash ${params.baseDir}/bin/calculate_rrna_mtdna.sh \\
         \${bam_file} \\
         ${sample_id}_${config}_mt_rrna_metrics.txt \\
         ${params.ref_star_gtf} \\
         ${params.grep_rrna} \\
         ${params.mt_contig}
+
+    echo "Created file: ${sample_id}_${config}_mt_rrna_metrics.txt"
     """
 }
