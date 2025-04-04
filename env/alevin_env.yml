@@ -5,4 +5,7 @@ channels:
 dependencies:
   - piscem
   - simpleaf
+  - conda-forge::r-essentials
+  - bioconda::alevin-fry
+  - bioconda::salmon
   - bioconda::macs3
