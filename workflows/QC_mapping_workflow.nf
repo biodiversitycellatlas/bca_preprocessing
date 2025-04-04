@@ -67,7 +67,7 @@ workflow QC_mapping_workflow {
 
         // Mapping: Alevin-fry
         // GENINDEX_ALEVIN()
-        // MAPPING_ALEVIN(data_output) //, GENINDEX_ALEVIN.out.index, GENINDEX_ALEVIN.out.transcript_tsv
+        // MAPPING_ALEVIN(data_output, GENINDEX_ALEVIN.out)
 
         // Inspecting unmapped reads
         // Conditionally run Kraken only if params.perform_kraken is true and DB path is valid
