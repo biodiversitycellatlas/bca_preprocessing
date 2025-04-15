@@ -7,11 +7,11 @@
     IMPORT FUNCTIONS / MODULES / SUBWORKFLOWS
 ~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~
 */
-include { bd_rhapsody_workflow } from '../subworkflows/preprocs_bd_rhapsody.nf'
-include { parse_workflow } from '../subworkflows/preprocs_parse.nf'
-include { oak_seq_workflow } from '../subworkflows/preprocs_oak_seq.nf'
-include { tenx_genomics_workflow } from '../subworkflows/preprocs_10x_genomics.nf'
-include { seqspec_workflow } from '../subworkflows/preprocs_seqspec.nf'
+include { bd_rhapsody_workflow          } from '../subworkflows/preprocs_bd_rhapsody'
+include { parse_workflow                } from '../subworkflows/preprocs_parse_biosciences'
+include { oak_seq_workflow              } from '../subworkflows/preprocs_oak_seq'
+include { tenx_genomics_workflow        } from '../subworkflows/preprocs_10xv3'
+include { seqspec_workflow              } from '../subworkflows/preprocs_seqspec'
 
 /*
 ~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~
@@ -49,7 +49,7 @@ workflow preprocessing_workflow {
             - 'bd_rhapsody' 
             - 'oak_seq' 
             - '10xv3'
-            Or use 'seqspec' to specify a custom workflow.
+            Or use 'seqspec' to specify a non-supported sequencing technique.
             """
         }
 
