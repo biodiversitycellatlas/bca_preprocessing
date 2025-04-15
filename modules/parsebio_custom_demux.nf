@@ -1,5 +1,5 @@
 process PARSEBIO_CUSTOM_DEMUX {
-    publishDir "${params.resDir}/demultiplex/demux_custom/${sample_id}", mode: 'copy'
+    publishDir "${params.output_dir}/demultiplex/demux_custom/${sample_id}", mode: 'copy'
     tag "${sample_id}_${group}"
     debug true
     
@@ -22,11 +22,11 @@ process PARSEBIO_CUSTOM_DEMUX {
     echo "Wells: ${wells}"
 
     # Run Parse Biosciences demultiplexing script
-    python ${params.baseDir}/bin/parsebio_custom_demux.py \\
+    python ${params.code_dir}/bin/parsebio_custom_demux.py \\
         --sample_id ${sample_id} \\
         --fq1 ${r1_fastq} \\
         --fq2 ${r2_fastq} \\
-        --whitelist ${params.baseDir}/seq_techniques/parse_biosciences/bc_data_n26_R1_v3_4.csv \\
+        --whitelist ${params.code_dir}/seq_techniques/parse_biosciences/bc_data_n26_R1_v3_4.csv \\
         --group ${group} ${wells} \\
         --output . \\
         --barcode_start 50 \\

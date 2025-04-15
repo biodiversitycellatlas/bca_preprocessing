@@ -1,5 +1,5 @@
 process MULTIQC {
-    publishDir "${params.resDir}/multiqc", mode: 'copy'
+    publishDir "${params.output_dir}/multiqc", mode: 'copy'
     tag "all"
     
     input:
@@ -10,7 +10,7 @@ process MULTIQC {
 
     script:
     """    
-    multiqc ${params.resDir} \\
-        --config ${params.baseDir}/bin/multiqc_config.yml
+    multiqc ${params.output_dir} \\
+        --config ${params.code_dir}/bin/multiqc_config.yml
     """
 }

@@ -8,7 +8,7 @@
 */
 
 process KRAKEN_CREATE_DB {
-    publishDir "${params.resDir}/kraken/kraken_db", mode: 'copy', overwrite: false
+    publishDir "${params.output_dir}/kraken/kraken_db", mode: 'copy', overwrite: false
     tag "kraken_db"
     debug true
 

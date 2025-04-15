@@ -1,5 +1,5 @@
 process MAPPING_ALEVIN {
-    publishDir "${params.resDir}/mapping_alevin/${sample_id}", mode: 'copy'
+    publishDir "${params.output_dir}/mapping_alevin/${sample_id}", mode: 'copy'
     tag "${sample_id}"
     debug true
 
@@ -15,18 +15,18 @@ process MAPPING_ALEVIN {
     def r1_fastq = fastq_list.find { it.name.contains('_R1') }
     def r2_fastq = fastq_list.find { it.name.contains('_R2') }
 
-    // If seqTech is "bd_rhapsody", then cDNA = R2 and CB/UMI = R1
+    // If protocol is "bd_rhapsody", then cDNA = R2 and CB/UMI = R1
     // Else by default cDNA = R1 and CB/UMI = R2
     def cDNA_read
     def CBUMI_read
-    if (params.seqTech.toLowerCase().contains("bd_rhapsody")) {
+    if (params.protocol.toLowerCase().contains("bd_rhapsody")) {
         cDNA_read = r2_fastq
         CBUMI_read = r1_fastq
         bc_geom = "1[0-8,13-21,26-34]"
         umi_geom = "1[35-42]"
         read_geom = "2[1-end]"
 
-    } else if (params.seqTech.toLowerCase().contains("parse_biosciences")) {
+    } else if (params.protocol.toLowerCase().contains("parse_biosciences")) {
         cDNA_read = r1_fastq
         CBUMI_read = r2_fastq
         bc_geom = "2[51-58,31-38,11-18]"
@@ -46,7 +46,7 @@ process MAPPING_ALEVIN {
     echo "Sample ID: ${sample_id}"
     echo "Index: ${index}"
     echo "Reference fasta: ${params.ref_fasta}"
-    echo "Reference ref_star_gtf: ${params.ref_star_gtf}"
+    echo "Reference ref_gtf: ${params.ref_gtf}"
     echo "cDNA read: ${cDNA_read}"
     echo "CB/UMI read: ${CBUMI_read}"
 

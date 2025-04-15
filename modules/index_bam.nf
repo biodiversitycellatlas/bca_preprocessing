@@ -1,5 +1,5 @@
 process INDEX_BAM {
-    publishDir "${params.resDir}/mapping_STARsolo/mapping_STARsolo/${sample_id}", mode: 'copy'
+    publishDir "${params.output_dir}/mapping_STARsolo/mapping_STARsolo/${sample_id}", mode: 'copy'
     tag "${sample_id}"
 
     input:

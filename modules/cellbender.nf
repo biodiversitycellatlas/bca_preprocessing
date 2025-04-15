@@ -1,5 +1,5 @@
 process CELLBENDER {
-    publishDir "${params.resDir}/cellbender/${sample_id}", mode: 'copy'
+    publishDir "${params.output_dir}/cellbender/${sample_id}", mode: 'copy'
     tag "${sample_id}"
     debug true
 

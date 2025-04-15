@@ -3,25 +3,24 @@
 ##################
 # slurm settings #
 ##################
-#SBATCH --output=/users/asebe/bvanwaardenburg/git/bca_preprocessing/logs/%x.%j.out
-#SBATCH --error=/users/asebe/bvanwaardenburg/git/bca_preprocessing/logs/%x.%j.err
-#SBATCH --time=05:00:00
-#SBATCH --qos=short
-#SBATCH --mem=32G
-#SBATCH --job-name split_oakseq
+#SBATCH --output=../logs/%x.%j.out
+#SBATCH --error=../logs/%x.%j.err
+#SBATCH --time=15:30:00
+#SBATCH --qos=long
+#SBATCH --mem=86G
+#SBATCH --job-name split_oakseq_longrun
 
 
 # ------------------------------------------------------------------------------
 # Setup
 # ------------------------------------------------------------------------------
-work_dir="/users/asebe/bvanwaardenburg/git/data/250331_OAKseq_Nvec"
+work_dir="/users/asebe/bvanwaardenburg/git/data/250414_OAKseq_Nvec"
 fastq_dir="${work_dir}/fastq"
-output_dir="${work_dir}/fastq_splitted"
+output_dir="${work_dir}/fastq_splitted_i5_1mm_longrun"
 mkdir -p "${output_dir}"
 
 # Defines i5 barcodes as an array
-i5_barcodes=('AGCAGGACAG' 'AAATCCCGCT' 'TACGATCAAG' 'TAACGGTACG' 'CGACTCCTAC')
-# i5_barcodes=("AGGTAACACT" "AACGAACTGT" "TTTATCCTTG" "TTCGACAAGC")
+i5_barcodes=('AGCAGGACAG' 'AAATCCCGCT' 'TACGATCAAG' 'TAACGGTACG')
 
 # Set of FASTQs 
 R1="${fastq_dir}/Undetermined_S0_R1_001.fastq.gz"
@@ -29,7 +28,7 @@ R2="${fastq_dir}/Undetermined_S0_R2_001.fastq.gz"
 I2="${fastq_dir}/Undetermined_S0_I2_001.fastq.gz"
 
 # Creates a temporary directory for read ID lists
-tmp_dir="${work_dir}/tmp"
+tmp_dir="${work_dir}/tmp_1mm"
 mkdir -p "${tmp_dir}"
 
 # ------------------------------------------------------------------------------
@@ -85,6 +84,6 @@ for bc in "${i5_barcodes[@]}" "unfiltered"; do
 done
 
 # Clean up temporary files
-rm -rf "${tmp_dir}"
+# rm -rf "${tmp_dir}"
 
 echo "Done. Split FASTQs are in: ${output_dir}"
