@@ -22,12 +22,27 @@ process MAPPING_ALEVIN {
     if (params.seqTech.toLowerCase().contains("bd_rhapsody")) {
         cDNA_read = r2_fastq
         CBUMI_read = r1_fastq
-    } else {
+        bc_geom = "1[0-8,13-21,26-34]"
+        umi_geom = "1[35-42]"
+        read_geom = "2[1-end]"
+
+    } else if (params.seqTech.toLowerCase().contains("parse_biosciences")) {
         cDNA_read = r1_fastq
         CBUMI_read = r2_fastq
+        bc_geom = "2[51-58,31-38,11-18]"
+        umi_geom = "2[1-10]"
+        read_geom = "1[1-end]"
+
+    } else {
+        cDNA_read = r2_fastq
+        CBUMI_read = r1_fastq
+        bc_geom = "1[1-16]"
+        umi_geom = "1[17-29]"
+        read_geom = "2[1-end]"
     }
     """
     echo "\n\n==================  GENOME INDEX ALEVIN =================="
+    echo "Conda environment: \$CONDA_DEFAULT_ENV"
     echo "Sample ID: ${sample_id}"
     echo "Index: ${index}"
     echo "Reference fasta: ${params.ref_fasta}"
@@ -43,9 +58,9 @@ process MAPPING_ALEVIN {
         -1 ${cDNA_read} \\
         -2 ${CBUMI_read} \\
         -p 32 \\
-        --bc-geometry 2[51-58,31-38,11-18] \\
-        --umi-geo 2[1-10] \\
-        --read-geo 1[1-end] \\
+        --bc-geometry ${bc_geom} \\
+        --umi-geo ${umi_geom} \\
+        --read-geo ${read_geom} \\
         -o ./${sample_id}_run \\
         --justAlign
 
@@ -63,14 +78,14 @@ process MAPPING_ALEVIN {
         -r ./${sample_id}_run  
 
     echo "\n\n-------------  quant -------------------"
-    txp2gene=\$(ls ./splici_index_reference/*.tsv)
+    txp2gene=\$(ls ./splici_index_reference/*t2g_3col.tsv)
 
     alevin-fry quant \\
         -m \${txp2gene} \\
         -i ./${sample_id}_out_permit_knee  \\
         -o ./${sample_id}_counts \\
         -t 16 \\
-        -r full \\
+        -r cr-like-em \\
         --use-mtx 
     """
 }

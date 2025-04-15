@@ -19,23 +19,24 @@ process MAPPING_STARSOLO {
     tuple val(sample_id), path("*")
 
     script:
-    def bd_mem_arg   = task.ext.args ?: '' 
-    def barcode_option = "--soloCBwhitelist ${params.barcodeDir.replaceAll('\n', '')}" 
-
+    // Set default variables
+    def bd_mem_arg = task.ext.args ?: ''
+    def barcode_option = "--soloCBwhitelist ${params.barcodeDir.replaceAll('\n', '')}"
     def fastq_list = fastq_files instanceof List ? fastq_files : [fastq_files]
     def r1_fastq = fastq_list.find { it.name.contains('_R1') }
     def r2_fastq = fastq_list.find { it.name.contains('_R2') }
+    def cDNA_read, CBUMI_read
 
-    // If seqTech is "bd_rhapsody", then cDNA = R2 and CB/UMI = R1, else by default cDNA = R1 and CB/UMI = R2
-    def cDNA_read
-    def CBUMI_read
+    // Execute seqspec commands and capture output in Groovy variables
     if (params.seqTech.toLowerCase().contains("bd_rhapsody")) {
         cDNA_read = r2_fastq
         CBUMI_read = r1_fastq
+    
     } else if (params.seqTech.toLowerCase().contains("oak_seq")) {
         cDNA_read = r2_fastq
         CBUMI_read = r1_fastq
         barcode_option = "--soloCBwhitelist ${params.baseDir}/seq_techniques/${params.seqTech}/barcodes_R2.txt"
+    
     } else {
         cDNA_read = r1_fastq
         CBUMI_read = r2_fastq
