@@ -1,5 +1,5 @@
 process CONV_3CB_INDEX {
-    publishDir "${params.resDir}/demultiplex/demux_umitools/${sample_id}", mode: 'copy'
+    publishDir "${params.output_dir}/demultiplex/demux_umitools/${sample_id}", mode: 'copy'
     tag "${sample_id}"
     debug true
 
@@ -19,10 +19,10 @@ process CONV_3CB_INDEX {
     echo "Sample ID: ${sample_id}"
     echo "FASTQ files: ${fastq_files}"
 
-    python ${params.baseDir}/bin/conv_3cb_index.py \\
+    python ${params.code_dir}/bin/conv_3cb_index.py \\
         --input_cDNA ${r2_fastq} \\
         --output_cDNA indexed_${sample_id}_R2.fastq.gz \\
         --workdir . \\
-        --bcdir ${params.baseDir}/seq_techniques/bd_rhapsody
+        --bcdir ${params.code_dir}/seq_techniques/bd_rhapsody
     """
 }

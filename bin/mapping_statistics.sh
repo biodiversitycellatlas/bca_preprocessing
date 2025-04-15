@@ -3,35 +3,31 @@
 # ------------------------------------------------------------------
 # Define Variables
 # ------------------------------------------------------------------
-# test: 
-# resDir="/users/asebe/bvanwaardenburg/git/data/240810_ParseBio_Nvec_Tcas/Nvec_BCA003_BCA004_TestREF"
-# ref_star_gtf="/users/asebe/bvanwaardenburg/git/data/240810_ParseBio_Nvec_Tcas/Nvec_BCA003_BCA004_TestREF/genome/Nvec_v5_merged_annotation_sort.gtf"
-
-resDir=$1
-ref_star_gtf=$2
+output_dir=$1
+ref_gtf=$2
 output_file="mapping_stats.tsv"
 
 # Change to the directory that contains the data
-cd ${resDir} || { echo "Error: Could not cd to data directory"; exit 1; }
+cd ${output_dir} || { echo "Error: Could not cd to data directory"; exit 1; }
 
 # Create the output file and print the header
-echo -e "Directory\tSample\tN reads/sample\tN R1 >Q30\tN R2 >Q30\tN uniquely mapped reads\t
-    % uniquely mapped reads\t% multi-mapped reads\t% multi-mapped reads: too many\t
-    % unmapped: too short\t% unmapped: other\tExpected % Doublets\tTarget N cells\t
-    N cells\tUMI cutoff used for cell calling\tsaturation\tReads for 0.7 saturation\t
-    Noise (% UMIs in non-cell barcodes)\t% Intronic reads\t% rRNA in Unique reads\t
-    %rRNA in multimappers all pos\t%rRNA in multimappers primary pos\t
-    % mtDNA in Unique reads\t%mtDNA in multimappers all pos\t%mtDNA in multimappers primary pos\t
+echo -e "Directory\tSample\tN reads/sample\tN R1 >Q30\tN R2 >Q30\tN uniquely mapped reads\t\
+    % uniquely mapped reads\t% multi-mapped reads\t% multi-mapped reads: too many\t\
+    % unmapped: too short\t% unmapped: other\tExpected % Doublets\tTarget N cells\t\
+    N cells\tUMI cutoff used for cell calling\tsaturation\tReads for 0.7 saturation\t\
+    Noise (% UMIs in non-cell barcodes)\t% Intronic reads\t% rRNA in Unique reads\t\
+    %rRNA in multimappers all pos\t%rRNA in multimappers primary pos\t\
+    % mtDNA in Unique reads\t%mtDNA in multimappers all pos\t%mtDNA in multimappers primary pos\t\
     3 most freq genes in multimappers" > "$output_file"
 
 
 # ------------------------------------------------------------------
 # For each STARsolo mapping directory
 # ------------------------------------------------------------------
-config=$(basename ${ref_star_gtf} .gtf)
+config=$(basename ${ref_gtf} .gtf)
 echo "config: $config"
 
-for map_dir in ${resDir}/mapping_STARsolo/${config}*/*; do
+for map_dir in ${output_dir}/mapping_STARsolo/${config}*/*; do
     echo "mapping dir: ${map_dir}"
 
     # Extract sample name
@@ -76,26 +72,20 @@ for map_dir in ${resDir}/mapping_STARsolo/${config}*/*; do
     # Extract metrics: STAR Log file
     UMI_cutoff=$(grep "nUMImin" "$map_dir/${sample_name}_Log.out" | awk -F ';' '{print $2}' | head -n 1 | awk -F '=' '{print $2}' || echo "NA")
 
-    # ------------------------------------------------------------------
     # ribosomal RNA & mitochondrial DNA (unique & multimapped reads)
-    # ------------------------------------------------------------------
-    rRNA_mtDNA_metrics="${resDir}/rRNA_mtDNA/${config}/${sample_name}_${config}_mt_rrna_metrics.txt"
+    rRNA_mtDNA_metrics="${output_dir}/rRNA_mtDNA/${config}/${sample_name}_${config}_mt_rrna_metrics.txt"
     perc_rrna=$(grep "Percentage of rRNA reads" $rRNA_mtDNA_metrics | awk -F ',' '{print $NF}' || echo "NA")
     perc_mt=$(grep "Percentage of mtDNA reads (of mapped reads)" $rRNA_mtDNA_metrics | awk -F ',' '{print $NF}' || echo "NA")
     perc_mt_mmpa=$(grep "Percentage of mtDNA in multimapped reads (primary alignment)" $rRNA_mtDNA_metrics | awk -F ',' '{print $NF}' || echo "NA")
     perc_mt_mmaa=$(grep "Percentage of mtDNA in multimapped reads (all alignments)" $rRNA_mtDNA_metrics | awk -F ',' '{print $NF}' || echo "NA")
     
-    # ------------------------------------------------------------------
     # Noise Percentage
-    # ------------------------------------------------------------------
     total_umis_all=$(grep "yesUMIs" "${solo_dir}/Features.stats" | awk '{print $2}' || echo "NA")
     total_umis_cells=$(grep "UMIs in Cells" "$solo_dir/Summary.csv" | awk -F ',' '{print $NF}' || echo "NA")
     noise=$(echo "scale=4; ($total_umis_all - $total_umis_cells) / $total_umis_all" | bc || echo "NA")
     echo "done noise"
 
-    # ------------------------------------------------------------------
     # Percentage Intronic Reads
-    # ------------------------------------------------------------------
     exonic_sum=$(cat ${map_dir}/${sample_name}_Solo.out/Gene/raw/matrix.mtx | awk 'NR>3 {sum+=$3} END{print sum}' || echo "0")
     fullgene_sum=$(cat ${map_dir}/${sample_name}_Solo.out/GeneFull/raw/matrix.mtx | awk 'NR>3 {sum+=$3} END{print sum}' || echo "0")
     intronic_sum=$(( fullgene_sum - exonic_sum ))
@@ -104,32 +94,27 @@ for map_dir in ${resDir}/mapping_STARsolo/${config}*/*; do
                         'BEGIN{printf("%.4f", (i)/t)}' || echo "NA")
     echo "done intronic"
     
-    # ------------------------------------------------------------------
     # 10x_saturate results
-    # - reads needed for 0.7 saturation
-    # ------------------------------------------------------------------
-    saturation_dir="${resDir}/saturation/${config}/${sample_name}"
+    saturation_dir="${output_dir}/saturation/${config}/${sample_name}"
     saturate_07=$(cat $saturation_dir/saturation.log | grep "approximately: " | awk '{print $(NF-2) " M"}' || echo "NA")
     echo "done saturation"
 
-    # ------------------------------------------------------------------
     # Append results to the output file
-    # ------------------------------------------------------------------
-    echo -e "${sample_name}\t${config}\t$n_reads\t$R1_Q30\t$R2_Q30\t
-            $n_uniquely_mapped\t$p_uniquely_mapped\t$p_multi_mapped\t$p_multi_too_many\t
-            $p_unmapped_short\t$p_unmapped_other\t\t\t$N_cells\t$UMI_cutoff\t$saturation\t
-            $saturate_07\t$noise\t$fraction_intronic\t$perc_rrna\t$perc_mt\t$perc_mt_mmaa\t$perc_mt_mmpa\t
+    echo -e "${sample_name}\t${config}\t$n_reads\t$R1_Q30\t$R2_Q30\t\
+            $n_uniquely_mapped\t$p_uniquely_mapped\t$p_multi_mapped\t$p_multi_too_many\t\
+            $p_unmapped_short\t$p_unmapped_other\t\t\t$N_cells\t$UMI_cutoff\t$saturation\t\
+            $saturate_07\t$noise\t$fraction_intronic\t$perc_rrna\t$perc_mt\t$perc_mt_mmaa\t$perc_mt_mmpa\t\
             \t$mean_reads\t$median_umis\t$median_genes\t$total_genes" >> "$output_file"
 done
 
 # ------------------------------------------------------------------
 # Extract metrics from ParseBio_pipeline directory if it exists
 # ------------------------------------------------------------------
-if [ -d "${resDir}/ParseBio_pipeline" ]; then
-    echo "mapping dir: ${resDir}/ParseBio_pipeline"
+if [ -d "${output_dir}/ParseBio_pipeline" ]; then
+    echo "mapping dir: ${output_dir}/ParseBio_pipeline"
     
     # For each sample directory under mapping_splitpipe
-    for splitpipe_dir in ${resDir}/ParseBio_pipeline/*; do
+    for splitpipe_dir in ${output_dir}/ParseBio_pipeline/*; do
         # Check for stats file
         report_dir="${splitpipe_dir}/all-sample/report"
         stats_file="${report_dir}/sample_all_stats.csv"

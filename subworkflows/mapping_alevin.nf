@@ -1,5 +1,5 @@
 //
-// Workflow with functionality specific to 'main.nf'
+// Subworkflow with functionality specific to the workflow 'mapping_workflow.nf'
 //
 
 /*
@@ -7,26 +7,28 @@
     IMPORT FUNCTIONS / MODULES / SUBWORKFLOWS
 ~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~
 */
-include { CELLBENDER } from '../modules/cellbender'
+include { GENINDEX_ALEVIN } from '../modules/genindex_alevin'
+include { MAPPING_ALEVIN } from '../modules/mapping_alevin'
 
 
 /*
 ~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~
-    WORKFLOW TO RUN FILTERING
+    SUBWORKFLOW TO RUN ALEVIN-FRY MAPPING
 ~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~
 */
-workflow filtering_workflow {
+workflow mapping_alevin_workflow {
     take:
-        raw_matrix
-    main:
-        // Ambient RNA removal using CellBender
-        if (params.perform_cellbender) {
-            CELLBENDER(raw_matrix)
-        } else {
-            log.info "Skipping Cellbender steps as 'perform_cellbender' is false."
-        }
-}
+        data_output
+        all_outputs
 
+    main:
+        GENINDEX_ALEVIN()
+        MAPPING_ALEVIN(data_output, GENINDEX_ALEVIN.out)
+
+    emit:
+        mapping_files = MAPPING_ALEVIN.out     
+        all_outputs
+}
 
 /*
 ~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~

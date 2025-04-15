@@ -1,5 +1,5 @@
 process DOUBLET_DET {
-    publishDir "${params.resDir}/souporcell/${sample_id}", mode: 'symlink'
+    publishDir "${params.output_dir}/souporcell/${sample_id}", mode: 'symlink'
     tag "${sample_id}"
     debug true
 
@@ -18,7 +18,7 @@ process DOUBLET_DET {
     echo "Barcodes file: \${bc_file}"
     echo "BAM file: \${bam_file}"
     
-    ${params.baseDir}/submodules/souporcell/souporcell_pipeline.py \\
+    ${params.code_dir}/submodules/souporcell/souporcell_pipeline.py \\
         --bam \${bam_file} \\
         --barcodes \${bc_file} \\
         --fasta ${params.ref_fasta} \\

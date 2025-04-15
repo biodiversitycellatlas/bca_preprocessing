@@ -1,6 +1,3 @@
---soloType CB_UMI_Complex 
---soloCBposition 
---soloUMIposition  
 --soloCBmatchWLtype 1MM
 --soloUMIfiltering MultiGeneUMI_CR
 --soloUMIdedup 1MM_CR

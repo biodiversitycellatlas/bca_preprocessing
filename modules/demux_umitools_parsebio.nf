@@ -1,5 +1,5 @@
 process DEMUX_UMITOOLS_PARSEBIO {
-    publishDir "${params.resDir}/demultiplex/demux_umitools/${sample_id}", mode: 'copy'
+    publishDir "${params.output_dir}/demultiplex/demux_umitools/${sample_id}", mode: 'copy'
     tag "${sample_id}_${group}"
     debug true
     

@@ -7,29 +7,17 @@ nextflow.enable.dsl = 2
 BCA Pre-processing Pipeline
 ==============================================================================
 This pipeline handles the analysis of single-cell RNA sequencing data, including
-data downloading, quality control, genome indexing, demultiplexing, mapping, and
-SATURATION analysis.
+quality control, demultiplexing, mapping, and filtering.
 
 Pre-requisites:
-- /fastq/ directory
-- Annotation files (FASTA & GTF/GFF) in the /genome/ directory
-- Configured the config.yaml file
-- Configured the submit_nextflow.sh file
-
-Optional:
-- seqspec (.yaml) file
+- Configured the custom config file (config/custom.config)
+- Added custom config as profile in the main config file (config/main.config)
+- Added profile to the command line option in the submit_nextflow.sh script
 
 Run:
 sbatch submit_nextflow.sh main.nf
-
-
-Help:
-To print the output of processes:
-println DEMULTIPLEX.out.splitted_files
-
 ------------------------------------------------------------------------------
 */
-
 
 // Set up the sampleID channel
 sample_ids = Channel.fromPath("${params.fastq_dir}/*_R1_001.fastq.gz")
@@ -38,67 +26,42 @@ sample_ids = Channel.fromPath("${params.fastq_dir}/*_R1_001.fastq.gz")
     }
     .distinct()
 
+/*
+~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~
+    IMPORT FUNCTIONS / MODULES / SUBWORKFLOWS
+~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~
+*/
+include { preprocessing_workflow } from './workflows/preprocessing_workflow.nf'
+include { QC_mapping_workflow } from './workflows/mapping_workflow.nf'
+include { filtering_workflow } from './workflows/filtering_workflow.nf'
 
-// Import sub-workflows
-include { seqspec_workflow } from './workflows/seqspec_workflow'
-include { parse_workflow } from './workflows/parse_workflow'
-include { bd_rhapsody_workflow } from './workflows/bd_rhapsody_workflow'
-include { QC_mapping_workflow } from './workflows/QC_mapping_workflow'
-include { oak_seq_workflow } from './workflows/oak_seq_workflow'
-include { tenx_genomics_workflow } from './workflows/10x_genomics_workflow'
-include { filtering_workflow } from './workflows/filtering_workflow'
-
-// Import processes
 include { MULTIQC } from './modules/multiqc'
 include { MAPPING_STATS } from './modules/mapping_statistics'
 
-
-/* 
- * MAIN WORKFLOW
- * 
- * Selects pre-processing workflow depending on the    
- * sequencing technique and returns the pre-processed
- * FASTQ files, and possibly results from the equivalent 
- * commercial pipeline (depending on if the path to the 
- * local installation is given). The pre-processed files
- * are then used for mapping and quality control, and once
- * all outputs are finished, the pipeline triggers MultiQC
- * and the filtering workflow.  
-*/                                     
+                                     
+/*
+~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~
+    MAIN WORKFLOW
+        Selects pre-processing workflow depending on the sequencing technique 
+        and returns the pre-processed FASTQ files, and possibly results from 
+        the equivalent commercial pipeline (depending on if the path to the 
+        local installation is given). The pre-processed files are then used 
+        for mapping and quality control, and once all outputs are finished, 
+        the pipeline triggers MultiQC and the filtering workflow.  
+~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~
+*/
 workflow {
-    // Sequencing-specific analysis of data:
-    //  - Parse Bioscience: Demultiplexing using groups of wells and mapping using split-pipe
-    //  - BD Rhapsody: Removing variable bases and mapping using BD rhapsody pipeline
-    //  - OAK seq: Mapping using CellRanger
-    if (params.seqTech == 'parse_biosciences') {     
-        data_output = parse_workflow(sample_ids)
-    } else if (params.seqTech == 'bd_rhapsody') {
-        data_output = bd_rhapsody_workflow(sample_ids)
-    } else if (params.seqTech == 'oak_seq') {
-        data_output = oak_seq_workflow(sample_ids)
-    } else if (params.seqTech == '10x_genomics') {
-        data_output = tenx_genomics_workflow(sample_ids)
-    } else if (params.seqspec && file(params.seqspec).exists() && params.seqTech == 'seqspec') {     
-        data_output = seqspec_workflow(sample_ids)
-    } else {
-        error """
-        Invalid sequencing technology specified. Use one of the following parameters for 'seqTech': 
-        - 'parse_biosciences' 
-        - 'bd_rhapsody' 
-        - 'oak_seq' 
-        - '10x_genomics'
-        Or use 'seqspec' to specify a custom workflow.
-        """
-    }
+    // Pre-processing workflow
+    preprocessing_workflow(sample_ids)
     
     // Mapping using STARsolo, Alevin, and/or comparison to commercial pipelines
-    qc_output = QC_mapping_workflow(data_output)
+    QC_mapping_workflow(preprocessing_workflow.out)
 
     // Filtering raw matrices of ambient RNA and detecting doublets
-    filter_out = filtering_workflow(qc_output.mapping_files)
+    filter_out = filtering_workflow(QC_mapping_workflow.mapping_files)
 
     // Collect all outputs into a single channel and create trigger
-    all_outputs = data_output.mix(qc_output.all_outputs)
+    all_outputs = preprocessing_workflow.out.mix(QC_mapping_workflow.all_outputs)
     mapping_stats_trigger = all_outputs.collect().map { it -> true }
     
     // MultiQC and mapping statistics, only triggered after all outputs are finished
@@ -107,7 +70,11 @@ workflow {
 }
 
 
-// Runtime Information
+/*
+~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~
+    WORKFLOWS TO DISPLAY RUNTIME INFORMATION 
+~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~
+*/
 workflow.onComplete {
     summary = """
         Pipeline execution summary 
@@ -125,3 +92,9 @@ workflow.onError {
     println "Error: Pipeline execution stopped with the following message: ${workflow.errorMessage}"
 }
 
+
+/*
+~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~
+    THE END
+~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~
+*/

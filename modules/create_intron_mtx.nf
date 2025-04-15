@@ -8,7 +8,7 @@ process CREATE_INTRON_MTX {
     echo "Sample ID: ${sample_id}"
     echo "Mapping files: ${mapping_files}"
 
-    mapping_dir="${params.resDir}/mapping_STARsolo/${sample_id}"
-    sbatch ${params.baseDir}/bin/create_intron_mtx.sh \${mapping_dir}
+    mapping_dir="${params.output_dir}/mapping_STARsolo/${sample_id}"
+    sbatch ${params.code_dir}/bin/create_intron_mtx.sh \${mapping_dir}
     """
 }

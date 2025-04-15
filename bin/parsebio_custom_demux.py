@@ -8,17 +8,8 @@ This script:
   - Extracts a barcode from a fixed position in the R2 sequence
   - Checks if the barcode exists in the whitelist and, if so,
     writes the record pair to group-specific output files.
-
-Usage example:
-    python basic_fastq_splitter.py \
-        --fq1 input_R1.fastq.gz \
-        --fq2 input_R2.fastq.gz \
-        --whitelist whitelist.json \
-        --group sample_name wells \
-        --output results_dir \
-        --barcode_start 10 \
-        --barcode_end 18
 """
+
 import argparse
 import gzip
 import os

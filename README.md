@@ -141,23 +141,29 @@ To set the custom parameters for each run, a nextflow configuration file is crea
 Within each custom configuration file the following variables will be defined: 
 
 
-| Variable                | Description |
-|------------------------|-------------|
-| `baseDir`              | Path to the BCA-preprocessing codebase; used to access sequencing-specific scripts and pipeline components. |
-| `resDir`               | Path to the results/output directory containing FASTQ files and reference genome files; must exist before running. |
-| `seqTech`              | Specifies the sequencing technology used (e.g., `"oak_seq"`, `"parse_biosciences"`, `"bd_rhapsody"`). |
-| `annot_type`           | Annotation file type used for reference (either `"GTF"` or `"GFF"`). |
-| `ref_star_gtf`         | Path to the GTF/GFF file formatted for STARsolo. |
-| `ref_parse_gtf`        | Path to the GTF/GFF file formatted specifically for Parse Biosciences requirements. |
-| `ref_fasta`            | Path to the genome FASTA file used for mapping reads. |
-| `perform_geneext`      | Boolean flag to enable or disable the gene extension step in preprocessing. |
-| `mt_contig`            | Name of the mitochondrial contig in the reference annotation, used to calculate mtDNA content. |
-| `grep_rrna`            | String used to grep ribosomal RNA (rRNA) reads from annotations. |
-| `perform_kraken`       | Boolean flag to enable Kraken2 classification of unmapped reads. |
-| `kraken_db_path`       | Path to the Kraken2 database used for taxonomic classification of unmapped reads, if empty, a new database will be installed. |
-| `cellranger_dir`       | (optional) Path to the Cell Ranger software directory (used for 10x Genomics & OAK-seq data). |
-| `bdrhap_pipeline_dir`  | (optional) Path to the BD Rhapsody pipeline directory. |
-| `parsebio_pipeline_dir`| (optional) Path to the Parse Biosciences pipeline directory. |
+| Variable               | Required/Optional | Description |
+|------------------------|-------------------|-------------|
+| `code_dir`             | Optional          | Path to the BCA-preprocessing codebase; used to access sequencing-specific scripts and pipeline components. Default set to `.` |
+| `output_dir`           | __Required__          | Path to the results/output directory; must exist before running. |
+| `fastq_dir`            | __Required__          | Path to the raw FASTQ files. |
+| `protocol`              | __Required__          | Specifies the sequencing technology used (must be one of the following: `"oak_seq"`, `"10xv3"`, `"parse_biosciences"`,     `"bd_rhapsody"` or `"seqspec"`). |
+| `annot_type`            | __Required__          | Specifies if the format of the reference, must be either `"GFF"` or `"GTF"`.  |
+| `ref_fasta`            | __Required__          | Path to the genome FASTA file used for mapping reads. |
+| `ref_gtf`              | __Required__          | Path to the GTF/GFF file formatted for STARsolo. |
+| `ref_parse_gtf`        | Optional              | Path to the GTF/GFF file formatted specifically for analysis with Parse Biosciences pipeline. Defaults to the same path as `ref_gtf`. |
+| `seqspec_file`         | Optional              | Path to the seqspec file. |
+| `mt_contig`            | Optional          | Name of the mitochondrial contig in the reference annotation, used to calculate mtDNA content. Default set to `"^MT"` |
+| `grep_rrna`            | Optional          | String used to grep ribosomal RNA (rRNA) reads from annotations. Default set to `"rRNA"`|
+| `mapping_software`     | Optional          | Software used to map reads (must be one of the following: `"starsolo"`, `"salmon_alevin"` or `"both"`). Default set to `"starsolo"`. | 
+| `perform_geneext`      | Optional          | Boolean flag to enable or disable the gene extension step in preprocessing. Default is `true`. |
+| `perform_featurecounts`  | Optional          | Boolean flag to enable or disable calculation of mtDNA & rRNA percentages. Default is `true`. |
+| `perform_kraken`       | Optional          | Boolean flag to enable or disable Kraken2 classification of unmapped reads. Default is `true`. | 
+| `perform_cellbender`   | Optional          | Boolean flag to enable or disable removal of ambient RNA using CellBender. Default is `false`. | 
+| `kraken_db_path`       | Optional          | Path to the Kraken2 database used for taxonomic classification of unmapped reads, if empty, a default database will be installed. |
+| `cellranger_dir`       | Optional          | Path to the Cell Ranger software directory (used for 10x Genomics & OAK-seq data). |
+| `bdrhap_pipeline_dir`  | Optional          | Path to the BD Rhapsody pipeline directory. |
+| `parsebio_pipeline_dir`| Optional          | Path to the Parse Biosciences pipeline directory. |
+
 
 
 ### 2. Add custom configuration file as a new profile

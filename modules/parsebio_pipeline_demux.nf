@@ -9,7 +9,7 @@
 // all libraries. 
 
 process PARSEBIO_PIPELINE_DEMUX {
-    publishDir "${params.resDir}/demultiplex/demux_spipe/${sample_id}", mode: 'copy'
+    publishDir "${params.output_dir}/demultiplex/demux_spipe/${sample_id}", mode: 'copy'
     tag "${sample_id}_${group}"
     
     input:
@@ -29,7 +29,7 @@ process PARSEBIO_PIPELINE_DEMUX {
     echo "FQ 2: ${r2_fastq ?: 'Not provided'}"
 
     # Run Parse Biosciences demultiplexing script
-    python ${params.baseDir}/bin/fastq_sep_groups_v0.5.py \\
+    python ${params.code_dir}/bin/fastq_sep_groups_v0.5.py \\
         --chemistry v3 \\
         --fq1 ${r1_fastq} \\
         --fq2 ${r2_fastq} \\

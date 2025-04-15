@@ -1,12 +1,11 @@
 process SATURATION {
-    publishDir "${params.resDir}/saturation/${config}/${sample_id}", mode: 'copy'
+    publishDir "${params.output_dir}/saturation/${sample_id}", mode: 'copy'
     tag "${sample_id}"
     debug true
 
     input:
     tuple val(sample_id), path(mapping_files)
     file(bam_index)
-    val(config)
 
     output:
     file("saturation_output.tsv")
@@ -37,7 +36,7 @@ process SATURATION {
     temp_folder="_tmp"
     echo "cells:\${n_cells} reads:\${n_reads} mapreads:\${MAPREADS} maprate:\${map_rate}"
 
-    python ${params.baseDir}/submodules/10x_saturate/saturation_table.py \\
+    python ${params.code_dir}/submodules/10x_saturate/saturation_table.py \\
             --bam \${bam_file} \\
             --ncells \${n_cells} \\
             --mapping_rate \${map_rate} \\
