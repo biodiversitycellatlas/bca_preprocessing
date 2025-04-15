@@ -7,8 +7,8 @@
     IMPORT FUNCTIONS / MODULES / SUBWORKFLOWS
 ~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~
 */
-include { mapping_starsolo_workflow } from '../modules/mapping_starsolo_workflow'
-include { mapping_alevin_workflow   } from '../modules/mapping_alevin_workflow'
+include { mapping_starsolo_workflow } from '../subworkflows/mapping_starsolo'
+include { mapping_alevin_workflow   } from '../subworkflows/mapping_alevin'
 
 include { FASTQC                    } from '../modules/fastqc'
 include { KRAKEN_CREATE_DB          } from '../modules/kraken_create_db'

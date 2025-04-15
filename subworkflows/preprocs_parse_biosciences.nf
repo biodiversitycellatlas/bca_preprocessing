@@ -30,7 +30,7 @@ workflow parse_workflow {
         DOWNLOAD_DATA(sample_ids)
         
         // For each sample_id, all groups are added to the Channel
-        groups = Channel.fromList(params.groups)
+        groups = Channel.fromList(params.parsebio_groups)
         comb_data = DOWNLOAD_DATA.out.fastq_files.combine(groups)
 
         // Demultiplex the fastq files based on the sample wells
