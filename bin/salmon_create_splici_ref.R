@@ -1,5 +1,5 @@
 #!/usr/bin/env Rscript
-# =============================================================================
+# ------------------------------------------------------------------------------------
 # salmon_create_splici_ref.R
 #
 # Usage: Rscript salmon_create_splici_ref.R \
@@ -13,17 +13,26 @@
 # This script creates a spliced transcriptome reference for Salmon from a reference
 # genome and GTF file. It uses the `roe` package to generate the spliced transcriptome
 # and saves it in the specified output directory.
-# =============================================================================
+#
+# Published and created by the combine-lab:
+# https://combine-lab.github.io/alevin-fry-tutorials/2021/improving-txome-specificity/
+# and edited to be used in the context of the scRNA-seq pipeline
+# ------------------------------------------------------------------------------------
 
 install.packages("optparse", repos="http://cran.us.r-project.org")
-install.packages("eisaR", repos="http://cran.us.r-project.org")
-install.packages("Biostrings", repos="http://cran.us.r-project.org")
-install.packages("BSgenome", repos="http://cran.us.r-project.org")
 install.packages("dplyr", repos="http://cran.us.r-project.org")
 install.packages("stringr", repos="http://cran.us.r-project.org")
-install.packages("GenomicFeatures", repos="http://cran.us.r-project.org")
+
+if (!requireNamespace("BiocManager", quietly = TRUE))
+    install.packages("BiocManager", repos="http://cran.us.r-project.org")
+BiocManager::install("GenomicFeatures")
+BiocManager::install("eisaR")
+BiocManager::install("Biostrings")
+BiocManager::install("BSgenome")
+BiocManager::install("txdbmaker")
 
 library(optparse)
+library(eisaR)
 
 option_list = list(
   make_option(c("--ref_fasta"), type="character", help="Path to reference fasta"),
@@ -37,23 +46,9 @@ option_list = list(
 opt_parser = OptionParser(option_list=option_list)
 opt = parse_args(opt_parser)
 
-make_splici_txome(
-  genome_path = opt$ref_fasta,
-  gtf_path = opt$ref_gtf,
-  read_length = opt$readlen,
-  output_dir = opt$out_dir,
-  flank_trim_length = opt$flanklen,
-  filename_prefix = opt$prefix,
-  dedup_seqs = FALSE,
-  no_flanking_merge = FALSE
-)
-
-
-
 
 ########################################################################################################
 # make_splici_txome function
-# Official salmon script from : https://combine-lab.github.io/alevin-fry-tutorials/2021/improving-txome-specificity/
 ########################################################################################################
 
 make_splici_txome <- function(gtf_path,
@@ -255,3 +250,15 @@ make_splici_txome <- function(gtf_path,
 
   message("Done.")
 }
+
+#########################################################################################################
+# CALL make_splici_txome
+#########################################################################################################
+
+make_splici_txome(
+  genome_path = opt$ref_fasta,
+  gtf_path = opt$ref_gtf,
+  read_length = opt$readlen,
+  output_dir = opt$out_dir,
+  flank_trim_length = opt$flanklen
+)
