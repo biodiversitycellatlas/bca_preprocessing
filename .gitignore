@@ -8,4 +8,4 @@ seq_techniques/10x_genomics/barcodes_R2.txt
 logs/*
 seperate_scripts/*
 work/*
-
+config/2*
