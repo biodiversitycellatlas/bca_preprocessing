@@ -8,6 +8,7 @@ process GENINDEX_ALEVIN {
     script:
     """
     echo "\n\n==================  GENOME INDEX ALEVIN =================="
+    echo "Conda environment: \$CONDA_DEFAULT_ENV"
     echo "Reference fasta: ${params.ref_fasta}"
     echo "Reference ref_star_gtf: ${params.ref_star_gtf}"
 

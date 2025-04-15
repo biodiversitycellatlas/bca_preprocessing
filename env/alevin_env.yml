@@ -5,7 +5,10 @@ channels:
 dependencies:
   - piscem
   - simpleaf
+  - zlib
   - conda-forge::r-essentials
   - bioconda::alevin-fry
   - bioconda::salmon
   - bioconda::macs3
+  - pip:
+    - seqspec
