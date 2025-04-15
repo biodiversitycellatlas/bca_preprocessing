@@ -32,7 +32,7 @@ workflow mapping_starsolo_workflow {
     
     main:
         // Mapping: STARsolo
-        GENINDEX_STARSOLO()
+        GENINDEX_STARSOLO(params.ref_gtf)
         mapping_files = MAPPING_STARSOLO(data_output, GENINDEX_STARSOLO.out)
         INDEX_BAM(MAPPING_STARSOLO.out)
 
