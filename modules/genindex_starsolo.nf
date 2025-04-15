@@ -3,6 +3,9 @@
 */                  
 
 process GENINDEX_STARSOLO {
+    input:
+    path ref_gtf
+
     output:
     path("*")  
        
@@ -19,13 +22,13 @@ process GENINDEX_STARSOLO {
     sjdb_overhang=\$(zcat ${params.fastq_dir}/\${first_fastq} 2>/dev/null | awk 'NR==2 {print length(\$0)-1; exit}' || echo "") 
 
     # Read configuration file
-    star_config_mkref = "${params.code_dir}/seq_techniques/${params.protocol}/config_${params.protocol}_starsolo_mkref.txt"
+    star_config_mkref="${params.code_dir}/seq_techniques/${params.protocol}/config_${params.protocol}_starsolo_mkref.txt"
     config_file=\$(cat \${star_config_mkref})
 
     echo "Generating genome index with STAR"
     STAR --runMode genomeGenerate \\
         --genomeFastaFiles ${params.ref_fasta} \\
-        --sjdbGTFfile ${params.ref_gtf} \\
+        --sjdbGTFfile ${ref_gtf} \\
         ${gff_arg} \\
         --sjdbOverhang "\${sjdb_overhang}" \\
         --genomeSAindexNbases 12 \\
