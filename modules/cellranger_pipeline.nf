@@ -25,7 +25,7 @@ process CR_PIPELINE {
     cellranger count \\
         --id=\${clean_sample_id}_count \\
         --transcriptome=${cr_reference_dir} \\
-        --fastqs=${params.resDir}/fastq/ \\
+        --fastqs=${params.fastq_dir} \\
         --sample=\${clean_sample_id} \\
         --chemistry=auto \\
         --create-bam true

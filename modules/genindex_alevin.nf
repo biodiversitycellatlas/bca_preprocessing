@@ -13,8 +13,10 @@ process GENINDEX_ALEVIN {
     echo "Reference ref_star_gtf: ${params.ref_star_gtf}"
 
     # Retrieve the first accession number
-    first_fastq=\$(ls ${params.resDir}/fastq/*_R1* | head -n1)  
-    readlen=\$(zcat \${first_fastq} | awk 'NR==2 {print length(\$0)}') 
+    first_fastq=\$(ls "${params.fastq_dir}/" | head -n1)  
+
+    # Calculate read length using the first read from the first fastq file
+    readlen=\$(zcat ${params.fastq_dir}/\${first_fastq} | awk 'NR==2 {print length(\$0)}') 
 
     echo "First FASTQ file: \${first_fastq}"
     echo "Read length: \${readlen}"

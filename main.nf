@@ -32,7 +32,7 @@ println DEMULTIPLEX.out.splitted_files
 
 
 // Set up the sampleID channel
-sample_ids = Channel.fromPath("${params.resDir}/fastq/*_R1_001.fastq.gz")
+sample_ids = Channel.fromPath("${params.fastq_dir}/*_R1_001.fastq.gz")
     .map { file -> 
         file.name.replaceAll(/_R.*_001\.fastq\.gz$/, '')
     }
