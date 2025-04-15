@@ -58,10 +58,10 @@ workflow {
     QC_mapping_workflow(preprocessing_workflow.out)
 
     // Filtering raw matrices of ambient RNA and detecting doublets
-    filter_out = filtering_workflow(QC_mapping_workflow.mapping_files)
+    filter_out = filtering_workflow(QC_mapping_workflow.out.mapping_files)
 
     // Collect all outputs into a single channel and create trigger
-    all_outputs = preprocessing_workflow.out.mix(QC_mapping_workflow.all_outputs)
+    all_outputs = preprocessing_workflow.out.mix(QC_mapping_workflow.out.all_outputs)
     mapping_stats_trigger = all_outputs.collect().map { it -> true }
     
     // MultiQC and mapping statistics, only triggered after all outputs are finished
