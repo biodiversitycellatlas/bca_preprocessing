@@ -147,6 +147,7 @@ Within each custom configuration file the following variables will be defined:
 | `output_dir`           | __Required__          | Path to the results/output directory; must exist before running. |
 | `fastq_dir`            | __Required__          | Path to the raw FASTQ files. |
 | `protocol`              | __Required__          | Specifies the sequencing technology used (must be one of the following: `"oak_seq"`, `"10xv3"`, `"parse_biosciences"`,     `"bd_rhapsody"` or `"seqspec"`). |
+| `parsebio_groups`       | Optional          | Required for Parse Biosciences data, to split the FASTQ files by well. Should be a nested list, with their desired name and range of wells (example: [['group1', 'A1-A3'], ['group2', 'A4-A7'], ...])  |
 | `annot_type`            | __Required__          | Specifies if the format of the reference, must be either `"GFF"` or `"GTF"`.  |
 | `ref_fasta`            | __Required__          | Path to the genome FASTA file used for mapping reads. |
 | `ref_gtf`              | __Required__          | Path to the GTF/GFF file formatted for STARsolo. |
