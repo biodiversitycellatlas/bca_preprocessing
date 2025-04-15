@@ -10,7 +10,7 @@ process DOWNLOAD_DATA {
     script:
     """
     echo "sample id: ${sample_id}"
-    ln -s "${params.resDir}/fastq/${sample_id}_R1_001.fastq.gz" .
-    ln -s "${params.resDir}/fastq/${sample_id}_R2_001.fastq.gz" .
+    ln -s "${params.fastq_dir}/${sample_id}_R1_001.fastq.gz" .
+    ln -s "${params.fastq_dir}/${sample_id}_R2_001.fastq.gz" .
     """
 }
