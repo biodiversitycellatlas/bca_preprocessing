@@ -1,5 +1,5 @@
 process KRAKEN {
-    publishDir "${params.resDir}/kraken/${sample_id}", mode: 'copy'
+    publishDir "${params.output_dir}/kraken/${sample_id}", mode: 'copy'
     tag "${sample_id}"
 
     input:

@@ -1,5 +1,5 @@
 process GENINDEX_ALEVIN { 
-    publishDir "${params.resDir}/genome/genindex_alevin", mode: 'copy'
+    publishDir "${params.output_dir}/genome/genindex_alevin", mode: 'copy'
     debug true
 
     output:
@@ -10,7 +10,7 @@ process GENINDEX_ALEVIN {
     echo "\n\n==================  GENOME INDEX ALEVIN =================="
     echo "Conda environment: \$CONDA_DEFAULT_ENV"
     echo "Reference fasta: ${params.ref_fasta}"
-    echo "Reference ref_star_gtf: ${params.ref_star_gtf}"
+    echo "Reference ref_gtf: ${params.ref_gtf}"
 
     # Retrieve the first accession number
     first_fastq=\$(ls "${params.fastq_dir}/" | head -n1)  
@@ -22,9 +22,9 @@ process GENINDEX_ALEVIN {
     echo "Read length: \${readlen}"
 
     # Create splici reference
-    Rscript ${params.baseDir}/bin/salmon_create_splici_ref.R \\
+    Rscript ${params.code_dir}/bin/salmon_create_splici_ref.R \\
         --ref_fasta ${params.ref_fasta} \\
-        --ref_gtf ${params.ref_star_gtf} \\
+        --ref_gtf ${params.ref_gtf} \\
         --readlen \${readlen} \\
         --flanklen 5 \\
         --prefix "transcriptome_splici" \\

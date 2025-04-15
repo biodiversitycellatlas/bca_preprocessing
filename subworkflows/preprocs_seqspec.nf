@@ -1,5 +1,5 @@
 //
-// Workflow with functionality specific to 'main.nf'
+// Subworkflow with functionality specific to the workflow 'preprocessing_workflow.nf'
 //
 
 /*
@@ -7,26 +7,24 @@
     IMPORT FUNCTIONS / MODULES / SUBWORKFLOWS
 ~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~
 */
-include { CELLBENDER } from '../modules/cellbender'
+include { DOWNLOAD_DATA } from '../modules/download'
 
 
 /*
 ~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~
-    WORKFLOW TO RUN FILTERING
+    SUBWORKFLOW TO RUN PRE-PROCESSING WHEN GIVEN A SEQSPEC FILE
 ~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~
 */
-workflow filtering_workflow {
+workflow seqspec_workflow {
     take:
-        raw_matrix
+        sample_ids
     main:
-        // Ambient RNA removal using CellBender
-        if (params.perform_cellbender) {
-            CELLBENDER(raw_matrix)
-        } else {
-            log.info "Skipping Cellbender steps as 'perform_cellbender' is false."
-        }
-}
+        // Import the fastq files into the nf workdir using sym links to the original files
+        DOWNLOAD_DATA(sample_ids)
 
+    emit:
+        DOWNLOAD_DATA.out
+}
 
 /*
 ~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~

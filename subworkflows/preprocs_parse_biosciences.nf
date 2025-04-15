@@ -1,20 +1,27 @@
+//
+// Subworkflow with functionality specific to the workflow 'preprocessing_workflow.nf'
+//
+
+/*
+~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~
+    IMPORT FUNCTIONS / MODULES / SUBWORKFLOWS
+~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~
+*/
 include { DOWNLOAD_DATA } from '../modules/download'
 include { PARSEBIO_CUSTOM_DEMUX } from '../modules/parsebio_custom_demux'
-
 include { PARSEBIO_PIPELINE_DEMUX } from '../modules/parsebio_pipeline_demux'
 include { PARSEBIO_PIPELINE_MKREF } from '../modules/parsebio_pipeline_mkref'
 include { PARSEBIO_PIPELINE } from '../modules/parsebio_pipeline'
 
-
 /*
- * Parse Biosciences workflow
- *
- * Based on the sample wells, the fastq sequences must be split 
- * based on the first barcode round. Performs both custom- and 
- * commercial pre-processing (using the Parse Biosciences pipeline v1.3.1) 
- * enabling comparison between the methods and validation of steps.   
- */    
-
+~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~
+    SUBWORKFLOW TO RUN PRE-PROCESSING FOR PARSE BIOSCIENCES DATA
+        Based on the sample wells, the fastq sequences must be split 
+        based on the first barcode round. Performs both custom- and 
+        commercial pre-processing (using Parse Biosciences pipeline v1.3.1) 
+        enabling comparison between the methods and validation of steps. 
+~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~
+*/
 workflow parse_workflow {
     take:
         sample_ids
@@ -42,3 +49,9 @@ workflow parse_workflow {
         // Result: demultiplexed fastq files from split-pipe
         PARSEBIO_PIPELINE_DEMUX.out.splitted_files
 }
+
+/*
+~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~
+    THE END
+~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~
+*/

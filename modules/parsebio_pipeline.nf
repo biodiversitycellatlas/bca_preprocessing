@@ -9,7 +9,7 @@
 // directory.                                        \\
 
 process PARSEBIO_PIPELINE {
-    publishDir "${params.resDir}/ParseBio_pipeline/${sample_id}", mode: 'copy', overwrite: false
+    publishDir "${params.output_dir}/ParseBio_pipeline/${sample_id}", mode: 'copy', overwrite: false
     tag "${fastq_files}"
     
     input:
@@ -33,7 +33,7 @@ process PARSEBIO_PIPELINE {
     echo "Conda environment: \$CONDA_DEFAULT_ENV"
 
     # Generate parameter file
-    echo "post_min_map_frac 0.01" > config_${params.seqTech}_splitpipe.txt
+    echo "post_min_map_frac 0.01" > config_${params.protocol}_splitpipe.txt
 
     # Create directory for the genome index files
     mkdir -p genome_index
@@ -50,6 +50,6 @@ process PARSEBIO_PIPELINE {
         --nthreads 16 \\
         --genome_dir genome_index \\
         --output_dir . \\
-        --parfile config_${params.seqTech}_splitpipe.txt
+        --parfile config_${params.protocol}_splitpipe.txt
     """
 }
