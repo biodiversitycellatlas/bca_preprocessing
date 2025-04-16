@@ -11,6 +11,7 @@ include { bd_rhapsody_workflow          } from '../subworkflows/preprocs_bd_rhap
 include { parse_workflow                } from '../subworkflows/preprocs_parse_biosciences'
 include { oak_seq_workflow              } from '../subworkflows/preprocs_oak_seq'
 include { tenx_genomics_workflow        } from '../subworkflows/preprocs_10xv3'
+include { sci_rna_seq3_workflow         } from '../subworkflows/preprocs_sci_rna_seq3'
 include { seqspec_workflow              } from '../subworkflows/preprocs_seqspec'
 
 /*
@@ -39,6 +40,9 @@ workflow preprocessing_workflow {
         } else if (params.protocol == '10xv3') {
             data_output = tenx_genomics_workflow(sample_ids)
 
+        } else if (params.protocol == 'sci_rna_seq3') {
+            data_output = sci_rna_seq3_workflow(sample_ids)
+
         } else if (params.seqspec_file && file(params.seqspec_file).exists() && params.protocol == 'seqspec') {     
             data_output = seqspec_workflow(sample_ids)
             
@@ -49,6 +53,7 @@ workflow preprocessing_workflow {
             - 'bd_rhapsody' 
             - 'oak_seq' 
             - '10xv3'
+            - 'sci_rna_seq3'
             Or use 'seqspec' to specify a non-supported sequencing technique.
             """
         }
