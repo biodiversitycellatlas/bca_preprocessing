@@ -37,7 +37,7 @@ workflow QC_mapping_workflow {
             mapping_files = mapping_starsolo_workflow.out.mapping_files
             all_outputs = all_outputs.mix(mapping_starsolo_workflow.out.all_outputs)
 
-        } else if (params.mapping_software == "salmon_alevin") {
+        } else if (params.mapping_software == "alevin") {
             mapping_alevin_workflow(data_output, all_outputs)
             mapping_files = mapping_alevin_workflow.out.mapping_files
             all_outputs = all_outputs.mix(mapping_alevin_workflow.out.all_outputs)
@@ -50,7 +50,7 @@ workflow QC_mapping_workflow {
             all_outputs = all_outputs.mix(mapping_starsolo_workflow.out.all_outputs)
         
         } else {
-            error "Invalid mapping software specified. Use one of the following parameters: 'starsolo', 'salmon_alevin' or 'both'."
+            error "Invalid mapping software specified. Use one of the following parameters: 'starsolo', 'alevin' or 'both'."
         }
 
         // Inspecting unmapped reads

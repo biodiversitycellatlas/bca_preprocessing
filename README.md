@@ -18,6 +18,8 @@ This nextflow pipeline is designed to pre-process single-cell and single-nucleus
 - BD Rhapsody
 - OAK-seq 
 - 10x Genomics
+- sci-RNA-seq3
+- and others, when providing a [seqspec](https://github.com/pachterlab/seqspec) file
 
 Depending on the chosen sequencing technique, it handles the FASTQ files accordingly. 
 Parse Biosciences data will be demultiplexed depending on the groups parameter, which seperates possible different techniques or samples within the same plate based on the wells. After demultiplexing, it is mapped using the official split-pipe pipeline from Parse Biosciences, to offer a comparation between their data processing platform and the results of our pipeline. The same comparisons are provided for BD Rhapsody (using BD-Rhapsody pipeline), OAKseq and 10x data (using Cell Ranger).   
@@ -144,21 +146,22 @@ Within each custom configuration file the following variables will be defined:
 | Variable               | Required/Optional | Description |
 |------------------------|-------------------|-------------|
 | `code_dir`             | Optional          | Path to the BCA-preprocessing codebase; used to access sequencing-specific scripts and pipeline components. Default set to `.` |
-| `output_dir`           | __Required__          | Path to the results/output directory; must exist before running. |
 | `fastq_dir`            | __Required__          | Path to the raw FASTQ files. |
-| `protocol`              | __Required__          | Specifies the sequencing technology used (must be one of the following: `"oak_seq"`, `"10xv3"`, `"parse_biosciences"`,     `"bd_rhapsody"` or `"seqspec"`). |
-| `parsebio_groups`       | Optional          | Required for Parse Biosciences data, to split the FASTQ files by well. Should be a nested list, with their desired name and range of wells (example: [['group1', 'A1-A3'], ['group2', 'A4-A7'], ...])  |
+| `output_dir`           | __Required__          | Path to the results/output directory; must exist before running. |
+| `protocol`              | __Required__          | Specifies the sequencing technology used (must be one of the following: `"oak_seq"`, `"10xv3"`, `"parse_biosciences"`,     `"bd_rhapsody"`, `"sci_rna_seq3"` or `"seqspec"`). |
+| `parsebio_groups`       | Optional          | Required for Parse Biosciences data, to split the FASTQ files by well. Should be a nested list, with their desired name and range of wells (example: `[['group1', 'A1-A3'], ['group2', 'A4-A7'], ...]`)  |
 | `annot_type`            | __Required__          | Specifies if the format of the reference, must be either `"GFF"` or `"GTF"`.  |
 | `ref_fasta`            | __Required__          | Path to the genome FASTA file used for mapping reads. |
 | `ref_gtf`              | __Required__          | Path to the GTF/GFF file formatted for STARsolo. |
 | `ref_parse_gtf`        | Optional              | Path to the GTF/GFF file formatted specifically for analysis with Parse Biosciences pipeline. Defaults to the same path as `ref_gtf`. |
 | `seqspec_file`         | Optional              | Path to the seqspec file. |
+| `n_expected_cells`     | Optional              | Number of expected cells. Default is set to `3000`. |
 | `mt_contig`            | Optional          | Name of the mitochondrial contig in the reference annotation, used to calculate mtDNA content. Default set to `"^MT"` |
 | `grep_rrna`            | Optional          | String used to grep ribosomal RNA (rRNA) reads from annotations. Default set to `"rRNA"`|
-| `mapping_software`     | Optional          | Software used to map reads (must be one of the following: `"starsolo"`, `"salmon_alevin"` or `"both"`). Default set to `"starsolo"`. | 
+| `mapping_software`     | Optional          | Software used to map reads (must be one of the following: `"starsolo"`, `"alevin"` or `"both"`). Default set to `"starsolo"`. | 
 | `perform_geneext`      | Optional          | Boolean flag to enable or disable the gene extension step in preprocessing. Default is `true`. |
 | `perform_featurecounts`  | Optional          | Boolean flag to enable or disable calculation of mtDNA & rRNA percentages. Default is `true`. |
-| `perform_kraken`       | Optional          | Boolean flag to enable or disable Kraken2 classification of unmapped reads. Default is `true`. | 
+| `perform_kraken`       | Optional          | Boolean flag to enable or disable Kraken2 classification of unmapped reads. Default is `false`. | 
 | `perform_cellbender`   | Optional          | Boolean flag to enable or disable removal of ambient RNA using CellBender. Default is `false`. | 
 | `kraken_db_path`       | Optional          | Path to the Kraken2 database used for taxonomic classification of unmapped reads, if empty, a default database will be installed. |
 | `cellranger_dir`       | Optional          | Path to the Cell Ranger software directory (used for 10x Genomics & OAK-seq data). |
@@ -201,13 +204,10 @@ nextflow run -profile slurm,test_config -ansi-log false "$@" & pid=$!
 
 ## Usage
 
-### Required files & parameters
-- [ ] Nextflow configuration file
-- [ ] /fastq/ folder with raw FASTQ files.
-- [ ] /genome/ folder with genome annotation files (FASTA and GFF/GTF files)
-
-### Optional files & parameters
-- [ ] spec.yaml - created using seqspec
+### Pre-requisites:
+- [ ] Configured the custom config file (config/custom.config)
+- [ ] Added custom config as profile in the main config file (config/main.config)
+- [ ] Added profile to the command line option in the submit_nextflow.sh script
 
 ### Running the Pipeline
 

@@ -31,12 +31,12 @@ sample_ids = Channel.fromPath("${params.fastq_dir}/*_R1_001.fastq.gz")
     IMPORT FUNCTIONS / MODULES / SUBWORKFLOWS
 ~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~
 */
-include { preprocessing_workflow } from './workflows/preprocessing_workflow.nf'
-include { QC_mapping_workflow } from './workflows/mapping_workflow.nf'
-include { filtering_workflow } from './workflows/filtering_workflow.nf'
+include { preprocessing_workflow    } from './workflows/preprocessing_workflow.nf'
+include { QC_mapping_workflow       } from './workflows/mapping_workflow.nf'
+include { filtering_workflow        } from './workflows/filtering_workflow.nf'
 
-include { MULTIQC } from './modules/multiqc'
-include { MAPPING_STATS } from './modules/mapping_statistics'
+include { MULTIQC                   } from './modules/multiqc'
+include { MAPPING_STATS             } from './modules/mapping_statistics'
 
                                      
 /*
