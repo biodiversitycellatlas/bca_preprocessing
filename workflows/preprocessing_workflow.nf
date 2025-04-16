@@ -21,6 +21,7 @@ include { seqspec_workflow              } from '../subworkflows/preprocs_seqspec
         - Parse Bioscience: Demultiplexing using groups of wells and mapping using split-pipe
         - BD Rhapsody: Removing variable bases and mapping using BD rhapsody pipeline
         - OAK seq & 10xv3: Mapping using CellRanger
+        - Sci-RNA-seq3: Pre-processing based on the sci-rocket pipeline
 ~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~
 */
 workflow preprocessing_workflow {
