@@ -8,7 +8,7 @@ process GENE_EXT {
     file(bam_index)
 
     output:
-    path("${sample_id}*")
+    path("${sample_id}*.geneext.g{tf, ff}")
     
     script:
     """

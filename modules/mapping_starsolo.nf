@@ -25,7 +25,7 @@ process MAPPING_STARSOLO {
     def barcodeDir = "${params.code_dir}/seq_techniques/${params.protocol}/barcodes_R1.txt \
                         ${params.code_dir}/seq_techniques/${params.protocol}/barcodes_R2.txt \
                         ${params.code_dir}/seq_techniques/${params.protocol}/barcodes_R3.txt"
-    def barcode_option = "--soloCBwhitelist ${params.barcodeDir.replaceAll('\n', '')}"
+    def barcode_option = "--soloCBwhitelist ${barcodeDir.replaceAll('\n', '')}"
 
     def fastq_list = fastq_files instanceof List ? fastq_files : [fastq_files]
     def r1_fastq = fastq_list.find { it.name.contains('_R1') }
@@ -47,6 +47,14 @@ process MAPPING_STARSOLO {
         CBUMI_read = r2_fastq
     }
 
+    // If necesary, set the number of expected cells and cell filter for STARsolo
+    if (!params.n_expected_cells || params.n_expected_cells == "") {
+        n_expected_cells = 3000 // default STARsolo
+    } else {
+        n_expected_cells = params.n_expected_cells
+    }
+    def cell_filter = "--soloCellFilter CellRanger2.2 ${n_expected_cells} 0.99 10"
+
     """
     echo "\n\n==============  MAPPING STARSOLO  ================"
     echo "Mapping sample ${sample_id} with STARsolo"
@@ -56,7 +64,7 @@ process MAPPING_STARSOLO {
     echo "Barcodes: ${barcode_option}"
 
     # Read configuration file
-    star_config = "${params.code_dir}/seq_techniques/${params.protocol}/config_${params.protocol}_starsolo.txt"
+    star_config="${params.code_dir}/seq_techniques/${params.protocol}/config_${params.protocol}_starsolo.txt"
     config_file=\$(cat \${star_config})
 
     # Mapping step and generating count matrix using STAR
@@ -71,6 +79,7 @@ process MAPPING_STARSOLO {
         --soloMultiMappers EM \\
         --outFileNamePrefix ${sample_id}_ \\
         ${bd_mem_arg} \\
-        \${config_file} 
+        ${cell_filter} \\
+        \${config_file}
     """
 }
