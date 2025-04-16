@@ -37,9 +37,9 @@ workflow mapping_starsolo_workflow {
         INDEX_BAM(MAPPING_STARSOLO.out)
 
         // Calculate saturation
-        SATURATION(MAPPING_STARSOLO.out, INDEX_BAM.out)
-        SATURATION_PLOT(MAPPING_STARSOLO.out, SATURATION.out)
-        all_outputs.mix(SATURATION_PLOT.out)
+        // SATURATION(MAPPING_STARSOLO.out, INDEX_BAM.out)
+        // SATURATION_PLOT(MAPPING_STARSOLO.out, SATURATION.out)
+        // all_outputs.mix(SATURATION_PLOT.out)
 
         // Calculate percentages mitochondrial DNA and ribosomal RNA
         if (params.perform_featurecounts) {
