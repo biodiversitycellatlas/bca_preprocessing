@@ -26,17 +26,21 @@ process MAPPING_STARSOLO {
     def r1_fastq = fastq_list.find { it.name.contains('_R1') }
     def r2_fastq = fastq_list.find { it.name.contains('_R2') }
 
+    // Retrieve barcode whitelist from conf/seqtech_parameters.config
+    def bc_whitelist = params.seqtech_parameters[params.protocol].bc_whitelist
+
     // Retrieve starsolo settings from conf/seqtech_parameters.config
     def starsolo_settings = params.seqtech_parameters[params.protocol].starsolo
     def starsolo_args = starsolo_settings instanceof List ? starsolo_settings.join(' ') : starsolo_settings
 
     // Define which FASTQ file contains cDNA and which are the barcodes/UMIs
+    def cDNA_read, CBUMI_read
     if (params.protocol.contains("bd_rhapsody") || params.protocol.contains("10x") || params.protocol.contains("oak_seq") || params.protocol.contains("sci_rna_seq3")) {
-        def cDNA_read = r2_fastq
-        def CBUMI_read = r1_fastq
+        cDNA_read = r2_fastq
+        CBUMI_read = r1_fastq
     } else {
-        def cDNA_read = r1_fastq
-        def CBUMI_read = r2_fastq
+        cDNA_read = r1_fastq
+        CBUMI_read = r2_fastq
     }
 
     """
@@ -55,8 +59,8 @@ process MAPPING_STARSOLO {
         --outSAMtype BAM SortedByCoordinate \\
         --outFileNamePrefix ${sample_id}_ \\
         --soloCellFilter CellRanger2.2 ${params.n_expected_cells} 0.99 10 \\
+        --soloCBwhitelist ${bc_whitelist} \\
         ${bd_mem_arg} \\
-        ${cell_filter} \\
         ${starsolo_args}
     """
 }
