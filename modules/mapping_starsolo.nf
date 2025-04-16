@@ -22,38 +22,22 @@ process MAPPING_STARSOLO {
     // Set default variables
     def bd_mem_arg = task.ext.args ?: ''
 
-    def barcodeDir = "${params.code_dir}/seq_techniques/${params.protocol}/barcodes_R1.txt \
-                        ${params.code_dir}/seq_techniques/${params.protocol}/barcodes_R2.txt \
-                        ${params.code_dir}/seq_techniques/${params.protocol}/barcodes_R3.txt"
-    def barcode_option = "--soloCBwhitelist ${barcodeDir.replaceAll('\n', '')}"
-
     def fastq_list = fastq_files instanceof List ? fastq_files : [fastq_files]
     def r1_fastq = fastq_list.find { it.name.contains('_R1') }
     def r2_fastq = fastq_list.find { it.name.contains('_R2') }
-    def cDNA_read, CBUMI_read
 
-    // Execute seqspec commands and capture output in Groovy variables
-    if (params.protocol.toLowerCase().contains("bd_rhapsody")) {
-        cDNA_read = r2_fastq
-        CBUMI_read = r1_fastq
-    
-    } else if (params.protocol.toLowerCase().contains("oak_seq")) {
-        cDNA_read = r2_fastq
-        CBUMI_read = r1_fastq
-        barcode_option = "--soloCBwhitelist ${params.code_dir}/seq_techniques/${params.protocol}/barcodes_R2.txt"
-    
-    } else {
-        cDNA_read = r1_fastq
-        CBUMI_read = r2_fastq
-    }
+    // Retrieve starsolo settings from conf/seqtech_parameters.config
+    def starsolo_settings = params.seqtech_parameters[params.protocol].starsolo
+    def starsolo_args = starsolo_settings instanceof List ? starsolo_settings.join(' ') : starsolo_settings
 
-    // If necesary, set the number of expected cells and cell filter for STARsolo
-    if (!params.n_expected_cells || params.n_expected_cells == "") {
-        n_expected_cells = 3000 // default STARsolo
+    // Define which FASTQ file contains cDNA and which are the barcodes/UMIs
+    if (params.protocol.contains("bd_rhapsody") || params.protocol.contains("10x") || params.protocol.contains("oak_seq") || params.protocol.contains("sci_rna_seq3")) {
+        def cDNA_read = r2_fastq
+        def CBUMI_read = r1_fastq
     } else {
-        n_expected_cells = params.n_expected_cells
+        def cDNA_read = r1_fastq
+        def CBUMI_read = r2_fastq
     }
-    def cell_filter = "--soloCellFilter CellRanger2.2 ${n_expected_cells} 0.99 10"
 
     """
     echo "\n\n==============  MAPPING STARSOLO  ================"
@@ -61,11 +45,6 @@ process MAPPING_STARSOLO {
     echo "FQ 1: ${r1_fastq ?: 'Not provided'}"
     echo "FQ 2: ${r2_fastq ?: 'Not provided'}"
     echo "Genome index directory: ${genome_index_files}"
-    echo "Barcodes: ${barcode_option}"
-
-    # Read configuration file
-    star_config="${params.code_dir}/seq_techniques/${params.protocol}/config_${params.protocol}_starsolo.txt"
-    config_file=\$(cat \${star_config})
 
     # Mapping step and generating count matrix using STAR
     STAR \\
@@ -73,13 +52,11 @@ process MAPPING_STARSOLO {
         --readFilesIn ${cDNA_read} ${CBUMI_read} \\
         --genomeDir ${genome_index_files.toRealPath()} \\
         --readFilesCommand zcat \\
-        ${barcode_option} \\
         --outSAMtype BAM SortedByCoordinate \\
-        --outSAMattributes NH HI AS nM CR UR CB UB \\
-        --soloMultiMappers EM \\
         --outFileNamePrefix ${sample_id}_ \\
+        --soloCellFilter CellRanger2.2 ${params.n_expected_cells} 0.99 10 \\
         ${bd_mem_arg} \\
         ${cell_filter} \\
-        \${config_file}
+        ${starsolo_args}
     """
 }
