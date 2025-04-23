@@ -7,5 +7,6 @@ seq_techniques/10x_genomics/barcodes_R2.txt
 # Ignore all files in the following directories
 logs/*
 seperate_scripts/*
+seq_techniques/*
 work/*
 conf/2*

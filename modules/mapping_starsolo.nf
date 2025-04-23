@@ -50,10 +50,24 @@ process MAPPING_STARSOLO {
     echo "FQ 2: ${r2_fastq ?: 'Not provided'}"
     echo "Genome index directory: ${genome_index_files}"
 
+    # In case the protocol does not exist and the user has not provided a seqspec file
+    SOLO_ARGS=\"${starsolo_args}\"
+    if [[ -n \"${params.seqspec_file}\" && \"${params.protocol}\" == *\"seqspec\"* ]]; 
+    then
+        # Retrieve input FASTQ files from seqspec file in starsolo format
+        input_fastqs=\$(seqspec file -m rna -s read -f paired -k filename spec.yaml | awk '{print "-1 "\$1 " -2 "\$2}')
+
+        # Barcode structure information from seqspec file
+        bc_struct=\$(seqspec index -m rna -t starsolo -s file spec.yaml)
+        SOLO_ARGS=\"\${bc_struct} \${SOLO_ARGS}\"
+    else
+        input_fastqs="-1 ${cDNA_read} -2 ${CBUMI_read}"
+    fi
+
     # Mapping step and generating count matrix using STAR
     STAR \\
         --runThreadN 8 \\
-        --readFilesIn ${cDNA_read} ${CBUMI_read} \\
+        --readFilesIn \${input_fastqs} \\
         --genomeDir ${genome_index_files.toRealPath()} \\
         --readFilesCommand zcat \\
         --outSAMtype BAM SortedByCoordinate \\
@@ -61,6 +75,6 @@ process MAPPING_STARSOLO {
         --soloCellFilter CellRanger2.2 ${params.n_expected_cells} 0.99 10 \\
         --soloCBwhitelist ${bc_whitelist} \\
         ${bd_mem_arg} \\
-        ${starsolo_args}
+        \${SOLO_ARGS}
     """
 }
