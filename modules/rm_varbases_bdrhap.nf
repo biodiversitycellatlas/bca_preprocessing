@@ -1,12 +1,12 @@
 process RM_VARBASES {
-    tag "${sample_id}"
+    tag "${meta.id}"
     debug true
     
     input:
-    tuple val(sample_id), path(fastq_files)
+    tuple val(meta), path(fastq_files)
 
     output:
-    tuple val(sample_id), path("noVB_${sample_id}_R{1,2}_001.fastq.gz"), emit: fastq_noVB_files
+    tuple val(meta), path("noVB_${meta.id}_R{1,2}_001.fastq.gz"), emit: fastq_noVB_files
 
     script:
     """
@@ -17,8 +17,8 @@ process RM_VARBASES {
     cutadapt \\
         -g "^A" -g "^GT" -g "^TCA" \\
         --quality-cutoff 0 \\
-        -o noVB_${sample_id}_R1_001.fastq.gz -p noVB_${sample_id}_R2_001.fastq.gz \\
-        ${sample_id}_R1_001.fastq.gz ${sample_id}_R2_001.fastq.gz
+        -o noVB_${meta.id}_R1_001.fastq.gz -p noVB_${meta.id}_R2_001.fastq.gz \\
+        ${meta.id}_R1_001.fastq.gz ${meta.id}_R2_001.fastq.gz
 
     # Deactivate the virtual environment after completion
     deactivate

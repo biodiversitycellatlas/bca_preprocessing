@@ -17,10 +17,10 @@ include { DOWNLOAD_DATA } from '../modules/download'
 */
 workflow seqspec_workflow {
     take:
-        sample_ids
+        ch_samplesheet
     main:
         // Import the fastq files into the nf workdir using sym links to the original files
-        DOWNLOAD_DATA(sample_ids)
+        DOWNLOAD_DATA(ch_samplesheet)
 
     emit:
         DOWNLOAD_DATA.out

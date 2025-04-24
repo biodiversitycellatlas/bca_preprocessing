@@ -32,7 +32,7 @@ workflow mapping_starsolo_workflow {
     
     main:
         // Mapping: STARsolo
-        GENINDEX_STARSOLO(params.ref_gtf)
+        GENINDEX_STARSOLO(data_output, params.ref_gtf)
         mapping_files = MAPPING_STARSOLO(data_output, GENINDEX_STARSOLO.out)
         INDEX_BAM(MAPPING_STARSOLO.out)
 
@@ -53,7 +53,7 @@ workflow mapping_starsolo_workflow {
         // params.perform_geneext (boolean) must be true
         if (params.perform_geneext) {
             GENE_EXT(MAPPING_STARSOLO.out, INDEX_BAM.out)
-            GENINDEX_STARSOLO_GENEEXT(GENE_EXT.out)
+            GENINDEX_STARSOLO_GENEEXT(data_output, GENE_EXT.out)
             MAPPING_STARSOLO_GENEEXT(data_output, GENINDEX_STARSOLO_GENEEXT.out)
             INDEX_BAM_GENEEXT(MAPPING_STARSOLO_GENEEXT.out)
 

@@ -11,6 +11,6 @@ process MULTIQC {
     script:
     """    
     multiqc ${params.output_dir} \\
-        --config ${params.code_dir}/bin/multiqc_config.yml
+        --config ${launchDir}/bin/multiqc_config.yml
     """
 }

@@ -6,6 +6,7 @@ dependencies:
   - piscem
   - simpleaf
   - zlib
+  - r-base
   - conda-forge::r-essentials
   - bioconda::alevin-fry
   - bioconda::salmon

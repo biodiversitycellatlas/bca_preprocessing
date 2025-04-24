@@ -1,19 +1,19 @@
 process GENE_EXT {
-    publishDir "${params.output_dir}/gene_ext/${sample_id}", mode: 'copy'
-    tag "${sample_id}"
+    publishDir "${params.output_dir}/gene_ext/${meta.id}", mode: 'copy'
+    tag "${meta.id}"
     debug true
 
     input:
-    tuple val(sample_id), path(mapping_files)
+    tuple val(meta), path(mapping_files)
     file(bam_index)
 
     output:
-    path("${sample_id}*.geneext.g{tf, ff}")
+    path("${meta.id}*.geneext.g{tf, ff}")
     
     script:
     """
     echo "\n\n==================  GENE EXTENSION =================="
-    echo "Sample ID: ${sample_id}"
+    echo "Sample ID: ${meta}"
     echo "Mapping files: ${mapping_files}"
     echo "BAM index: ${bam_index}"
     echo "Original GTF: ${params.ref_gtf}"
@@ -23,14 +23,14 @@ process GENE_EXT {
     
     if [ ${params.annot_type} == "GFF" ];
     then
-        gtf_output="${sample_id}_geneext.gff"
+        gtf_output="${meta.id}_geneext.gff"
     else
-        gtf_output="${sample_id}_geneext.gtf"
+        gtf_output="${meta.id}_geneext.gtf"
     fi
     echo \${gtf_output}
     bam_file=\$(ls *_Aligned.sortedByCoord.out.bam | head -n 1)
     
-    python ${params.code_dir}/submodules/GeneExt/geneext.py \\
+    python ${launchDir}/submodules/GeneExt/geneext.py \\
         -g ${params.ref_gtf} \\
         -b \${bam_file} \\
         -o \${gtf_output} \\

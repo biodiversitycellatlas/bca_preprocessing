@@ -22,7 +22,7 @@ workflow mapping_alevin_workflow {
         all_outputs
 
     main:
-        GENINDEX_ALEVIN()
+        GENINDEX_ALEVIN(data_output)
         MAPPING_ALEVIN(data_output, GENINDEX_ALEVIN.out)
 
     emit:
