@@ -26,26 +26,26 @@ include { seqspec_workflow              } from '../subworkflows/preprocs_seqspec
 */
 workflow preprocessing_workflow {
     take:
-        sample_ids
+        ch_samplesheet
 
     main:
         if (params.protocol == 'parse_biosciences') {     
-            data_output = parse_workflow(sample_ids)
+            data_output = parse_workflow(ch_samplesheet)
 
         } else if (params.protocol == 'bd_rhapsody') {
-            data_output = bd_rhapsody_workflow(sample_ids)
+            data_output = bd_rhapsody_workflow(ch_samplesheet)
 
         } else if (params.protocol == 'oak_seq') {
-            data_output = oak_seq_workflow(sample_ids)
+            data_output = oak_seq_workflow(ch_samplesheet)
 
         } else if (params.protocol == '10xv3') {
-            data_output = tenx_genomics_workflow(sample_ids)
+            data_output = tenx_genomics_workflow(ch_samplesheet)
 
         } else if (params.protocol == 'sci_rna_seq3') {
-            data_output = sci_rna_seq3_workflow(sample_ids)
+            data_output = sci_rna_seq3_workflow(ch_samplesheet)
 
         } else if (params.seqspec_file && file(params.seqspec_file).exists() && params.protocol == 'seqspec') {     
-            data_output = seqspec_workflow(sample_ids)
+            data_output = seqspec_workflow(ch_samplesheet)
             
         } else {
             error """

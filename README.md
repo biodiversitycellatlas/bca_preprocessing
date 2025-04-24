@@ -138,15 +138,14 @@ split-pipe -h
 
 ### 1. Create a new Nextflow configuration file
 
-To set the custom parameters for each run, a nextflow configuration file is created that extends the general `nextflow.config` file in the base of this repository. The custom configuration files can be stored within the `/config/` directory, and should be based upon the example config file in [`/examples/config/`](https://github.com/biodiversitycellatlas/bca_preprocessing/blob/main/examples/config/example.config). If you have a multiple-species experiment, one configuration file per species must be created in order to analyze the data with the corresponding genome annotation files. 
+To set the custom parameters for each run, a nextflow configuration file is created that extends the general `nextflow.config` file in the base of this repository. The custom configuration files can be stored within the `/conf/` directory, and should be based upon the example config file in [`conf/example.config`](https://github.com/biodiversitycellatlas/bca_preprocessing/blob/main/conf/example.config). If you have a multiple-species experiment, one configuration file per species must be created in order to analyze the data with the corresponding genome annotation files. 
 
-Within each custom configuration file the following variables will be defined: 
+Within each custom configuration file the following variables can be defined: 
 
 
 | Variable               | Required/Optional | Description |
 |------------------------|-------------------|-------------|
-| `code_dir`             | Optional          | Path to the BCA-preprocessing codebase; used to access sequencing-specific scripts and pipeline components. Default set to `.` |
-| `fastq_dir`            | __Required__          | Path to the raw FASTQ files. |
+| `input`                | __Required__         | Path to the samplesheet. |
 | `output_dir`           | __Required__          | Path to the results/output directory; must exist before running. |
 | `protocol`              | __Required__          | Specifies the sequencing technology used (must be one of the following: `"oak_seq"`, `"10xv3"`, `"parse_biosciences"`,     `"bd_rhapsody"`, `"sci_rna_seq3"` or `"seqspec"`). |
 | `parsebio_groups`       | Optional          | Required for Parse Biosciences data, to split the FASTQ files by well. Should be a nested list, with their desired name and range of wells (example: `[['group1', 'A1-A3'], ['group2', 'A4-A7'], ...]`)  |
@@ -155,7 +154,6 @@ Within each custom configuration file the following variables will be defined:
 | `ref_gtf`              | __Required__          | Path to the GTF/GFF file formatted for STARsolo. |
 | `ref_parse_gtf`        | Optional              | Path to the GTF/GFF file formatted specifically for analysis with Parse Biosciences pipeline. Defaults to the same path as `ref_gtf`. |
 | `seqspec_file`         | Optional              | Path to the seqspec file. |
-| `n_expected_cells`     | Optional              | Number of expected cells. Default is set to `3000`. |
 | `mt_contig`            | Optional          | Name of the mitochondrial contig in the reference annotation, used to calculate mtDNA content. Default set to `"^MT"` |
 | `grep_rrna`            | Optional          | String used to grep ribosomal RNA (rRNA) reads from annotations. Default set to `"rRNA"`|
 | `mapping_software`     | Optional          | Software used to map reads (must be one of the following: `"starsolo"`, `"alevin"` or `"both"`). Default set to `"starsolo"`. | 

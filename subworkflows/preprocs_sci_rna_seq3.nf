@@ -21,13 +21,13 @@ include { FASTP                 } from '../modules/fastp'
 */
 workflow sci_rna_seq3_workflow {
     take:
-        sample_ids
+        ch_samplesheet
     main:
         // Import the fastq files into the nf workdir using sym links to the original files
-        DOWNLOAD_DATA(sample_ids)
+        DOWNLOAD_DATA(ch_samplesheet)
 
         // Splitting fastq files into smaller chunks
-        FASTQ_SPLITTER(sample_ids, DOWNLOAD_DATA.out)
+        FASTQ_SPLITTER(ch_samplesheet, DOWNLOAD_DATA.out)
 
         // Flatten the output of FASTQ_SPLITTER to create a list of tuples
         FASTQ_SPLITTER.out.split_files_ch

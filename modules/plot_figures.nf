@@ -12,10 +12,10 @@ process PLOT_FIGURES {
     # Loop over subdirectories in $work_dir
     for config_dir in "\$work_dir"/*; do
         echo "---- Plot Knee plots and Comparisons"
-        python ${params.code_dir}/scripts/visualize_starsolo_comparison.py \${config_dir}
+        python ${launchDir}/scripts/visualize_starsolo_comparison.py \${config_dir}
 
         echo "---- Plot Overview rRNA & mtDNA"
-        python ${params.code_dir}/scripts/visualize_mt_rrna.py \${config_dir}
+        python ${launchDir}/scripts/visualize_mt_rrna.py \${config_dir}
 
     
         [[ ! -d "\${sample_dir}" ]] && continue
@@ -44,7 +44,7 @@ process PLOT_FIGURES {
     done
 
     echo "---- Plot Intronic Reads vs. Mitochondrial DNA %"
-    python ${params.code_dir}/scripts/visualize_intronic_vs_mtdna.py "\$output_csv"
+    python ${launchDir}/scripts/visualize_intronic_vs_mtdna.py "\$output_csv"
 
     """
 }

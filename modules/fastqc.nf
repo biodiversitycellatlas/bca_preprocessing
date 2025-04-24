@@ -3,7 +3,7 @@ process FASTQC {
     tag "${fastq_files}"
 
     input:
-    tuple val(sample_id), path(fastq_files)
+    tuple val(meta), path(fastq_files)
 
     output:
     path "*_fastqc.{zip,html}", emit: fastqc_results

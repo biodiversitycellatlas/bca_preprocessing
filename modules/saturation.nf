@@ -1,10 +1,10 @@
 process SATURATION {
-    publishDir "${params.output_dir}/saturation/${sample_id}", mode: 'copy'
-    tag "${sample_id}"
+    publishDir "${params.output_dir}/saturation/${meta.id}", mode: 'copy'
+    tag "${meta.id}"
     debug true
 
     input:
-    tuple val(sample_id), path(mapping_files)
+    tuple val(meta), path(mapping_files)
     file(bam_index)
 
     output:
@@ -17,13 +17,13 @@ process SATURATION {
     echo "Conda environment: \$CONDA_DEFAULT_ENV"
 
     # Remove unmapped reads from the BAM file
-    samtools view -b -F 4 ${sample_id}_Aligned.sortedByCoord.out.bam > ${sample_id}_Aligned.sortedByCoord.out.mapped.bam
-    samtools index ${sample_id}_Aligned.sortedByCoord.out.mapped.bam
+    samtools view -b -F 4 ${meta.id}_Aligned.sortedByCoord.out.bam > ${meta.id}_Aligned.sortedByCoord.out.mapped.bam
+    samtools index ${meta.id}_Aligned.sortedByCoord.out.mapped.bam
 
     # Find the correct files from the list (mapping_files)
     summary_file=\$(ls *Solo.out/Gene/Summary.csv | head -n 1)
     log_final_file=\$(ls *Log.final.out | head -n 1)
-    bam_file=\$(ls ${sample_id}_Aligned.sortedByCoord.out.mapped.bam | head -n 1)
+    bam_file=\$(ls ${meta.id}_Aligned.sortedByCoord.out.mapped.bam | head -n 1)
 
     echo "Summary file: \${summary_file}"
     echo "Log final file: \${log_final_file}"
@@ -36,7 +36,7 @@ process SATURATION {
     temp_folder="_tmp"
     echo "cells:\${n_cells} reads:\${n_reads} mapreads:\${MAPREADS} maprate:\${map_rate}"
 
-    python ${params.code_dir}/submodules/10x_saturate/saturation_table.py \\
+    python ${launchDir}/submodules/10x_saturate/saturation_table.py \\
             --bam \${bam_file} \\
             --ncells \${n_cells} \\
             --mapping_rate \${map_rate} \\

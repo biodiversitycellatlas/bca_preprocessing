@@ -2,6 +2,9 @@ process GENINDEX_ALEVIN {
     publishDir "${params.output_dir}/genome/genindex_alevin", mode: 'copy'
     debug true
 
+    input:
+    tuple val(meta), path(fastqs)
+
     output:
     path("*")
        
@@ -12,17 +15,12 @@ process GENINDEX_ALEVIN {
     echo "Reference fasta: ${params.ref_fasta}"
     echo "Reference ref_gtf: ${params.ref_gtf}"
 
-    # Retrieve the first accession number
-    first_fastq=\$(ls "${params.fastq_dir}/" | head -n1)  
-
     # Calculate read length using the first read from the first fastq file
-    readlen=\$(zcat ${params.fastq_dir}/\${first_fastq} | awk 'NR==2 {print length(\$0)}') 
-
-    echo "First FASTQ file: \${first_fastq}"
+    readlen=\$(zcat ${fastqs[0]} | awk 'NR==2 {print length(\$0)}') 
     echo "Read length: \${readlen}"
 
     # Create splici reference
-    Rscript ${params.code_dir}/bin/salmon_create_splici_ref.R \\
+    Rscript ${launchDir}/bin/salmon_create_splici_ref.R \\
         --ref_fasta ${params.ref_fasta} \\
         --ref_gtf ${params.ref_gtf} \\
         --readlen \${readlen} \\
