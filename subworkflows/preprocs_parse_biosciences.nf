@@ -24,14 +24,14 @@ include { PARSEBIO_PIPELINE } from '../modules/parsebio_pipeline'
 */
 workflow parse_workflow {
     take:
-        sample_ids
+        ch_samplesheet
     main:
         // Import the fastq files into the nf workdir using sym links to the original files
-        DOWNLOAD_DATA(sample_ids)
+        DOWNLOAD_DATA(ch_samplesheet)
         
         // For each sample_id, all groups are added to the Channel
         groups = Channel.fromList(params.parsebio_groups)
-        comb_data = DOWNLOAD_DATA.out.fastq_files.combine(groups)
+        comb_data = DOWNLOAD_DATA.out.combine(groups)
 
         // Demultiplex the fastq files based on the sample wells
         PARSEBIO_PIPELINE_DEMUX(comb_data)

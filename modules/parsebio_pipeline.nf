@@ -9,11 +9,11 @@
 // directory.                                        \\
 
 process PARSEBIO_PIPELINE {
-    publishDir "${params.output_dir}/ParseBio_pipeline/${sample_id}", mode: 'copy', overwrite: false
+    publishDir "${params.output_dir}/ParseBio_pipeline/${meta.id}", mode: 'copy', overwrite: false
     tag "${fastq_files}"
     
     input:
-    tuple val(sample_id), path(fastq_files)
+    tuple val(meta), path(fastq_files)
     path parse_refgenome_files
 
     output:
@@ -26,7 +26,7 @@ process PARSEBIO_PIPELINE {
     def r2_fastq = fastq_list.find { it.name.contains('_R2') }
     """
     echo "\n\n=============  MAPPING PARSE BIOSCIENCES  ================"
-    echo "Mapping sample ${sample_id} with Parse Biosciences pipeline"
+    echo "Mapping sample ${meta.id} with Parse Biosciences pipeline"
     echo "FQ 1: ${r1_fastq ?: 'Not provided'}"
     echo "FQ 2: ${r2_fastq ?: 'Not provided'}"
     echo "Genome index directory: ${parse_refgenome_files}"

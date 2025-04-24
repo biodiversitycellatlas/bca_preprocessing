@@ -1,10 +1,10 @@
 process MAPPING_ALEVIN {
-    publishDir "${params.output_dir}/mapping_alevin/${sample_id}", mode: 'copy'
-    tag "${sample_id}"
+    publishDir "${params.output_dir}/mapping_alevin/${meta.id}", mode: 'copy'
+    tag "${meta.id}"
     debug true
 
     input:
-    tuple val(sample_id), path(fastq_files)
+    tuple val(meta), path(fastq_files)
     path(index)
 
     output:
@@ -43,7 +43,7 @@ process MAPPING_ALEVIN {
     """
     echo "\n\n==================  GENOME INDEX ALEVIN =================="
     echo "Conda environment: \$CONDA_DEFAULT_ENV"
-    echo "Sample ID: ${sample_id}"
+    echo "Sample ID: ${meta}"
     echo "Index: ${index}"
     echo "Reference fasta: ${params.ref_fasta}"
     echo "Reference ref_gtf: ${params.ref_gtf}"
@@ -61,29 +61,29 @@ process MAPPING_ALEVIN {
         --bc-geometry ${bc_geom} \\
         --umi-geo ${umi_geom} \\
         --read-geo ${read_geom} \\
-        -o ./${sample_id}_run \\
+        -o ./${meta.id}_run \\
         --justAlign
 
     echo "\n\n-------------  generate permit -------------------"
     alevin-fry generate-permit-list \\
-        -i ./${sample_id}_run \\
+        -i ./${meta.id}_run \\
         -d both \\
-        --output-dir ./${sample_id}_out_permit_knee \\
+        --output-dir ./${meta.id}_out_permit_knee \\
         -k
 
     echo "\n\n-------------  collate -------------------"
     alevin-fry collate \\
-        -i ./${sample_id}_out_permit_knee \\
+        -i ./${meta.id}_out_permit_knee \\
         -t 16 \\
-        -r ./${sample_id}_run  
+        -r ./${meta.id}_run  
 
     echo "\n\n-------------  quant -------------------"
     txp2gene=\$(ls ./splici_index_reference/*t2g_3col.tsv)
 
     alevin-fry quant \\
         -m \${txp2gene} \\
-        -i ./${sample_id}_out_permit_knee  \\
-        -o ./${sample_id}_counts \\
+        -i ./${meta.id}_out_permit_knee  \\
+        -o ./${meta.id}_counts \\
         -t 16 \\
         -r cr-like-em \\
         --use-mtx 

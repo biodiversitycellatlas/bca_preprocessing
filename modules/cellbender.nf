@@ -1,16 +1,16 @@
 process CELLBENDER {
-    publishDir "${params.output_dir}/cellbender/${sample_id}", mode: 'copy'
-    tag "${sample_id}"
+    publishDir "${params.output_dir}/cellbender/${meta.id}", mode: 'copy'
+    tag "${meta.id}"
     debug true
 
     input:
-    tuple val(sample_id), path(mapping_files)
+    tuple val(meta), path(mapping_files)
 
     script:
     """
     echo "\n\n===============  Ambient RNA removal  ==============="
     echo "Conda environment: \$CONDA_DEFAULT_ENV"
-    echo "Sample ID: ${sample_id}"
+    echo "Sample ID: ${meta}"
     echo "Mapping files: ${mapping_files}"
     
     matrix_path=\$(echo ./*_Solo.out/GeneFull_Ex50pAS/raw)

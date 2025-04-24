@@ -1,13 +1,13 @@
 process CONV_3CB_INDEX {
-    publishDir "${params.output_dir}/demultiplex/demux_umitools/${sample_id}", mode: 'copy'
-    tag "${sample_id}"
+    publishDir "${params.output_dir}/demultiplex/demux_umitools/${meta.id}", mode: 'copy'
+    tag "${meta.id}"
     debug true
 
     input:
-    tuple val(sample_id), path(fastq_files)
+    tuple val(meta), path(fastq_files)
 
     output:
-    tuple val("${sample_id}"), path("indexed_*_R*.fastq.gz")
+    tuple val(meta), path("indexed_*_R*.fastq.gz")
     
     script:
     def fastq_list = fastq_files instanceof List ? fastq_files : [fastq_files]
@@ -16,13 +16,13 @@ process CONV_3CB_INDEX {
 
     """
     echo "\n\n==================  CONV_3CB_INDEX =================="
-    echo "Sample ID: ${sample_id}"
+    echo "Sample ID: ${meta}"
     echo "FASTQ files: ${fastq_files}"
 
-    python ${params.code_dir}/bin/conv_3cb_index.py \\
+    python ${launchDir}/bin/conv_3cb_index.py \\
         --input_cDNA ${r2_fastq} \\
-        --output_cDNA indexed_${sample_id}_R2.fastq.gz \\
+        --output_cDNA indexed_${meta.id}_R2.fastq.gz \\
         --workdir . \\
-        --bcdir ${params.code_dir}/seq_techniques/bd_rhapsody
+        --bcdir ${launchDir}/seq_techniques/bd_rhapsody
     """
 }

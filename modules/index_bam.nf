@@ -1,20 +1,20 @@
 process INDEX_BAM {
-    publishDir "${params.output_dir}/mapping_STARsolo/mapping_STARsolo/${sample_id}", mode: 'copy'
-    tag "${sample_id}"
+    publishDir "${params.output_dir}/mapping_STARsolo/mapping_STARsolo/${meta.id}", mode: 'copy'
+    tag "${meta.id}"
 
     input:
-    tuple val(sample_id), path(mapping_files)
+    tuple val(meta), path(mapping_files)
 
     output:
-    path("${sample_id}_Aligned.sortedByCoord.out.bam.bai")
+    path("${meta.id}_Aligned.sortedByCoord.out.bam.bai")
 
     script:
     """
     echo "\n\n==================  INDEX BAM FILES  =================="
-    echo "Sample ID: ${sample_id}"
+    echo "Sample ID: ${meta}"
     echo "Processing files: ${mapping_files}"
 
-    bam_file=\$(ls ${sample_id}_Aligned.sortedByCoord.out.bam | head -n 1)
+    bam_file=\$(ls ${meta.id}_Aligned.sortedByCoord.out.bam | head -n 1)
     echo "BAM file: \${bam_file}"
 
     samtools index \${bam_file}

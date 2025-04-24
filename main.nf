@@ -19,13 +19,6 @@ sbatch submit_nextflow.sh main.nf
 ------------------------------------------------------------------------------
 */
 
-// Set up the sampleID channel
-sample_ids = Channel.fromPath("${params.fastq_dir}/*_R1_001.fastq.gz")
-    .map { file -> 
-        file.name.replaceAll(/_R.*_001\.fastq\.gz$/, '')
-    }
-    .distinct()
-
 /*
 ~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~
     IMPORT FUNCTIONS / MODULES / SUBWORKFLOWS
@@ -38,7 +31,41 @@ include { filtering_workflow        } from './workflows/filtering_workflow.nf'
 include { MULTIQC                   } from './modules/multiqc'
 include { MAPPING_STATS             } from './modules/mapping_statistics'
 
-                                     
+     
+/*
+~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~
+    SETUP CHANNEL 
+~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~
+*/
+
+// Set up the sampleID channel from the fastq_dir
+// sample_ids = Channel.fromPath("${params.fastq_dir}/*_R1_001.fastq.gz")
+//     .map { file -> 
+//         file.name.replaceAll(/_R.*_001\.fastq\.gz$/, '')
+//     }
+//     .distinct()
+
+// Set up the sampleID channel from the samplesheet
+Channel
+  .fromPath(params.input)
+  .splitCsv(header: true, sep: ',')
+  .map { row ->
+    // Concat metadata into a Map object
+    def meta = [
+      id            : row.sample,
+      expected_cells: row.expected_cells ? row.expected_cells.toInteger() : null,
+      i5_index      : row.i5_index ? row.i5_index : null,
+    ]
+    // List of fastq paths
+    def fastqs = [ file(row.fastq_cDNA), file(row.fastq_BC_UMI) ].findAll { it } 
+
+    // Emit as a 2-element List
+    [ meta, fastqs ]
+  }
+  .set { ch_samplesheet }
+
+
+
 /*
 ~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~
     MAIN WORKFLOW
@@ -52,7 +79,7 @@ include { MAPPING_STATS             } from './modules/mapping_statistics'
 */
 workflow {
     // Pre-processing workflow
-    preprocessing_workflow(sample_ids)
+    preprocessing_workflow(ch_samplesheet)
     
     // Mapping using STARsolo, Alevin, and/or comparison to commercial pipelines
     QC_mapping_workflow(preprocessing_workflow.out)
@@ -66,7 +93,7 @@ workflow {
     
     // MultiQC and mapping statistics, only triggered after all outputs are finished
     MULTIQC(mapping_stats_trigger)
-    MAPPING_STATS(mapping_stats_trigger, sample_ids.collect()) 
+    MAPPING_STATS(mapping_stats_trigger, ch_samplesheet.collect()) 
 }
 
 

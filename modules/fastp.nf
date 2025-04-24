@@ -1,9 +1,9 @@
 process FASTP {
-    publishDir "${params.output_dir}/fastp/${sample_id}", mode: 'copy'
-    tag "${sample_id}"
+    publishDir "${params.output_dir}/fastp/${meta.id}", mode: 'copy'
+    tag "${meta.id}"
 
     input:
-    tuple val(sample_id), path(fastq_files)
+    tuple val(meta), path(fastq_files)
 
     output:
     path("*.trim.fastq.gz")
@@ -15,17 +15,17 @@ process FASTP {
 
     """
     echo "\n\n==================  TRIM FASTQs WITH FASTP  =================="
-    echo "Sample ID: ${sample_id}"
+    echo "Sample ID: ${meta}"
     echo "Processing files: ${fastq_files}"
 
     fastp \\
-        --html fastp_${sample_id}.html \\
-        --json fastp_${sample_id}.json \\
+        --html fastp_${meta.id}.html \\
+        --json fastp_${meta.id}.json \\
         --thread 8 \\
         --in1 ${r1_fastq} \\
         --in2 ${r2_fastq} \\
-        --out1 ${sample_id}_R1.trim.fastq.gz \\
-        --out2 ${sample_id}_R2.trim.fastq.gz \\
+        --out1 ${meta.id}_R1.trim.fastq.gz \\
+        --out2 ${meta.id}_R2.trim.fastq.gz \\
         >& {log}
     """
 }

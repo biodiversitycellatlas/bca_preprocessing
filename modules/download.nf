@@ -1,16 +1,18 @@
 process DOWNLOAD_DATA {
-    tag "${sample_id}"
+    tag { meta.id }
     
     input:
-    val sample_id
+    tuple val(meta), path(fastqs)
 
     output:
-    tuple val(sample_id), path("${sample_id}_R{1,2}_001.fastq.gz"), emit: fastq_files
+    tuple val(meta), path("${meta.id}_S1_R{1,2}_001.fastq.gz")
 
     script:
     """
-    echo "sample id: ${sample_id}"
-    ln -s "${params.fastq_dir}/${sample_id}_R1_001.fastq.gz" .
-    ln -s "${params.fastq_dir}/${sample_id}_R2_001.fastq.gz" .
+    echo "Metadata: ${meta}"
+    echo "Fastq files: ${fastqs}"
+    
+    ln -s ${fastqs[0]} ${meta.id}_S1_R1_001.fastq.gz
+    ln -s ${fastqs[1]} ${meta.id}_S1_R2_001.fastq.gz
     """
 }

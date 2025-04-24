@@ -1,13 +1,13 @@
 process DEMUX_UMITOOLS_PARSEBIO {
-    publishDir "${params.output_dir}/demultiplex/demux_umitools/${sample_id}", mode: 'copy'
-    tag "${sample_id}_${group}"
+    publishDir "${params.output_dir}/demultiplex/demux_umitools/${meta.id}", mode: 'copy'
+    tag "${meta.id}_${group}"
     debug true
     
     input:
-    tuple val(sample_id), path(fastq_files), val(group), val(wells)
+    tuple val(meta), path(fastq_files), val(group), val(wells)
 
     output:
-    tuple val("${sample_id}_${group}"), path("*_R*.fastq.gz"), emit: splitted_files
+    tuple val("${meta.id}_${group}"), path("*_R*.fastq.gz"), emit: splitted_files
 
     script:
     def fastq_list = fastq_files instanceof List ? fastq_files : [fastq_files]
@@ -16,7 +16,7 @@ process DEMUX_UMITOOLS_PARSEBIO {
 
     """
     echo "\n\n==================  splitting  =================="
-    echo "Processing sample: ${sample_id}"
+    echo "Processing sample: ${meta}"
     echo "First barcode path: ${params.barcode_umitools}"
     echo "FQ 1: ${r1_fastq ?: 'Not provided'}"
     echo "FQ 2: ${r2_fastq ?: 'Not provided'}"
@@ -48,9 +48,9 @@ process DEMUX_UMITOOLS_PARSEBIO {
         --extract-method=regex \\
         --bc-pattern2="^(?P<umi_1>.{10}){s<=1}.+(?P<cell_1>.{8}){s<=1}(?P<dummy>.)?\$" \\
         --stdin=${r1_fastq} \\
-        --stdout=demux_${sample_id}_${group}_R1.fastq.gz \\
+        --stdout=demux_${meta.id}_${group}_R1.fastq.gz \\
         --read2-in=${r2_fastq} \\
-        --read2-out=demux_${sample_id}_${group}_R2.fastq.gz \\
+        --read2-out=demux_${meta.id}_${group}_R2.fastq.gz \\
         --whitelist=${group}_round1_whitelist.txt
 
     """

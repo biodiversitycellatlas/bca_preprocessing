@@ -1,24 +1,24 @@
 process FASTQ_SPLITTER {
-    publishDir "${params.output_dir}/fastqsplitter/${sample_id}", mode: 'copy'
-    tag "${sample_id}"
+    publishDir "${params.output_dir}/fastqsplitter/${meta.id}", mode: 'copy'
+    tag "${meta.id}"
 
     input:
-    tuple val(sample_id), path(fastq_files)
+    tuple val(meta), path(fastq_files)
 
     output:
-    tuple val(sample_id), file("raw_reads_split/${sample_id}_R1_*"), file("raw_reads_split/${sample_id}_R2_*") into split_files_ch
+    tuple val(meta), file("raw_reads_split/${meta.id}_R1_*"), file("raw_reads_split/${meta.id}_R2_*") into split_files_ch
 
     script:
     def outArgs_R1 = (1..params.fastq_chunks).collect { i -> 
-        "-o raw_reads_split/${sample_id}_R1_${i}-of-${params.fastq_chunks}.fastq.gz" 
+        "-o raw_reads_split/${meta.id}_R1_${i}-of-${params.fastq_chunks}.fastq.gz" 
     }.join(" ")
     def outArgs_R2 = (1..params.fastq_chunks).collect { i -> 
-        "-o raw_reads_split/${sample_id}_R2_${i}-of-${params.fastq_chunks}.fastq.gz" 
+        "-o raw_reads_split/${meta.id}_R2_${i}-of-${params.fastq_chunks}.fastq.gz" 
     }.join(" ")
 
     """
     echo "\n\n==================  TRIM FASTQs WITH FASTP  =================="
-    echo "Sample ID: ${sample_id}"
+    echo "Sample ID: ${meta}"
     echo "Processing files: ${fastq_files}"
 
     mkdir -p raw_reads_split

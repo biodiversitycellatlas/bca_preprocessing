@@ -1,8 +1,7 @@
 # Ignore all .log and nextflow files
 *.log
 .next*
-seq_techniques/oak_seq/barcodes_R2.txt
-seq_techniques/10x_genomics/barcodes_R2.txt
+conf/samplesheet_nogh.csv
 
 # Ignore all files in the following directories
 logs/*
