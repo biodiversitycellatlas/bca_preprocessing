@@ -10,10 +10,10 @@
 
 process PARSEBIO_PIPELINE {
     publishDir "${params.output_dir}/ParseBio_pipeline/${meta.id}", mode: 'copy', overwrite: false
-    tag "${fastq_files}"
+    tag "${meta.id}"
     
     input:
-    tuple val(meta), path(fastq_files)
+    tuple val(meta), path(fastqs)
     path parse_refgenome_files
 
     output:
@@ -21,14 +21,10 @@ process PARSEBIO_PIPELINE {
 
     script:
     def kitskip_arg   = task.ext.args ?: ''          // If ext.args is defined assign it to kitskip_arg
-    def fastq_list = fastq_files instanceof List ? fastq_files : [fastq_files]
-    def r1_fastq = fastq_list.find { it.name.contains('_R1') }
-    def r2_fastq = fastq_list.find { it.name.contains('_R2') }
     """
     echo "\n\n=============  MAPPING PARSE BIOSCIENCES  ================"
     echo "Mapping sample ${meta.id} with Parse Biosciences pipeline"
-    echo "FQ 1: ${r1_fastq ?: 'Not provided'}"
-    echo "FQ 2: ${r2_fastq ?: 'Not provided'}"
+    echo "Fastq files: ${fastqs ?: 'Not provided'}"
     echo "Genome index directory: ${parse_refgenome_files}"
     echo "Conda environment: \$CONDA_DEFAULT_ENV"
 
@@ -45,8 +41,8 @@ process PARSEBIO_PIPELINE {
         --chemistry v3 \\
         --kit WT_mini \\
         ${kitskip_arg} \\
-        --fq1 ${r1_fastq} \\
-        --fq2 ${r2_fastq} \\
+        --fq1 ${fastqs[0]} \\
+        --fq2 ${fastqs[1]} \\
         --nthreads 16 \\
         --genome_dir genome_index \\
         --output_dir . \\

@@ -4,7 +4,6 @@
 # Define Variables
 # ------------------------------------------------------------------
 output_dir=$1
-ref_gtf=$2
 output_file="mapping_stats.tsv"
 
 # Change to the directory that contains the data
@@ -24,10 +23,8 @@ echo -e "Directory\tSample\tN reads/sample\tN R1 >Q30\tN R2 >Q30\tN uniquely map
 # ------------------------------------------------------------------
 # For each STARsolo mapping directory
 # ------------------------------------------------------------------
-config=$(basename ${ref_gtf} .gtf)
-echo "config: $config"
 
-for map_dir in ${output_dir}/mapping_STARsolo/${config}*/*; do
+for map_dir in ${output_dir}/mapping_STARsolo/*; do
     echo "mapping dir: ${map_dir}"
 
     # Extract sample name

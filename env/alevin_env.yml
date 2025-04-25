@@ -1,15 +1,13 @@
-name: alevin
+name: alevin_env
 channels:
   - conda-forge
   - bioconda
 dependencies:
-  - piscem
-  - simpleaf
   - zlib
-  - r-base
-  - conda-forge::r-essentials
+  - conda-forge::r-essentials      
   - bioconda::alevin-fry
   - bioconda::salmon
   - bioconda::macs3
+  - pip
   - pip:
     - seqspec
