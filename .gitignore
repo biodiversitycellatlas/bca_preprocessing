@@ -1,7 +1,7 @@
 # Ignore all .log and nextflow files
 *.log
 .next*
-conf/samplesheet_nogh.csv
+conf/samplesheet_nogh*
 
 # Ignore all files in the following directories
 logs/*

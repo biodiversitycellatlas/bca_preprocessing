@@ -4,38 +4,26 @@ process MAPPING_ALEVIN {
     debug true
 
     input:
-    tuple val(meta), path(fastq_files)
+    tuple val(meta), path(fastqs)
     path(index)
 
     output:
     path("*")
        
     script:
-    def fastq_list = fastq_files instanceof List ? fastq_files : [fastq_files]
-    def r1_fastq = fastq_list.find { it.name.contains('_R1') }
-    def r2_fastq = fastq_list.find { it.name.contains('_R2') }
-
     // If protocol is "bd_rhapsody", then cDNA = R2 and CB/UMI = R1
     // Else by default cDNA = R1 and CB/UMI = R2
-    def cDNA_read
-    def CBUMI_read
     if (params.protocol.toLowerCase().contains("bd_rhapsody")) {
-        cDNA_read = r2_fastq
-        CBUMI_read = r1_fastq
         bc_geom = "1[0-8,13-21,26-34]"
         umi_geom = "1[35-42]"
         read_geom = "2[1-end]"
 
     } else if (params.protocol.toLowerCase().contains("parse_biosciences")) {
-        cDNA_read = r1_fastq
-        CBUMI_read = r2_fastq
         bc_geom = "2[51-58,31-38,11-18]"
         umi_geom = "2[1-10]"
         read_geom = "1[1-end]"
 
     } else {
-        cDNA_read = r2_fastq
-        CBUMI_read = r1_fastq
         bc_geom = "1[1-16]"
         umi_geom = "1[17-29]"
         read_geom = "2[1-end]"
@@ -47,16 +35,16 @@ process MAPPING_ALEVIN {
     echo "Index: ${index}"
     echo "Reference fasta: ${params.ref_fasta}"
     echo "Reference ref_gtf: ${params.ref_gtf}"
-    echo "cDNA read: ${cDNA_read}"
-    echo "CB/UMI read: ${CBUMI_read}"
+    echo "cDNA read: ${fastqs[0]}"
+    echo "CB/UMI read: ${fastqs[1]}"
 
 
     echo "\n\n-------------  Salmon Alevin -------------------"
     salmon alevin \\
         -i salmon_index \\
         -l A \\
-        -1 ${cDNA_read} \\
-        -2 ${CBUMI_read} \\
+        -1 ${fastqs[0]} \\
+        -2 ${fastqs[1]} \\
         -p 32 \\
         --bc-geometry ${bc_geom} \\
         --umi-geo ${umi_geom} \\

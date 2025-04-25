@@ -3,27 +3,23 @@ process FASTP {
     tag "${meta.id}"
 
     input:
-    tuple val(meta), path(fastq_files)
+    tuple val(meta), path(fastqs)
 
     output:
     path("*.trim.fastq.gz")
 
     script:
-    def fastq_list = fastq_files instanceof List ? fastq_files : [fastq_files]
-    def r1_fastq = fastq_list.find { it.name.contains('_R1') }
-    def r2_fastq = fastq_list.find { it.name.contains('_R2') }
-
     """
     echo "\n\n==================  TRIM FASTQs WITH FASTP  =================="
     echo "Sample ID: ${meta}"
-    echo "Processing files: ${fastq_files}"
+    echo "Processing files: ${fastqs}"
 
     fastp \\
         --html fastp_${meta.id}.html \\
         --json fastp_${meta.id}.json \\
         --thread 8 \\
-        --in1 ${r1_fastq} \\
-        --in2 ${r2_fastq} \\
+        --in1 ${fastqs[0]} \\
+        --in2 ${fastqs[1]} \\
         --out1 ${meta.id}_R1.trim.fastq.gz \\
         --out2 ${meta.id}_R2.trim.fastq.gz \\
         >& {log}

@@ -28,6 +28,7 @@ include { preprocessing_workflow    } from './workflows/preprocessing_workflow.n
 include { QC_mapping_workflow       } from './workflows/mapping_workflow.nf'
 include { filtering_workflow        } from './workflows/filtering_workflow.nf'
 
+include { SAVE_RUN_CONFIG           } from './modules/save_run_config'
 include { MULTIQC                   } from './modules/multiqc'
 include { MAPPING_STATS             } from './modules/mapping_statistics'
 
@@ -78,6 +79,9 @@ Channel
 ~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~
 */
 workflow {
+    // Save run configurations
+    SAVE_RUN_CONFIG()
+
     // Pre-processing workflow
     preprocessing_workflow(ch_samplesheet)
     
@@ -93,7 +97,7 @@ workflow {
     
     // MultiQC and mapping statistics, only triggered after all outputs are finished
     MULTIQC(mapping_stats_trigger)
-    MAPPING_STATS(mapping_stats_trigger, ch_samplesheet.collect()) 
+    // MAPPING_STATS(mapping_stats_trigger, ch_samplesheet.collect()) 
 }
 
 

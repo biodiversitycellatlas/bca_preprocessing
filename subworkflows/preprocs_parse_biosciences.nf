@@ -29,9 +29,23 @@ workflow parse_workflow {
         // Import the fastq files into the nf workdir using sym links to the original files
         DOWNLOAD_DATA(ch_samplesheet)
         
-        // For each sample_id, all groups are added to the Channel
-        groups = Channel.fromList(params.parsebio_groups)
-        comb_data = DOWNLOAD_DATA.out.combine(groups)
+        // Make a channel of 2-tuples: ( groupName, wellRange )
+        def groups = Channel
+            .fromList(params.parsebio_groups)
+            .map { list -> tuple( list[0], list[1] ) }
+
+        // Add the groupName and wellRange to the meta map
+        def comb_data = DOWNLOAD_DATA.out
+            .combine(groups)
+            .map { meta, fastqs, groupName, wellRange ->
+                def combined_meta = meta + [
+                    id    : "${meta.id}_${groupName}",
+                    group : groupName,
+                    well  : wellRange
+                ]
+                tuple( combined_meta, fastqs )
+            }
+        comb_data.view()
 
         // Demultiplex the fastq files based on the sample wells
         PARSEBIO_PIPELINE_DEMUX(comb_data)
