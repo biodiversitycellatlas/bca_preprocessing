@@ -10,10 +10,10 @@
 
 process PARSEBIO_PIPELINE_DEMUX {
     publishDir "${params.output_dir}/demultiplex/demux_spipe/${meta.id}", mode: 'copy'
-    tag "${meta.id}_${group}"
+    tag "${meta.id}"
     
     input:
-    tuple val(meta), path(fastqs), val(group), val(wells)
+    tuple val(meta), path(fastqs)
 
     output:
     tuple val(meta), path("*group*"), emit: splitted_files
@@ -22,8 +22,6 @@ process PARSEBIO_PIPELINE_DEMUX {
     """
     echo "\n\n==================  splitting  =================="
     echo "Processing sample: ${meta}"
-    echo "Group: ${group}"
-    echo "Wells: ${wells}"
     echo "FQ 1: ${fastqs[0] ?: 'Not provided'}"
     echo "FQ 2: ${fastqs[1] ?: 'Not provided'}"
 
@@ -33,7 +31,7 @@ process PARSEBIO_PIPELINE_DEMUX {
         --fq1 ${fastqs[0]} \\
         --fq2 ${fastqs[1]} \\
         --opath . \\
-        --group ${group} ${wells} 
+        --group ${meta.group} ${meta.well} 
     """
 }
 

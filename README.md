@@ -63,14 +63,6 @@ nextflow -h
 ``` 
 
 
-3. **Sequencing technique-specific requirements**
-
-
-When working with OAK-seq or 10x Genomics data, the CellRanger whitelist must be decompressed:
-```
-gunzip /seq_techniques/oak_seq/barcodes_R2.txt.gz
-```
-
 
 ### Optional: Installing commercial pipelines
 
