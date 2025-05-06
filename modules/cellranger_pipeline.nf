@@ -1,5 +1,5 @@
 process CR_PIPELINE {
-    publishDir "${params.output_dir}/CellRanger_pipeline/${meta.id}", mode: 'copy', overwrite: false
+    publishDir "${params.output_dir}/CellRanger_pipeline/${meta.id}", mode: 'copy'
     tag "${meta.id}"
     debug true
 
@@ -16,14 +16,15 @@ process CR_PIPELINE {
     # Add CellRanger to PATH
     export PATH=${params.cellranger_dir}:$PATH
 
-    clean_sample_id=\$(echo ${meta.id} | sed 's/_S1//')
-    echo "cleaned sample id: \${clean_sample_id}"
-
+    # Derive the parent directory of the first FASTQ
+    fastq_parent=\$(dirname ${fastqs[0]})
+    echo "Using FASTQ directory: \$fastq_parent"
+    
     cellranger count \\
-        --id=\${clean_sample_id}_count \\
+        --id=${meta.id}_count \\
         --transcriptome=${cr_reference_dir} \\
-        --fastqs=${fastqs} \\
-        --sample=\${clean_sample_id} \\
+        --fastqs=\$fastq_parent \\
+        --sample=${meta.id} \\
         --chemistry=auto \\
         --create-bam true
     """
