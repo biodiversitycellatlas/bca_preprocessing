@@ -55,7 +55,6 @@ Channel
     def meta = [
       id            : row.sample,
       expected_cells: row.expected_cells ? row.expected_cells.toInteger() : null,
-      i5_index      : row.i5_index ? row.i5_index : null,
     ]
     // List of fastq paths
     def fastqs = [ file(row.fastq_cDNA), file(row.fastq_BC_UMI) ].findAll { it } 
