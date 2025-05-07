@@ -1,51 +1,35 @@
 #!/usr/bin/env Rscript
 # =============================================================================
-# plot_umidist_cellgenecount.R
-#
-# Usage: Rscript plot_umidist_cellgenecount.R <base_directory> <sample_ids>
-#
 # This script searches the base directory recursively for mapping results,
 # processes the STARsolo output, and creates visualizations.
 # =============================================================================
 
 # Get command line arguments
 args <- commandArgs(trailingOnly = TRUE)
-if(length(args) < 1) {
-  stop("Usage: Rscript create_visualizations.R <base_directory> <sample_ids>")
+if (length(args) < 1) {
+  stop("Usage: Rscript create_visualizations.R <output_directory>")
 }
 data_dir <- args[1]
-sample_ids <- args[2]
 
-# Initialize a nested list to store expanded paths
-raw_dirs <- list()
+# Path to STARsolo outputs 
+mapping_dir <- file.path(data_dir, "mapping_STARsolo")
 
-# Loop through each sample_id and expand wildcards
+# Find all sample‐ids by listing first‐level dirs
+sample_ids <- list.dirs(mapping_dir, recursive = FALSE, full.names = FALSE)
+raw_dirs   <- list()
+
 for (sample_id in sample_ids) {
-  # Construct the base path with wildcards; adjust the pattern if needed
-  path_pattern <- file.path(data_dir, "mapping_STARsolo", "*", sample_id, "*_Solo.out", "GeneFull_Ex50pAS", "raw")
-  
-  # Expand the wildcard paths
+  path_pattern   <- file.path(mapping_dir, sample_id, "*_Solo.out", "GeneFull_Ex50pAS", "raw")
   expanded_paths <- Sys.glob(path_pattern)
-  
   if (length(expanded_paths) > 0) {
-    for (path in expanded_paths) {
-      # Extract the condition name from the directory structure
-      file_name <- basename(dirname(dirname(dirname(path))))
-      condition_names <- gsub(".*_", "", file_name)
-      dirname_label <- basename(dirname(dirname(dirname(dirname(path)))))
-      
-      # Append the path to the condition name
-      if (!is.null(raw_dirs[[dirname_label]][[condition_names]])) {
-        raw_dirs[[dirname_label]][[condition_names]] <- c(raw_dirs[[dirname_label]][[condition_names]], path)
-      } else {
-        raw_dirs[[dirname_label]][[condition_names]] <- path
-      }
-    }
+    # store vector of raw paths under sample_id
+    raw_dirs[[sample_id]] <- expanded_paths
   }
 }
 
-# Print the collected directories for debugging
+# Print the collected directories
 print(raw_dirs)
+
 
 # =============================================================================
 # Load Packages
@@ -59,6 +43,7 @@ if (!require('ggridges')) install.packages('ggridges'); library('ggridges')
 if (!require('scales')) install.packages('scales'); library('scales')
 if (!require('dplyr')) install.packages('dplyr'); library('dplyr')
 if (!require('patchwork')) install.packages('patchwork'); library('patchwork')
+if (!require('RColorBrewer')) install.packages('RColorBrewer'); library('RColorBrewer')
 
 
 # =============================================================================
@@ -82,37 +67,31 @@ read_star_data <- function(directory, dataset_name) {
   cell_dt <- data.table(
     cells      = colnames(mat),
     cell_sizes = cell_umis,
-    cell_genes = cell_genes,
-    dataset    = dataset_name
+    cell_genes = cell_genes
   )
   
   # Compute per-gene summaries
   gene_counts <- Matrix::rowSums(mat)
   gene_dt <- data.table(
     gene      = rownames(mat),
-    gene_umis = gene_counts,
-    dataset   = dataset_name
+    gene_umis = gene_counts
   )
   
   return(list(cell_summary = cell_dt, gene_summary = gene_dt))
 }
 
 # =============================================================================
-# Process Each Dataset & Condition
+# Process Each Dataset
 # =============================================================================
 cell_summary_list <- list()
 gene_summary_list <- list()
 
-# Loop over each dataset (first level of nesting)
+# For each raw‐folder under this sample_id and store with simple sample_id key
 for (dataset_name in names(raw_dirs)) {
-  # Loop over each condition (second level)
-  for (condition in names(raw_dirs[[dataset_name]])) {
-    directory <- raw_dirs[[dataset_name]][[condition]]
-    res <- read_star_data(directory, paste0(dataset_name, "_", condition))
-    
-    # Store results with descriptive names
-    cell_summary_list[[paste0(dataset_name, "_", condition)]] <- res$cell_summary
-    gene_summary_list[[paste0(dataset_name, "_", condition)]] <- res$gene_summary
+  for (directory in raw_dirs[[dataset_name]]) {
+    res <- read_star_data(directory, dataset_name)
+    cell_summary_list[[dataset_name]] <- res$cell_summary
+    gene_summary_list[[dataset_name]] <- res$gene_summary
   }
 }
 
@@ -136,8 +115,11 @@ sum_cells_plot <- cell_summary_dt[cell_sizes > 0]
 sum_genes_plot <- gene_summary_dt[gene_umis > 0]
 
 # Define a dynamic color palette
+print("Generating color palette for datasets...")
 dataset_names <- unique(cell_summary_dt$dataset)
+print(dataset_names)
 num_datasets <- length(dataset_names)
+print(num_datasets)
 data_cols <- setNames(colorRampPalette(brewer.pal(9, "Set1"))(num_datasets), dataset_names)
 
 # Remove duplicates if any
