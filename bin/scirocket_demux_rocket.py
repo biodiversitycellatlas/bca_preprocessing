@@ -1,3 +1,9 @@
+#!/usr/bin/env python
+# =============================================================================
+# Code implementation of the sci-rocket preprocessing pipeline by ... 
+# The original pipeline can be fount at: https://github.com/odomlab2/sci-rocket/
+# =============================================================================
+
 __version__ = "1.0"
 
 # Import modules.
@@ -14,8 +20,8 @@ import pandas as pd
 import pysam
 
 from frozendict import frozendict
-from sanity_checks import retrieve_barcodes
-from sciClasses import sciRecord
+from scirocket_sanity_checks import retrieve_barcodes
+from scirocket_sciClasses import sciRecord
 
 
 def init_barcode_dict(barcodes: pd.DataFrame, samples: pd.DataFrame, experiment_name: str):
@@ -40,7 +46,7 @@ def init_barcode_dict(barcodes: pd.DataFrame, samples: pd.DataFrame, experiment_
     dict_barcodes = {}
 
     # Get the samples used in this sequencing run.
-    samples_exp = samples.query("experiment_name == @experiment_name")
+    samples_exp = samples
 
     # Generate k;v of ligation barcodes.
     dict_barcodes["ligation"] = {}
@@ -622,9 +628,10 @@ def main(arguments):
     log = init_logger()
 
     # Open sample-sheet.
-    samples = pd.read_csv(args.samples, sep="\t", dtype=str)
-    samples = samples.query("experiment_name == @args.experiment_name")
-
+    samples = pd.read_csv(args.samples, dtype=str)
+    samples = samples.rename(columns={"sample": "sample_name"})
+    samples = samples[samples["sample_name"] == args.experiment_name]
+    
     # Open barcode-sheet.
     barcodes = pd.read_csv(args.barcodes, sep="\t", dtype=str)
 

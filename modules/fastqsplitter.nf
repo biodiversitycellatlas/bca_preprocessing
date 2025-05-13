@@ -1,23 +1,25 @@
 process FASTQ_SPLITTER {
     publishDir "${params.output_dir}/fastqsplitter/${meta.id}", mode: 'copy'
     tag "${meta.id}"
+    debug true
 
     input:
     tuple val(meta), path(fastq_files)
 
     output:
-    tuple val(meta), file("raw_reads_split/${meta.id}_R1_*"), file("raw_reads_split/${meta.id}_R2_*") into split_files_ch
+    tuple val(meta), path("raw_reads_split/${meta.id}_R{1,2}_*")
 
     script:
-    def outArgs_R1 = (1..params.fastq_chunks).collect { i -> 
-        "-o raw_reads_split/${meta.id}_R1_${i}-of-${params.fastq_chunks}.fastq.gz" 
+    def outArgs_R1 = (1..params.sciRNAseq3_fastq_chunks).collect { i -> 
+        "-o raw_reads_split/${meta.id}_R1_${i}-of-${params.sciRNAseq3_fastq_chunks}.fastq.gz" 
     }.join(" ")
-    def outArgs_R2 = (1..params.fastq_chunks).collect { i -> 
-        "-o raw_reads_split/${meta.id}_R2_${i}-of-${params.fastq_chunks}.fastq.gz" 
+    def outArgs_R2 = (1..params.sciRNAseq3_fastq_chunks).collect { i -> 
+        "-o raw_reads_split/${meta.id}_R2_${i}-of-${params.sciRNAseq3_fastq_chunks}.fastq.gz" 
     }.join(" ")
 
     """
-    echo "\n\n==================  TRIM FASTQs WITH FASTP  =================="
+    echo "\n\n==================  SPLIT FASTQ FILES INTO CHUNKS  =================="
+    echo "Conda environment: \$CONDA_DEFAULT_ENV"
     echo "Sample ID: ${meta}"
     echo "Processing files: ${fastq_files}"
 

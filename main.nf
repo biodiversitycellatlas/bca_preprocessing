@@ -53,8 +53,11 @@ Channel
   .map { row ->
     // Concat metadata into a Map object
     def meta = [
-      id            : row.sample,
-      expected_cells: row.expected_cells ? row.expected_cells.toInteger() : null,
+      id                : row.sample,
+      expected_cells    : row.expected_cells ? row.expected_cells.toInteger() : null,
+      p5                : row.p5 ? row.p5 : null,
+      p7                : row.p7 ? row.p7 : null,
+      rt                : row.rt ? row.rt : null,
     ]
     // List of fastq paths
     def fastqs = [ file(row.fastq_cDNA), file(row.fastq_BC_UMI) ].findAll { it } 
@@ -85,13 +88,16 @@ workflow {
     preprocessing_workflow(ch_samplesheet)
     
     // Mapping using STARsolo, Alevin, and/or comparison to commercial pipelines
-    QC_mapping_workflow(preprocessing_workflow.out)
+    QC_mapping_workflow(
+        preprocessing_workflow.out.data_output,
+        preprocessing_workflow.out.bc_whitelist
+    )
 
     // Filtering raw matrices of ambient RNA and detecting doublets
     filter_out = filtering_workflow(QC_mapping_workflow.out.mapping_files)
 
     // Collect all outputs into a single channel and create trigger
-    all_outputs = preprocessing_workflow.out.mix(QC_mapping_workflow.out.all_outputs)
+    all_outputs = preprocessing_workflow.out.data_output.mix(QC_mapping_workflow.out.all_outputs)
     mapping_stats_trigger = all_outputs.collect().map { it -> true }
     
     // MultiQC and mapping statistics, only triggered after all outputs are finished

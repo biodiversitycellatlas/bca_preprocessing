@@ -23,6 +23,7 @@ include { KRAKEN                    } from '../modules/kraken'
 workflow QC_mapping_workflow {
     take:
         data_output
+        bc_whitelist
 
     main:
         // Quality Control
@@ -33,18 +34,18 @@ workflow QC_mapping_workflow {
 
         // Mapping: STARsolo, Alevin-fry, or both
         if (params.mapping_software == "starsolo") {
-            mapping_starsolo_workflow(data_output, all_outputs)
+            mapping_starsolo_workflow(data_output, bc_whitelist, all_outputs)
             mapping_files = mapping_starsolo_workflow.out.mapping_files
             all_outputs = all_outputs.mix(mapping_starsolo_workflow.out.all_outputs)
 
         } else if (params.mapping_software == "alevin") {
-            mapping_alevin_workflow(data_output, all_outputs)
+            mapping_alevin_workflow(data_output, bc_whitelist, all_outputs)
             mapping_files = mapping_alevin_workflow.out.mapping_files
             all_outputs = all_outputs.mix(mapping_alevin_workflow.out.all_outputs)
 
         } else if (params.mapping_software == "both") {
-            mapping_starsolo_workflow(data_output, all_outputs)
-            mapping_alevin_workflow(data_output, all_outputs)
+            mapping_starsolo_workflow(data_output, bc_whitelist, all_outputs)
+            mapping_alevin_workflow(data_output, bc_whitelist, all_outputs)
             mapping_files = mapping_alevin_workflow.out.mapping_files.mix(mapping_starsolo_workflow.out.mapping_files)
             all_outputs = all_outputs.mix(mapping_alevin_workflow.out.all_outputs)
             all_outputs = all_outputs.mix(mapping_starsolo_workflow.out.all_outputs)
