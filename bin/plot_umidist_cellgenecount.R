@@ -4,6 +4,25 @@
 # processes the STARsolo output, and creates visualizations.
 # =============================================================================
 
+# =============================================================================
+# Load Packages
+# =============================================================================
+
+options(repos = c(CRAN = "https://cran.r-project.org"))
+if (!require('ggplot2')) install.packages('ggplot2'); library('ggplot2')
+if (!require('data.table')) install.packages('data.table'); library('data.table')
+if (!require('Matrix')) install.packages('Matrix'); library('Matrix')
+if (!require('ggridges')) install.packages('ggridges'); library('ggridges')
+if (!require('scales')) install.packages('scales'); library('scales')
+if (!require('dplyr')) install.packages('dplyr'); library('dplyr')
+if (!require('patchwork')) install.packages('patchwork'); library('patchwork')
+if (!require('RColorBrewer')) install.packages('RColorBrewer'); library('RColorBrewer')
+
+
+# =============================================================================
+# Load arguments and set up directories
+# =============================================================================
+
 # Get command line arguments
 args <- commandArgs(trailingOnly = TRUE)
 if (length(args) < 1) {
@@ -32,22 +51,7 @@ print(raw_dirs)
 
 
 # =============================================================================
-# Load Packages
-# =============================================================================
-
-options(repos = c(CRAN = "https://cran.r-project.org"))
-if (!require('ggplot2')) install.packages('ggplot2'); library('ggplot2')
-if (!require('data.table')) install.packages('data.table'); library('data.table')
-if (!require('Matrix')) install.packages('Matrix'); library('Matrix')
-if (!require('ggridges')) install.packages('ggridges'); library('ggridges')
-if (!require('scales')) install.packages('scales'); library('scales')
-if (!require('dplyr')) install.packages('dplyr'); library('dplyr')
-if (!require('patchwork')) install.packages('patchwork'); library('patchwork')
-if (!require('RColorBrewer')) install.packages('RColorBrewer'); library('RColorBrewer')
-
-
-# =============================================================================
-# Function to Read STARsolo Data
+# Function to read STARsolo data
 # =============================================================================
 read_star_data <- function(directory, dataset_name) {
   # Read matrix, features, and barcodes
@@ -81,7 +85,7 @@ read_star_data <- function(directory, dataset_name) {
 }
 
 # =============================================================================
-# Process Each Dataset
+# Process each dataset
 # =============================================================================
 cell_summary_list <- list()
 gene_summary_list <- list()

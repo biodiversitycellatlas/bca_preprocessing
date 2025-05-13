@@ -5,6 +5,7 @@ process MAPPING_ALEVIN {
 
     input:
     tuple val(meta), path(fastqs)
+    path bc_whitelist
     path(index)
 
     output:

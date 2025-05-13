@@ -20,8 +20,11 @@ process GENE_EXT {
     echo "Conda environment: \$CONDA_DEFAULT_ENV"
 
     if [ -d "tmp" ]; then rm -r tmp; fi
+
+    # Extract file extension
+    extension=\$(echo "${params.ref_gtf}" | awk -F. '{print \$NF}')
     
-    if [ ${params.annot_type} == "GFF" ];
+    if [ \$extension == "gff" ];
     then
         gtf_output="${meta.id}_geneext.gff"
     else

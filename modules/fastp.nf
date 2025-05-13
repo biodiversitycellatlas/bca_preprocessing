@@ -1,12 +1,13 @@
 process FASTP {
     publishDir "${params.output_dir}/fastp/${meta.id}", mode: 'copy'
     tag "${meta.id}"
+    debug true
 
     input:
     tuple val(meta), path(fastqs)
 
     output:
-    path("*.trim.fastq.gz")
+    tuple val(meta), path("${meta.id}_R{1,2}.trim.fastq.gz")
 
     script:
     """
@@ -21,7 +22,6 @@ process FASTP {
         --in1 ${fastqs[0]} \\
         --in2 ${fastqs[1]} \\
         --out1 ${meta.id}_R1.trim.fastq.gz \\
-        --out2 ${meta.id}_R2.trim.fastq.gz \\
-        >& {log}
+        --out2 ${meta.id}_R2.trim.fastq.gz
     """
 }

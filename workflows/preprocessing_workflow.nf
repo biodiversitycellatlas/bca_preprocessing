@@ -11,7 +11,7 @@ include { bd_rhapsody_workflow          } from '../subworkflows/preprocs_bd_rhap
 include { parse_workflow                } from '../subworkflows/preprocs_parse_biosciences'
 include { oak_seq_workflow              } from '../subworkflows/preprocs_oak_seq'
 include { tenx_genomics_workflow        } from '../subworkflows/preprocs_10xv3'
-include { sci_rna_seq3_workflow         } from '../subworkflows/preprocs_sci_rna_seq3'
+include { sciRNAseq3_workflow         } from '../subworkflows/preprocs_sciRNAseq3'
 include { seqspec_workflow              } from '../subworkflows/preprocs_seqspec'
 
 /*
@@ -30,22 +30,29 @@ workflow preprocessing_workflow {
 
     main:
         if (params.protocol == 'parse_biosciences') {     
-            data_output = parse_workflow(ch_samplesheet)
+            data_output_ch = parse_workflow(ch_samplesheet)
+            bc_whitelist_ch  = Channel.value( params.seqtech_parameters[params.protocol].bc_whitelist )
 
         } else if (params.protocol == 'bd_rhapsody') {
-            data_output = bd_rhapsody_workflow(ch_samplesheet)
+            data_output_ch = bd_rhapsody_workflow(ch_samplesheet)
+            bc_whitelist_ch  = Channel.value( params.seqtech_parameters[params.protocol].bc_whitelist )
 
         } else if (params.protocol == 'oak_seq') {
-            data_output = oak_seq_workflow(ch_samplesheet)
+            data_output_ch = oak_seq_workflow(ch_samplesheet)
+            bc_whitelist_ch  = Channel.value( params.seqtech_parameters[params.protocol].bc_whitelist )
 
         } else if (params.protocol == '10xv3') {
-            data_output = tenx_genomics_workflow(ch_samplesheet)
+            data_output_ch = tenx_genomics_workflow(ch_samplesheet)
+            bc_whitelist_ch  = Channel.value( params.seqtech_parameters[params.protocol].bc_whitelist )
 
-        } else if (params.protocol == 'sci_rna_seq3') {
-            data_output = sci_rna_seq3_workflow(ch_samplesheet)
+        } else if (params.protocol == 'sciRNAseq3') {
+            sciRNAseq3_workflow(ch_samplesheet)
+            data_output_ch   = sciRNAseq3_workflow.out.data_output
+            bc_whitelist_ch  = sciRNAseq3_workflow.out.bc_whitelist
 
         } else if (params.seqspec_file && file(params.seqspec_file).exists() && params.protocol == 'seqspec') {     
-            data_output = seqspec_workflow(ch_samplesheet)
+            data_output_ch = seqspec_workflow(ch_samplesheet)
+            bc_whitelist_ch  = Channel.value( params.seqtech_parameters[params.protocol].bc_whitelist )
             
         } else {
             error """
@@ -54,13 +61,14 @@ workflow preprocessing_workflow {
             - 'bd_rhapsody' 
             - 'oak_seq' 
             - '10xv3'
-            - 'sci_rna_seq3'
+            - 'sciRNAseq3'
             Or use 'seqspec' to specify a non-supported sequencing technique.
             """
         }
 
     emit:
-        data_output
+        data_output     = data_output_ch
+        bc_whitelist    = bc_whitelist_ch
 }
 
 /*

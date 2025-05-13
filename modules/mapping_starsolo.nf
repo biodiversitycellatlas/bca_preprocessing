@@ -13,6 +13,7 @@ process MAPPING_STARSOLO {
 
     input:
     tuple val(meta), path(fastqs)
+    path bc_whitelist
     path genome_index_files
     
     output:
@@ -21,9 +22,6 @@ process MAPPING_STARSOLO {
     script:
     // Set default variables
     def bd_mem_arg = task.ext.args ?: ''
-
-    // Retrieve barcode whitelist from conf/seqtech_parameters.config
-    def bc_whitelist = params.seqtech_parameters[params.protocol].bc_whitelist
 
     // Retrieve starsolo settings from conf/seqtech_parameters.config
     def starsolo_settings = params.seqtech_parameters[params.protocol].starsolo
@@ -34,6 +32,7 @@ process MAPPING_STARSOLO {
     echo "Mapping sample ${meta.id} with STARsolo"
     echo "Fastq files: ${fastqs ?: 'Not provided'}"
     echo "Genome index directory: ${genome_index_files}"
+    echo "Barcode whitelist: ${bc_whitelist}"
 
     # In case the protocol does not exist and the user has not provided a seqspec file
     SOLO_ARGS=\"${starsolo_args}\"
@@ -42,18 +41,6 @@ process MAPPING_STARSOLO {
         # Barcode structure information from seqspec file
         bc_struct=\$(seqspec index -m rna -t starsolo -s file spec.yaml)
         SOLO_ARGS=\"\${bc_struct} \${SOLO_ARGS}\"
-    fi
-
-    # Check bc_whitelist input, if it's a local or online file and unzip if needed
-    if [[ ${bc_whitelist} =~ ^https?:// ]]; then
-        echo "Detected URL, downloading and decompressing"
-        curl -fsSL ${bc_whitelist} | gunzip > cb_whitelist.txt
-    elif [[ ${bc_whitelist} == *.gz ]]; then
-        echo "Detected local gz, decompressing"
-        gunzip -c ${bc_whitelist} > cb_whitelist.txt
-    else
-        echo "Detected local plain-text, copying"
-        cp ${bc_whitelist} cb_whitelist.txt
     fi
 
     # Mapping step and generating count matrix using STAR
@@ -65,7 +52,7 @@ process MAPPING_STARSOLO {
         --outSAMtype BAM SortedByCoordinate \\
         --outFileNamePrefix ${meta.id}_ \\
         --soloCellFilter CellRanger2.2 ${meta.expected_cells} 0.99 10 \\
-        --soloCBwhitelist cb_whitelist.txt \\
+        --soloCBwhitelist ${bc_whitelist} \\
         ${bd_mem_arg} \\
         \${SOLO_ARGS}
     """
