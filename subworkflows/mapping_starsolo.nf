@@ -28,12 +28,13 @@ include { GENE_EXT                                          } from '../modules/g
 workflow mapping_starsolo_workflow {
     take:
         data_output
+        bc_whitelist
         all_outputs
     
     main:
         // Mapping: STARsolo
         GENINDEX_STARSOLO(data_output, params.ref_gtf)
-        mapping_files = MAPPING_STARSOLO(data_output, GENINDEX_STARSOLO.out)
+        mapping_files = MAPPING_STARSOLO(data_output, bc_whitelist, GENINDEX_STARSOLO.out)
         INDEX_BAM(MAPPING_STARSOLO.out)
 
         // Calculate saturation
@@ -54,7 +55,7 @@ workflow mapping_starsolo_workflow {
         if (params.perform_geneext) {
             GENE_EXT(MAPPING_STARSOLO.out, INDEX_BAM.out)
             GENINDEX_STARSOLO_GENEEXT(data_output, GENE_EXT.out)
-            MAPPING_STARSOLO_GENEEXT(data_output, GENINDEX_STARSOLO_GENEEXT.out)
+            MAPPING_STARSOLO_GENEEXT(data_output, bc_whitelist, GENINDEX_STARSOLO_GENEEXT.out)
             INDEX_BAM_GENEEXT(MAPPING_STARSOLO_GENEEXT.out)
 
             mapping_files = mapping_files.mix(MAPPING_STARSOLO_GENEEXT.out)

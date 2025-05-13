@@ -1,22 +1,33 @@
 process SCIROCKET_DEMUX {
-    tag "Demultiplex sample: ${meta.id} chunk: ${chunk}"
+    tag "${meta.id}, ${fastqs}"
+    debug true
 
     input:
-    tuple val(meta), val(chunk), file(r1_chunk), file(r2_chunk) from demux_input_ch
+    tuple val(meta), path(fastqs)
 
     output:
-    tuple val(meta), file("demux_reads_scatter/${meta.id}/${chunk}") into demux_scatter_ch
+    tuple val(meta), path("demux_reads/${meta.id}_R{1,2}.fastq.gz"), emit: samples
+    path("demux_reads/${meta.id}_whitelist_*"), emit: bc_whitelist
 
     script:
+    // Retrieve barcode whitelist from conf/seqtech_parameters.config
+    def bc_whitelist = params.seqtech_parameters[params.protocol].bc_whitelist
+
     """
-    mkdir -p demux_reads_scatter/${meta.id}/${chunk}
+    echo "\n\n==================  DEMULTIPLEXING FASTQ FILES  =================="
+    echo "Conda environment: \$CONDA_DEFAULT_ENV"
+    echo "Sample ID: ${meta.id}"
+    echo "Processing files: ${fastqs}"
+    echo "Barcode whitelist: ${bc_whitelist}"
+    echo "Samples file: ${launchDir}/${params.input}" 
+
+    mkdir -p demux_reads/
 
     python3 ${launchDir}/bin/scirocket_demux_rocket.py \\
          --experiment_name ${meta.id} \\
-         --samples ${params.path_samples} \\
-         --barcodes ${params.path_barcodes} \\
-         --r1 ${r1_chunk} --r2 ${r2_chunk} \\
-         --out demux_reads_scatter/${meta.id}/${chunk} \\
-         &> demultiplex_fastq_split_${meta.id}_${chunk}.log
+         --samples ${launchDir}/${params.input} \\
+         --barcodes ${bc_whitelist} \\
+         --r1 ${fastqs[0]} --r2 ${fastqs[1]} \\
+         --out demux_reads/ 
     """
 }
