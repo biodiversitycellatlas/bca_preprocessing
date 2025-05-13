@@ -7,10 +7,7 @@
     IMPORT FUNCTIONS / MODULES / SUBWORKFLOWS
 ~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~
 */
-include { FASTQ_SPLITTER        } from '../modules/fastqsplitter'
 include { SCIROCKET_DEMUX       } from '../modules/scirocket_demux'
-include { SCIROCKET_SEQS_GATHER } from '../modules/scirocket_seqs_gather'
-include { SCIROCKET_SPL_GATHER  } from '../modules/scirocket_spl_gather'
 include { FASTP                 } from '../modules/fastp'
 
 /*
