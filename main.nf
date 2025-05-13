@@ -29,7 +29,6 @@ include { QC_mapping_workflow       } from './workflows/mapping_workflow.nf'
 include { filtering_workflow        } from './workflows/filtering_workflow.nf'
 
 include { SAVE_RUN_CONFIG           } from './modules/save_run_config'
-include { MULTIQC                   } from './modules/multiqc'
 include { MAPPING_STATS             } from './modules/mapping_statistics'
 
      
@@ -101,8 +100,7 @@ workflow {
     mapping_stats_trigger = all_outputs.collect().map { it -> true }
     
     // MultiQC and mapping statistics, only triggered after all outputs are finished
-    MULTIQC(mapping_stats_trigger)
-    // MAPPING_STATS(mapping_stats_trigger, ch_samplesheet.collect()) 
+    MAPPING_STATS(mapping_stats_trigger) 
 }
 
 

@@ -46,10 +46,6 @@ for (sample_id in sample_ids) {
   }
 }
 
-# Print the collected directories
-print(raw_dirs)
-
-
 # =============================================================================
 # Function to read STARsolo data
 # =============================================================================
@@ -114,16 +110,17 @@ filt_cells <- cell_summary_dt[
   cell_sizes >= umi_thr[1] & cell_sizes <= umi_thr[2] & cell_genes >= gen_thr
 ]
 
+# Check if any cells pass the filters
+if (nrow(filt_cells) == 0)
+    stop("No cells pass the filters, adjust umi_thr or gen_thr")
+
 # Filter cells and genes for plotting (only positive counts)
 sum_cells_plot <- cell_summary_dt[cell_sizes > 0]
 sum_genes_plot <- gene_summary_dt[gene_umis > 0]
 
 # Define a dynamic color palette
-print("Generating color palette for datasets...")
 dataset_names <- unique(cell_summary_dt$dataset)
-print(dataset_names)
 num_datasets <- length(dataset_names)
-print(num_datasets)
 data_cols <- setNames(colorRampPalette(brewer.pal(9, "Set1"))(num_datasets), dataset_names)
 
 # Remove duplicates if any
