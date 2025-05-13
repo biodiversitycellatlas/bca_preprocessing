@@ -1,18 +1,15 @@
 process DOWNLOAD_DATA {
-    tag { meta.id }
-    
-    input:
-    tuple val(meta), path(fastqs)
-
     output:
-    tuple val(meta), path(fastqs)
+    path("bc_whitelist.txt")
 
     script:
+    bc_whitelist  = Channel.value( params.seqtech_parameters[params.protocol].bc_whitelist )
+
     """
-    echo "Metadata: ${meta}"
-    echo "Fastq files: ${fastqs}"
+    # Download the whitelist file
+    wget -O bc_whitelist.txt.gz ${bc_whitelist}
     
-    # ln -s ${fastqs[0]} ${meta.id}_S1_R1_001.fastq.gz
-    # ln -s ${fastqs[1]} ${meta.id}_S1_R2_001.fastq.gz
+    # Unzip the whitelist file
+    gunzip bc_whitelist.txt.gz
     """
 }

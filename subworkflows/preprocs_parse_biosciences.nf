@@ -25,17 +25,14 @@ include { PARSEBIO_PIPELINE } from '../modules/parsebio_pipeline'
 workflow parse_workflow {
     take:
         ch_samplesheet
-    main:
-        // Import the fastq files into the nf workdir using sym links to the original files
-        DOWNLOAD_DATA(ch_samplesheet)
-        
+    main:       
         // Make a channel of 2-tuples: ( groupName, wellRange )
         def groups = Channel
             .fromList(params.parsebio_groups)
             .map { list -> tuple( list[0], list[1] ) }
 
         // Add the groupName and wellRange to the meta map
-        def comb_data = DOWNLOAD_DATA.out
+        def comb_data = ch_samplesheet
             .combine(groups)
             .map { meta, fastqs, groupName, wellRange ->
                 def combined_meta = meta + [

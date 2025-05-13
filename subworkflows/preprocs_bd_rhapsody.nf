@@ -22,11 +22,8 @@ workflow bd_rhapsody_workflow {
     take:
         ch_samplesheet
     main:
-        // Import the fastq files into the nf workdir using sym links to the original files
-        DOWNLOAD_DATA(ch_samplesheet)     
-
         // Remove variable bases (0-3) from the fastq files using cutadapt
-        RM_VARBASES(DOWNLOAD_DATA.out)
+        RM_VARBASES(ch_samplesheet)
 
         // Only run BD Rhapsody pipeline if the path is defined and exists
         if (params.bdrhap_pipeline_dir && file(params.bdrhap_pipeline_dir).exists()) {
