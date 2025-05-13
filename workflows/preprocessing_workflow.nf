@@ -38,12 +38,14 @@ workflow preprocessing_workflow {
             bc_whitelist_ch  = Channel.value( params.seqtech_parameters[params.protocol].bc_whitelist )
 
         } else if (params.protocol == 'oak_seq') {
-            data_output_ch = oak_seq_workflow(ch_samplesheet)
-            bc_whitelist_ch  = Channel.value( params.seqtech_parameters[params.protocol].bc_whitelist )
+            oak_seq_workflow(ch_samplesheet)
+            data_output_ch = oak_seq_workflow.out.data_output
+            bc_whitelist_ch  = oak_seq_workflow.out.bc_whitelist
 
         } else if (params.protocol == '10xv3') {
-            data_output_ch = tenx_genomics_workflow(ch_samplesheet)
-            bc_whitelist_ch  = Channel.value( params.seqtech_parameters[params.protocol].bc_whitelist )
+            tenx_genomics_workflow(ch_samplesheet)
+            data_output_ch = tenx_genomics_workflow.out.data_output
+            bc_whitelist_ch  = tenx_genomics_workflow.out.bc_whitelist
 
         } else if (params.protocol == 'sciRNAseq3') {
             sciRNAseq3_workflow(ch_samplesheet)

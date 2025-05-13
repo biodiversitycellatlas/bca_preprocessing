@@ -21,8 +21,8 @@ workflow oak_seq_workflow {
     take:
         ch_samplesheet
     main:
-        // Import the fastq files into the nf workdir using sym links to the original files
-        DOWNLOAD_DATA(ch_samplesheet)
+        // Download data from the specified path, in this case the barcode whitelist
+        DOWNLOAD_DATA()
 
         // Only run Cell Ranger pipeline if the path is defined and exists
         if (params.cellranger_dir && file(params.cellranger_dir).exists()) {
@@ -33,7 +33,8 @@ workflow oak_seq_workflow {
         }
 
     emit:
-        DOWNLOAD_DATA.out
+        data_output     = ch_samplesheet
+        bc_whitelist    = DOWNLOAD_DATA.out
 }
 
 /*
