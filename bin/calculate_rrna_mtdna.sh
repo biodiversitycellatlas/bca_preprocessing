@@ -63,7 +63,7 @@ total_mmpa=$(samtools view multimapped_primealign.bam | wc -l)
 echo -e "Total multimapped reads (primary alignment),$total_mmpa" >> $outfile
 
 mt_multi1=$(samtools view multimapped_primealign.bam | grep ${mt_contig} | wc -l)
-echo -e "mtDNA counts in Multimapped reads (primary alignment),\$mt_multi1" >> $outfile
+echo -e "mtDNA counts in Multimapped reads (primary alignment),$mt_multi1" >> $outfile
 
 # Percentage of mtDNA reads among multimapped reads (primary alignment)
 perc_mt_mmpa=$(awk -v m="$mt_multi1" -v tot="$total_mmpa" 'BEGIN {printf "%.2f", (m/tot)*100}')

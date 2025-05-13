@@ -1,19 +1,17 @@
 process MAPPING_STATS {
     publishDir "${params.output_dir}/summary_results", mode: 'copy'
-    tag "${meta.id}"
     debug true
 
     input:
     val(trigger)
-    val(meta)
 
     output:
     path("*")
 
     script:
     """
-    echo "Results directory: ${params.output_dir}"
-    echo "Sample IDs: ${meta}"
+    # MultiQC report
+    multiqc ${params.output_dir} --config ${launchDir}/bin/multiqc_config.yml
 
     # Produce summary (.tsv) of mapping statistics
     sbatch ${launchDir}/bin/mapping_statistics.sh ${params.output_dir} ${params.ref_gtf}
