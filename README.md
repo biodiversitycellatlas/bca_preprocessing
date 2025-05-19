@@ -21,16 +21,18 @@ This nextflow pipeline is designed to pre-process single-cell and single-nucleus
 - sci-RNA-seq3
 - and others, when providing a [seqspec](https://github.com/pachterlab/seqspec) file
 
-Depending on the chosen sequencing technique, it handles the FASTQ files accordingly. 
-Parse Biosciences data will be demultiplexed depending on the groups parameter, which seperates possible different techniques or samples within the same plate based on the wells. After demultiplexing, it is mapped using the official split-pipe pipeline from Parse Biosciences, to offer a comparation between their data processing platform and the results of our pipeline. The same comparisons are provided for BD Rhapsody (using BD-Rhapsody pipeline), OAKseq and 10x data (using Cell Ranger).   
+Depending on the chosen sequencing technique, it handles the processing of the FASTQ files accordingly. For an in-depth explenation of the different steps for each of the sequencing methods, you can read [this page](subworkflows/README.md). Whenever possible, we compared our results to a commercial pre-processing pipeline for that sequencing technique. For example, comparing our Parse Biosciences results to the official split-pipe pipeline from Parse Biosciences. While we cannot provide this commercial software directly, you can install it yourself (e.g. by following [these instructions](assets/README.md)), and provide a path where the installation is located. This way, it will be executed alongside of the BCA pre-processing pipeline.
+
+The pipeline will produce the following output files:
+- Raw & Filtered count matrices (intronic, exonic & full gene) from Mapping step​
+- Filtered count matrices (h5 files) ​from Filtering step​
+- Summary report (MultiQC) & Mapping statistics table
 
 ![pipeline](/img/Preprocs_Pipeline.png)
 
 ---
 
 ## Installation
-
-### Basic Installation
 
 1. **Clone the bca_preprocessing repository:**
 ```
@@ -62,73 +64,17 @@ conda -h
 nextflow -h
 ``` 
 
-
-
-### Optional: Installing commercial pipelines
-
-#### Cell Ranger
-Followed the installation guide on the [10x Genomics website](https://www.10xgenomics.com/support/software/cell-ranger/latest/tutorials/cr-tutorial-in), and downloaded Cell Ranger version 9.0.1.
-```
-# Downloading Cell Ranger using wget
-wget -O cellranger-9.0.1.tar.gz "https://cf.10xgenomics.com/releases/cell-exp/cellranger-9.0.1.tar.gz?Expires=1742511989&Key-Pair-Id=APKAI7S6A5RYOXBWRPDA&Signature=cr3Sw2Q~GjIzwmorEmEGgU7eKfFqTfz14Gd5Dt329DuPX549cfXVEsLJo7oq3xcijzJpNIFbbxDL7JyP0-2LA4GyQhyyKvEjoBuHNjDkdB8qo8lQ4yJ57oThwz8kTPvc3NVBy8jHQYfA8ywcz4dWrrt0--K5bnp4OMEi6A0QTFaUUfINjPjaFqUoOrMuYtJdOSBcj11h9xI~eVbF4d~-bB4zKiqwjnKlW0aJ2K6jWt7Ho22V8YXSN3o70hJOPnklf2hVpfvKmKqfGFC1IeHGEOvoEcBAPUI9qnmoIKAn3FYvIhnqtkOrAH42naArGmFfiSGl8iaOgBOBYCIQUohMmA__"
-
-# Unpack
-tar -xzvf cellranger-9.0.1.tar.gz
-```
-
-#### BD Rhapsody
-
-First, download the ['cwl' folder](https://bitbucket.org/CRSwDev/cwl/src/master/) of the BD Single-Cell Multiomics Software, hosted on Bitbucket. This repository contains the CWL and YML files required to run the BD Rhapsody pipeline locally. Secondly, pull the docker image using Docker or Apptainer (see code for Apptainer example). 
-
-```
-# Pull docker image using Apptainer
-apptainer pull docker://bdgenomics/rhapsody
-```
-
-#### Parse Biosciences
-In order to incorporate the commercial Parse Biosciences pipeline (also called split-pipe), first install the code from the personal account page on the Parse Biosciences website. For this project, we tested version 1.3.1, 
-
-Instructions on creating the split-pipe conda environment:
-
-```
-# Move to new split-pipe installation
-cd /installation_pipeline/
-
-# Create a new conda environment
-conda create –name spipe 
-bash ./install_dependencies_conda.sh -i -y 
-pip install . --no-cache-dir 
-
-# Activate environment
-conda activate spipe
-```
-
-We encountered a few errors durring the creation of the spipe environment. Below, there are a few fixes to common set up problems of spipe: 
-```
-# Pip not installed
-conda install anaconda::pip=23.3.1 
-
-# Failed building wheel for louvain
-conda install -c conda-forge python-igraph 
-pip install cmake 
-
-# AttributeError: module 'numpy' has no attribute 'NAN'. Did you mean: 'nan'? 
-# In the file 'utils.py', in line 'def report_percent_str(num, den=1, round_to=2, zero=np.NAN, perchar=True): ' 
-# replace NAN by nan. 
-# After saving, rerun:
-pip install . --no-cache-dir 
-```
-
-To test if the installation of split-pipe was successful:
-```
-split-pipe -h 
-```
-
 ---
 
 ## Setup
 
-### 1. Create a new Nextflow configuration file
+### 1. Create a samplesheet
+
+| sample                 |  fastq_cDNA | fastq_BC_UMI | expected_cells | p5                 |  p7 | rt |
+|------------------------|-------------|--------------|-------|-----------------|-------------|--------------|
+
+
+### 2. Edit (or create) the Nextflow configuration file
 
 To set the custom parameters for each run, a nextflow configuration file is created that extends the general `nextflow.config` file in the base of this repository. The custom configuration files can be stored within the `/conf/` directory, and should be based upon the example config file in [`conf/example.config`](https://github.com/biodiversitycellatlas/bca_preprocessing/blob/main/conf/example.config). If you have a multiple-species experiment, one configuration file per species must be created in order to analyze the data with the corresponding genome annotation files. 
 
@@ -139,9 +85,8 @@ Within each custom configuration file the following variables can be defined:
 |------------------------|-------------------|-------------|
 | `input`                | __Required__         | Path to the samplesheet. |
 | `output_dir`           | __Required__          | Path to the results/output directory; must exist before running. |
-| `protocol`              | __Required__          | Specifies the sequencing technology used (must be one of the following: `"oak_seq"`, `"10xv3"`, `"parse_biosciences"`,     `"bd_rhapsody"`, `"sci_rna_seq3"` or `"seqspec"`). |
+| `protocol`              | __Required__          | Specifies the sequencing technology used (must be one of the following: `"oak_seq"`, `"10xv3"`, `"parse_biosciences"`,     `"bd_rhapsody"`, `"sciRNAseq3"` or `"seqspec"`). |
 | `parsebio_groups`       | Optional          | Required for Parse Biosciences data, to split the FASTQ files by well. Should be a nested list, with their desired name and range of wells (example: `[['group1', 'A1-A3'], ['group2', 'A4-A7'], ...]`)  |
-| `annot_type`            | __Required__          | Specifies if the format of the reference, must be either `"GFF"` or `"GTF"`.  |
 | `ref_fasta`            | __Required__          | Path to the genome FASTA file used for mapping reads. |
 | `ref_gtf`              | __Required__          | Path to the GTF/GFF file formatted for STARsolo. |
 | `ref_parse_gtf`        | Optional              | Path to the GTF/GFF file formatted specifically for analysis with Parse Biosciences pipeline. Defaults to the same path as `ref_gtf`. |
@@ -160,9 +105,10 @@ Within each custom configuration file the following variables can be defined:
 
 
 
-### 2. Add custom configuration file as a new profile
+### 3. Optional: Add custom configuration file as a new profile
 
-After creating a new configuration file, it has to be added as a profile in the [`nextflow.config`](https://github.com/biodiversitycellatlas/bca_preprocessing/blob/main/nextflow.config) file. Define an unique name and set the path, for example within the /config/ directory. 
+After creating a new configuration file, it can be added as a profile in the [`nextflow.config`](https://github.com/biodiversitycellatlas/bca_preprocessing/blob/main/nextflow.config) file. Define an unique name and set the path, for example within the /conf/ directory. 
+
 ```
 ## file: nextflow.config
 
@@ -174,30 +120,22 @@ profiles {
             clusterOptions = '--qos=short'
         }
     }
-    'test_config' {
-        includeConfig 'config/test.config'
+    /* ======= !!! EDIT BELOW TO INCLUDE YOUR CUSTOM CONFIG FILES !!! ======= */
+    'custom_parameters' {
+        includeConfig 'conf/custom_parameters.config'
     }
-    ...
+    /* ======= !!! EDIT ABOVE TO INCLUDE YOUR CUSTOM CONFIG FILES !!! ======= */
 }
 ```
 
-### 3. Edit submit_nextflow.sh
-
-```
-## file: submit_nextflow.sh
-
-# Include both slurm & custom config profile
-nextflow run -profile slurm,test_config -ansi-log false "$@" & pid=$! 
-```
 
 ---
 
 ## Usage
 
 ### Pre-requisites:
-- [ ] Configured the custom config file (config/custom.config)
-- [ ] Added custom config as profile in the main config file (config/main.config)
-- [ ] Added profile to the command line option in the submit_nextflow.sh script
+- [ ] Configured the custom config file (config/custom_parameters.config)
+- [ ] Added custom config as profile in the main config file (nextflow.config)
 
 ### Running the Pipeline
 
