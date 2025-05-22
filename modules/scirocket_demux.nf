@@ -7,9 +7,14 @@ process SCIROCKET_DEMUX {
     tuple val(meta), path(fastq_cDNA), path(fastq_BC_UMI)
 
     output:
-    path("demux_reads/${meta.id}_R{1,2}.fastq.gz"),       emit: samples
-    path("demux_reads/${meta.id}_R{1,2}_discarded*"),     emit: samples_discarded
-    path("demux_reads/${meta.id}_whitelist_*"),           emit: bc_whitelists
+    path("demux_reads/${meta.id}_R1.fastq.gz"),       emit: samples_R1
+    path("demux_reads/${meta.id}_R2.fastq.gz"),       emit: samples_R2
+    path("demux_reads/${meta.id}_R1_discarded*"),     emit: samples_discarded_R1
+    path("demux_reads/${meta.id}_R2_discarded*"),     emit: samples_discarded_R2
+    path("demux_reads/${meta.id}_whitelist_p5*"),           emit: bc_whitelists_p5
+    path("demux_reads/${meta.id}_whitelist_p7*"),           emit: bc_whitelists_p7
+    path("demux_reads/${meta.id}_whitelist_ligation*"),     emit: bc_whitelists_ligation
+    path("demux_reads/${meta.id}_whitelist_rt*"),           emit: bc_whitelists_rt
 
     script:
     // Retrieve barcode whitelist from conf/seqtech_parameters.config
