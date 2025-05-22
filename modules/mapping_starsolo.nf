@@ -8,11 +8,12 @@
 */
 
 process MAPPING_STARSOLO { 
-    publishDir "${params.output_dir}/mapping_STARsolo/${meta.id}", mode: 'copy', overwrite: false
+    publishDir "${params.output_dir}/mapping_STARsolo/${meta.id}", mode: 'copy'
     tag "${meta.id}_STARsolo"
+    debug true
 
     input:
-    tuple val(meta), path(fastqs)
+    tuple val(meta), path(fastq_cDNA), path(fastq_BC_UMI)
     path bc_whitelist
     path genome_index_files
     
@@ -30,7 +31,8 @@ process MAPPING_STARSOLO {
     """
     echo "\n\n==============  MAPPING STARSOLO  ================"
     echo "Mapping sample ${meta.id} with STARsolo"
-    echo "Fastq files: ${fastqs ?: 'Not provided'}"
+    echo "FASTQ cDNA: ${fastq_cDNA}"
+    echo "FASTQ BC & UMI: ${fastq_BC_UMI}"
     echo "Genome index directory: ${genome_index_files}"
     echo "Barcode whitelist: ${bc_whitelist}"
 
@@ -46,7 +48,7 @@ process MAPPING_STARSOLO {
     # Mapping step and generating count matrix using STAR
     STAR \\
         --runThreadN 8 \\
-        --readFilesIn ${fastqs} \\
+        --readFilesIn ${fastq_cDNA} ${fastq_BC_UMI} \\
         --genomeDir ${genome_index_files.toRealPath()} \\
         --readFilesCommand zcat \\
         --outSAMtype BAM SortedByCoordinate \\

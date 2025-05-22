@@ -3,7 +3,7 @@ process DOWNLOAD_DATA {
     path("bc_whitelist.txt")
 
     script:
-    bc_whitelist  = Channel.value( params.seqtech_parameters[params.protocol].bc_whitelist )
+    bc_whitelist  = params.seqtech_parameters[params.protocol].bc_whitelist
 
     """
     # Download the whitelist file

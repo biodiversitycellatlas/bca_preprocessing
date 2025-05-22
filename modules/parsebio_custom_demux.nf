@@ -4,10 +4,10 @@ process PARSEBIO_CUSTOM_DEMUX {
     debug true
     
     input:
-    tuple val(meta), path(fastqs)
+    tuple val(meta), path(fastq_cDNA), path(fastq_BC_UMI)
 
     output:
-    tuple val(meta), path("*group*"), emit: splitted_files
+    tuple val(meta), path("*group*_R1*"), path("*group*_R2*"), emit: splitted_files
 
     script:
     """
@@ -18,8 +18,8 @@ process PARSEBIO_CUSTOM_DEMUX {
     # Run Parse Biosciences demultiplexing script
     python ${launchDir}/bin/parsebio_custom_demux.py \\
         --sample_id ${meta.id} \\
-        --fq1 ${fastqs[0]} \\
-        --fq2 ${fastqs[1]} \\
+        --fq1 ${fastq_cDNA} \\
+        --fq2 ${fastq_BC_UMI} \\
         --whitelist ${launchDir}/seq_techniques/parse_biosciences/bc_data_n26_R1_v3_4.csv \\
         --group ${meta.group} ${meta.well} \\
         --output . \\
