@@ -1,5 +1,5 @@
 process SCIROCKET_SPL_GATHER {
-    publishDir "${params.output_dir}/demux_reads/spl_gather", mode: 'copy'
+    publishDir "${params.output_dir}", mode: 'copy'
     tag "all-samples"
     debug true
 

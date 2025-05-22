@@ -1,19 +1,21 @@
 process SCIROCKET_SEQS_GATHER {
+    publishDir "${params.output_dir}", mode: 'copy'
     debug true
 
     input:
-    path(samples_discarded)
-    path(bc_whitelists)
+    path samples_discarded_R1
+    path samples_discarded_R2
+    path bc_whitelists_p5
+    path bc_whitelists_p7
+    path bc_whitelists_ligation
+    path bc_whitelists_rt
 
     output:
-    path("seqs_gather/"),                   emit: all_output
-    path("seqs_gather/whitelist_*"),        emit: bc_whitelist
+    tuple path('seqs_gather/whitelist_p7.txt'), path('seqs_gather/whitelist_p5.txt'), path('seqs_gather/whitelist_ligation.txt'), path('seqs_gather/whitelist_rt.txt'), emit: bc_whitelist
 
     script:
     """
     echo "\n\n==================  GATHER DEMULTIPLEXED SEQUENCING DATA  =================="
-    echo "Discarded sample files: ${samples_discarded}"
-    echo "Barcode whitelist files: ${bc_whitelists}"
     echo "Output directory: seqs_gather/"
 
     mkdir -p seqs_gather/
@@ -24,13 +26,13 @@ process SCIROCKET_SEQS_GATHER {
     #     --path_out seqs_gather/qc.pickle
 
     # Combine discarded R1 and R2 reads as well as logs.
-    find . -type f -name *_R1_discarded.fastq.gz -print0 | xargs -0 cat > seqs_gather/R1_discarded.fastq.gz
-    find . -type f -name *_R2_discarded.fastq.gz -print0 | xargs -0 cat > seqs_gather/R2_discarded.fastq.gz
+    cat ${samples_discarded_R1.join(' ')} > seqs_gather/R1_discarded.fastq.gz
+    cat ${samples_discarded_R2.join(' ')} > seqs_gather/R2_discarded.fastq.gz
 
     # Combine and deduplicate whitelist files.
-    find . -type f -name *_whitelist_p7.txt -print0 | xargs -0 cat | sort -u > seqs_gather/whitelist_p7.txt
-    find . -type f -name *_whitelist_p5.txt -print0 | xargs -0 cat | sort -u > seqs_gather/whitelist_p5.txt
-    find . -type f -name *_whitelist_ligation.txt -print0 | xargs -0 cat | sort -u > seqs_gather/whitelist_ligation.txt
-    find . -type f -name *_whitelist_rt.txt -print0 | xargs -0 cat | sort -u > seqs_gather/whitelist_rt.txt
+    cat ${bc_whitelists_p5.join(' ')} | sort -u > seqs_gather/whitelist_p7.txt
+    cat ${bc_whitelists_p7.join(' ')} | sort -u > seqs_gather/whitelist_p5.txt
+    cat ${bc_whitelists_ligation.join(' ')} | sort -u > seqs_gather/whitelist_ligation.txt
+    cat ${bc_whitelists_rt.join(' ')} | sort -u > seqs_gather/whitelist_rt.txt
     """
 }
