@@ -4,7 +4,7 @@ process MAPPING_ALEVIN {
     debug true
 
     input:
-    tuple val(meta), path(fastqs)
+    tuple val(meta), path(fastq_cDNA), path(fastq_BC_UMI)
     path bc_whitelist
     path(index)
 
@@ -36,16 +36,16 @@ process MAPPING_ALEVIN {
     echo "Index: ${index}"
     echo "Reference fasta: ${params.ref_fasta}"
     echo "Reference ref_gtf: ${params.ref_gtf}"
-    echo "cDNA read: ${fastqs[0]}"
-    echo "CB/UMI read: ${fastqs[1]}"
+    echo "cDNA read: ${fastq_cDNA}"
+    echo "CB/UMI read: ${fastq_BC_UMI}"
 
 
     echo "\n\n-------------  Salmon Alevin -------------------"
     salmon alevin \\
         -i salmon_index \\
         -l A \\
-        -1 ${fastqs[0]} \\
-        -2 ${fastqs[1]} \\
+        -1 ${fastq_cDNA} \\
+        -2 ${fastq_BC_UMI} \\
         -p 32 \\
         --bc-geometry ${bc_geom} \\
         --umi-geo ${umi_geom} \\

@@ -3,7 +3,7 @@ process GENINDEX_ALEVIN {
     debug true
 
     input:
-    tuple val(meta), path(fastqs)
+    tuple val(meta), path(fastq_cDNA), path(fastq_BC_UMI)
 
     output:
     path("*")
@@ -16,7 +16,7 @@ process GENINDEX_ALEVIN {
     echo "Reference ref_gtf: ${params.ref_gtf}"
 
     # Calculate read length using the first read from the first fastq file
-    readlen=\$(zcat ${fastqs[0]} | awk 'NR==2 {print length(\$0)}') 
+    readlen=\$(zcat ${fastq_cDNA} | awk 'NR==2 {print length(\$0)}') 
     echo "Read length: \${readlen}"
 
     # Create splici reference
