@@ -21,6 +21,8 @@ wget -O cellranger-9.0.1.tar.gz "https://cf.10xgenomics.com/releases/cell-exp/ce
 tar -xzvf cellranger-9.0.1.tar.gz
 ```
 
+---
+
 ### BD Single-Cell Multiomics Software (BD Rhapsody)
 
 First, download the ['cwl' folder](https://bitbucket.org/CRSwDev/cwl/src/master/) of the BD Single-Cell Multiomics Software, hosted on Bitbucket. This repository contains the CWL and YML files required to run the BD Rhapsody pipeline locally. Secondly, pull the docker image using Docker or Apptainer (see code for Apptainer example). 
@@ -29,6 +31,8 @@ First, download the ['cwl' folder](https://bitbucket.org/CRSwDev/cwl/src/master/
 # Pull docker image using Apptainer
 apptainer pull docker://bdgenomics/rhapsody
 ```
+
+---
 
 ### split-pipe (Parse Biosciences)
 In order to incorporate the commercial Parse Biosciences pipeline (also called split-pipe), first create an account and install the code from the personal account page on the Parse Biosciences website. For this project, we tested version 1.3.1, 
@@ -69,11 +73,15 @@ To test if the installation of split-pipe was successful:
 split-pipe -h 
 ```
 
+---
+
 
 ### sci-rocket (sci-RNA-seq3)
 
 Github page: https://github.com/odomlab2/sci-rocket/tree/main
+
 Documentation: https://odomlab2.github.io/sci-rocket/
+
 Version(s) tested: 
 
 
@@ -90,8 +98,9 @@ snakemake --use-conda --configfile <config file> --cores 1
 ```
 
 Using the software out-of-the-box, we encountered two issues:
-1. Error: clock skew problem
-2. Error: creating STAR index
+- Error: clock skew problem
+- Error: creating STAR index
+
 
 
 #### 1. Error: clock skew problem
@@ -117,6 +126,8 @@ rule merge_sequencing_runs:
 -       fi
         """
 ```
+
+
 
 #### 2. Error: creating STAR index
 
