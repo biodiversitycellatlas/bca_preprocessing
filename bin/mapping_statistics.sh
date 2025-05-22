@@ -23,7 +23,7 @@ echo -e "Software\tSample\tN reads/sample\tN R1 >Q30\tN R2 >Q30\tN uniquely mapp
 # For each STARsolo mapping directory
 # ------------------------------------------------------------------
 
-for map_dir in ${output_dir}/mapping_STARsolo/*; do
+for map_dir in "${output_dir}/mapping_STARsolo"/*; do
     echo "mapping dir: ${map_dir}"
 
     # Extract sample name
