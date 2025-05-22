@@ -78,7 +78,8 @@ awk -v bc="${barcode_rc}" -v mm="${max_mm}" -v out="${tmp_dir}/ids.txt" '
 echo "Demultiplexing all four reads into ${demux_dir}/${barcode_raw}_*.fastq.gz …"
 for fq in "${R1}" "${R2}" "${I1}" "${I2}"; do
   base=$(basename "${fq}" .fastq.gz)
-  seqtk subseq "${fq}" "${tmp_dir}/ids.txt" | gzip > "${demux_dir}/${barcode_raw}_${base}.fastq.gz"
+  clean_base=${base#Undetermined_}
+  seqtk subseq "${fq}" "${tmp_dir}/ids.txt" | gzip > "${demux_dir}/${barcode_raw}_${clean_base}.fastq.gz"
 done
 
 echo "Done."
