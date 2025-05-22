@@ -10,7 +10,8 @@
 #SBATCH --mem=32G
 #SBATCH --job-name bcl_oakseq
 
-output_dir=$1
+input_dir=$1
+output_dir=$2
 
 # Load bcl2fastq module
 module load bcl2fastq2/2.20.0-GCC-13.2.0
@@ -19,7 +20,7 @@ module load bcl2fastq2/2.20.0-GCC-13.2.0
 # --no-lane-splitting:                Do not split the output by lane
 # --create-fastq-for-index-reads:     Create FASTQ files for index reads
 /software/sit/EasyBuild/software/bcl2fastq2/2.20.0-GCC-13.2.0/bin/bcl2fastq \
-  --runfolder-dir ${output_dir}/raw_data/ \
+  --runfolder-dir ${input_dir} \
   --output-dir ${output_dir}/fastq/ \
   --no-lane-splitting \
   --create-fastq-for-index-reads
