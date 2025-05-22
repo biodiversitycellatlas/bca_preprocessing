@@ -4,7 +4,7 @@ process CR_PIPELINE {
     debug true
 
     input:
-    tuple val(meta), path(fastqs)
+    tuple val(meta), path(fastq_cDNA), path(fastq_BC_UMI)
     path(cr_reference_dir)
 
     script:
@@ -17,7 +17,7 @@ process CR_PIPELINE {
     export PATH=${params.cellranger_dir}:$PATH
 
     # Derive the parent directory of the first FASTQ
-    fastq_parent=\$(dirname ${fastqs[0]})
+    fastq_parent=\$(dirname ${fastq_cDNA})
     echo "Using FASTQ directory: \$fastq_parent"
     
     cellranger count \\

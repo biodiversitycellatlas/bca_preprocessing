@@ -17,6 +17,6 @@ process MAPPING_STATS {
     sbatch ${launchDir}/bin/mapping_statistics.sh ${params.output_dir} ${params.ref_gtf}
 
     # Create UMI distribution and Cell + Gene count plots
-    Rscript ${launchDir}/bin/plot_umidist_cellgenecount.R ${params.output_dir}
+    # Rscript ${launchDir}/bin/plot_umidist_cellgenecount.R ${params.output_dir}
     """
 }

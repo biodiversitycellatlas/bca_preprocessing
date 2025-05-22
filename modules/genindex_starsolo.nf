@@ -4,7 +4,7 @@
 
 process GENINDEX_STARSOLO {
     input:
-    tuple val(meta), path(fastqs)
+    tuple val(meta), path(fastq_cDNA), path(fastq_BC_UMI)
     path ref_gtf
 
     output:
@@ -22,7 +22,7 @@ process GENINDEX_STARSOLO {
     echo "Creating star index using GTF file: ${ref_gtf}" 
 
     # Calculate SJDB overhang using the first read from the first fastq file
-    sjdb_overhang=\$(zcat ${fastqs[0]} | awk 'NR==2 {print length(\$0)-1; exit}' || echo "") 
+    sjdb_overhang=\$(zcat ${fastq_cDNA} | awk 'NR==2 {print length(\$0)-1; exit}' || echo "") 
 
     echo "Generating genome index with STAR"
     STAR --runMode genomeGenerate \\

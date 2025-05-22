@@ -9,11 +9,11 @@
 // directory.                                        \\
 
 process PARSEBIO_PIPELINE {
-    publishDir "${params.output_dir}/ParseBio_pipeline/${meta.id}", mode: 'copy', overwrite: false
+    publishDir "${params.output_dir}/ParseBio_pipeline/${meta.id}", mode: 'copy'
     tag "${meta.id}"
     
     input:
-    tuple val(meta), path(fastqs)
+    tuple val(meta), path(fastq_cDNA), path(fastq_BC_UMI)
     path parse_refgenome_files
 
     output:
@@ -24,7 +24,8 @@ process PARSEBIO_PIPELINE {
     """
     echo "\n\n=============  MAPPING PARSE BIOSCIENCES  ================"
     echo "Mapping sample ${meta.id} with Parse Biosciences pipeline"
-    echo "Fastq files: ${fastqs ?: 'Not provided'}"
+    echo "FASTQ cDNA: ${fastq_cDNA}"
+    echo "FASTQ BC & UMI: ${fastq_BC_UMI}"
     echo "Genome index directory: ${parse_refgenome_files}"
     echo "Conda environment: \$CONDA_DEFAULT_ENV"
 
@@ -41,8 +42,8 @@ process PARSEBIO_PIPELINE {
         --chemistry v3 \\
         --kit WT_mini \\
         ${kitskip_arg} \\
-        --fq1 ${fastqs[0]} \\
-        --fq2 ${fastqs[1]} \\
+        --fq1 ${fastq_cDNA} \\
+        --fq2 ${fastq_BC_UMI} \\
         --nthreads 16 \\
         --genome_dir genome_index \\
         --output_dir . \\

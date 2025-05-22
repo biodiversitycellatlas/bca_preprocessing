@@ -58,11 +58,17 @@ Channel
       p7                : row.p7 ? row.p7 : null,
       rt                : row.rt ? row.rt : null,
     ]
-    // List of fastq paths
-    def fastqs = [ file(row.fastq_cDNA), file(row.fastq_BC_UMI) ].findAll { it } 
+    
+    // Assign each FASTQ to its own variable (or null if missing)
+    def fastq_cDNA  = row.fastq_cDNA  ? file(row.fastq_cDNA)  : null
+    def fastq_BC_UMI = row.fastq_BC_UMI ? file(row.fastq_BC_UMI) : null
 
-    // Emit as a 2-element List
-    [ meta, fastqs ]
+    // Return a single map with named entries
+    [
+        meta         : meta,
+        fastq_cDNA   : fastq_cDNA,
+        fastq_BC_UMI : fastq_BC_UMI
+    ]
   }
   .set { ch_samplesheet }
 
@@ -97,7 +103,9 @@ workflow {
 
     // Collect all outputs into a single channel and create trigger
     all_outputs = preprocessing_workflow.out.data_output.mix(QC_mapping_workflow.out.all_outputs)
-    mapping_stats_trigger = all_outputs.collect().map { it -> true }
+    
+    // Define a trigger that waits for both mapping_files and all_outputs
+    mapping_stats_trigger = all_outputs.mix(QC_mapping_workflow.out.mapping_files).collect().map { it -> true }
     
     // MultiQC and mapping statistics, only triggered after all outputs are finished
     MAPPING_STATS(mapping_stats_trigger) 
