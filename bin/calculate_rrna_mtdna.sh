@@ -38,11 +38,11 @@ echo -e "Number of uniquely mapped reads,$uniquely_mapped" >> $outfile
 # ------------------------------------------------------------------
 # Number of ribosomal RNA reads in uniquely mapped reads
 featureCounts -t "${grep_rrna}" -a ${ref_gtf} -o feat_counts_rRNA.txt $bam_file
-rrna=$(cat feat_counts_rRNA.txt.summary | grep -v "Assigned" | awk '{print $2}')
+rrna=$(cat feat_counts_rRNA.txt.summary | grep -E "Assigned" | awk '{print $2}')
 echo -e "Number of ribosomal RNA reads in uniquely mapped reads,$rrna" >> $outfile
 
 # Calculate percentage of rRNA reads among uniquely mapped reads
-perc_rrna=$(awk -v r="$rrna" -v u="$uniquely_mapped" 'BEGIN {printf "%.2f", (r/u)*100}')
+perc_rrna=$(awk -v r="$rrna" -v u="$uniquely_mapped" 'BEGIN {printf "%.4f", (r/u)}')
 echo -e "Percentage of rRNA reads (of uniquely mapped reads),$perc_rrna" >> $outfile
 
 
@@ -54,7 +54,7 @@ mt=$(samtools view $bam_file | grep ${mt_contig} | wc -l)
 echo -e "Number of reads mapping to mtDNA contig,$mt" >> $outfile
 
 # Percentage of mtDNA reads among all mapped reads
-perc_mt=$(awk -v m="$mt" -v tot="$mapped" 'BEGIN {printf "%.2f", (m/tot)*100}')
+perc_mt=$(awk -v m="$mt" -v tot="$mapped" 'BEGIN {printf "%.4f", (m/tot)}')
 echo -e "Percentage of mtDNA reads (of mapped reads),$perc_mt" >> $outfile
 
 # Multimapped reads (primary alignment)
@@ -66,7 +66,7 @@ mt_multi1=$(samtools view multimapped_primealign.bam | grep ${mt_contig} | wc -l
 echo -e "mtDNA counts in Multimapped reads (primary alignment),$mt_multi1" >> $outfile
 
 # Percentage of mtDNA reads among multimapped reads (primary alignment)
-perc_mt_mmpa=$(awk -v m="$mt_multi1" -v tot="$total_mmpa" 'BEGIN {printf "%.2f", (m/tot)*100}')
+perc_mt_mmpa=$(awk -v m="$mt_multi1" -v tot="$total_mmpa" 'BEGIN {printf "%.4f", (m/tot)}')
 echo -e "Percentage of mtDNA in multimapped reads (primary alignment),$perc_mt_mmpa" >> $outfile
 
 # Multimapped reads (all alignments)
@@ -78,5 +78,5 @@ mt_multi2=$(samtools view multimapped_allalign.bam | grep ${mt_contig} | wc -l)
 echo -e "mtDNA counts in Multimapped reads (all alignments),$mt_multi2" >> $outfile
 
 # Percentage of mtDNA reads among multimapped reads (all alignments)
-perc_mt_mmaa=$(awk -v m="$mt_multi2" -v tot="$total_mmaa" 'BEGIN {printf "%.2f", (m/tot)*100}')
+perc_mt_mmaa=$(awk -v m="$mt_multi2" -v tot="$total_mmaa" 'BEGIN {printf "%.4f", (m/tot)}')
 echo -e "Percentage of mtDNA in multimapped reads (all alignments),$perc_mt_mmaa" >> $outfile
