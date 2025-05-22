@@ -27,29 +27,32 @@ workflow sciRNAseq3_workflow {
         SCIROCKET_DEMUX(ch_samplesheet)
 
         // Collect all of each channel into a single list
-        all_discarded   = SCIROCKET_DEMUX.out.samples_discarded.collect()
-        all_whitelists  = SCIROCKET_DEMUX.out.bc_whitelists.collect()
-        // all_samples     = SCIROCKET_DEMUX.out.samples.collect()
-
-        // Flatten the per‐sample lists into a single stream of FASTQ paths
-        ch_all_demux = SCIROCKET_DEMUX.out.samples.flatten()
-
-        // From samples channel, pull out R1 vs R2
-        ch_all_R1 = ch_all_demux
-                    .filter { it.name.endsWith('_R1.fastq.gz') }
-                    .collect()
-        ch_all_R2 = ch_all_demux
-                    .filter { it.name.endsWith('_R2.fastq.gz') }
-                    .collect()
+        all_samples_R1 = SCIROCKET_DEMUX.out.samples_R1.collect()
+        all_samples_R2 = SCIROCKET_DEMUX.out.samples_R2.collect()
+        all_discarded_R1  = SCIROCKET_DEMUX.out.samples_discarded_R1.collect()
+        all_discarded_R2  = SCIROCKET_DEMUX.out.samples_discarded_R2.collect()
+        all_whitelists_p5 = SCIROCKET_DEMUX.out.bc_whitelists_p5.collect()
+        all_whitelists_p7 = SCIROCKET_DEMUX.out.bc_whitelists_p7.collect()
+        all_whitelists_ligation = SCIROCKET_DEMUX.out.bc_whitelists_ligation.collect()
+        all_whitelists_rt = SCIROCKET_DEMUX.out.bc_whitelists_rt.collect()
 
         // Runs each gather once after every demux has finished
-        SCIROCKET_SEQS_GATHER(all_discarded, all_whitelists)
-        SCIROCKET_SPL_GATHER(ch_all_R1, ch_all_R2)
+        SCIROCKET_SEQS_GATHER(
+            all_discarded_R1,
+            all_discarded_R2,
+            all_whitelists_p5,
+            all_whitelists_p7,
+            all_whitelists_ligation,
+            all_whitelists_rt
+        )
+        SCIROCKET_SPL_GATHER(all_samples_R1, all_samples_R2)
 
         // Re-wrap the meta so FASTP sees meta.id
         wrapped = SCIROCKET_SPL_GATHER.out
             .map { sampleId, r1_file, r2_file ->
-                def meta         = [ id: sampleId ]
+                def meta = [
+                    id                : sampleId,
+                ]
 
                 // Return a named map
                 [
