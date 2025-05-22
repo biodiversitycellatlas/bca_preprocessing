@@ -21,7 +21,7 @@ This nextflow pipeline is designed to pre-process single-cell and single-nucleus
 - sci-RNA-seq3
 - and others, when providing a [seqspec](https://github.com/pachterlab/seqspec) file
 
-Depending on the chosen sequencing technique, it handles the processing of the FASTQ files accordingly. For an in-depth explenation of the different steps for each of the sequencing methods, you can read [this page](subworkflows/README.md). Whenever possible, we compared our results to a commercial pre-processing pipeline for that sequencing technique. For example, comparing our Parse Biosciences results to the official split-pipe pipeline from Parse Biosciences. While we cannot provide this commercial software directly, you can install it yourself (e.g. by following [these instructions](assets/README.md)), and provide a path where the installation is located. This way, it will be executed alongside of the BCA pre-processing pipeline.
+Depending on the chosen sequencing technique, it handles the processing of the FASTQ files accordingly. For an in-depth explenation of the different steps for each of the sequencing methods, you can read [this page](subworkflows/README.md). Whenever possible, we compared our results to a commercial pre-processing pipeline for that sequencing technique. For example, comparing our Parse Biosciences results to the official split-pipe pipeline from Parse Biosciences. While we cannot provide this commercial software directly, you can install it yourself (e.g. by following [these instructions](assets/README.md)), and provide a path where the installation is located in the configuration file. This way, it will be executed alongside of the BCA pre-processing pipeline.
 
 The pipeline will produce the following output files:
 - Raw & Filtered count matrices (intronic, exonic & full gene) from Mapping step​
@@ -74,12 +74,13 @@ nextflow -h
 |------------------------|-------------|--------------|-------|-----------------|-------------|--------------|
 
 
-### 2. Edit (or create) the Nextflow configuration file
+### 2. Edit (or create) a Nextflow configuration file
 
-To set the custom parameters for each run, a nextflow configuration file is created that extends the general `nextflow.config` file in the base of this repository. The custom configuration files can be stored within the `/conf/` directory, and should be based upon the example config file in [`conf/example.config`](https://github.com/biodiversitycellatlas/bca_preprocessing/blob/main/conf/example.config). If you have a multiple-species experiment, one configuration file per species must be created in order to analyze the data with the corresponding genome annotation files. 
+To set the custom parameters for each run, the easiest solution is to fill in the fiels in [`conf/custom_parameters.config`](conf/custom_parameters.config). This custom configuration file extends the general `nextflow.config` file in the base of this repository. `conf/custom_parameters.config` contains the minimum variables in order to run this pipeline, and are described in the table below in more detail. 
+
+To customize the run, you can add other (optional) variables to the `conf/custom_parameters.config` file. If you have a multi-species experiment, one configuration file per species must be created in order to analyze the data with the corresponding genome annotation files. 
 
 Within each custom configuration file the following variables can be defined: 
-
 
 | Variable               | Required/Optional | Description |
 |------------------------|-------------------|-------------|
