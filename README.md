@@ -72,6 +72,7 @@ nextflow -h
 
 | sample                 |  fastq_cDNA | fastq_BC_UMI | expected_cells | p5                 |  p7 | rt |
 |------------------------|-------------|--------------|-------|-----------------|-------------|--------------|
+| Required, and must be unique | Required | Required | Required | Optional | Optional | Optional |
 
 
 ### 2. Edit (or create) a Nextflow configuration file
