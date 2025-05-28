@@ -136,13 +136,14 @@ profiles {
 ## Usage
 
 ### Pre-requisites:
+- [ ] Created a samplesheet
 - [ ] Configured the custom config file (config/custom_parameters.config)
-- [ ] Added custom config as profile in the main config file (nextflow.config)
+- [ ] (Optional) Added custom config as profile in the main config file (nextflow.config)
 
 ### Running the Pipeline
 
 > [!WARNING]
-> The pipeline must be run in the conda base environment, it cannot activate the different environments properly with any prior environment activation. It should have access to run `nextflow` and `conda` in the commandline.
+> The pipeline must be run in the conda base environment, it cannot activate the different environments properly with a prior environment activation. It should have access to run `nextflow` and `conda` in the commandline.
 
 ```
 # ((optional: load Nextflow module OR have local Nextflow installation)) 
