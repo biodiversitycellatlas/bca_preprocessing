@@ -6,6 +6,9 @@ process CELLBENDER {
     input:
     tuple val(meta), path(mapping_files)
 
+    output:
+    path("cellbender_output*")
+
     script:
     """
     echo "\n\n===============  Ambient RNA removal  ==============="
