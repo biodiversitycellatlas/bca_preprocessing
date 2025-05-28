@@ -1,11 +1,14 @@
 process CR_PIPELINE {
-    publishDir "${params.output_dir}/CellRanger_pipeline/${meta.id}", mode: 'copy'
+    publishDir "${params.output_dir}/CellRanger_pipeline/", mode: 'copy'
     tag "${meta.id}"
     debug true
 
     input:
     tuple val(meta), path(fastq_cDNA), path(fastq_BC_UMI)
     path(cr_reference_dir)
+
+    output:
+    path("${meta.id}_count")
 
     script:
     """

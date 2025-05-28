@@ -35,6 +35,7 @@ process MAPPING_STARSOLO {
     echo "FASTQ BC & UMI: ${fastq_BC_UMI}"
     echo "Genome index directory: ${genome_index_files}"
     echo "Barcode whitelist: ${bc_whitelist}"
+    echo "Expected cells: ${meta.expected_cells}"
 
     # In case the protocol does not exist and the user has not provided a seqspec file
     SOLO_ARGS=\"${starsolo_args}\"
@@ -44,6 +45,12 @@ process MAPPING_STARSOLO {
         bc_struct=\$(seqspec index -m rna -t starsolo -s file spec.yaml)
         SOLO_ARGS=\"\${bc_struct} \${SOLO_ARGS}\"
     fi
+
+    echo "SOLO_ARGS: \${SOLO_ARGS}"
+    echo "First 10 lines of FASTQ cDNA:"
+    zcat ${fastq_cDNA} | head -n 10
+    echo "First 10 lines of FASTQ BC & UMI:"
+    zcat ${fastq_BC_UMI} | head -n 10
 
     # Mapping step and generating count matrix using STAR
     STAR \\
