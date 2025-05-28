@@ -14,7 +14,7 @@ process SCIROCKET_DEMUX {
     path("demux_reads/${meta.id}_whitelist_p5*"),           emit: bc_whitelists_p5
     path("demux_reads/${meta.id}_whitelist_p7*"),           emit: bc_whitelists_p7
     path("demux_reads/${meta.id}_whitelist_ligation*"),     emit: bc_whitelists_ligation
-    path("demux_reads/${meta.id}_whitelist_rt*"),           emit: bc_whitelists_rt
+    path("demux_reads/${meta.id}_whitelist_rt*"),           emit: bc_whitelists_rt           
 
     script:
     // Retrieve barcode whitelist from conf/seqtech_parameters.config
