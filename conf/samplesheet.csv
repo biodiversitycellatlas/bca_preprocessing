@@ -1,4 +1,0 @@
-sample,fastq_cDNA,fastq_BC_UMI,expected_cells,p5,p7,rt
-BCA001,BCA001_R1_001.fastq.gz,BCA001_R2_001.fastq.gz,2500,,,
-BCA002,BCA002_R1_001.fastq.gz,BCA002_R2_001.fastq.gz,2500,,,
-
