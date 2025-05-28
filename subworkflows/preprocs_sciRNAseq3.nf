@@ -52,6 +52,7 @@ workflow sciRNAseq3_workflow {
             .map { sampleId, r1_file, r2_file ->
                 def meta = [
                     id                : sampleId,
+                    expected_cells    : 3000,
                 ]
 
                 // Return a named map
