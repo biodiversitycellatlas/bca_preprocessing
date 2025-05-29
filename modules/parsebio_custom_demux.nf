@@ -10,18 +10,19 @@ process PARSEBIO_CUSTOM_DEMUX {
     tuple val(meta), path("*group*_R1*"), path("*group*_R2*"), emit: splitted_files
 
     script:
+    bc_whitelist  = params.seqtech_parameters[params.protocol].bc_whitelist_splitwells
     """
     echo "\n\n==================  Parse Biosciences: Custom Demultiplexing  =================="
     echo "Processing sample: ${meta}"
-    echo "Fastq files: ${fastqs}"
+    echo "Fastq files: ${fastq_cDNA}, ${fastq_BC_UMI}"
 
     # Run Parse Biosciences demultiplexing script
     python ${launchDir}/bin/parsebio_custom_demux.py \\
         --sample_id ${meta.id} \\
         --fq1 ${fastq_cDNA} \\
         --fq2 ${fastq_BC_UMI} \\
-        --whitelist ${launchDir}/seq_techniques/parse_biosciences/bc_data_n26_R1_v3_4.csv \\
-        --group ${meta.group} ${meta.well} \\
+        --whitelist ${bc_whitelist} \\
+        --group ${meta.id} ${meta.p5} \\
         --output . \\
         --barcode_start 50 \\
         --barcode_end 58 

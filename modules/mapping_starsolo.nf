@@ -14,7 +14,7 @@ process MAPPING_STARSOLO {
 
     input:
     tuple val(meta), path(fastq_cDNA), path(fastq_BC_UMI)
-    path bc_whitelist
+    val bc_whitelist
     path genome_index_files
     
     output:

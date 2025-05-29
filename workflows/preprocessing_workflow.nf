@@ -31,7 +31,7 @@ workflow preprocessing_workflow {
     main:
         if (params.protocol == 'parse_biosciences') {     
             data_output_ch = parse_workflow(ch_samplesheet)
-            bc_whitelist_ch  = Channel.value( params.seqtech_parameters[params.protocol].bc_whitelist )
+            bc_whitelist_ch  = params.seqtech_parameters[params.protocol].bc_whitelist
 
         } else if (params.protocol == 'bd_rhapsody') {
             data_output_ch = bd_rhapsody_workflow(ch_samplesheet)

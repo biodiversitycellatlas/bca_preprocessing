@@ -12,9 +12,11 @@ process CR_PIPELINE_MKREF {
     # Add CellRanger to PATH
     export PATH=${params.cellranger_dir}:$PATH
 
+    GTF_FILE="${params.ref_gtf_alt ?: params.ref_gtf}"
+
     cellranger mkref \\
         --genome cellranger_ref \\
         --fasta=${params.ref_fasta} \\
-        --genes=${params.ref_gtf}
+        --genes=\GTF_FILE
     """
 }
