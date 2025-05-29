@@ -88,10 +88,9 @@ Within each custom configuration file the following variables can be defined:
 | `input`                | __Required__         | Path to the samplesheet. |
 | `output_dir`           | __Required__          | Path to the results/output directory; must exist before running. |
 | `protocol`              | __Required__          | Specifies the sequencing technology used (must be one of the following: `"oak_seq"`, `"10xv3"`, `"parse_biosciences"`,     `"bd_rhapsody"`, `"sciRNAseq3"` or `"seqspec"`). |
-| `parsebio_groups`       | Optional          | Required for Parse Biosciences data, to split the FASTQ files by well. Should be a nested list, with their desired name and range of wells (example: `[['group1', 'A1-A3'], ['group2', 'A4-A7'], ...]`)  |
 | `ref_fasta`            | __Required__          | Path to the genome FASTA file used for mapping reads. |
 | `ref_gtf`              | __Required__          | Path to the GTF/GFF file formatted for STARsolo. |
-| `ref_parse_gtf`        | Optional              | Path to the GTF/GFF file formatted specifically for analysis with Parse Biosciences pipeline. Defaults to the same path as `ref_gtf`. |
+| `ref_gtf_alt`          | Optional              | Path to the GTF/GFF file formatted specifically for analysis with Parse Biosciences / CellRanger pipeline. Defaults to the same path as `ref_gtf`. |
 | `seqspec_file`         | Optional              | Path to the seqspec file. |
 | `mt_contig`            | Optional          | Name of the mitochondrial contig in the reference annotation, used to calculate mtDNA content. Default set to `"^MT"` |
 | `grep_rrna`            | Optional          | String used to grep ribosomal RNA (rRNA) reads from annotations. Default set to `"rRNA"`|

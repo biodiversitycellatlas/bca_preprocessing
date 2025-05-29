@@ -26,27 +26,9 @@ workflow parse_workflow {
     take:
         ch_samplesheet
     main:       
-        // Make a channel of 2-tuples: ( groupName, wellRange )
-        def groups = Channel
-            .fromList(params.parsebio_groups)
-            .map { list -> tuple( list[0], list[1] ) }
-
-        // Add the groupName and wellRange to the meta map
-        def comb_data = ch_samplesheet
-            .combine(groups)
-            .map { meta, fastqs, groupName, wellRange ->
-                def combined_meta = meta + [
-                    id    : "${meta.id}_${groupName}",
-                    group : groupName,
-                    well  : wellRange
-                ]
-                tuple( combined_meta, fastqs )
-            }
-        comb_data.view()
-
         // Demultiplex the fastq files based on the sample wells
-        PARSEBIO_PIPELINE_DEMUX(comb_data)
-        PARSEBIO_CUSTOM_DEMUX(comb_data)
+        PARSEBIO_PIPELINE_DEMUX(ch_samplesheet)
+        PARSEBIO_CUSTOM_DEMUX(ch_samplesheet)
         
         // Only run Parse pipeline if the path is defined and exists
         if (params.parsebio_pipeline_dir && file(params.parsebio_pipeline_dir).exists()) {

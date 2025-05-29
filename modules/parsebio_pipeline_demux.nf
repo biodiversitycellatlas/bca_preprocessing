@@ -31,7 +31,7 @@ process PARSEBIO_PIPELINE_DEMUX {
         --fq1 ${fastq_cDNA} \\
         --fq2 ${fastq_BC_UMI} \\
         --opath . \\
-        --group ${meta.group} ${meta.well} 
+        --group ${meta.id} ${meta.p5} 
     """
 }
 
