@@ -22,15 +22,12 @@ process PARSEBIO_PIPELINE {
     script:
     def kitskip_arg   = task.ext.args ?: ''          // If ext.args is defined assign it to kitskip_arg
     """
-    echo "\n\n=============  MAPPING PARSE BIOSCIENCES  ================"
+    echo "\n\n=============  PARSE BIOSCIENCES PIPELINE  ================"
     echo "Mapping sample ${meta.id} with Parse Biosciences pipeline"
     echo "FASTQ cDNA: ${fastq_cDNA}"
     echo "FASTQ BC & UMI: ${fastq_BC_UMI}"
     echo "Genome index directory: ${parse_refgenome_files}"
     echo "Conda environment: \$CONDA_DEFAULT_ENV"
-
-    # Install the required python packages if not already present
-    pip install ${params.external_pipeline} --no-cache-dir
 
     # Generate parameter file
     echo "post_min_map_frac 0.01" > config_${params.protocol}_splitpipe.txt

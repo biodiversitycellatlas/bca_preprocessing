@@ -136,8 +136,8 @@ if [ -d "${output_dir}/ParseBio_pipeline" ]; then
         p_tso_trim=$(awk -v val=$reads_tso_trim -v input=$reads_align_input 'BEGIN{if(input>0){printf("%.4f", (val/input))}else{print("NA")}}' || echo "NA")
 
         # Append results to the output file
-        echo -e "ParseBio_pipeline\t$(basename "$splitpipe_dir")\t$reads_align_input\t$cDNA_Q30\t\t$reads_align_unique\t
-                $p_uniquely_mapped\t$p_multi_mapped\t$p_too_many_loci\t$p_too_short\t$p_tso_trim\t\t\t$number_of_cells\t
+        echo -e "ParseBio_pipeline\t$(basename "$splitpipe_dir")\t$reads_align_input\t$cDNA_Q30\t\t$reads_align_unique\t\
+                $p_uniquely_mapped\t$p_multi_mapped\t$p_too_many_loci\t$p_too_short\t$p_tso_trim\t\t\t$number_of_cells\t\
                 \t$sequencing_saturation" >> "$output_file"
     done
 fi
