@@ -17,7 +17,7 @@ process CR_PIPELINE {
     echo "Reference directory: ${cr_reference_dir}"
     
     # Add CellRanger to PATH
-    export PATH=${params.cellranger_dir}:$PATH
+    export PATH=${params.external_pipeline}:$PATH
 
     # Create a temporary directory for symlinked FASTQ files
     mkdir -p fastq_temp

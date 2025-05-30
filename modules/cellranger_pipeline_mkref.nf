@@ -10,7 +10,7 @@ process CR_PIPELINE_MKREF {
     echo "\n\n=============== CellRanger pipeline - create REF  ==============="
     
     # Add CellRanger to PATH
-    export PATH=${params.cellranger_dir}:$PATH
+    export PATH=${params.external_pipeline}:$PATH
 
     GTF_FILE="${params.ref_gtf_alt ?: params.ref_gtf}"
 

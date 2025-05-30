@@ -16,7 +16,7 @@ process BDRHAP_PIPELINE {
     # Add cwlref-runner to PATH
     export PATH=$PATH:\$CONDA_DEFAULT_ENV/env/lib/python3.13/site-packages
 
-    cd ${params.bdrhap_pipeline_dir}
+    cd ${params.external_pipeline}
 
     # Define name of reference used during analysis
     basename_ref=\$(basename ${params.ref_gtf} .gtf)
