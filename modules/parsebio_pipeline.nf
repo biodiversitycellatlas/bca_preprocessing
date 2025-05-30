@@ -29,6 +29,9 @@ process PARSEBIO_PIPELINE {
     echo "Genome index directory: ${parse_refgenome_files}"
     echo "Conda environment: \$CONDA_DEFAULT_ENV"
 
+    # Install the required python packages if not already present
+    pip install ${params.external_pipeline} --no-cache-dir
+
     # Generate parameter file
     echo "post_min_map_frac 0.01" > config_${params.protocol}_splitpipe.txt
 
@@ -47,6 +50,7 @@ process PARSEBIO_PIPELINE {
         --nthreads 16 \\
         --genome_dir genome_index \\
         --output_dir . \\
-        --parfile config_${params.protocol}_splitpipe.txt
+        --parfile config_${params.protocol}_splitpipe.txt \\
+        --no_keep_going
     """
 }

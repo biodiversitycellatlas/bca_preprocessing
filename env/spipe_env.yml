@@ -6,7 +6,4 @@ dependencies:
   - samtools
   - star
   - pigz
-  - python-igraph
   - pip
-  - pip:
-    - cmake
