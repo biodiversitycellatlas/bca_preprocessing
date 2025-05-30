@@ -7,11 +7,10 @@ process PARSEBIO_PIPELINE_MKREF {
     echo "\n\n==================  REF GENOME PARSE PIPELINE  =================="
     echo "Conda environment: \$CONDA_DEFAULT_ENV"
 
-    # Install the required python packages if not already present
-    pip install ${params.external_pipeline} --no-cache-dir
-
+    # Check if a specific reference GTF file is provided, otherwise use the default
     GTF_FILE="${params.ref_gtf_alt ?: params.ref_gtf}"
 
+    # Create reference genome index files
     split-pipe -m mkref \\
         --genome_name ref_splitpipe \\
         --genes \$GTF_FILE \\
