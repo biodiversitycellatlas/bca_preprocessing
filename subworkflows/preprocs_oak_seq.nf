@@ -25,11 +25,11 @@ workflow oak_seq_workflow {
         DOWNLOAD_DATA()
 
         // Only run Cell Ranger pipeline if the path is defined and exists
-        if (params.cellranger_dir && file(params.cellranger_dir).exists()) {
+        if (params.external_pipeline && file(params.external_pipeline).exists()) {
             CR_PIPELINE_MKREF()
             CR_PIPELINE(ch_samplesheet, CR_PIPELINE_MKREF.out)
         } else {
-            log.warn "Cell Ranger pipeline directory not provided or doesn't exist: '${params.cellranger_dir}'"
+            log.warn "Cell Ranger pipeline directory not provided or doesn't exist: '${params.external_pipeline}'"
         }
 
     emit:

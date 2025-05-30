@@ -31,11 +31,11 @@ workflow parse_workflow {
         PARSEBIO_CUSTOM_DEMUX(ch_samplesheet)
         
         // Only run Parse pipeline if the path is defined and exists
-        if (params.parsebio_pipeline_dir && file(params.parsebio_pipeline_dir).exists()) {
+        if (params.external_pipeline && file(params.external_pipeline).exists()) {
             PARSEBIO_PIPELINE_MKREF()
             PARSEBIO_PIPELINE(PARSEBIO_PIPELINE_DEMUX.out.splitted_files, PARSEBIO_PIPELINE_MKREF.out)
         } else {
-            log.warn "Parse Biosciences pipeline directory not provided or doesn't exist: '${params.parsebio_pipeline_dir}'"
+            log.warn "Parse Biosciences pipeline directory not provided or doesn't exist: '${params.external_pipeline}'"
         }
     
     emit:

@@ -26,11 +26,11 @@ workflow bd_rhapsody_workflow {
         RM_VARBASES(ch_samplesheet)
 
         // Only run BD Rhapsody pipeline if the path is defined and exists
-        if (params.bdrhap_pipeline_dir && file(params.bdrhap_pipeline_dir).exists()) {
+        if (params.external_pipeline && file(params.external_pipeline).exists()) {
             BDRHAP_PIPELINE_MKREF()
             BDRHAP_PIPELINE(ch_samplesheet, BDRHAP_PIPELINE_MKREF.out)
         } else {
-            log.warn "BD Rhapsody pipeline directory not provided or doesn't exist: '${params.bdrhap_pipeline_dir}'"
+            log.warn "BD Rhapsody pipeline directory not provided or doesn't exist: '${params.external_pipeline}'"
         }
 
     emit:

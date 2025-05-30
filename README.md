@@ -64,15 +64,35 @@ conda -h
 nextflow -h
 ``` 
 
+
+3. **(Optional) Installing external pipelines as validation**
+After following these [installation instructions](assets/README.md), users can run external pipelines simultaneaously with the BCA pre-processing pipeline. You only have to provide the path to the installation as within the [`conf/custom_parameters.config`](conf/custom_parameters.config) file, see Setup explenation below, and it will automatically start. 
+
+This is limited to the following software: 
+| Sequencing Technology | External pipeline |
+|-----------------------|-------------------|
+| 10x Genomics          | CellRanger        |
+| OAKseq                | CellRanger        |
+| Parse Biosciences     | split-pipe        |
+| BD-Rhapsody           | BD-Rhapsody       |
+
+
 ---
 
 ## Setup
 
 ### 1. Create a samplesheet
 
-| sample                 |  fastq_cDNA | fastq_BC_UMI | expected_cells | p5                 |  p7 | rt |
-|------------------------|-------------|--------------|-------|-----------------|-------------|--------------|
-| Required, and must be unique | Required | Required | Required | Optional | Optional | Optional |
+| Variable              | Required/Optional | Description |
+|-----------------------|-------------------|-------------|
+| sample                | __Required__      | Must be unique unless you want the FASTQ files to be merged after demultiplexing. |
+| fastq_cDNA            | __Required__      ||
+| fastq_CB_UMI          | __Required__      ||
+| expected_cells        | __Required__      ||
+| p5                    |                   | Only required for sci-RNA-seq3 & Parse Biosciences (defines wells) |
+| p7                    |                   | Only required for sci-RNA-seq3 |
+| rt                    |                   | Only required for sci-RNA-seq3 |
+
 
 
 ### 2. Edit (or create) a Nextflow configuration file
@@ -100,13 +120,16 @@ Within each custom configuration file the following variables can be defined:
 | `perform_kraken`       | Optional          | Boolean flag to enable or disable Kraken2 classification of unmapped reads. Default is `false`. | 
 | `perform_cellbender`   | Optional          | Boolean flag to enable or disable removal of ambient RNA using CellBender. Default is `false`. | 
 | `kraken_db_path`       | Optional          | Path to the Kraken2 database used for taxonomic classification of unmapped reads, if empty, a default database will be installed. |
-| `cellranger_dir`       | Optional          | Path to the Cell Ranger software directory (used for 10x Genomics & OAK-seq data). |
-| `bdrhap_pipeline_dir`  | Optional          | Path to the BD Rhapsody pipeline directory. |
-| `parsebio_pipeline_dir`| Optional          | Path to the Parse Biosciences pipeline directory. |
+| `external_pipeline`    | Optional          | Path to the external pipeline, that can be used as a control (split-pipe for Parse Biosciences data, 
+CellRanger for 10x Genomics and OAK-seq & BD Rhapsody pipeline). |
 
 
 
-### 3. Optional: Add custom configuration file as a new profile
+### 3. Adjust HPC-specific/SLURM parameters in `nextflow.config`
+
+
+
+### 4. Optional: Add custom configuration file as a new profile
 
 After creating a new configuration file, it can be added as a profile in the [`nextflow.config`](https://github.com/biodiversitycellatlas/bca_preprocessing/blob/main/nextflow.config) file. Define an unique name and set the path, for example within the /conf/ directory. 
 
@@ -137,12 +160,13 @@ profiles {
 ### Pre-requisites:
 - [ ] Created a samplesheet
 - [ ] Configured the custom config file (config/custom_parameters.config)
+- [ ] Adjust HPC-specific/SLURM parameters (nextflow.config)
 - [ ] (Optional) Added custom config as profile in the main config file (nextflow.config)
 
 ### Running the Pipeline
 
 > [!WARNING]
-> The pipeline must be run in the conda base environment, it cannot activate the different environments properly with a prior environment activation. It should have access to run `nextflow` and `conda` in the commandline.
+> The pipeline must be run in the conda base environment, it cannot activate the different environments properly with a prior environment activated. It should have access to run both `nextflow` and `conda` in the commandline.
 
 ```
 # ((optional: load Nextflow module OR have local Nextflow installation)) 
