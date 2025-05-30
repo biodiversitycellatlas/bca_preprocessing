@@ -66,6 +66,7 @@ nextflow -h
 
 
 3. **(Optional) Installing external pipelines as validation**
+
 After following these [installation instructions](assets/README.md), users can run external pipelines simultaneaously with the BCA pre-processing pipeline. You only have to provide the path to the installation as within the [`conf/custom_parameters.config`](conf/custom_parameters.config) file, see Setup explenation below, and it will automatically start. 
 
 This is limited to the following software: 
@@ -86,12 +87,12 @@ This is limited to the following software:
 | Variable              | Required/Optional | Description |
 |-----------------------|-------------------|-------------|
 | sample                | __Required__      | Must be unique unless you want the FASTQ files to be merged after demultiplexing. |
-| fastq_cDNA            | __Required__      ||
-| fastq_CB_UMI          | __Required__      ||
-| expected_cells        | __Required__      ||
-| p5                    |                   | Only required for sci-RNA-seq3 & Parse Biosciences (defines wells) |
-| p7                    |                   | Only required for sci-RNA-seq3 |
-| rt                    |                   | Only required for sci-RNA-seq3 |
+| fastq_cDNA            | __Required__      | Path to the FASTQ file containing cDNA |
+| fastq_CB_UMI          | __Required__      | Path to the FASTQ file containing the cell barcode & UMI |
+| expected_cells        | __Required__      | Number of expected cells |
+| p5                    | Optional          | Only required for sci-RNA-seq3 & Parse Biosciences (defines wells) |
+| p7                    | Optional          | Only required for sci-RNA-seq3 |
+| rt                    | Optional          | Only required for sci-RNA-seq3 |
 
 
 
@@ -120,8 +121,7 @@ Within each custom configuration file the following variables can be defined:
 | `perform_kraken`       | Optional          | Boolean flag to enable or disable Kraken2 classification of unmapped reads. Default is `false`. | 
 | `perform_cellbender`   | Optional          | Boolean flag to enable or disable removal of ambient RNA using CellBender. Default is `false`. | 
 | `kraken_db_path`       | Optional          | Path to the Kraken2 database used for taxonomic classification of unmapped reads, if empty, a default database will be installed. |
-| `external_pipeline`    | Optional          | Path to the external pipeline, that can be used as a control (split-pipe for Parse Biosciences data, 
-CellRanger for 10x Genomics and OAK-seq & BD Rhapsody pipeline). |
+| `external_pipeline`    | Optional          | Path to the external pipeline, that can be used as a control (split-pipe for Parse Biosciences data CellRanger for 10x Genomics and OAK-seq & BD Rhapsody pipeline). |
 
 
 
