@@ -1,5 +1,15 @@
 #!/bin/bash
 
+##################
+# slurm settings #
+##################
+#SBATCH --output=../logs/%x.%j.out
+#SBATCH --error=../logs/%x.%j.err
+#SBATCH --time=00:30:00
+#SBATCH --qos=vshort
+#SBATCH --mem=6G
+#SBATCH --job-name mapping_stats
+
 # ------------------------------------------------------------------
 # Define Variables
 # ------------------------------------------------------------------
@@ -135,10 +145,21 @@ if [ -d "${output_dir}/ParseBio_pipeline" ]; then
         p_too_short=$(awk -v val=$reads_too_short -v input=$reads_align_input 'BEGIN{if(input>0){printf("%.4f", (val/input))}else{print("NA")}}' || echo "NA")
         p_tso_trim=$(awk -v val=$reads_tso_trim -v input=$reads_align_input 'BEGIN{if(input>0){printf("%.4f", (val/input))}else{print("NA")}}' || echo "NA")
 
+        # Check for agg_samp file
+        agg_samp_file="${splitpipe_dir}/agg_samp_ana_summary.csv"
+        [ -f "$agg_samp_file" ] || continue
+
+        # Extract fields from agg_samp_ana_summary.csv
+        mean_reads=$(grep "mean_reads_per_cell" "$agg_samp_file" | awk -F ',' '{print $NF}' || echo "NA")
+        median_umis=$(grep "ref-splitpipe_median_tscp_per_cell" "$agg_samp_file" | awk -F ',' '{print $NF}' || echo "NA")
+        median_genes=$(grep "ref-splitpipe_median_genes_per_cell" "$agg_samp_file" | awk -F ',' '{print $NF}' || echo "NA")
+
         # Append results to the output file
         echo -e "ParseBio_pipeline\t$(basename "$splitpipe_dir")\t$reads_align_input\t$cDNA_Q30\t\t$reads_align_unique\t\
                 $p_uniquely_mapped\t$p_multi_mapped\t$p_too_many_loci\t$p_too_short\t$p_tso_trim\t\t\t$number_of_cells\t\
-                \t$sequencing_saturation" >> "$output_file"
+                \t$sequencing_saturation\t\
+                \t\t\t\t\t\t\t\
+                $mean_reads\t$median_umis\t$median_genes\t" >> "$output_file"
     done
 fi
 
