@@ -21,9 +21,12 @@ process SOUPORCELL {
     bam_file=\$(ls ${meta.id}_Aligned.sortedByCoord.out.bam | head -n 1)
     echo "BAM file: \${bam_file}"
 
+    barcodes_file=\$(ls ${meta.id}_Solo.out/GeneFull_Ex50pAS/raw/barcodes.tsv | head -n 1)
+    echo "BAM file: \${barcodes_file}"
+
     souporcell_pipeline.py \\
         -i \${bam_file} \\
-        -b ${bc_whitelist} \\
+        -b  \${barcodes_file} \\
         -f ${params.ref_fasta} \\
         -t ${task.cpus} \\
         -o ./ \\
