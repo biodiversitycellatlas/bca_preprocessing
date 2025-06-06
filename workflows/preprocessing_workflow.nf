@@ -50,7 +50,7 @@ workflow preprocessing_workflow {
         } else if (params.protocol == 'sciRNAseq3') {
             sciRNAseq3_workflow(ch_samplesheet)
             data_output_ch   = sciRNAseq3_workflow.out.data_output
-            bc_whitelist_ch  = sciRNAseq3_workflow.out.bc_whitelist
+            bc_whitelist_ch  = sciRNAseq3_workflow.out.bc_whitelist.map { tup -> tup*.toString().join(' ') }
 
         } else if (params.seqspec_file && file(params.seqspec_file).exists() && params.protocol == 'seqspec') {     
             data_output_ch = seqspec_workflow(ch_samplesheet)
