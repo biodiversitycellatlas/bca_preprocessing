@@ -18,5 +18,17 @@ process MAPPING_STATS {
 
     # Create UMI distribution and Cell + Gene count plots
     Rscript ${launchDir}/bin/plot_umidist_cellgenecount.R ${params.output_dir}
+
+    # If perform_kraken is true, run Krona
+    if [ "${params.perform_kraken}" = "true" ]; 
+    then
+
+        # Installing/updating krona database
+        ktUpdateTaxonomy.sh
+
+        # Running Krona on Kraken reports
+        # -t is set to 7 as kraken reports are created with --report-minimizer-data
+        ktImportTaxonomy -t 7 -m 3 -o multi-krona.html ${params.output_dir}/*/*_taxonomy.txt
+    fi
     """
 }
