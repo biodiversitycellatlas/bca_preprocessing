@@ -1,8 +1,4 @@
-/* GENOME INDEX STARSOLO
- * Creates the Genome Indeces required for mapping.    
-*/                  
-
-process GENINDEX_STARSOLO {
+process STAR_INDEX {
     input:
     tuple val(meta), path(fastq_cDNA), path(fastq_BC_UMI)
     path ref_gtf
