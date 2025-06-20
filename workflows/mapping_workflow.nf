@@ -11,7 +11,6 @@ include { mapping_starsolo_workflow } from '../subworkflows/mapping_starsolo'
 include { mapping_alevin_workflow   } from '../subworkflows/mapping_alevin'
 
 include { FASTQC                    } from '../modules/fastqc'
-include { SOUPORCELL                } from '../modules/souporcell'
 include { KRAKEN_CREATE_DB          } from '../modules/kraken_create_db'
 include { KRAKEN                    } from '../modules/kraken'
 
@@ -53,15 +52,6 @@ workflow QC_mapping_workflow {
         
         } else {
             error "Invalid mapping software specified. Use one of the following parameters: 'starsolo', 'alevin' or 'both'."
-        }
-
-        // Doublet detection using Souporcell
-        // Conditionally run Souporcell only if params.perform_souporcell is true
-        if (params.perform_souporcell) {
-            SOUPORCELL(mapping_files, bc_whitelist)
-            all_outputs = all_outputs.mix(SOUPORCELL.out)
-        } else {
-            log.info "Skipping Souporcell steps as 'perform_souporcell' is false."
         }
 
         // Inspecting unmapped reads

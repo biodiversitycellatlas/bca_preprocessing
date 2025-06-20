@@ -7,8 +7,8 @@
     IMPORT FUNCTIONS / MODULES / SUBWORKFLOWS
 ~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~
 */
-include { GENINDEX_STARSOLO                                 } from '../modules/genindex_starsolo'
-include { GENINDEX_STARSOLO as GENINDEX_STARSOLO_GENEEXT    } from '../modules/genindex_starsolo'
+include { STAR_INDEX as STAR_INDEX                          } from '../modules/genindex_starsolo'
+include { STAR_INDEX as STAR_INDEX_GENEEXT                  } from '../modules/genindex_starsolo'
 include { MAPPING_STARSOLO as MAPPING_STARSOLO              } from '../modules/mapping_starsolo'
 include { MAPPING_STARSOLO as MAPPING_STARSOLO_GENEEXT      } from '../modules/mapping_starsolo'
 include { INDEX_BAM as INDEX_BAM                            } from '../modules/index_bam'
@@ -33,8 +33,8 @@ workflow mapping_starsolo_workflow {
     
     main:
         // Mapping: STARsolo
-        GENINDEX_STARSOLO(data_output, params.ref_gtf)
-        mapping_files = MAPPING_STARSOLO(data_output, bc_whitelist, GENINDEX_STARSOLO.out)
+        STAR_INDEX(data_output, params.ref_gtf)
+        mapping_files = MAPPING_STARSOLO(data_output, bc_whitelist, STAR_INDEX.out)
         INDEX_BAM(MAPPING_STARSOLO.out)
 
         // Calculate saturation
@@ -54,8 +54,8 @@ workflow mapping_starsolo_workflow {
         // params.perform_geneext (boolean) must be true
         if (params.perform_geneext) {
             GENE_EXT(MAPPING_STARSOLO.out, INDEX_BAM.out)
-            GENINDEX_STARSOLO_GENEEXT(data_output, GENE_EXT.out)
-            MAPPING_STARSOLO_GENEEXT(data_output, bc_whitelist, GENINDEX_STARSOLO_GENEEXT.out)
+            STAR_INDEX_GENEEXT(data_output, GENE_EXT.out)
+            MAPPING_STARSOLO_GENEEXT(data_output, bc_whitelist, STAR_INDEX_GENEEXT.out)
             INDEX_BAM_GENEEXT(MAPPING_STARSOLO_GENEEXT.out)
 
             mapping_files = mapping_files.mix(MAPPING_STARSOLO_GENEEXT.out)
