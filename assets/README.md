@@ -12,14 +12,7 @@
 ---
 
 ### Cell Ranger (10x Genomics & OAK-seq)
-Followed the installation guide on the [10x Genomics website](https://www.10xgenomics.com/support/software/cell-ranger/latest/tutorials/cr-tutorial-in), and downloaded Cell Ranger version 9.0.1.
-```
-# Downloading Cell Ranger using wget
-wget -O cellranger-9.0.1.tar.gz "https://cf.10xgenomics.com/releases/cell-exp/cellranger-9.0.1.tar.gz?Expires=1742511989&Key-Pair-Id=APKAI7S6A5RYOXBWRPDA&Signature=cr3Sw2Q~GjIzwmorEmEGgU7eKfFqTfz14Gd5Dt329DuPX549cfXVEsLJo7oq3xcijzJpNIFbbxDL7JyP0-2LA4GyQhyyKvEjoBuHNjDkdB8qo8lQ4yJ57oThwz8kTPvc3NVBy8jHQYfA8ywcz4dWrrt0--K5bnp4OMEi6A0QTFaUUfINjPjaFqUoOrMuYtJdOSBcj11h9xI~eVbF4d~-bB4zKiqwjnKlW0aJ2K6jWt7Ho22V8YXSN3o70hJOPnklf2hVpfvKmKqfGFC1IeHGEOvoEcBAPUI9qnmoIKAn3FYvIhnqtkOrAH42naArGmFfiSGl8iaOgBOBYCIQUohMmA__"
-
-# Unpack
-tar -xzvf cellranger-9.0.1.tar.gz
-```
+Follow the installation guide on the [10x Genomics website](https://www.10xgenomics.com/support/software/cell-ranger/latest/tutorials/cr-tutorial-in), and downloaded Cell Ranger using wget for the latest version on the [downloads](https://www.10xgenomics.com/support/software/cell-ranger/downloads) page.
 
 ---
 
@@ -55,7 +48,7 @@ conda activate spipe
 We encountered a few errors durring the creation of the spipe environment. Below, there are a few fixes to common set up problems of spipe: 
 ```
 # Pip not installed
-conda install anaconda::pip=23.3.1 
+conda install anaconda::pip 
 
 # Failed building wheel for louvain
 conda install -c conda-forge python-igraph 
@@ -79,12 +72,9 @@ split-pipe -h
 ### sci-rocket (sci-RNA-seq3)
 
 Github page: https://github.com/odomlab2/sci-rocket/tree/main
-
 Documentation: https://odomlab2.github.io/sci-rocket/
 
 Version(s) tested: 
-
-
 ```
 # Installation
 git clone https://github.com/odomlab2/sci-rocket
