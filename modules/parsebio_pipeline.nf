@@ -40,8 +40,6 @@ process PARSEBIO_PIPELINE {
         
     split-pipe -m all \\
         --chemistry v3 \\
-        --kit WT_mini \\
-        ${kitskip_arg} \\
         --fq1 ${fastq_cDNA} \\
         --fq2 ${fastq_BC_UMI} \\
         --nthreads 16 \\

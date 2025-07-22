@@ -14,11 +14,16 @@ process GENE_EXT {
     """
     echo "\n\n==================  GENE EXTENSION =================="
     echo "Sample ID: ${meta}"
-    echo "Mapping files: ${mapping_files}"
     echo "BAM index: ${bam_index}"
     echo "Original GTF: ${params.ref_gtf}"
     echo "Conda environment: \$CONDA_DEFAULT_ENV"
 
+    # Install dependencies
+    pip install pyyaml
+    conda remove macs2   # -y flag missing?
+    pip install macs2==2.2.9.1
+
+    # Remove temporary directory if it exists
     if [ -d "tmp" ]; then rm -r tmp; fi
 
     # Extract file extension
@@ -33,6 +38,7 @@ process GENE_EXT {
     echo \${gtf_output}
     bam_file=\$(ls *_Aligned.sortedByCoord.out.bam | head -n 1)
     
+    # Run GeneExt
     python ${launchDir}/submodules/GeneExt/geneext.py \\
         -g ${params.ref_gtf} \\
         -b \${bam_file} \\
