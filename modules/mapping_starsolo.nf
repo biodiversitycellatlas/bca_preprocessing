@@ -57,7 +57,7 @@ process MAPPING_STARSOLO {
         --runThreadN 8 \\
         --readFilesIn ${fastq_cDNA} ${fastq_BC_UMI} \\
         --genomeDir ${genome_index_files.toRealPath()} \\
-        --readFilesCommand zcat \\
+        --readFilesCommand "pigz -dc -p ${task.cpus}" \\
         --outSAMtype BAM SortedByCoordinate \\
         --outFileNamePrefix ${meta.id}_ \\
         --soloCellFilter CellRanger2.2 ${meta.expected_cells} 0.99 10 \\
