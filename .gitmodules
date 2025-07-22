@@ -3,4 +3,4 @@
 	url = https://github.com/zolotarovgl/10x_saturate.git
 [submodule "submodules/GeneExt"]
 	path = submodules/GeneExt
-	url = https://github.com/sebepedroslab/GeneExt.git
+	url = https://github.com/zolotarovgl/GeneExt.git
