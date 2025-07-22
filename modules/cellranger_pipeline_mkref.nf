@@ -17,6 +17,6 @@ process CR_PIPELINE_MKREF {
     cellranger mkref \\
         --genome cellranger_ref \\
         --fasta=${params.ref_fasta} \\
-        --genes=\GTF_FILE
+        --genes=\$GTF_FILE
     """
 }

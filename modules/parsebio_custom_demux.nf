@@ -13,6 +13,7 @@ process PARSEBIO_CUSTOM_DEMUX {
     bc_whitelist  = params.seqtech_parameters[params.protocol].bc_whitelist_splitwells
     """
     echo "\n\n==================  Parse Biosciences: Custom Demultiplexing  =================="
+    echo "Conda environment: \$CONDA_DEFAULT_ENV"
     echo "Processing sample: ${meta}"
     echo "Fastq files: ${fastq_cDNA}, ${fastq_BC_UMI}"
 
