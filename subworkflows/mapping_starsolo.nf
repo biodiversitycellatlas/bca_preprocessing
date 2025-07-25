@@ -38,9 +38,9 @@ workflow mapping_starsolo_workflow {
         INDEX_BAM(MAPPING_STARSOLO.out)
 
         // Calculate saturation
-        // SATURATION(MAPPING_STARSOLO.out, INDEX_BAM.out)
-        // SATURATION_PLOT(MAPPING_STARSOLO.out, SATURATION.out)
-        // all_outputs.mix(SATURATION_PLOT.out)
+        SATURATION(MAPPING_STARSOLO.out, INDEX_BAM.out)
+        SATURATION_PLOT(MAPPING_STARSOLO.out, SATURATION.out)
+        all_outputs.mix(SATURATION_PLOT.out)
 
         // Calculate percentages mitochondrial DNA and ribosomal RNA
         if (params.perform_featurecounts) {
@@ -51,13 +51,17 @@ workflow mapping_starsolo_workflow {
         }
 
         // Conditionally run Gene Extension + Remapping branch
-        // params.perform_geneext (boolean) must be true
         if (params.perform_geneext) {
-            GENE_EXT(MAPPING_STARSOLO.out, INDEX_BAM.out)
+            GENE_EXT(MAPPING_STARSOLO.out, INDEX_BAM.out).out
+
+            // Create STAR index with extended GTF
             STAR_INDEX_GENEEXT(data_output, GENE_EXT.out)
+
+            // Remap with STARsolo using the extended GTF
             MAPPING_STARSOLO_GENEEXT(data_output, bc_whitelist, STAR_INDEX_GENEEXT.out)
             INDEX_BAM_GENEEXT(MAPPING_STARSOLO_GENEEXT.out)
 
+            // Add outputs from the Gene Extension branch to the output channel
             mapping_files = mapping_files.mix(MAPPING_STARSOLO_GENEEXT.out)
             all_outputs = all_outputs.mix(INDEX_BAM_GENEEXT.out)
         } else {
