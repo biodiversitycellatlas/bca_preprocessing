@@ -28,7 +28,7 @@ workflow parse_workflow {
     main:       
         // Demultiplex the fastq files based on the sample wells
         PARSEBIO_PIPELINE_DEMUX(ch_samplesheet)
-        PARSEBIO_CUSTOM_DEMUX(ch_samplesheet)
+        // PARSEBIO_CUSTOM_DEMUX(ch_samplesheet)
         
         // Only run Parse pipeline if the path is defined and exists
         if (params.external_pipeline && file(params.external_pipeline).exists()) {

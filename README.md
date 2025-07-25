@@ -16,17 +16,19 @@
 This nextflow pipeline is designed to pre-process single-cell and single-nucleus RNA-seq data. It accepts FASTQ files from multiple sequencing platforms, at the moment being: 
 - Parse Biosciences
 - BD Rhapsody
-- OAK-seq 
 - 10x Genomics
+- OAK-seq 
+- Ultima Genomics
 - sci-RNA-seq3
 - and others, when providing a [seqspec](https://github.com/pachterlab/seqspec) file
 
-Depending on the chosen sequencing technique, it handles the processing of the FASTQ files accordingly. For an in-depth explenation of the different steps for each of the sequencing methods, you can read [this page](subworkflows/README.md). Whenever possible, we compared our results to a commercial pre-processing pipeline for that sequencing technique. For example, comparing our Parse Biosciences results to the official split-pipe pipeline from Parse Biosciences. While we cannot provide this commercial software directly, you can install it yourself (e.g. by following [these instructions](assets/README.md)), and provide a path where the installation is located in the configuration file. This way, it will be executed alongside of the BCA pre-processing pipeline.
+Depending on the chosen sequencing technique, it handles the processing of the FASTQ files accordingly. Whenever possible, we compared our results to a commercial pre-processing pipeline for that sequencing technique. For example, comparing our Parse Biosciences results to the official split-pipe pipeline from Parse Biosciences. While we cannot provide this commercial software directly, you can install it yourself (e.g. by following [these instructions](subworkflows/README.md)), and provide a path where the installation is located in the configuration file. This way, it will be executed alongside of the BCA pre-processing pipeline.
 
 The pipeline will produce the following output files:
 - Raw & Filtered count matrices (intronic, exonic & full gene) from Mapping step​
 - Filtered count matrices (h5 files) ​from Filtering step​
-- Summary report (MultiQC) & Mapping statistics table
+- HTML summary dashboard
+- MultiQC report
 
 ![pipeline](/img/Preprocs_Pipeline.png)
 
@@ -67,7 +69,7 @@ nextflow -h
 
 3. **(Optional) Installing external pipelines as validation**
 
-After following these [installation instructions](assets/README.md), users can run external pipelines simultaneaously with the BCA pre-processing pipeline. You only have to provide the path to the installation as within the [`conf/custom_parameters.config`](conf/custom_parameters.config) file, see Setup explenation below, and it will automatically start. 
+After following these [installation instructions](subworkflows/README.md), users can run external pipelines simultaneaously with the BCA pre-processing pipeline. You only have to provide the path to the installation as within the [`conf/custom_parameters.config`](conf/custom_parameters.config) file, see Setup explenation below, and it will automatically start. 
 
 This is limited to the following software: 
 | Sequencing Technology | External pipeline |
@@ -108,7 +110,7 @@ Within each custom configuration file the following variables can be defined:
 |------------------------|-------------------|-------------|
 | `input`                | __Required__         | Path to the samplesheet. |
 | `output_dir`           | __Required__          | Path to the results/output directory; must exist before running. |
-| `protocol`              | __Required__          | Specifies the sequencing technology used (must be one of the following: `"oak_seq"`, `"10xv3"`, `"parse_biosciences"`,     `"bd_rhapsody"`, `"sciRNAseq3"` or `"seqspec"`). |
+| `protocol`              | __Required__          | Specifies the sequencing technology used (must be one of the following: `"oak_seq"`, `"10xv3"`, `"parse_biosciences_WT_mini"` or `"parse_biosciences_WT"`,     `"bd_rhapsody"`, `"sciRNAseq3"` , `"ultima_genomics"` or `"seqspec"`). |
 | `ref_fasta`            | __Required__          | Path to the genome FASTA file used for mapping reads. |
 | `ref_gtf`              | __Required__          | Path to the GTF/GFF file formatted for STARsolo. |
 | `ref_gtf_alt`          | Optional              | Path to the GTF/GFF file formatted specifically for analysis with Parse Biosciences / CellRanger pipeline. Defaults to the same path as `ref_gtf`. |
@@ -161,7 +163,6 @@ profiles {
 - [ ] Created a samplesheet
 - [ ] Configured the custom config file (config/custom_parameters.config)
 - [ ] Adjust HPC-specific/SLURM parameters (nextflow.config)
-- [ ] (Optional) Added custom config as profile in the main config file (nextflow.config)
 
 ### Running the Pipeline
 

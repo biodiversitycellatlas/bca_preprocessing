@@ -28,7 +28,7 @@ workflow preprocessing_workflow {
         ch_samplesheet
 
     main:
-        if (params.protocol == 'parse_biosciences') {     
+        if (params.protocol == 'parse_biosciences_WT_mini' || params.protocol == 'parse_biosciences_WT') {     
             data_output_ch = parse_workflow(ch_samplesheet)
             bc_whitelist_ch  = params.seqtech_parameters[params.protocol].bc_whitelist
 
@@ -53,7 +53,7 @@ workflow preprocessing_workflow {
         } else {
             error """
             Invalid sequencing technology specified. Use one of the following parameters for 'protocol': 
-            - 'parse_biosciences' 
+            - 'parse_biosciences_WT_mini' or 'parse_biosciences_WT'
             - 'bd_rhapsody'
             - '10xv3' 
             - 'oak_seq'
