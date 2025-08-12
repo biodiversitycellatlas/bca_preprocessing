@@ -94,7 +94,7 @@ for map_dir in "${output_dir}/mapping_STARsolo"/*; do
 
     # Percentage Intronic Reads
     exonic_sum=$(cat ${map_dir}/${sample_name}_Solo.out/Gene/raw/matrix.mtx | awk 'NR>3 {sum+=$3} END{print sum}' || echo "0")
-    fullgene_sum=$(cat ${map_dir}/${sample_name}_Solo.out/GeneFull/raw/matrix.mtx | awk 'NR>3 {sum+=$3} END{print sum}' || echo "0")
+    fullgene_sum=$(cat ${map_dir}/${sample_name}_Solo.out/${config}/raw/matrix.mtx | awk 'NR>3 {sum+=$3} END{print sum}' || echo "0")
     intronic_sum=$(( fullgene_sum - exonic_sum ))
 
     fraction_intronic=$(awk -v i="$intronic_sum" -v t="$fullgene_sum" \
