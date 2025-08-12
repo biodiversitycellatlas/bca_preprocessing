@@ -63,6 +63,7 @@ process MAPPING_STARSOLO {
         --soloCellFilter CellRanger2.2 ${meta.expected_cells} 0.99 10 \\
         --soloCBwhitelist ${bc_whitelist} \\
         --soloCellReadStats Standard \\
+        --genomeChrSetMitochondrial ${params.mt_contig} \\
         ${bd_mem_arg} \\
         \${SOLO_ARGS}
     """
