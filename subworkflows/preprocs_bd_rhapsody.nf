@@ -7,10 +7,9 @@
     IMPORT FUNCTIONS / MODULES / SUBWORKFLOWS
 ~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~
 */
-include { DOWNLOAD_DATA } from '../modules/download'
-include { RM_VARBASES } from '../modules/rm_varbases_bdrhap'
-include { BDRHAP_PIPELINE } from '../modules/bdrhap_pipeline'
-include { BDRHAP_PIPELINE_MKREF } from '../modules/bdrhap_pipeline_mkref'
+include { RM_VARBASES } from '../modules/tools/cutadapt/main'
+include { BDRHAP_PIPELINE } from '../modules/pipelines/rhapsody_pipeline/rhapsody_full/main'
+include { BDRHAP_PIPELINE_MKREF } from '../modules/pipelines/rhapsody_pipeline/rhapsody_mkref/main'
 
 
 /*
@@ -26,11 +25,11 @@ workflow bd_rhapsody_workflow {
         RM_VARBASES(ch_samplesheet)
 
         // Only run BD Rhapsody pipeline if the path is defined and exists
-        if (params.external_pipeline && file(params.external_pipeline).exists()) {
+        if (params.rhapsody_installation && file(params.rhapsody_installation).exists()) {
             BDRHAP_PIPELINE_MKREF()
             BDRHAP_PIPELINE(ch_samplesheet, BDRHAP_PIPELINE_MKREF.out)
         } else {
-            log.warn "BD Rhapsody pipeline directory not provided or doesn't exist: '${params.external_pipeline}'"
+            log.warn "BD Rhapsody pipeline directory not provided or doesn't exist: '${params.rhapsody_installation}'"
         }
 
     emit:

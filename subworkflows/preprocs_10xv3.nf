@@ -7,9 +7,9 @@
     IMPORT FUNCTIONS / MODULES / SUBWORKFLOWS
 ~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~
 */
-include { DOWNLOAD_DATA } from '../modules/download'
-include { CR_PIPELINE_MKREF } from '../modules/cellranger_pipeline_mkref'
-include { CR_PIPELINE } from '../modules/cellranger_pipeline'
+include { DOWNLOAD_DATA } from '../modules/custom/manipulate/download_files/main'
+include { CR_PIPELINE_MKREF } from '../modules/pipelines/cellranger/cellranger_mkref/main'
+include { CR_PIPELINE } from '../modules/pipelines/cellranger/cellranger_count/main'
 
 /*
 ~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~
@@ -24,11 +24,11 @@ workflow tenx_genomics_workflow {
         DOWNLOAD_DATA()
 
         // Only run Cell Ranger pipeline if the path is defined and exists
-        if (params.external_pipeline && file(params.external_pipeline).exists()) {
+        if (params.perform_cellranger) {
             CR_PIPELINE_MKREF()
             CR_PIPELINE(ch_samplesheet, CR_PIPELINE_MKREF.out)
         } else {
-            log.warn "Cell Ranger pipeline directory not provided or doesn't exist: '${params.external_pipeline}'"
+            log.info "Skipping CellRanger steps as 'perform_cellranger' is false."
         }
 
     emit:

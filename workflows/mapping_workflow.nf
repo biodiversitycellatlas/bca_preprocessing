@@ -10,9 +10,10 @@
 include { mapping_starsolo_workflow } from '../subworkflows/mapping_starsolo'
 include { mapping_alevin_workflow   } from '../subworkflows/mapping_alevin'
 
-include { FASTQC                    } from '../modules/fastqc'
-include { KRAKEN_CREATE_DB          } from '../modules/kraken_create_db'
-include { KRAKEN                    } from '../modules/kraken'
+include { FASTQC                    } from '../modules/tools/fastqc/main'
+include { KRAKEN_CREATE_DB          } from '../modules/tools/kraken/kraken_create_db/main'
+include { KRAKEN                    } from '../modules/tools/kraken/kraken_classify/main'
+include { KRONA                     } from '../modules/tools/krona/main'
 
 
 /*
@@ -60,6 +61,7 @@ workflow QC_mapping_workflow {
             KRAKEN_CREATE_DB()
             KRAKEN(KRAKEN_CREATE_DB.out.db_path_file, mapping_files) 
             all_outputs = all_outputs.mix(KRAKEN.out)
+            KRONA(KRAKEN.out)
         } else {
             log.info "Skipping Kraken steps as 'perform_kraken' is false."
         }
