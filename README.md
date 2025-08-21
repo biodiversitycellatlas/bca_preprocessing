@@ -126,6 +126,7 @@ Within each custom configuration file the following variables can be defined:
 | `kraken_db_path`       | Optional          | Path to the Kraken2 database used for taxonomic classification of unmapped reads, if empty, a default database will be installed. |
 | `perform_cellranger`   | Optional          | Boolean flag to enable or disable the CellRanger pipeline. Default is `false`. | 
 | `splitpipe_installation`| Optional         | Path to the split-pipe installation folder, that can be used as a control. |
+| `splitpipe_conda_env`   | Optional         | Path to the split-pipe conda environment created by following these [instructions](docs/INSTALLATION_EXTERNAL_PIPELINES.md), required if running the split-pipe pipeline. |
 | `rhapsody_installation`| Optional          | Path to the BD-Rhapsody pipeline installation folder, that can be used as a control. |
 
 
