@@ -1,7 +1,5 @@
 #!/usr/bin/env nextflow
 
-nextflow.enable.dsl = 2
-
 /*
 ==============================================================================
 BCA Pre-processing Pipeline
@@ -24,12 +22,13 @@ sbatch submit_nextflow.sh main.nf
     IMPORT FUNCTIONS / MODULES / SUBWORKFLOWS
 ~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~
 */
-include { preprocessing_workflow    } from './workflows/preprocessing_workflow.nf'
-include { QC_mapping_workflow       } from './workflows/mapping_workflow.nf'
-include { filtering_workflow        } from './workflows/filtering_workflow.nf'
+include { preprocessing_workflow    } from './workflows/preprocessing_workflow'
+include { QC_mapping_workflow       } from './workflows/mapping_workflow'
+include { filtering_workflow        } from './workflows/filtering_workflow'
 
-include { SAVE_RUN_CONFIG           } from './modules/save_run_config'
-include { MAPPING_STATS             } from './modules/mapping_statistics'
+include { SAVE_RUN_CONFIG           } from './modules/custom/save_configs/main'
+include { MAPPING_STATS             } from './modules/custom/dashboard/mapping_stats/main'
+include { MULTIQC                   } from './modules/tools/multiqc/main'
 
      
 /*
@@ -37,14 +36,6 @@ include { MAPPING_STATS             } from './modules/mapping_statistics'
     SETUP CHANNEL 
 ~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~
 */
-
-// Set up the sampleID channel from the fastq_dir
-// sample_ids = Channel.fromPath("${params.fastq_dir}/*_R1_001.fastq.gz")
-//     .map { file -> 
-//         file.name.replaceAll(/_R.*_001\.fastq\.gz$/, '')
-//     }
-//     .distinct()
-
 // Set up the sampleID channel from the samplesheet
 Channel
   .fromPath(params.input)
@@ -91,7 +82,7 @@ workflow {
 
     // Pre-processing workflow
     preprocessing_workflow(ch_samplesheet)
-    
+
     // Mapping using STARsolo, Alevin, and/or comparison to commercial pipelines
     QC_mapping_workflow(
         preprocessing_workflow.out.data_output,
@@ -108,7 +99,8 @@ workflow {
     mapping_stats_trigger = all_outputs.mix(QC_mapping_workflow.out.mapping_files).collect().map { it -> true }
     
     // MultiQC and mapping statistics, only triggered after all outputs are finished
-    MAPPING_STATS(mapping_stats_trigger) 
+    MAPPING_STATS(mapping_stats_trigger)
+    MULTIQC(mapping_stats_trigger)
 }
 
 

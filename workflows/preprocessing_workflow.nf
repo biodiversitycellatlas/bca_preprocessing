@@ -10,7 +10,7 @@
 include { bd_rhapsody_workflow          } from '../subworkflows/preprocs_bd_rhapsody'
 include { parse_workflow                } from '../subworkflows/preprocs_parse_biosciences'
 include { tenx_genomics_workflow        } from '../subworkflows/preprocs_10xv3'
-include { sciRNAseq3_workflow         } from '../subworkflows/preprocs_sciRNAseq3'
+include { sciRNAseq3_workflow           } from '../subworkflows/preprocs_sciRNAseq3'
 include { seqspec_workflow              } from '../subworkflows/preprocs_seqspec'
 
 /*
