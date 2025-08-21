@@ -7,10 +7,10 @@
     IMPORT FUNCTIONS / MODULES / SUBWORKFLOWS
 ~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~
 */
-include { SCIROCKET_DEMUX       } from '../modules/scirocket_demux'
-include { SCIROCKET_SEQS_GATHER } from '../modules/scirocket_seqs_gather'
-include { SCIROCKET_SPL_GATHER  } from '../modules/scirocket_spl_gather'
-include { FASTP                 } from '../modules/fastp'
+include { SCIROCKET_DEMUX       } from '../modules/tools/scirocket/scirocket_demux/main'
+include { SCIROCKET_SEQS_GATHER } from '../modules/tools/scirocket/scirocket_seqs_gather/main'
+include { SCIROCKET_SPL_GATHER  } from '../modules/tools/scirocket/scirocket_spl_gather/main'
+include { FASTP                 } from '../modules/tools/fastp/main'
 
 /*
 ~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~

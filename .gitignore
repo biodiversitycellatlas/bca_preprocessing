@@ -1,11 +1,10 @@
 # Ignore all .log and nextflow files
 *.log
 .next*
-conf/samplesheet_nogh*
+.DS*
 
 # Ignore all files in the following directories
 logs/*
 seperate_scripts/*
-seq_techniques/*
-work/*
 conf/2*
+work/*

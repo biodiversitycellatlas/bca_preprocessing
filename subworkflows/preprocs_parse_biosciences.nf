@@ -7,11 +7,9 @@
     IMPORT FUNCTIONS / MODULES / SUBWORKFLOWS
 ~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~
 */
-include { DOWNLOAD_DATA } from '../modules/download'
-include { PARSEBIO_CUSTOM_DEMUX } from '../modules/parsebio_custom_demux'
-include { PARSEBIO_PIPELINE_DEMUX } from '../modules/parsebio_pipeline_demux'
-include { PARSEBIO_PIPELINE_MKREF } from '../modules/parsebio_pipeline_mkref'
-include { PARSEBIO_PIPELINE } from '../modules/parsebio_pipeline'
+include { PARSEBIO_PIPELINE_DEMUX } from '../modules/pipelines/split-pipe/split-pipe_demux/main'
+include { PARSEBIO_PIPELINE_MKREF } from '../modules/pipelines/split-pipe/split-pipe_mkref/main'
+include { PARSEBIO_PIPELINE } from '../modules/pipelines/split-pipe/split-pipe_all/main'
 
 /*
 ~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~
@@ -28,14 +26,13 @@ workflow parse_workflow {
     main:       
         // Demultiplex the fastq files based on the sample wells
         PARSEBIO_PIPELINE_DEMUX(ch_samplesheet)
-        // PARSEBIO_CUSTOM_DEMUX(ch_samplesheet)
         
         // Only run Parse pipeline if the path is defined and exists
-        if (params.external_pipeline && file(params.external_pipeline).exists()) {
+        if (params.splitpipe_installation && file(params.splitpipe_installation).exists()) {
             PARSEBIO_PIPELINE_MKREF()
             PARSEBIO_PIPELINE(PARSEBIO_PIPELINE_DEMUX.out.splitted_files, PARSEBIO_PIPELINE_MKREF.out)
         } else {
-            log.warn "Parse Biosciences pipeline directory not provided or doesn't exist: '${params.external_pipeline}'"
+            log.warn "Parse Biosciences pipeline directory not provided or doesn't exist: '${params.splitpipe_installation}'"
         }
     
     emit:
