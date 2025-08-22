@@ -50,6 +50,6 @@ process SATURATION {
         saturation_output.tsv \\
         saturation.png \\
         --target 0.7 \\
-        > saturation.log 2>&1   
+        > saturation.log 2>&1 || true
     """
 }
