@@ -1,17 +1,7 @@
-// ============  MAPPING PARSE PIPELINE  =========== \\ 
-// Mapping using ParseBiosciences pipeline 1.3.1     \\
-// The functions specify read 1 and read 2 from      \\
-// the channel, and otherwise state if not provided. \\
-// The settings are set in the variable config_file, \\
-// and is specific per sequencing tech.              \\
-// As all previously created reference files are     \\
-// given as one string, these are added to a new     \\
-// directory.                                        \\
-
 process PARSEBIO_PIPELINE {
     publishDir "${params.output_dir}/ParseBio_pipeline/${meta.id}", mode: 'copy'
     tag "${meta.id}"
-    label 'process_medium'
+    label 'process_high'
 
     conda "${params.splitpipe_conda_env}"
     
