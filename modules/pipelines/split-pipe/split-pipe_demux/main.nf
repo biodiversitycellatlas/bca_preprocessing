@@ -2,6 +2,8 @@ process PARSEBIO_PIPELINE_DEMUX {
     publishDir "${params.output_dir}/demultiplex/demux_spipe", mode: 'copy'
     tag "${meta.id}"
     label 'process_medium'
+
+    conda "${moduleDir}/environment.yml"
     
     input:
     tuple val(meta), path(fastq_cDNA), path(fastq_BC_UMI)
