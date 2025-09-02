@@ -8,12 +8,12 @@ This pipeline handles the analysis of single-cell RNA sequencing data, including
 quality control, demultiplexing, mapping, and filtering.
 
 Pre-requisites:
+- Created a samplesheet in CSV format (see conf/example_samplesheet.csv)
 - Configured the custom config file (config/custom.config)
-- Added custom config as profile in the main config file (config/main.config)
-- Added profile to the command line option in the submit_nextflow.sh script
+- Conda & Nextflow available in base environment
 
 Run:
-sbatch submit_nextflow.sh main.nf
+nextflow run -profile <institution_config>,conda,custom_parameters
 ------------------------------------------------------------------------------
 */
 

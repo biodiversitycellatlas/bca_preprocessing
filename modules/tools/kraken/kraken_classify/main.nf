@@ -1,5 +1,5 @@
 process KRAKEN {
-    publishDir "${params.output_dir}/kraken/${meta.id}", mode: 'copy'
+    publishDir "${params.outdir}/kraken/${meta.id}", mode: 'copy'
     tag "${meta.id}"
     label 'process_high_memory'
 

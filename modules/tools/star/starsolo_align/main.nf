@@ -1,6 +1,6 @@
 
 process STARSOLO_ALIGN { 
-    publishDir "${params.output_dir}/mapping_STARsolo/${meta.id}", mode: 'copy'
+    publishDir "${params.outdir}/mapping_STARsolo/${meta.id}", mode: 'copy'
     tag "${meta.id}_STARsolo"
     label 'process_high'
     debug true

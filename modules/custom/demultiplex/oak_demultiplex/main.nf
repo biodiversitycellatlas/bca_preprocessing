@@ -1,5 +1,5 @@
 process OAK_DEMUX {
-    publishDir "${params.output_dir}", mode: 'copy'
+    publishDir "${params.outdir}", mode: 'copy'
     tag "${meta.id}"
     label 'process_single'
     debug true
