@@ -1,5 +1,5 @@
 process CALC_MT_RRNA {   
-    publishDir "${params.output_dir}/rRNA_mtDNA", mode: 'copy'
+    publishDir "${params.outdir}/rRNA_mtDNA", mode: 'copy'
     label 'process_single'
     debug true
 

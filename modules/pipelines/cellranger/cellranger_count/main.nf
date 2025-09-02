@@ -1,5 +1,5 @@
 process CR_PIPELINE {
-    publishDir "${params.output_dir}/CellRanger_pipeline/", mode: 'copy'
+    publishDir "${params.outdir}/CellRanger_pipeline/", mode: 'copy'
     tag "${meta.id}"
     label 'process_medium'
     debug true

@@ -29,6 +29,18 @@ trap _term TERM
 export NXF_JVM_ARGS="-Xms2g -Xmx5g"
 
 
+##################
+# Load Nextflow  #
+##################
+
+if command -v module &> /dev/null; then
+    echo "Loading Nextflow module..."
+    module load Nextflow
+else
+    echo "Warning: 'module' command not found. Assuming Nextflow is already in PATH."
+fi
+
+
 ####################
 # Run the pipeline #
 ####################

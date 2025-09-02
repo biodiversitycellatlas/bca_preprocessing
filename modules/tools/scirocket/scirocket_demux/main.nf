@@ -1,5 +1,5 @@
 process SCIROCKET_DEMUX {
-    publishDir "${params.output_dir}", mode: 'copy'
+    publishDir "${params.outdir}", mode: 'copy'
     tag "${meta.id}, ${fastq_cDNA}, ${fastq_BC_UMI}"
     label 'process_medium'
     debug true
@@ -34,13 +34,13 @@ process SCIROCKET_DEMUX {
     echo "FASTQ cDNA: ${fastq_cDNA}"
     echo "FASTQ BC & UMI: ${fastq_BC_UMI}"
     echo "Barcode whitelist: ${bc_whitelist}"
-    echo "Samples file: ${launchDir}/${params.input}" 
+    echo "Samples file: ${projectDir}/${params.input}" 
 
     mkdir -p demux_reads/
 
     python3 ${moduleDir}/bin/scirocket_demux_rocket.py \\
          --experiment_name ${meta.id} \\
-         --samples ${launchDir}/${params.input} \\
+         --samples ${projectDir}/${params.input} \\
          --barcodes ${bc_whitelist} \\
          --r1 ${fastq_BC_UMI} --r2 ${fastq_cDNA} \\
          --out demux_reads/ 

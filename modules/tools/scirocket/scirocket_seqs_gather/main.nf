@@ -1,5 +1,5 @@
 process SCIROCKET_SEQS_GATHER {
-    publishDir "${params.output_dir}", mode: 'copy'
+    publishDir "${params.outdir}", mode: 'copy'
     label 'process_single'
     debug true
 

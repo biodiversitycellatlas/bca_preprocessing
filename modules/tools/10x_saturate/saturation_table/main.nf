@@ -1,5 +1,5 @@
 process SATURATION_TABLE {
-    publishDir "${params.output_dir}/saturation/${meta.id}", mode: 'copy'
+    publishDir "${params.outdir}/saturation/${meta.id}", mode: 'copy'
     tag "${meta.id}"
     label 'process_single'
     debug true
@@ -38,7 +38,7 @@ process SATURATION_TABLE {
     temp_folder="_tmp"
     echo "cells:\${n_cells} reads:\${n_reads} mapreads:\${MAPREADS} maprate:\${map_rate}"
 
-    python ${launchDir}/submodules/10x_saturate/saturation_table.py \\
+    python ${projectDir}/submodules/10x_saturate/saturation_table.py \\
         --bam \${bam_file} \\
         --ncells \${n_cells} \\
         --mapping_rate \${map_rate} \\

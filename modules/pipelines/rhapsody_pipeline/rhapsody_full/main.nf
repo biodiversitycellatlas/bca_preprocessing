@@ -1,5 +1,5 @@
 process BDRHAP_PIPELINE {
-    publishDir "${params.output_dir}/BDrhapsody_pipeline/${meta.id}", mode: 'copy'
+    publishDir "${params.outdir}/BDrhapsody_pipeline/${meta.id}", mode: 'copy'
     tag "${meta.id}_BDrhapsody"
     label 'process_high_memory'
 
@@ -26,9 +26,9 @@ process BDRHAP_PIPELINE {
     echo "basename: \${basename_ref}"
 
     cwl-runner \\
-        --outdir ${params.output_dir}/BD_Rhapsody_pipeline/\${basename_ref} \\
+        --outdir ${params.outdir}/BD_Rhapsody_pipeline/\${basename_ref} \\
         --singularity \\
-        --reference-archive ${params.output_dir}/genome/BDrhap_reference/BD_Rhapsody_Reference_Files.tar.gz \\
+        --reference-archive ${params.outdir}/genome/BDrhap_reference/BD_Rhapsody_Reference_Files.tar.gz \\
         rhapsody_pipeline_2.2.1.cwl \\
         pipeline_inputs_${meta.id}_2.2.1.yml
     """
