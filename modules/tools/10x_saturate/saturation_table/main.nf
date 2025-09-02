@@ -1,4 +1,4 @@
-process SATURATION {
+process SATURATION_TABLE {
     publishDir "${params.output_dir}/saturation/${meta.id}", mode: 'copy'
     tag "${meta.id}"
     label 'process_single'
@@ -11,11 +11,11 @@ process SATURATION {
     file(bam_index)
 
     output:
-    path("saturation*")
+    path("saturation_output.tsv")
 
     script:
     """
-    echo "\n\n==================  SATURATION =================="
+    echo "\n\n==================  SATURATION TABLE =================="
     echo "Processing files: ${mapping_files}"
 
     # Remove unmapped reads from the BAM file
@@ -45,11 +45,5 @@ process SATURATION {
         --temp \${temp_folder} \\
         --output saturation_output.tsv 
     echo "Created saturation_output.tsv"
-
-    python ${launchDir}/submodules/10x_saturate/scripts/plot_curve.py  \\
-        saturation_output.tsv \\
-        saturation.png \\
-        --target 0.7 \\
-        > saturation.log 2>&1 || true
     """
 }
