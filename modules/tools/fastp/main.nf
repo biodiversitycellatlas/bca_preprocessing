@@ -1,5 +1,5 @@
 process FASTP {
-    publishDir "${params.output_dir}/fastp", mode: 'copy'
+    publishDir "${params.outdir}/fastp", mode: 'copy'
     tag "${meta.id}"
     label 'process_low'
     debug true

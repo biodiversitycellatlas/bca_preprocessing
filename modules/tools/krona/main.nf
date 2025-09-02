@@ -1,5 +1,5 @@
 process KRONA {
-    publishDir "${params.output_dir}/summary_results", mode: 'copy'
+    publishDir "${params.outdir}/summary_results", mode: 'copy'
     label 'process_single'
     debug true
 
@@ -21,6 +21,6 @@ process KRONA {
 
     # Running Krona on Kraken reports
     # -t is set to 7 as kraken reports are created with --report-minimizer-data
-    ktImportTaxonomy -t 7 -m 3 -o multi-krona.html ${params.output_dir}/*/*_taxonomy.txt
+    ktImportTaxonomy -t 7 -m 3 -o multi-krona.html ${params.outdir}/*/*_taxonomy.txt
     """
 }

@@ -1,5 +1,5 @@
 process ALEVIN_FRY {
-    publishDir "${params.output_dir}/mapping_alevin/${meta.id}", mode: 'copy'
+    publishDir "${params.outdir}/mapping_alevin/${meta.id}", mode: 'copy'
     tag "${meta.id}"
     label 'process_high'
     debug true
