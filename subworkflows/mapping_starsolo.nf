@@ -13,7 +13,8 @@ include { STARSOLO_ALIGN as STARSOLO_ALIGN                  } from '../modules/t
 include { STARSOLO_ALIGN as STARSOLO_ALIGN_GENEEXT          } from '../modules/tools/star/starsolo_align/main'
 include { SAMTOOLS_INDEX as SAMTOOLS_INDEX                  } from '../modules/tools/samtools/samtools_index/main'
 include { SAMTOOLS_INDEX as SAMTOOLS_INDEX_GENEEXT          } from '../modules/tools/samtools/samtools_index/main'
-include { SATURATION                                        } from '../modules/tools/10x_saturate/main'
+include { SATURATION_TABLE                                  } from '../modules/tools/10x_saturate/saturation_table/main'
+include { SATURATION_PLOT                                   } from '../modules/tools/10x_saturate/plot_curve/main'
 include { CALC_MT_RRNA as CALC_MT_RRNA                      } from '../modules/tools/featurecounts/main'
 include { CALC_MT_RRNA as CALC_MT_RRNA_GENEEXT              } from '../modules/tools/featurecounts/main'
 include { GENE_EXT                                          } from '../modules/tools/geneext/main'
@@ -37,8 +38,9 @@ workflow mapping_starsolo_workflow {
         SAMTOOLS_INDEX(STARSOLO_ALIGN.out)
 
         // Calculate saturation
-        SATURATION(STARSOLO_ALIGN.out, SAMTOOLS_INDEX.out)
-        all_outputs.mix(SATURATION.out)
+        SATURATION_TABLE(STARSOLO_ALIGN.out, SAMTOOLS_INDEX.out)
+        SATURATION_PLOT(STARSOLO_ALIGN.out, SATURATION_TABLE.out)
+        all_outputs.mix(SATURATION_PLOT.out)
 
         // Calculate percentages mitochondrial DNA and ribosomal RNA
         if (params.perform_featurecounts) {
