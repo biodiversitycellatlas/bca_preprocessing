@@ -19,6 +19,6 @@ process PARSEBIO_PIPELINE_MKREF {
         --genome_name ref_splitpipe \\
         --genes \$GTF_FILE \\
         --fasta ${params.ref_fasta} \\
-        --output_dir .
+        --outdir .
     """
 }

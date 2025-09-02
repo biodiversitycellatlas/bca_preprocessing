@@ -36,7 +36,7 @@ def parse_command_line_arguments(argv: Optional[List[str]] = None) -> argparse.N
     Parse command-line arguments.
     Returns:
         Parsed arguments namespace with:
-          - output_dir (Path): Root directory with pipeline results.
+          - outdir (Path): Root directory with pipeline results.
           - outfile (Path): Destination TSV path.
           - json (Optional[Path]): Optional JSON output path for CellReads summaries.
     """
@@ -44,7 +44,7 @@ def parse_command_line_arguments(argv: Optional[List[str]] = None) -> argparse.N
         description="Aggregate mapping QC log_metrics into one TSV file."
     )
     parser.add_argument(
-        "output_dir",
+        "outdir",
         type=Path,
         help="Results directory containing mapping_STARsolo/, ParseBio_pipeline/, CellRanger_pipeline/ …",
     )
@@ -576,11 +576,11 @@ def main(argv: Optional[List[str]] = None) -> None:
     """
     args = parse_command_line_arguments(argv)
 
-    rows, cellreads = collect_all_log_metrics(args.output_dir)
+    rows, cellreads = collect_all_log_metrics(args.outdir)
     write_tsv_file(args.outfile, rows)
 
     if not rows:
-        print(f"[WARNING] No mapping stats found in {args.output_dir}")
+        print(f"[WARNING] No mapping stats found in {args.outdir}")
         # still ensure an empty TSV with headers exists
         write_tsv_file(args.outfile, [])
 

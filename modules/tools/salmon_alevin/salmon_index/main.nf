@@ -1,5 +1,5 @@
 process SALMON_INDEX { 
-    publishDir "${params.output_dir}/genome/salmon_index", mode: 'copy'
+    publishDir "${params.outdir}/genome/salmon_index", mode: 'copy'
     label 'process_high'
     debug true
 

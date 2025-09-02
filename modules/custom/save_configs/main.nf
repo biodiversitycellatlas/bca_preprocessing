@@ -1,5 +1,5 @@
 process SAVE_RUN_CONFIG {
-    publishDir "${params.output_dir}/pipeline_info", mode: 'copy'
+    publishDir "${params.outdir}/pipeline_info", mode: 'copy'
     label 'process_single'
 
     output:
@@ -9,7 +9,7 @@ process SAVE_RUN_CONFIG {
     script:
     """
     # Copy the samplesheet 
-    cp ${launchDir}/${params.input} "samplesheet_${params.trace_report_suffix}.csv"
+    cp ${projectDir}/${params.input} "samplesheet_${params.trace_report_suffix}.csv"
 
     # Save the environment variables to a file
     cat <<EOF > run_config_${params.trace_report_suffix}.txt

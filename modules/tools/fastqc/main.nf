@@ -1,5 +1,5 @@
 process FASTQC {
-    publishDir "${params.output_dir}/fastqc", mode: 'copy'
+    publishDir "${params.outdir}/fastqc", mode: 'copy'
     tag "${fastq_cDNA}, ${fastq_BC_UMI}"
     label 'process_low'
 

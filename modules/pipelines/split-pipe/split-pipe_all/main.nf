@@ -1,5 +1,5 @@
 process PARSEBIO_PIPELINE {
-    publishDir "${params.output_dir}/ParseBio_pipeline/${meta.id}", mode: 'copy'
+    publishDir "${params.outdir}/ParseBio_pipeline/${meta.id}", mode: 'copy'
     tag "${meta.id}"
     label 'process_high'
 
@@ -37,7 +37,7 @@ process PARSEBIO_PIPELINE {
         --fq2 ${fastq_BC_UMI} \\
         --nthreads 16 \\
         --genome_dir genome_index \\
-        --output_dir . \\
+        --outdir . \\
         --parfile config_${params.protocol}_splitpipe.txt \\
         --no_keep_going
     """
