@@ -1,5 +1,5 @@
 process STARSOLO_INDEX {
-    publishDir "${params.output_dir}/genome/star_index_${meta.id}", mode: 'copy'
+    publishDir "${params.outdir}/genome/star_index_${meta.id}", mode: 'copy'
     label 'process_medium'
     
     input:

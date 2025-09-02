@@ -6,7 +6,7 @@
 barcode_raw=$1           # e.g. CAGGGTTGGC
 index_type=$2            # either 'i5' or 'i7'
 input_dir=$3
-output_dir=$4
+outdir=$4
 max_mm="${5:-1}"         # default: 1 mismatch
 
 # Reverse‐complement function
@@ -19,7 +19,7 @@ barcode_rc=$(revcomp "$barcode_raw")
 # ------------------------------------------------------------------------------
 # Paths & filenames
 # ------------------------------------------------------------------------------
-demux_dir="${output_dir}/fastq_demux_${index_type}_${barcode_raw}"
+demux_dir="${outdir}/fastq_demux_${index_type}_${barcode_raw}"
 tmp_dir="${demux_dir}/tmp_demux_${index_type}_${barcode_raw}"
 
 mkdir -p "${demux_dir}" "${tmp_dir}"

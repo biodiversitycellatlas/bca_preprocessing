@@ -16,11 +16,11 @@ process BDRHAP_PIPELINE_MKREF {
     cd \${ref_dir}
 
     # Retrieve the first accession number
-    first_fastq=\$(ls "${params.output_dir}/fastq/" | head -n1)  
+    first_fastq=\$(ls "${params.outdir}/fastq/" | head -n1)  
     echo "\${first_fastq}"
 
     # Calculate SJDB overhang using the first read from the first fastq file
-    sjdb_overhang=\$(zcat ${params.output_dir}/fastq/\${first_fastq} 2>/dev/null | awk 'NR==2 {print length(\$0)-1; exit}' || echo "") 
+    sjdb_overhang=\$(zcat ${params.outdir}/fastq/\${first_fastq} 2>/dev/null | awk 'NR==2 {print length(\$0)-1; exit}' || echo "") 
 
     STAR --runMode genomeGenerate \\
         --genomeFastaFiles ${params.ref_fasta} \\

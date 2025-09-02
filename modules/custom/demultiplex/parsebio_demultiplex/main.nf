@@ -1,5 +1,5 @@
 process PARSEBIO_CUSTOM_DEMUX {
-    publishDir "${params.output_dir}/demultiplex/demux_custom/${meta.id}", mode: 'copy'
+    publishDir "${params.outdir}/demultiplex/demux_custom/${meta.id}", mode: 'copy'
     tag "${meta.id}"
     label 'process_medium'
     debug true

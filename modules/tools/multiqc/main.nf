@@ -1,5 +1,5 @@
 process MULTIQC {
-    publishDir "${params.output_dir}/summary_results", mode: 'copy'
+    publishDir "${params.outdir}/summary_results", mode: 'copy'
     label 'process_single'
     debug true
 
@@ -16,6 +16,6 @@ process MULTIQC {
 
     script:
     """
-    multiqc ${params.output_dir} --config ${moduleDir}/bin/multiqc_config.yml
+    multiqc ${params.outdir} --config ${moduleDir}/bin/multiqc_config.yml
     """
 }
