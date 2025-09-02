@@ -8,7 +8,7 @@
 */
 
 process KRAKEN_CREATE_DB {
-    publishDir "${params.output_dir}/kraken/kraken_db", mode: 'copy', overwrite: false
+    publishDir "${params.outdir}/kraken/kraken_db", mode: 'copy', overwrite: false
     tag "kraken_db"
     label 'process_high_memory'
     debug true

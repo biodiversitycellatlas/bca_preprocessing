@@ -1,5 +1,5 @@
 process CELLBENDER {
-    publishDir "${params.output_dir}/cellbender/${meta.id}", mode: 'copy'
+    publishDir "${params.outdir}/cellbender/${meta.id}", mode: 'copy'
     tag "${meta.id}"
     label 'process_high_memory'
     debug true

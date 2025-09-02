@@ -1,5 +1,5 @@
 process SATURATION_PLOT {
-    publishDir "${params.output_dir}/saturation/${meta.id}", mode: 'copy'
+    publishDir "${params.outdir}/saturation/${meta.id}", mode: 'copy'
     tag "${meta.id}"
     label 'process_single'
     debug true
@@ -16,7 +16,7 @@ process SATURATION_PLOT {
     script:
     """
     echo "\n\n==================  SATURATION PLOT =================="
-    python ${launchDir}/submodules/10x_saturate/scripts/plot_curve.py  \\
+    python ${projectDir}/submodules/10x_saturate/scripts/plot_curve.py  \\
         ${saturation_output} \\
         saturation.png \\
         --target 0.7 \\

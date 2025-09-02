@@ -1,10 +1,10 @@
 process GENE_EXT {
-    publishDir "${params.output_dir}/gene_ext/${meta.id}", mode: 'copy'
+    publishDir "${params.outdir}/gene_ext/${meta.id}", mode: 'copy'
     tag "${meta.id}"
     label 'process_medium'
     debug true
 
-    conda "${launchDir}/submodules/GeneExt/environment.yaml"
+    conda "${projectDir}/submodules/GeneExt/environment.yaml"
 
     input:
     tuple val(meta), path(mapping_files)
@@ -42,7 +42,7 @@ process GENE_EXT {
     bam_file=\$(ls *_Aligned.sortedByCoord.out.bam | head -n 1)
     
     # Run GeneExt
-    python ${launchDir}/submodules/GeneExt/geneext.py \\
+    python ${projectDir}/submodules/GeneExt/geneext.py \\
         -g ${params.ref_gtf} \\
         -b \${bam_file} \\
         -o \${gtf_output} \\
