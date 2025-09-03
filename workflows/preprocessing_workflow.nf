@@ -7,11 +7,11 @@
     IMPORT FUNCTIONS / MODULES / SUBWORKFLOWS
 ~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~
 */
-include { bd_rhapsody_workflow          } from '../subworkflows/pre-processing/preprocs_bd_rhapsody'
-include { parse_workflow                } from '../subworkflows/pre-processing/preprocs_parse_biosciences'
-include { tenx_genomics_workflow        } from '../subworkflows/pre-processing/preprocs_10xv3'
-include { sciRNAseq3_workflow           } from '../subworkflows/pre-processing/preprocs_sciRNAseq3'
-include { seqspec_workflow              } from '../subworkflows/pre-processing/preprocs_seqspec'
+include { bd_rhapsody_workflow          } from '../subworkflows/local/pre-processing/preprocs_bd_rhapsody'
+include { parse_workflow                } from '../subworkflows/local/pre-processing/preprocs_parse_biosciences'
+include { tenx_genomics_workflow        } from '../subworkflows/local/pre-processing/preprocs_10xv3'
+include { sciRNAseq3_workflow           } from '../subworkflows/local/pre-processing/preprocs_sciRNAseq3'
+include { seqspec_workflow              } from '../subworkflows/local/pre-processing/preprocs_seqspec'
 
 /*
 ~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~
