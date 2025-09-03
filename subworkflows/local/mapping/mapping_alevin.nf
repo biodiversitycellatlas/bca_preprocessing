@@ -1,5 +1,5 @@
 //
-// Workflow with functionality specific to 'main.nf'
+// Subworkflow with functionality specific to the workflow 'mapping_workflow.nf'
 //
 
 /*
@@ -7,26 +7,29 @@
     IMPORT FUNCTIONS / MODULES / SUBWORKFLOWS
 ~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~
 */
-include { CELLBENDER } from '../modules/local/tools/cellbender/main'
+include { SALMON_INDEX      } from '../../../modules/local/tools/salmon_alevin/salmon_index/main'
+include { ALEVIN_FRY        } from '../../../modules/local/tools/salmon_alevin/alevin-fry/main'
 
 
 /*
 ~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~
-    WORKFLOW TO RUN FILTERING
+    SUBWORKFLOW TO RUN ALEVIN-FRY MAPPING
 ~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~
 */
-workflow filtering_workflow {
+workflow mapping_alevin_workflow {
     take:
-        raw_matrix
-    main:
-        // Ambient RNA removal using CellBender
-        if (params.perform_cellbender) {
-            CELLBENDER(raw_matrix)
-        } else {
-            log.info "Skipping Cellbender steps as 'perform_cellbender' is false."
-        }
-}
+        data_output
+        bc_whitelist
+        all_outputs
 
+    main:
+        SALMON_INDEX(data_output)
+        ALEVIN_FRY(data_output, bc_whitelist, SALMON_INDEX.out)
+
+    emit:
+        mapping_files = ALEVIN_FRY.out     
+        all_outputs
+}
 
 /*
 ~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~

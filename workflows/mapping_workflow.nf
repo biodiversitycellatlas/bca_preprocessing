@@ -7,13 +7,13 @@
     IMPORT FUNCTIONS / MODULES / SUBWORKFLOWS
 ~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~
 */
-include { mapping_starsolo_workflow } from '../subworkflows/mapping/mapping_starsolo'
-include { mapping_alevin_workflow   } from '../subworkflows/mapping/mapping_alevin'
+include { mapping_starsolo_workflow } from '../subworkflows/local/mapping/mapping_starsolo'
+include { mapping_alevin_workflow   } from '../subworkflows/local/mapping/mapping_alevin'
 
-include { FASTQC                    } from '../modules/tools/fastqc/main'
-include { KRAKEN_CREATE_DB          } from '../modules/tools/kraken/kraken_create_db/main'
-include { KRAKEN                    } from '../modules/tools/kraken/kraken_classify/main'
-include { KRONA                     } from '../modules/tools/krona/main'
+include { FASTQC                    } from '../modules/local/tools/fastqc/main'
+include { KRAKEN_CREATE_DB          } from '../modules/local/tools/kraken/kraken_create_db/main'
+include { KRAKEN                    } from '../modules/local/tools/kraken/kraken_classify/main'
+include { KRONA                     } from '../modules/local/tools/krona/main'
 
 
 /*
