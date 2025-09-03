@@ -1,0 +1,13 @@
+work/
+submodules/
+bin/
+logs/
+docs/
+/seperate_scripts/
+.DS_Store
+.nextflow*
+.github/
+
+email_template.html
+adaptivecard.json
+slackreport.json
