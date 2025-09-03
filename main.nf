@@ -26,43 +26,12 @@ include { preprocessing_workflow    } from './workflows/preprocessing_workflow'
 include { QC_mapping_workflow       } from './workflows/mapping_workflow'
 include { filtering_workflow        } from './workflows/filtering_workflow'
 
-include { SAVE_RUN_CONFIG           } from './modules/custom/save_configs/main'
-include { MAPPING_STATS             } from './modules/custom/dashboard/mapping_stats/main'
-include { MULTIQC                   } from './modules/tools/multiqc/main'
+include { PIPELINE_INITIALISATION   } from './subworkflows/local/utils_nfcore_bca_pipeline'
+include { PIPELINE_COMPLETION       } from './subworkflows/local/utils_nfcore_bca_pipeline'
 
-     
-/*
-~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~
-    SETUP CHANNEL 
-~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~
-*/
-// Set up the sampleID channel from the samplesheet
-Channel
-  .fromPath(params.input)
-  .splitCsv(header: true, sep: ',')
-  .map { row ->
-    // Concat metadata into a Map object
-    def meta = [
-      id                : row.sample,
-      expected_cells    : row.expected_cells ? row.expected_cells.toInteger() : null,
-      p5                : row.p5 ? row.p5 : null,
-      p7                : row.p7 ? row.p7 : null,
-      rt                : row.rt ? row.rt : null,
-    ]
-    
-    // Assign each FASTQ to its own variable (or null if missing)
-    def fastq_cDNA  = row.fastq_cDNA  ? file(row.fastq_cDNA)  : null
-    def fastq_BC_UMI = row.fastq_BC_UMI ? file(row.fastq_BC_UMI) : null
-
-    // Return a single map with named entries
-    [
-        meta         : meta,
-        fastq_cDNA   : fastq_cDNA,
-        fastq_BC_UMI : fastq_BC_UMI
-    ]
-  }
-  .set { ch_samplesheet }
-
+include { SAVE_RUN_CONFIG           } from './modules/local/custom/save_configs/main'
+include { MAPPING_STATS             } from './modules/local/custom/dashboard/mapping_stats/main'
+include { MULTIQC                   } from './modules/local/tools/multiqc/main'
 
 
 /*
@@ -76,12 +45,17 @@ Channel
         the pipeline triggers MultiQC and the filtering workflow.  
 ~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~
 */
-workflow {
+workflow BCA_PREPROCESSING {
+
+    take:
+    samplesheet // channel: samplesheet read in from --input
+
+    main:
     // Save run configurations
     SAVE_RUN_CONFIG()
 
     // Pre-processing workflow
-    preprocessing_workflow(ch_samplesheet)
+    preprocessing_workflow(samplesheet)
 
     // Mapping using STARsolo, Alevin, and/or comparison to commercial pipelines
     QC_mapping_workflow(
@@ -100,8 +74,55 @@ workflow {
     
     // MultiQC and mapping statistics, only triggered after all outputs are finished
     MAPPING_STATS(mapping_stats_trigger)
-    MULTIQC(mapping_stats_trigger)
+    ch_multiqc_config = Channel.fromPath("$projectDir/assets/multiqc_config.yml", checkIfExists: true)
+    MULTIQC(mapping_stats_trigger, ch_multiqc_config)
+
+    emit:
+    multiqc_report = MULTIQC.out
 }
+
+
+/*
+~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~
+    RUN MAIN WORKFLOW
+~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~
+*/
+
+workflow {
+
+    main:
+    //
+    // SUBWORKFLOW: Run initialisation tasks
+    //
+    PIPELINE_INITIALISATION (
+        params.version,
+        params.validate_params,
+        params.monochrome_logs,
+        args,
+        params.outdir,
+        params.input
+    )
+
+    //
+    // WORKFLOW: Run main workflow
+    //
+    BCA_PREPROCESSING (
+        PIPELINE_INITIALISATION.out.samplesheet
+    )
+    //
+    // SUBWORKFLOW: Run completion tasks
+    //
+    PIPELINE_COMPLETION (
+        params.email,
+        params.email_on_fail,
+        params.plaintext_email,
+        params.outdir,
+        params.monochrome_logs,
+        params.hook_url,
+        BCA_PREPROCESSING.out.multiqc_report
+    )
+}
+
 
 
 /*
@@ -109,22 +130,22 @@ workflow {
     WORKFLOWS TO DISPLAY RUNTIME INFORMATION 
 ~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~
 */
-workflow.onComplete {
-    summary = """
-        Pipeline execution summary 
-        ---------------------------
-        Completed at: ${workflow.complete} 
-        Duration    : ${workflow.duration} 
-        Success     : ${workflow.success} 
-        workDir     : ${workflow.workDir} 
-        exit status : ${workflow.exitStatus} 
-        """
-    println summary
-}
+// workflow.onComplete {
+//     summary = """
+//         Pipeline execution summary 
+//         ---------------------------
+//         Completed at: ${workflow.complete} 
+//         Duration    : ${workflow.duration} 
+//         Success     : ${workflow.success} 
+//         workDir     : ${workflow.workDir} 
+//         exit status : ${workflow.exitStatus} 
+//         """
+//     println summary
+// }
 
-workflow.onError {
-    println "Error: Pipeline execution stopped with the following message: ${workflow.errorMessage}"
-}
+// workflow.onError {
+//     println "Error: Pipeline execution stopped with the following message: ${workflow.errorMessage}"
+// }
 
 
 /*
