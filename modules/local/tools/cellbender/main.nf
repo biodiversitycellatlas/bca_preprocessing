@@ -2,7 +2,7 @@ process CELLBENDER {
     publishDir "${params.outdir}/cellbender/${meta.id}", mode: 'copy'
     tag "${meta.id}"
     label 'process_high_memory'
-    debug true
+    
 
     conda "${moduleDir}/environment.yml"
     container "${ task.ext.use_gpu ? 'us.gcr.io/broad-dsde-methods/cellbender:0.3.2' :

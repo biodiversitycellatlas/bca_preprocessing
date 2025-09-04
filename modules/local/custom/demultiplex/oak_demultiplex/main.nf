@@ -2,13 +2,13 @@ process OAK_DEMUX {
     publishDir "${params.outdir}", mode: 'copy'
     tag "${meta.id}"
     label 'process_single'
-    debug true
+    
     
     input:
-    tuple val(meta), path(fastq_cDNA), path(fastq_BC_UMI)
+    tuple val(meta), path(fastq_cDNA), path(fastq_BC_UMI), path(input_file)
 
     output:
-    tuple val(meta), path("demux_reads"), path("demux_reads/*.fastq.gz")
+    tuple val(meta), path("demux_reads"), path("demux_reads/*.fastq.gz"), path(input_file)
 
     when:
 

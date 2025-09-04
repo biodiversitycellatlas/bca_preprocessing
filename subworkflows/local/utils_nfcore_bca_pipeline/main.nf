@@ -66,6 +66,7 @@ workflow PIPELINE_INITIALISATION {
     //
     // Create channel from input file provided through params.input
     //
+    def samples_file = file(params.input)   // Absolute if given, relative resolved to projectDir
 
     Channel
     .fromPath(params.input)
@@ -88,7 +89,8 @@ workflow PIPELINE_INITIALISATION {
         [
             meta         : meta,
             fastq_cDNA   : fastq_cDNA,
-            fastq_BC_UMI : fastq_BC_UMI
+            fastq_BC_UMI : fastq_BC_UMI,
+            input_file   : samples_file
         ]
     }
     .set { ch_samplesheet }

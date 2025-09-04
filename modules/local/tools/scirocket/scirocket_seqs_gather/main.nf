@@ -1,7 +1,7 @@
 process SCIROCKET_SEQS_GATHER {
     publishDir "${params.outdir}", mode: 'copy'
     label 'process_single'
-    debug true
+    
 
     input:
     path samples_discarded_R1

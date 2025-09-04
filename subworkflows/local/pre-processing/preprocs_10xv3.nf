@@ -27,8 +27,6 @@ workflow tenx_genomics_workflow {
         if (params.perform_cellranger) {
             CR_PIPELINE_MKREF()
             CR_PIPELINE(ch_samplesheet, CR_PIPELINE_MKREF.out)
-        } else {
-            log.info "Skipping CellRanger steps as 'perform_cellranger' is false."
         }
 
     emit:
