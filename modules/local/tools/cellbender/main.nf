@@ -2,7 +2,7 @@ process CELLBENDER {
     publishDir "${params.outdir}/cellbender/${meta.id}", mode: 'copy'
     tag "${meta.id}"
     label 'process_high_memory'
-    
+
 
     conda "${moduleDir}/environment.yml"
     container "${ task.ext.use_gpu ? 'us.gcr.io/broad-dsde-methods/cellbender:0.3.2' :
@@ -21,7 +21,7 @@ process CELLBENDER {
     echo "\n\n===============  Ambient RNA removal  ==============="
     echo "Sample ID: ${meta}"
     echo "Mapping files: ${mapping_files}"
-    
+
     matrix_path=\$(echo ./*_Solo.out/GeneFull_Ex50pAS/raw)
 
     # Copy features file as cellbender expects the file to be named genes.tsv

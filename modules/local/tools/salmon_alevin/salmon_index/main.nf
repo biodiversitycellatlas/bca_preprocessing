@@ -1,7 +1,7 @@
-process SALMON_INDEX { 
+process SALMON_INDEX {
     publishDir "${params.outdir}/genome/salmon_index", mode: 'copy'
     label 'process_high'
-    
+
 
     conda "${moduleDir}/environment.yml"
     container "${ workflow.containerEngine == 'singularity' && !task.ext.singularity_pull_docker_container ?
@@ -13,7 +13,7 @@ process SALMON_INDEX {
 
     output:
     path("*")
-       
+
     script:
     """
     echo "\n\n==================  SALMON INDEX =================="
@@ -22,7 +22,7 @@ process SALMON_INDEX {
     echo "Reference ref_gtf: ${params.ref_gtf}"
 
     # Calculate read length using the first read from the first fastq file
-    readlen=\$(zcat ${fastq_cDNA} | awk 'NR==2 {print length(\$0)}') 
+    readlen=\$(zcat ${fastq_cDNA} | awk 'NR==2 {print length(\$0)}')
     echo "Read length: \${readlen}"
 
     # Create splici reference
@@ -33,7 +33,7 @@ process SALMON_INDEX {
         --flanklen 5 \\
         --prefix "transcriptome_splici" \\
         --out_dir ./splici_index_reference
-    
+
     # Define the reference fasta file created by the R script
     ref_fasta=\$(ls ./splici_index_reference/*.fa)
 

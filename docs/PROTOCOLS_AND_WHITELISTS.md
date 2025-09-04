@@ -30,6 +30,6 @@ Kit `"parse_biosciences_WT_mini"`:
 
 Barcode whitelists:
     BDrhap_bwl_R1.txt : BD_CLS1.txt
-    BDrhap_bwl_R2.txt : BD_CLS2.txt 
+    BDrhap_bwl_R2.txt : BD_CLS2.txt
     BDrhap_bwl_R3.txt : BD_CLS3.txt
     Source: https://teichlab.github.io/scg_lib_structs/methods_html/BD_Rhapsody.html

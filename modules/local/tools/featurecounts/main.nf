@@ -1,7 +1,7 @@
-process CALC_MT_RRNA {   
+process CALC_MT_RRNA {
     publishDir "${params.outdir}/rRNA_mtDNA", mode: 'copy'
     label 'process_single'
-    
+
 
     conda "${moduleDir}/environment.yml"
     container "${ workflow.containerEngine == 'singularity' && !task.ext.singularity_pull_docker_container ?
@@ -13,8 +13,8 @@ process CALC_MT_RRNA {
     file(bam_index)
 
     output:
-    file("${meta.id}_mt_rrna_metrics.txt")     
-       
+    file("${meta.id}_mt_rrna_metrics.txt")
+
     script:
     """
     echo "\n\n==================  CALCULATION rRNA & mtDNA =================="

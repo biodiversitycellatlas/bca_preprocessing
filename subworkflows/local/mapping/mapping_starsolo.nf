@@ -30,7 +30,7 @@ workflow mapping_starsolo_workflow {
         data_output
         bc_whitelist
         all_outputs
-    
+
     main:
         // Mapping: STARsolo
         STARSOLO_INDEX(data_output, params.ref_gtf)

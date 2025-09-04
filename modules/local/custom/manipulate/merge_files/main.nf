@@ -18,4 +18,3 @@ process MERGE_FASTQS {
     cat ${BCUMI_list.join(' ')} > ${meta.id}_BC_UMI.fastq.gz
     """
 }
-
