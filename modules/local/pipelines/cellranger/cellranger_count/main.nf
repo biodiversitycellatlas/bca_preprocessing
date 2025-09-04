@@ -2,12 +2,12 @@ process CR_PIPELINE {
     publishDir "${params.outdir}/CellRanger_pipeline/", mode: 'copy'
     tag "${meta.id}"
     label 'process_medium'
-    debug true
+    
 
     container "quay.io/nf-core/cellranger:9.0.1"
 
     input:
-    tuple val(meta), path(fastq_cDNA), path(fastq_BC_UMI)
+    tuple val(meta), path(fastq_cDNA), path(fastq_BC_UMI), path(input_file)
     path(cr_reference_dir)
 
     output:

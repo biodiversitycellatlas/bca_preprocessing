@@ -113,7 +113,7 @@ In the table below, the variables are summarized, with an example samplesheet li
 
 
 
-### 2. Edit (or create) a Nextflow configuration file
+### 2. Edit (or create) a custom configuration file
 
 To set the custom parameters for each run, the easiest solution is to fill in the fiels in [`conf/custom_parameters.config`](conf/custom_parameters.config). This custom configuration file extends the general `nextflow.config` file in the base of this repository. `conf/custom_parameters.config` contains the minimum variables in order to run this pipeline, and are described in the table below in more detail. 
 
@@ -145,31 +145,14 @@ Within each custom configuration file the following variables can be defined:
 
 To modify the behaviour of certain processes, additional variables can be added to the configuration file. An overview of the extended custom parameters is listed [here](docs/CONFIGURATION_PARAMETERS.md).
 
-### 3. Optional: Add custom configuration file as a new profile
-
-After creating a new configuration file, it can be added as a profile in the [`nextflow.config`](https://github.com/biodiversitycellatlas/bca_preprocessing/blob/main/nextflow.config) file. Define an unique name and set the path, for example within the /conf/ directory. 
-
-```
-## file: nextflow.config
-
-profiles {
-
-    /* ======= !!! EDIT BELOW TO INCLUDE YOUR CUSTOM CONFIG FILES !!! ======= */
-    'custom_parameters' {
-        includeConfig 'conf/custom_parameters.config'
-    }
-    /* ======= !!! EDIT ABOVE TO INCLUDE YOUR CUSTOM CONFIG FILES !!! ======= */
-    ...
-```
-
 
 ---
 
 ## Usage
 
 ### Pre-requisites:
-- [ ] Created a samplesheet in CSV format (see conf/example_samplesheet.csv)
-- [ ] Configured the custom config file (config/custom_parameters.config)
+- [ ] Created a samplesheet in CSV format (see [conf/example_samplesheet.csv](conf/example_samplesheet.csv))
+- [ ] Edited ([`conf/custom_parameters.config`](conf/custom_parameters.config)) or created a new custom configuration file
 - [ ] Conda & Nextflow available in base environment
 
 ### Running the Pipeline
@@ -179,7 +162,7 @@ profiles {
 
 ```
 
-nextflow run -profile <institution_config>,conda,custom_parameters -w <path_to_workdir>
+nextflow run -profile <institution_config>,conda -c </path/to/custom_parameters.config> -w </path/to/workdir>
 
 ####### OR - submitting pipeline through a bash script #######
 

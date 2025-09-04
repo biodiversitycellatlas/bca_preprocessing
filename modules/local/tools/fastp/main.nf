@@ -2,7 +2,7 @@ process FASTP {
     publishDir "${params.outdir}/fastp", mode: 'copy'
     tag "${meta.id}"
     label 'process_low'
-    debug true
+    
 
     conda "${moduleDir}/environment.yml"
     container "${ workflow.containerEngine == 'singularity' && !task.ext.singularity_pull_docker_container ?
@@ -10,10 +10,10 @@ process FASTP {
         'community.wave.seqera.io/library/fastp:0.24.0--62c97b06e8447690' }"
 
     input:
-    tuple val(meta), path(fastq_cDNA), path(fastq_BC_UMI)
+    tuple val(meta), path(fastq_cDNA), path(fastq_BC_UMI), path(input_file)
 
     output:
-    tuple val(meta), path("trimmed_${fastq_cDNA}"), path("trimmed_${fastq_BC_UMI}")
+    tuple val(meta), path("trimmed_${fastq_cDNA}"), path("trimmed_${fastq_BC_UMI}"), path(input_file)
 
     script:
     // Retrieve fastp settings from conf/seqtech_parameters.config

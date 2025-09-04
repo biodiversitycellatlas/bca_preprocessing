@@ -1,7 +1,7 @@
 process SCIROCKET_SPL_GATHER {
     publishDir "${params.outdir}", mode: 'copy'
     label 'process_single'
-    debug true
+    
 
     input:
     path r1_list
