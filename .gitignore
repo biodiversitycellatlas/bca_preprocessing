@@ -6,5 +6,5 @@
 # Ignore all files in the following directories
 logs/*
 seperate_scripts/*
-conf/2*
+conf/[0-9]*
 work/*

@@ -2,7 +2,7 @@ process ALEVIN_FRY {
     publishDir "${params.outdir}/mapping_alevin/${meta.id}", mode: 'copy'
     tag "${meta.id}"
     label 'process_high'
-    debug true
+    
 
     conda "${moduleDir}/environment.yml"
     container "${ workflow.containerEngine == 'singularity' && !task.ext.singularity_pull_docker_container ?
@@ -10,7 +10,7 @@ process ALEVIN_FRY {
         'biocontainers/simpleaf:0.19.4--ha6fb395_0' }"
 
     input:
-    tuple val(meta), path(fastq_cDNA), path(fastq_BC_UMI)
+    tuple val(meta), path(fastq_cDNA), path(fastq_BC_UMI), path(input_file)
     path bc_whitelist
     path(salmon_index)
 

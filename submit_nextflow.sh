@@ -48,7 +48,7 @@ fi
 # The command uses the arguments passed to this script, e.g:
 # -resume       : 	resumes previous work, followed by hash name of used working directory
 
-nextflow run -profile crg,conda,custom_parameters -ansi-log false "$@" & pid=$! 
+nextflow run -profile crg,conda -c conf/custom_parameters.config -ansi-log false "$@" & pid=$! 
 
 # Wait for the pipeline to finish
 echo "Waiting for ${pid}"

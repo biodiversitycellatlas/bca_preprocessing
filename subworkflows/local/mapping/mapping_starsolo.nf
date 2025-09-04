@@ -46,8 +46,6 @@ workflow mapping_starsolo_workflow {
         if (params.perform_featurecounts) {
             CALC_MT_RRNA(STARSOLO_ALIGN.out, SAMTOOLS_INDEX.out)
             all_outputs = all_outputs.mix(CALC_MT_RRNA.out)
-        } else {
-            log.info "Skipping mtDNA/rRNA calculation as 'perform_featurecounts' is false."
         }
 
         // Conditionally run Gene Extension + Remapping branch
@@ -64,8 +62,6 @@ workflow mapping_starsolo_workflow {
             // Add outputs from the Gene Extension branch to the output channel
             mapping_files = mapping_files.mix(STARSOLO_ALIGN_GENEEXT.out)
             all_outputs = all_outputs.mix(SAMTOOLS_INDEX_GENEEXT.out)
-        } else {
-            log.info "Skipping Gene Extension steps as 'perform_geneext' is false."
         }
 
     emit:
