@@ -2,12 +2,12 @@ process SCIROCKET_DEMUX {
     publishDir "${params.outdir}", mode: 'copy'
     tag "${meta.id}, ${fastq_cDNA}, ${fastq_BC_UMI}"
     label 'process_medium'
-    debug true
+    
 
     conda "${moduleDir}/environment.yml"
 
     input:
-    tuple val(meta), path(fastq_cDNA), path(fastq_BC_UMI)
+    tuple val(meta), path(fastq_cDNA), path(fastq_BC_UMI), path(input_file)
 
     output:
     path("demux_reads/${meta.id}_R1.fastq.gz"),       emit: samples_R1
@@ -34,13 +34,13 @@ process SCIROCKET_DEMUX {
     echo "FASTQ cDNA: ${fastq_cDNA}"
     echo "FASTQ BC & UMI: ${fastq_BC_UMI}"
     echo "Barcode whitelist: ${bc_whitelist}"
-    echo "Samples file: ${projectDir}/${params.input}" 
+    echo "Samples file: ${input_file}" 
 
     mkdir -p demux_reads/
 
     scirocket_demux_rocket.py \\
          --experiment_name ${meta.id} \\
-         --samples ${projectDir}/${params.input} \\
+         --samples ${input_file} \\
          --barcodes ${bc_whitelist} \\
          --r1 ${fastq_BC_UMI} --r2 ${fastq_cDNA} \\
          --out demux_reads/ 

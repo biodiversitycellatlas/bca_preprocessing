@@ -2,7 +2,7 @@ process GENE_EXT {
     publishDir "${params.outdir}/gene_ext/${meta.id}", mode: 'copy'
     tag "${meta.id}"
     label 'process_medium'
-    debug true
+    
 
     conda "${projectDir}/submodules/GeneExt/environment.yaml"
 

@@ -11,7 +11,7 @@ process KRAKEN_CREATE_DB {
     publishDir "${params.outdir}/kraken/kraken_db", mode: 'copy', overwrite: false
     tag "kraken_db"
     label 'process_high_memory'
-    debug true
+    
 
     output:
     path 'kraken_db_path.txt', emit: db_path_file

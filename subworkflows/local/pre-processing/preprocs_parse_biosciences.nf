@@ -31,8 +31,6 @@ workflow parse_workflow {
         if (params.splitpipe_installation && file(params.splitpipe_installation).exists()) {
             PARSEBIO_PIPELINE_MKREF()
             PARSEBIO_PIPELINE(PARSEBIO_PIPELINE_DEMUX.out.splitted_files, PARSEBIO_PIPELINE_MKREF.out)
-        } else {
-            log.warn "Parse Biosciences pipeline directory not provided or doesn't exist: '${params.splitpipe_installation}'"
         }
     
     emit:
