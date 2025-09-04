@@ -8,6 +8,6 @@ dependencies:
   - bioconda::star=2.7.11b
   - conda-forge::gawk=5.1.0
   - conda-forge::pip
-  
+
   - pip:
-    - seqspec
+      - seqspec

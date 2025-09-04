@@ -4,7 +4,7 @@ process PARSEBIO_PIPELINE_DEMUX {
     label 'process_medium'
 
     conda "${moduleDir}/environment.yml"
-    
+
     input:
     tuple val(meta), path(fastq_cDNA), path(fastq_BC_UMI), path(input_file)
 
@@ -18,7 +18,7 @@ process PARSEBIO_PIPELINE_DEMUX {
     echo "FASTQ cDNA: ${fastq_cDNA}"
     echo "FASTQ BC & UMI: ${fastq_BC_UMI}"
     echo "Group: ${meta.id}"
-    echo "Wells: ${meta.p5}" 
+    echo "Wells: ${meta.p5}"
 
     # Run Parse Biosciences demultiplexing script
     fastq_sep_groups_v0.5.py \\
@@ -26,7 +26,6 @@ process PARSEBIO_PIPELINE_DEMUX {
         --fq1 ${fastq_cDNA} \\
         --fq2 ${fastq_BC_UMI} \\
         --opath . \\
-        --group ${meta.id} ${meta.p5} 
+        --group ${meta.id} ${meta.p5}
     """
 }
-

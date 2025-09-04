@@ -1,7 +1,7 @@
 process CR_PIPELINE_MKREF {
     publishDir "${params.outdir}/genome/cellranger_ref", mode: 'copy'
     label 'process_medium'
-    
+
 
     container "quay.io/nf-core/cellranger:9.0.1"
 
@@ -13,7 +13,7 @@ process CR_PIPELINE_MKREF {
     // if (workflow.profile.tokenize(',').intersect(['conda', 'mamba']).size() >= 1) {
     //     error "CELLRANGER_COUNT module does not support Conda. Please use Docker / Singularity / Podman instead."
     // }
-    
+
     """
     echo "\n\n=============== CellRanger pipeline - create REF  ==============="
 

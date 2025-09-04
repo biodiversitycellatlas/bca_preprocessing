@@ -37,12 +37,12 @@ include { MULTIQC                   } from './modules/local/tools/multiqc/main'
 /*
 ~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~
     MAIN WORKFLOW
-        Selects pre-processing workflow depending on the sequencing technique 
-        and returns the pre-processed FASTQ files, and possibly results from 
-        the equivalent commercial pipeline (depending on if the path to the 
-        local installation is given). The pre-processed files are then used 
-        for mapping and quality control, and once all outputs are finished, 
-        the pipeline triggers MultiQC and the filtering workflow.  
+        Selects pre-processing workflow depending on the sequencing technique
+        and returns the pre-processed FASTQ files, and possibly results from
+        the equivalent commercial pipeline (depending on if the path to the
+        local installation is given). The pre-processed files are then used
+        for mapping and quality control, and once all outputs are finished,
+        the pipeline triggers MultiQC and the filtering workflow.
 ~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~
 */
 workflow BCA_PREPROCESSING {
@@ -68,10 +68,10 @@ workflow BCA_PREPROCESSING {
 
     // Collect all outputs into a single channel and create trigger
     all_outputs = preprocessing_workflow.out.data_output.mix(QC_mapping_workflow.out.all_outputs)
-    
+
     // Define a trigger that waits for both mapping_files and all_outputs
     mapping_stats_trigger = all_outputs.mix(QC_mapping_workflow.out.mapping_files).collect().map { it -> true }
-    
+
     // MultiQC and mapping statistics, only triggered after all outputs are finished
     MAPPING_STATS(mapping_stats_trigger)
     ch_multiqc_config = Channel.fromPath("$projectDir/assets/multiqc_config.yml", checkIfExists: true)
@@ -127,18 +127,18 @@ workflow {
 
 /*
 ~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~
-    WORKFLOWS TO DISPLAY RUNTIME INFORMATION 
+    WORKFLOWS TO DISPLAY RUNTIME INFORMATION
 ~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~
 */
 workflow.onComplete {
     summary = """
-        Pipeline execution summary 
+        Pipeline execution summary
         ---------------------------
-        Completed at: ${workflow.complete} 
-        Duration    : ${workflow.duration} 
-        Success     : ${workflow.success} 
-        workDir     : ${workflow.workDir} 
-        exit status : ${workflow.exitStatus} 
+        Completed at: ${workflow.complete}
+        Duration    : ${workflow.duration}
+        Success     : ${workflow.success}
+        workDir     : ${workflow.workDir}
+        exit status : ${workflow.exitStatus}
         """
     println summary
 }

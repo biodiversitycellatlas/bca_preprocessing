@@ -16,7 +16,7 @@ process FASTQC {
 
     script:
     """
-    fastqc ${fastq_cDNA} 
+    fastqc ${fastq_cDNA}
     fastqc ${fastq_BC_UMI}
     """
 }

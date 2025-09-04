@@ -1,9 +1,9 @@
 /*
- * Nextflow script for creating a Kraken2 database, which will be 
- * used to classify the unmapped reads. The database is created using the 
- * pre-built database PlusPF_16GB, which is downloaded and selected from: 
+ * Nextflow script for creating a Kraken2 database, which will be
+ * used to classify the unmapped reads. The database is created using the
+ * pre-built database PlusPF_16GB, which is downloaded and selected from:
  * https://benlangmead.github.io/aws-indexes/k2
- * It will only install the database if the kraken_db_path is empty, 
+ * It will only install the database if the kraken_db_path is empty,
  * and returns a file with the path to the (existing or downloaded) database.
 */
 
@@ -11,7 +11,7 @@ process KRAKEN_CREATE_DB {
     publishDir "${params.outdir}/kraken/kraken_db", mode: 'copy', overwrite: false
     tag "kraken_db"
     label 'process_high_memory'
-    
+
 
     output:
     path 'kraken_db_path.txt', emit: db_path_file

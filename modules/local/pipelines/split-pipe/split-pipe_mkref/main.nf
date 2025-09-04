@@ -2,7 +2,7 @@ process PARSEBIO_PIPELINE_MKREF {
     label 'process_medium'
 
     conda "${params.splitpipe_conda_env}"
-    
+
     output:
     path("*")
 
