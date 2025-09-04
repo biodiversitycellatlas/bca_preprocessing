@@ -9,6 +9,7 @@ dependencies:
   - pip
   - pip:
       - pysam>=0.22.0
+      - pandas>=2.1.3
 
   # R packages
   - r-base=4.3.*
