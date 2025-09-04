@@ -4,7 +4,7 @@ process PARSEBIO_PIPELINE {
     label 'process_high'
 
     conda "${params.splitpipe_conda_env}"
-    
+
     input:
     tuple val(meta), path(fastq_cDNA), path(fastq_BC_UMI), path(input_file)
     path parse_refgenome_files
@@ -27,10 +27,10 @@ process PARSEBIO_PIPELINE {
 
     # Create directory for the genome index files
     mkdir -p genome_index
-    
+
     # Move all genome index files to the new directory
     mv ${parse_refgenome_files} genome_index/
-        
+
     split-pipe -m all \\
         --chemistry v3 \\
         --fq1 ${fastq_cDNA} \\

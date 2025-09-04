@@ -2,7 +2,7 @@ process ALEVIN_FRY {
     publishDir "${params.outdir}/mapping_alevin/${meta.id}", mode: 'copy'
     tag "${meta.id}"
     label 'process_high'
-    
+
 
     conda "${moduleDir}/environment.yml"
     container "${ workflow.containerEngine == 'singularity' && !task.ext.singularity_pull_docker_container ?
@@ -16,7 +16,7 @@ process ALEVIN_FRY {
 
     output:
     path("*")
-       
+
     script:
     // If protocol is "bd_rhapsody", then cDNA = R2 and CB/UMI = R1
     // Else by default cDNA = R1 and CB/UMI = R2
@@ -70,7 +70,7 @@ process ALEVIN_FRY {
     alevin-fry collate \\
         -i ./${meta.id}_out_permit_knee \\
         -t 16 \\
-        -r ./${meta.id}_run  
+        -r ./${meta.id}_run
 
     echo "\n\n-------------  quant -------------------"
     txp2gene=\$(ls ./splici_index_reference/*t2g_3col.tsv)
@@ -81,6 +81,6 @@ process ALEVIN_FRY {
         -o ./${meta.id}_counts \\
         -t 16 \\
         -r cr-like-em \\
-        --use-mtx 
+        --use-mtx
     """
 }

@@ -14,7 +14,7 @@
 set -e                # exit immediately on error
 set -u                  # exit immidiately if using undefined variables
 set -o pipefail         # ensure bash pipelines return non-zero status if any of their command fails
- 
+
 # Setup trap function to be run when canceling the pipeline job. It will propagate the SIGTERM signal
 # to Nextlflow so that all jobs launche by the pipeline will be cancelled too.
 _term() {
@@ -22,7 +22,7 @@ _term() {
         kill -s SIGTERM $pid
         wait $pid
 }
- 
+
 trap _term TERM
 
 # Limit the RAM that can be used by nextflow
@@ -48,7 +48,7 @@ fi
 # The command uses the arguments passed to this script, e.g:
 # -resume       : 	resumes previous work, followed by hash name of used working directory
 
-nextflow run -profile crg,conda -c conf/custom_parameters.config -ansi-log false "$@" & pid=$! 
+nextflow run -profile crg,conda -c conf/custom_parameters.config -ansi-log false "$@" & pid=$!
 
 # Wait for the pipeline to finish
 echo "Waiting for ${pid}"

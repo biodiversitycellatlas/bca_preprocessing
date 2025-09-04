@@ -2,7 +2,7 @@ process FASTP {
     publishDir "${params.outdir}/fastp", mode: 'copy'
     tag "${meta.id}"
     label 'process_low'
-    
+
 
     conda "${moduleDir}/environment.yml"
     container "${ workflow.containerEngine == 'singularity' && !task.ext.singularity_pull_docker_container ?
@@ -19,7 +19,7 @@ process FASTP {
     // Retrieve fastp settings from conf/seqtech_parameters.config
     def fastp_settings = params.seqtech_parameters[params.protocol].fastp
     def fastp_args = fastp_settings instanceof List ? fastp_settings.join(' ') : fastp_settings
-    
+
     """
     echo "\n\n==================  TRIM FASTQs WITH FASTP  =================="
     echo "Metadata: ${meta}"

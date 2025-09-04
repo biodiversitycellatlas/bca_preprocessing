@@ -18,7 +18,7 @@ Follow the installation guide on the [10x Genomics website](https://www.10xgenom
 
 ### BD Single-Cell Multiomics Software (BD Rhapsody)
 
-First, download the ['cwl' folder](https://bitbucket.org/CRSwDev/cwl/src/master/) of the BD Single-Cell Multiomics Software, hosted on Bitbucket. This repository contains the CWL and YML files required to run the BD Rhapsody pipeline locally. Secondly, pull the docker image using Docker or Apptainer (see code for Apptainer example). 
+First, download the ['cwl' folder](https://bitbucket.org/CRSwDev/cwl/src/master/) of the BD Single-Cell Multiomics Software, hosted on Bitbucket. This repository contains the CWL and YML files required to run the BD Rhapsody pipeline locally. Secondly, pull the docker image using Docker or Apptainer (see code for Apptainer example).
 
 ```
 # Pull docker image using Apptainer
@@ -28,7 +28,7 @@ apptainer pull docker://bdgenomics/rhapsody
 ---
 
 ### split-pipe (Parse Biosciences)
-In order to incorporate the commercial Parse Biosciences pipeline (also called split-pipe), first create an account and install the code from the personal account page on the Parse Biosciences website. For this project, we tested version 1.3.1, 
+In order to incorporate the commercial Parse Biosciences pipeline (also called split-pipe), first create an account and install the code from the personal account page on the Parse Biosciences website. For this project, we tested version 1.3.1,
 
 Instructions on creating the split-pipe conda environment:
 
@@ -41,30 +41,30 @@ conda activate <destination_path>/<env_name>
 cd /<splitpipe_dir>/
 
 # Install dependencies
-pip install . --no-cache-dir 
+pip install . --no-cache-dir
 
 ## declare this new environment in your custom_config file as 'splitpipe_conda_env = <destination_path>/<env_name>'
 ```
 
-We encountered a few errors durring the creation of the spipe environment. Below, there are a few fixes to common set up problems of spipe: 
+We encountered a few errors durring the creation of the spipe environment. Below, there are a few fixes to common set up problems of spipe:
 ```
 # Pip not installed
-conda install anaconda::pip 
+conda install anaconda::pip
 
 # Failed building wheel for louvain
-conda install -c conda-forge python-igraph 
-pip install cmake 
+conda install -c conda-forge python-igraph
+pip install cmake
 
-# AttributeError: module 'numpy' has no attribute 'NAN'. Did you mean: 'nan'? 
-# In the file 'utils.py', in line 'def report_percent_str(num, den=1, round_to=2, zero=np.NAN, perchar=True): ' 
-# replace NAN by nan. 
+# AttributeError: module 'numpy' has no attribute 'NAN'. Did you mean: 'nan'?
+# In the file 'utils.py', in line 'def report_percent_str(num, den=1, round_to=2, zero=np.NAN, perchar=True): '
+# replace NAN by nan.
 # After saving, rerun:
-pip install . --no-cache-dir 
+pip install . --no-cache-dir
 ```
 
 To test if the installation of split-pipe was successful:
 ```
-split-pipe -h 
+split-pipe -h
 ```
 
 ---
@@ -75,7 +75,7 @@ split-pipe -h
 Github page: https://github.com/odomlab2/sci-rocket/tree/main
 Documentation: https://odomlab2.github.io/sci-rocket/
 
-Version(s) tested: 
+Version(s) tested:
 ```
 # Installation
 git clone https://github.com/odomlab2/sci-rocket
@@ -96,7 +96,7 @@ Using the software out-of-the-box, we encountered two issues:
 
 #### 1. Error: clock skew problem
 
-Shortened error message: 
+Shortened error message:
 ```
 Output read_1.fastq.gz has older modification time than input read_2.fastq.gz.
 This could indicate a clock skew problem in your network and would trigger a rerun of this job in the next execution and should therefore be fixed on system level.
@@ -124,10 +124,8 @@ rule merge_sequencing_runs:
 
 In the documentation it mentions that in the config file, if you set the variable star_index: False, automatically a STAR index will be generated. This seems to be the true, but does raise an error when passing this newly created STAR index onto the next process. So in general, it is better to create a STAR index yourself beforehand, and set the path manually.
 
-Shortened error message: 
+Shortened error message:
 ```
 MissingOutputException in rule generate_index_STAR in file "sci-rocket/workflow/rules/step3_alignment.smk", line 42:
 Job 86  completed successfully, but some output files are missing. Missing files after 5 seconds. This might be due to filesystem latency. If that is the case, consider to increase the wait time with --latency-wait
 ```
-
-

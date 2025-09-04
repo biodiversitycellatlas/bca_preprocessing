@@ -2,10 +2,10 @@ process PARSEBIO_CUSTOM_DEMUX {
     publishDir "${params.outdir}/demultiplex/demux_custom/${meta.id}", mode: 'copy'
     tag "${meta.id}"
     label 'process_medium'
-    
+
 
     conda "${moduleDir}/environment.yml"
-    
+
     input:
     tuple val(meta), path(fastq_cDNA), path(fastq_BC_UMI), path(input_file)
 
@@ -29,7 +29,6 @@ process PARSEBIO_CUSTOM_DEMUX {
         --group ${meta.id} ${meta.p5} \\
         --output . \\
         --barcode_start 50 \\
-        --barcode_end 58 
+        --barcode_end 58
     """
 }
-

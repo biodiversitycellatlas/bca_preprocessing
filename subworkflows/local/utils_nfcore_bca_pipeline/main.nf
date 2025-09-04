@@ -80,7 +80,7 @@ workflow PIPELINE_INITIALISATION {
         p7                : row.p7 ? row.p7 : null,
         rt                : row.rt ? row.rt : null,
         ]
-        
+
         // Assign each FASTQ to its own variable (or null if missing)
         def fastq_cDNA  = row.fastq_cDNA  ? file(row.fastq_cDNA)  : null
         def fastq_BC_UMI = row.fastq_BC_UMI ? file(row.fastq_BC_UMI) : null

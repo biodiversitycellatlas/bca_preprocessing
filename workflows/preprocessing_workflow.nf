@@ -28,7 +28,7 @@ workflow preprocessing_workflow {
         ch_samplesheet
 
     main:
-        if (params.protocol == 'parse_biosciences_WT_mini' || params.protocol == 'parse_biosciences_WT') {     
+        if (params.protocol == 'parse_biosciences_WT_mini' || params.protocol == 'parse_biosciences_WT') {
             data_output_ch = parse_workflow(ch_samplesheet)
             bc_whitelist_ch  = params.seqtech_parameters[params.protocol].bc_whitelist
 
@@ -46,18 +46,18 @@ workflow preprocessing_workflow {
             data_output_ch   = sciRNAseq3_workflow.out.data_output
             bc_whitelist_ch  = sciRNAseq3_workflow.out.bc_whitelist.map { tup -> tup*.toString().join(' ') }
 
-        } else if (params.seqspec_file && file(params.seqspec_file).exists() && params.protocol == 'seqspec') {     
+        } else if (params.seqspec_file && file(params.seqspec_file).exists() && params.protocol == 'seqspec') {
             data_output_ch = seqspec_workflow(ch_samplesheet)
             bc_whitelist_ch  = Channel.value( params.seqtech_parameters[params.protocol].bc_whitelist )
-            
+
         } else {
             error """
-            Invalid sequencing technology specified. Use one of the following parameters for 'protocol': 
+            Invalid sequencing technology specified. Use one of the following parameters for 'protocol':
             - 'parse_biosciences_WT_mini' or 'parse_biosciences_WT'
             - 'bd_rhapsody'
-            - '10xv3' 
+            - '10xv3'
             - 'oak_seq'
-            - 'ultima_genomics' 
+            - 'ultima_genomics'
             - 'sciRNAseq3'
             Or use 'seqspec' to specify a non-supported sequencing technique.
             """

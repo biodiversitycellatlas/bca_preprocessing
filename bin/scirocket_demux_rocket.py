@@ -92,7 +92,7 @@ def generate_sample_dict(samples: pd.DataFrame, barcodes: pd.DataFrame):
     """
 
     # Expand p5 and p7 barcodes (A01:G12) to individual barcodes (A01, A02, A03, ..., G12).
-    samples = samples.to_dict(orient="index")    
+    samples = samples.to_dict(orient="index")
     sample_dict = {}
 
     for sample in samples:
@@ -139,7 +139,7 @@ def init_qc(experiment_name: str, dict_barcodes: dict, samples: pd.DataFrame, di
     qc["p5_index_counts"] = {k: 0 for k in dict_barcodes["p5"].values()}
     qc["p7_index_counts"] = {k: 0 for k in dict_barcodes["p7"].values()}
     qc["rt_barcode_counts"] = {}  # Keep track of the number of times each RT barcode is seen per plate.
-    
+
     # Combine the ligation barcodes (9nt and 10nt) into one dictionary.
     qc["ligation_barcode_counts"] = {**{k: 0 for k in dict_barcodes["ligation"]["ligation_9nt"].values()}, **{k: 0 for k in dict_barcodes["ligation"]["ligation_10nt"].values()}}
 
@@ -194,7 +194,7 @@ def update_qc(qc:dict, x:sciRecord):
         x (sciRecord): sciRecord object.
 
     Returns:
-        qc (dict): Updated dictionary of QC metrics.    
+        qc (dict): Updated dictionary of QC metrics.
     """
 
     # Update the total number of read-pairs processed.
@@ -283,7 +283,7 @@ def update_qc(qc:dict, x:sciRecord):
         qc["uncorrectable_p5"] = defaultdict(int, {k: v for k, v in sorted(qc["uncorrectable_p5"].items(), key=lambda item: item[1], reverse=True)[:50]})
         qc["uncorrectable_ligation"] = defaultdict(int, {k: v for k, v in sorted(qc["uncorrectable_ligation"].items(), key=lambda item: item[1], reverse=True)[:50]})
         qc["uncorrectable_rt"] = defaultdict(int, {k: v for k, v in sorted(qc["uncorrectable_rt"].items(), key=lambda item: item[1], reverse=True)[:50]})
-       
+
     # Return the updated QC dictionary.
     return qc
 
@@ -302,9 +302,9 @@ def open_file_handlers(samples: pd.DataFrame, experiment_name: str, path_r1: str
     Returns:
         dict_fh (dict): Dictionary of file handlers.
     """
-    
+
     dict_fh = {}
-    
+
     # Input R1 / R2.
     try:
         dict_fh["r1"] = pysam.FastxFile(path_r1)
@@ -355,7 +355,7 @@ def open_file_handlers(samples: pd.DataFrame, experiment_name: str, path_r1: str
 
     # Return the dictionary of file handlers.
     return dict_fh
-    
+
 
 def retrieve_hashing_sheets(samples: pd.DataFrame):
     """
@@ -445,7 +445,7 @@ def sciseq_sample_demultiplexing(log: logging.Logger, experiment_name: str, samp
         x = sciRecord(read1, read2)
 
         # region Retrieve the sci-seq barcodes from R1 -------------------------------------------------------------------------------------------------
-        
+
         # Retrieve the sci-seq barcodes from R1.
         x.determine_p5(dict_barcodes["p5"])
         x.determine_p7(dict_barcodes["p7"])
@@ -460,7 +460,7 @@ def sciseq_sample_demultiplexing(log: logging.Logger, experiment_name: str, samp
         x.determine_hash(dict_hashing)
 
         # endregion --------------------------------------------------------------------------------------------------------------------------------
-        
+
         # region Writing output files -----------------------------------------------------------------------------------------------------------
 
         # If any barcode (or corresponding sample) is not found, discard the read-pair.
@@ -541,7 +541,7 @@ def sciseq_sample_demultiplexing(log: logging.Logger, experiment_name: str, samp
         log.info("Done: %d read-pairs processed (%d discarded, %d hashing reads)", qc["n_pairs"], qc["n_pairs_failure"], qc["n_hashing"])
     else:
         log.info("Done: %d read-pairs processed (%d discarded,)", qc["n_pairs"], qc["n_pairs_failure"])
-        
+
     # Close the file handlers.
     for fh in dict_fh.values():
         if isinstance(fh, dict):
@@ -582,10 +582,10 @@ def main(arguments):
         - p7, p5, RT and ligation barcodes.
         - Collects hashing metrics (if applicable).
             - Reads used for hashing are removed.
-    
+
     The R1 sequence is modified to a fixed length sequence (48nt) which includes all (corrected) barcodes: p5(10nt), p7(10nt), ligation(10nt), RT(10nt) and UMI (8nt) for downstream processing.
     The read names for R2 are modified to include the barcodes and UMI.
-    
+
     It requires that the p5 and p7 barcodes are present in the read headers of the .fastq files (bcl2fastq):
     @<read name> 1:N:0:ACGGNNGGCC+NTCATGGNGC
                       |----p7---|+|----p5----|: p5 is reverse-complemented.
@@ -631,7 +631,7 @@ def main(arguments):
     samples = pd.read_csv(args.samples, dtype=str)
     samples = samples.rename(columns={"sample": "sample_name"})
     samples = samples[samples["sample_name"] == args.experiment_name]
-    
+
     # Open barcode-sheet.
     barcodes = pd.read_csv(args.barcodes, sep="\t", dtype=str)
 

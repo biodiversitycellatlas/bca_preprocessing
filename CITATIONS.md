@@ -1,14 +1,12 @@
 # biodiversitycellatlas/bca_preprocessing: Citations
 
-
 ## [Nextflow](https://pubmed.ncbi.nlm.nih.gov/28398311/)
 
-  > Di Tommaso P, Chatzou M, Floden EW, Barja PP, Palumbo E, Notredame C. Nextflow enables reproducible computational workflows. Nat Biotechnol. 2017 Apr 11;35(4):316-319. doi: 10.1038/nbt.3820. PubMed PMID: 28398311.
+> Di Tommaso P, Chatzou M, Floden EW, Barja PP, Palumbo E, Notredame C. Nextflow enables reproducible computational workflows. Nat Biotechnol. 2017 Apr 11;35(4):316-319. doi: 10.1038/nbt.3820. PubMed PMID: 28398311.
 
 ## [nf-core](https://pubmed.ncbi.nlm.nih.gov/32055031/)
 
-  > Ewels PA, Peltzer A, Fillinger S, Patel H, Alneberg J, Wilm A, Garcia MU, Di Tommaso P, Nahnsen S. The nf-core framework for community-curated bioinformatics pipelines. Nat Biotechnol. 2020 Mar;38(3):276-278. doi: 10.1038/s41587-020-0439-x. PubMed PMID: 32055031.
-
+> Ewels PA, Peltzer A, Fillinger S, Patel H, Alneberg J, Wilm A, Garcia MU, Di Tommaso P, Nahnsen S. The nf-core framework for community-curated bioinformatics pipelines. Nat Biotechnol. 2020 Mar;38(3):276-278. doi: 10.1038/s41587-020-0439-x. PubMed PMID: 32055031.
 
 ## Pipeline tools
 
@@ -25,6 +23,7 @@
   > Chen S, Zhou Y, Chen Y, Gu J. fastp: an ultra-fast all-in-one FASTQ preprocessor. Bioinformatics. 2018 Sep 1;34(17):i884-i890. doi: 10.1093/bioinformatics/bty560. PubMed PMID: 30423086; PubMed Central PMCID: PMC6129281.
 
 - [FastQC](https://www.bioinformatics.babraham.ac.uk/projects/fastqc/)
+
   > Andrews, S. (2010). FastQC: A Quality Control Tool for High Throughput Sequence Data [Online].
 
 - [featureCounts](https://pubmed.ncbi.nlm.nih.gov/24227677/)
@@ -52,9 +51,8 @@
   > He, D., Patro, R. simpleaf: a simple, flexible, and scalable framework for single-cell data processing using alevin-fry, Bioinformatics 39, 10 (2023).
 
 - [STARsolo](https://www.biorxiv.org/content/10.1101/2021.05.05.442755v1)
-  
-  > Benjamin Kaminow, Dinar Yunusov, Alexander Dobin. STARsolo: accurate, fast and versatile mapping/quantification of single-cell and single-nucleus RNA-seq data. BioRxiv 2021.05.05.442755 (2021).
 
+  > Benjamin Kaminow, Dinar Yunusov, Alexander Dobin. STARsolo: accurate, fast and versatile mapping/quantification of single-cell and single-nucleus RNA-seq data. BioRxiv 2021.05.05.442755 (2021).
 
 ## Software packaging/containerisation tools
 
