@@ -3,7 +3,7 @@
 # salmon_create_splici_ref.R
 #
 # Usage: Rscript salmon_create_splici_ref.R \
-#        --ref_fasta <path> \ 
+#        --ref_fasta <path> \
 #        --ref_gtf <path> \
 #        --readlen <int> \
 #        --flanklen <int> \

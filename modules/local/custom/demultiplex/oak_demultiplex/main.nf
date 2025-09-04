@@ -2,8 +2,8 @@ process OAK_DEMUX {
     publishDir "${params.outdir}", mode: 'copy'
     tag "${meta.id}"
     label 'process_single'
-    
-    
+
+
     input:
     tuple val(meta), path(fastq_cDNA), path(fastq_BC_UMI), path(input_file)
 

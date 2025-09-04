@@ -2,7 +2,7 @@ process SATURATION_TABLE {
     publishDir "${params.outdir}/saturation/${meta.id}", mode: 'copy'
     tag "${meta.id}"
     label 'process_single'
-    
+
 
     conda "${moduleDir}/environment.yml"
 
@@ -43,7 +43,7 @@ process SATURATION_TABLE {
         --ncells \${n_cells} \\
         --mapping_rate \${map_rate} \\
         --temp \${temp_folder} \\
-        --output saturation_output.tsv 
+        --output saturation_output.tsv
     echo "Created saturation_output.tsv"
     """
 }

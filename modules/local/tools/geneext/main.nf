@@ -2,7 +2,7 @@ process GENE_EXT {
     publishDir "${params.outdir}/gene_ext/${meta.id}", mode: 'copy'
     tag "${meta.id}"
     label 'process_medium'
-    
+
 
     conda "${projectDir}/submodules/GeneExt/environment.yaml"
 
@@ -12,7 +12,7 @@ process GENE_EXT {
 
     output:
     path("${meta.id}*.geneext.g{tf, ff}")
-    
+
     script:
     """
     echo "\n\n==================  GENE EXTENSION =================="
@@ -31,7 +31,7 @@ process GENE_EXT {
 
     # Extract file extension
     extension=\$(echo "${params.ref_gtf}" | awk -F. '{print \$NF}')
-    
+
     if [ \$extension == "gff" ];
     then
         gtf_output="${meta.id}_geneext.gff"
@@ -40,13 +40,13 @@ process GENE_EXT {
     fi
     echo \${gtf_output}
     bam_file=\$(ls *_Aligned.sortedByCoord.out.bam | head -n 1)
-    
+
     # Run GeneExt
     python ${projectDir}/submodules/GeneExt/geneext.py \\
         -g ${params.ref_gtf} \\
         -b \${bam_file} \\
         -o \${gtf_output} \\
-        -j 4 
+        -j 4
 
     """
 }

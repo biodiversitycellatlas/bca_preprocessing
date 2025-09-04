@@ -287,7 +287,7 @@ def add_cellreads_metrics(read_stats: Path, barcodes: Path) -> Dict[str, str]:
 
         print("Extracted CellReads metrics:", out)
         return out
-    
+
     except Exception as e:
         print(f"[WARNING] Failed to compute CellReads metrics from {read_stats}: {e}")
         return {}
