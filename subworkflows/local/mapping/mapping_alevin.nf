@@ -27,7 +27,7 @@ workflow mapping_alevin_workflow {
         ALEVIN_FRY(data_output, bc_whitelist, SALMON_INDEX.out)
 
     emit:
-        mapping_files = ALEVIN_FRY.out     
+        mapping_files = ALEVIN_FRY.out
         all_outputs
 }
 

@@ -1,9 +1,9 @@
 
-process STARSOLO_ALIGN { 
+process STARSOLO_ALIGN {
     publishDir "${params.outdir}/mapping_STARsolo/${meta.id}", mode: 'copy'
     tag "${meta.id}_STARsolo"
     label 'process_high'
-    
+
 
     conda "${moduleDir}/environment.yml"
 
@@ -11,13 +11,13 @@ process STARSOLO_ALIGN {
     tuple val(meta), path(fastq_cDNA), path(fastq_BC_UMI), path(input_file)
     val bc_whitelist
     path genome_index_files
-    
+
     output:
     tuple val(meta), path("*")
 
     script:
     // Set default variables
-    def limitBAMsortRAM = (params.protocol == 'bd_rhapsody' || params.protocol == '10xv3') ? '--limitBAMsortRAM 50000000000' : '' 
+    def limitBAMsortRAM = (params.protocol == 'bd_rhapsody' || params.protocol == '10xv3') ? '--limitBAMsortRAM 50000000000' : ''
 
     // Retrieve starsolo settings from conf/seqtech_parameters.config
     def starsolo_settings = params.seqtech_parameters[params.protocol].starsolo
@@ -35,7 +35,7 @@ process STARSOLO_ALIGN {
 
     # In case the protocol does not exist and the user has not provided a seqspec file
     SOLO_ARGS=\"${starsolo_args}\"
-    if [[ -n \"${params.seqspec_file}\" && \"${params.protocol}\" == *\"seqspec\"* ]]; 
+    if [[ -n \"${params.seqspec_file}\" && \"${params.protocol}\" == *\"seqspec\"* ]];
     then
         # Barcode structure information from seqspec file
         bc_struct=\$(seqspec index -m rna -t starsolo -s file spec.yaml)

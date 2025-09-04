@@ -4,16 +4,16 @@ process KRAKEN {
     label 'process_high_memory'
 
     input:
-    path db_path_file 
+    path db_path_file
     tuple val(meta), path(mapping_files)
-    
+
     conda "${moduleDir}/environment.yml"
     container "${ workflow.containerEngine == 'singularity' && !task.ext.singularity_pull_docker_container ?
         'https://community-cr-prod.seqera.io/docker/registry/v2/blobs/sha256/29/29ed8f68315625eca61a3de9fcb7b8739fe8da23f5779eda3792b9d276aa3b8f/data' :
         'community.wave.seqera.io/library/kraken2_coreutils_pigz:45764814c4bb5bf3' }"
 
     output:
-    path("*")     
+    path("*")
 
     script:
     """

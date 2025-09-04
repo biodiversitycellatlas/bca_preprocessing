@@ -30,7 +30,7 @@ if (length(args) < 1) {
 }
 data_dir <- args[1]
 
-# Define a base font size and set a global theme 
+# Define a base font size and set a global theme
 base_font <- 14
 theme_set(
   theme_minimal(base_size = base_font) +
@@ -44,7 +44,7 @@ theme_set(
     )
 )
 
-# Path to STARsolo outputs 
+# Path to STARsolo outputs
 mapping_dir <- file.path(data_dir, "mapping_STARsolo")
 
 # Find all sample‐ids by listing first‐level dirs
@@ -68,29 +68,29 @@ read_star_data <- function(directory, dataset_name) {
   mat <- Matrix::readMM(file.path(directory, "matrix.mtx"))
   features <- data.table::fread(file.path(directory, "features.tsv"), header = FALSE)
   barcodes_dt <- data.table::fread(file.path(directory, "barcodes.tsv"), header = FALSE)
-  
+
   # Assign row and column names to the matrix
   rownames(mat) <- features$V1
   colnames(mat) <- barcodes_dt$V1
-  
+
   # Compute per-cell summaries
   cell_umis <- Matrix::colSums(mat)
   cell_genes <- Matrix::colSums(mat > 0)
-  
+
   # Create a data.table for cells
   cell_dt <- data.table(
     cells      = colnames(mat),
     cell_sizes = cell_umis,
     cell_genes = cell_genes
   )
-  
+
   # Compute per-gene summaries
   gene_counts <- Matrix::rowSums(mat)
   gene_dt <- data.table(
     gene      = rownames(mat),
     gene_umis = gene_counts
   )
-  
+
   return(list(cell_summary = cell_dt, gene_summary = gene_dt))
 }
 
@@ -192,7 +192,7 @@ combined_plot <- gp_umis_dist + gp_cells +
   plot_layout(nrow = 1)
 
 # Save the combined_plot
-ggsave(file.path(scdb_fig_dir, sprintf("UMI_dist_%s_%s.png", map_dir, sub_label)), 
+ggsave(file.path(scdb_fig_dir, sprintf("UMI_dist_%s_%s.png", map_dir, sub_label)),
        combined_plot, dpi=300, width  = 14, height = 5 )
 
 # =============================================================================

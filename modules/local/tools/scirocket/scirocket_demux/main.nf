@@ -2,7 +2,7 @@ process SCIROCKET_DEMUX {
     publishDir "${params.outdir}", mode: 'copy'
     tag "${meta.id}, ${fastq_cDNA}, ${fastq_BC_UMI}"
     label 'process_medium'
-    
+
 
     conda "${moduleDir}/environment.yml"
 
@@ -17,7 +17,7 @@ process SCIROCKET_DEMUX {
     path("demux_reads/${meta.id}_whitelist_p5*"),           emit: bc_whitelists_p5
     path("demux_reads/${meta.id}_whitelist_p7*"),           emit: bc_whitelists_p7
     path("demux_reads/${meta.id}_whitelist_ligation*"),     emit: bc_whitelists_ligation
-    path("demux_reads/${meta.id}_whitelist_rt*"),           emit: bc_whitelists_rt           
+    path("demux_reads/${meta.id}_whitelist_rt*"),           emit: bc_whitelists_rt
 
     script:
     // Retrieve barcode whitelist from conf/seqtech_parameters.config
@@ -34,7 +34,7 @@ process SCIROCKET_DEMUX {
     echo "FASTQ cDNA: ${fastq_cDNA}"
     echo "FASTQ BC & UMI: ${fastq_BC_UMI}"
     echo "Barcode whitelist: ${bc_whitelist}"
-    echo "Samples file: ${input_file}" 
+    echo "Samples file: ${input_file}"
 
     mkdir -p demux_reads/
 
@@ -43,6 +43,6 @@ process SCIROCKET_DEMUX {
          --samples ${input_file} \\
          --barcodes ${bc_whitelist} \\
          --r1 ${fastq_BC_UMI} --r2 ${fastq_cDNA} \\
-         --out demux_reads/ 
+         --out demux_reads/
     """
 }

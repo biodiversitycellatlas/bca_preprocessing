@@ -12,7 +12,7 @@ process SAVE_RUN_CONFIG {
 
     script:
     """
-    # Copy the samplesheet 
+    # Copy the samplesheet
     cp ${input_file} "samplesheet_${params.trace_report_suffix}.csv"
 
     # Save the environment variables to a file
