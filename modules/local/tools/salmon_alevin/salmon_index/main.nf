@@ -1,7 +1,7 @@
 process SALMON_INDEX { 
     publishDir "${params.outdir}/genome/salmon_index", mode: 'copy'
     label 'process_high'
-    debug true
+    
 
     conda "${moduleDir}/environment.yml"
     container "${ workflow.containerEngine == 'singularity' && !task.ext.singularity_pull_docker_container ?
@@ -9,7 +9,7 @@ process SALMON_INDEX {
         'biocontainers/simpleaf:0.19.4--ha6fb395_0' }"
 
     input:
-    tuple val(meta), path(fastq_cDNA), path(fastq_BC_UMI)
+    tuple val(meta), path(fastq_cDNA), path(fastq_BC_UMI), path(input_file)
 
     output:
     path("*")

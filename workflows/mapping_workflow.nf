@@ -62,8 +62,6 @@ workflow QC_mapping_workflow {
             KRAKEN(KRAKEN_CREATE_DB.out.db_path_file, mapping_files) 
             all_outputs = all_outputs.mix(KRAKEN.out)
             KRONA(KRAKEN.out)
-        } else {
-            log.info "Skipping Kraken steps as 'perform_kraken' is false."
         }
 
     emit:

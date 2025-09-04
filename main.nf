@@ -13,7 +13,7 @@ Pre-requisites:
 - Conda & Nextflow available in base environment
 
 Run:
-nextflow run -profile <institution_config>,conda,custom_parameters
+nextflow run -profile <institution_config>,conda -c /path/to/custom_config
 ------------------------------------------------------------------------------
 */
 
@@ -52,7 +52,7 @@ workflow BCA_PREPROCESSING {
 
     main:
     // Save run configurations
-    SAVE_RUN_CONFIG()
+    SAVE_RUN_CONFIG(samplesheet)
 
     // Pre-processing workflow
     preprocessing_workflow(samplesheet)
@@ -130,22 +130,22 @@ workflow {
     WORKFLOWS TO DISPLAY RUNTIME INFORMATION 
 ~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~
 */
-// workflow.onComplete {
-//     summary = """
-//         Pipeline execution summary 
-//         ---------------------------
-//         Completed at: ${workflow.complete} 
-//         Duration    : ${workflow.duration} 
-//         Success     : ${workflow.success} 
-//         workDir     : ${workflow.workDir} 
-//         exit status : ${workflow.exitStatus} 
-//         """
-//     println summary
-// }
+workflow.onComplete {
+    summary = """
+        Pipeline execution summary 
+        ---------------------------
+        Completed at: ${workflow.complete} 
+        Duration    : ${workflow.duration} 
+        Success     : ${workflow.success} 
+        workDir     : ${workflow.workDir} 
+        exit status : ${workflow.exitStatus} 
+        """
+    println summary
+}
 
-// workflow.onError {
-//     println "Error: Pipeline execution stopped with the following message: ${workflow.errorMessage}"
-// }
+workflow.onError {
+    println "Error: Pipeline execution stopped with the following message: ${workflow.errorMessage}"
+}
 
 
 /*
