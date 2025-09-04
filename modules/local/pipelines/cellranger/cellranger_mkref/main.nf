@@ -1,7 +1,7 @@
 process CR_PIPELINE_MKREF {
     publishDir "${params.outdir}/genome/cellranger_ref", mode: 'copy'
     label 'process_medium'
-    debug true
+    
 
     container "quay.io/nf-core/cellranger:9.0.1"
 

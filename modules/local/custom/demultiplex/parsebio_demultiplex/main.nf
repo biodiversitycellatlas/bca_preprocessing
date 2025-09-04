@@ -2,15 +2,15 @@ process PARSEBIO_CUSTOM_DEMUX {
     publishDir "${params.outdir}/demultiplex/demux_custom/${meta.id}", mode: 'copy'
     tag "${meta.id}"
     label 'process_medium'
-    debug true
+    
 
     conda "${moduleDir}/environment.yml"
     
     input:
-    tuple val(meta), path(fastq_cDNA), path(fastq_BC_UMI)
+    tuple val(meta), path(fastq_cDNA), path(fastq_BC_UMI), path(input_file)
 
     output:
-    tuple val(meta), path("*group*_R1*"), path("*group*_R2*"), emit: splitted_files
+    tuple val(meta), path("*group*_R1*"), path("*group*_R2*"), path(input_file), emit: splitted_files
 
     script:
     bc_whitelist  = params.seqtech_parameters[params.protocol].bc_whitelist_splitwells

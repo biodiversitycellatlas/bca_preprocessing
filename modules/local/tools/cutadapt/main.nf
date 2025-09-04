@@ -1,7 +1,7 @@
 process RM_VARBASES {
     tag "${meta.id}"
     label 'process_medium'
-    debug true
+    
 
     conda "${moduleDir}/environment.yml"
     container "${ workflow.containerEngine == 'singularity' && !task.ext.singularity_pull_docker_container ?
@@ -9,10 +9,10 @@ process RM_VARBASES {
         'community.wave.seqera.io/library/cutadapt:5.0--991bbd2e184b7014' }"
     
     input:
-    tuple val(meta), path(fastq_files)
+    tuple val(meta), path(fastq_cDNA), path(fastq_BC_UMI), path(input_file)
 
     output:
-    tuple val(meta), path("noVB_${meta.id}_R{1,2}_001.fastq.gz"), emit: fastq_noVB_files
+    tuple val(meta), path("noVB_${meta.id}_R2_001.fastq.gz"), path("noVB_${meta.id}_R1_001.fastq.gz"), path(input_file), emit: fastq_noVB_files
 
     script:
     """

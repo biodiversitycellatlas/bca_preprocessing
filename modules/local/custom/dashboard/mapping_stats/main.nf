@@ -1,7 +1,7 @@
 process MAPPING_STATS {
     publishDir "${params.outdir}/summary_results", mode: 'copy'
     label 'process_single'
-    debug true
+    
 
     conda "${moduleDir}/environment.yml"
 

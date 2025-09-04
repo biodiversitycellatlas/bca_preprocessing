@@ -3,12 +3,12 @@ process STARSOLO_ALIGN {
     publishDir "${params.outdir}/mapping_STARsolo/${meta.id}", mode: 'copy'
     tag "${meta.id}_STARsolo"
     label 'process_high'
-    debug true
+    
 
     conda "${moduleDir}/environment.yml"
 
     input:
-    tuple val(meta), path(fastq_cDNA), path(fastq_BC_UMI)
+    tuple val(meta), path(fastq_cDNA), path(fastq_BC_UMI), path(input_file)
     val bc_whitelist
     path genome_index_files
     
