@@ -65,12 +65,12 @@ def process_fastq(fq1_path, fq2_path, whitelist, barcode_start, barcode_end, out
         while True:
             r1_lines = [fq1.readline() for _ in range(4)]
             r2_lines = [fq2.readline() for _ in range(4)]
-            
+
             # End of file check
             if not r1_lines[1] or not r2_lines[1]:
                 break
             stats['total'] += 1
-            
+
             # Extract barcode from R2 (line 2)
             barcode = r2_lines[1][barcode_start:barcode_end].strip()
             if barcode in whitelist:

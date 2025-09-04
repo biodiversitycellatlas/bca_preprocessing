@@ -2,7 +2,7 @@ process SATURATION_PLOT {
     publishDir "${params.outdir}/saturation/${meta.id}", mode: 'copy'
     tag "${meta.id}"
     label 'process_single'
-    
+
 
     conda "${moduleDir}/environment.yml"
 

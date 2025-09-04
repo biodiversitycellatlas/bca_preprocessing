@@ -2,7 +2,7 @@ process CR_PIPELINE {
     publishDir "${params.outdir}/CellRanger_pipeline/", mode: 'copy'
     tag "${meta.id}"
     label 'process_medium'
-    
+
 
     container "quay.io/nf-core/cellranger:9.0.1"
 
@@ -23,7 +23,7 @@ process CR_PIPELINE {
     echo "\n\n=============== CellRanger pipeline  ==============="
     echo "Sample ID: ${meta}"
     echo "Reference directory: ${cr_reference_dir}"
-    
+
     cellranger count \\
         --id=${meta.id}_count \\
         --transcriptome=${cr_reference_dir} \\

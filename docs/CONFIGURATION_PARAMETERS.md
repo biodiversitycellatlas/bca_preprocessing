@@ -1,7 +1,7 @@
 # Custom Configuration Variables
 
 
-Within each custom configuration file the following variables can be defined: 
+Within each custom configuration file the following variables can be defined:
 
 ## Table of Contents
 
@@ -34,7 +34,7 @@ Within each custom configuration file the following variables can be defined:
 
 | Variable               | Required/Optional | Description |
 |------------------------|-------------------|-------------|
-| `mapping_software`     | Optional          | Software used to map reads (must be one of the following: `"starsolo"`, `"alevin"` or `"both"`). Default set to `"starsolo"`. | 
+| `mapping_software`     | Optional          | Software used to map reads (must be one of the following: `"starsolo"`, `"alevin"` or `"both"`). Default set to `"starsolo"`. |
 | `mt_contig`            | Optional          | Name of the mitochondrial contig in the reference annotation, used to calculate mtDNA content. Default set to `"chrM M MT"`. |
 | `star_index`           | Optional          | |
 | `star_solocellfilter`  | Optional          | |
@@ -46,7 +46,7 @@ Within each custom configuration file the following variables can be defined:
 | Variable               | Required/Optional | Description |
 |------------------------|-------------------|-------------|
 | `perform_featurecounts`  | Optional        | Boolean flag to enable or disable calculation of mtDNA & rRNA percentages. Default is `true`. |
-| `grep_rrna`            | Optional          | String used to grep ribosomal RNA (rRNA) reads from annotations. Default set to `"rRNA"`| 
+| `grep_rrna`            | Optional          | String used to grep ribosomal RNA (rRNA) reads from annotations. Default set to `"rRNA"`|
 
 
 
@@ -62,7 +62,7 @@ Within each custom configuration file the following variables can be defined:
 
 | Variable               | Required/Optional | Description |
 |------------------------|-------------------|-------------|
-| `perform_kraken`       | Optional          | Boolean flag to enable or disable Kraken2 classification of unmapped reads. Default is `false`. | 
+| `perform_kraken`       | Optional          | Boolean flag to enable or disable Kraken2 classification of unmapped reads. Default is `false`. |
 | `kraken_db_path`       | Optional          | Path to the Kraken2 database used for taxonomic classification of unmapped reads, if empty, a default database will be installed. |
 
 
@@ -71,7 +71,7 @@ Within each custom configuration file the following variables can be defined:
 
 | Variable               | Required/Optional | Description |
 |------------------------|-------------------|-------------|
-| `perform_cellbender`   | Optional          | Boolean flag to enable or disable removal of ambient RNA using CellBender. Default is `false`. | 
+| `perform_cellbender`   | Optional          | Boolean flag to enable or disable removal of ambient RNA using CellBender. Default is `false`. |
 
 
 
@@ -79,7 +79,7 @@ Within each custom configuration file the following variables can be defined:
 
 | Variable               | Required/Optional | Description |
 |------------------------|-------------------|-------------|
-| `perform_cellranger`   | Optional          | Boolean flag to enable or disable the CellRanger pipeline. Default is `false`. | 
+| `perform_cellranger`   | Optional          | Boolean flag to enable or disable the CellRanger pipeline. Default is `false`. |
 | `splitpipe_installation`| Optional         | Path to the split-pipe installation folder, that can be used as a control. |
 | `splitpipe_conda_env`   | Optional         | Path to the split-pipe conda environment created by following these [instructions](docs/INSTALLATION_EXTERNAL_PIPELINES.md), required if running the split-pipe pipeline. |
 | `rhapsody_installation`| Optional          | Path to the BD-Rhapsody pipeline installation folder, that can be used as a control. |

@@ -50,7 +50,7 @@ workflow QC_mapping_workflow {
             mapping_files = mapping_alevin_workflow.out.mapping_files.mix(mapping_starsolo_workflow.out.mapping_files)
             all_outputs = all_outputs.mix(mapping_alevin_workflow.out.all_outputs)
             all_outputs = all_outputs.mix(mapping_starsolo_workflow.out.all_outputs)
-        
+
         } else {
             error "Invalid mapping software specified. Use one of the following parameters: 'starsolo', 'alevin' or 'both'."
         }
@@ -59,14 +59,14 @@ workflow QC_mapping_workflow {
         // Conditionally run Kraken only if params.perform_kraken is true and DB path is valid
         if (params.perform_kraken && file(params.kraken_db_path).exists()) {
             KRAKEN_CREATE_DB()
-            KRAKEN(KRAKEN_CREATE_DB.out.db_path_file, mapping_files) 
+            KRAKEN(KRAKEN_CREATE_DB.out.db_path_file, mapping_files)
             all_outputs = all_outputs.mix(KRAKEN.out)
             KRONA(KRAKEN.out)
         }
 
     emit:
         mapping_files
-        all_outputs 
+        all_outputs
 
 }
 
