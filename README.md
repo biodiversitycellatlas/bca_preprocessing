@@ -45,7 +45,16 @@ The pipeline will produce the following output files:
 git clone https://github.com/biodiversitycellatlas/bca_preprocessing.git
 ```
 
-2. **Conda & Nextflow**
+2. **Clone submodules**
+
+The pipeline uses two git submodules, [10x_saturate](https://github.com/zolotarovgl/10x_saturate) to plot the saturation curve and [GeneExt](https://github.com/zolotarovgl/GeneExt) for an extended gene annotation file. These are not included automatically when performing git clone, so have to be updated explicitly by:
+
+```
+git submodule init
+git submodule update
+```
+
+3. **Conda & Nextflow**
 
 In order to run the pipeline, you must have [Conda](https://anaconda.org/) and [Nextflow](https://www.nextflow.io/docs/latest/index.html) installed. When working on a HPC, there might be a module system available to use instead, simplifying the use of different software.
 To see which modules are available and how to load them:
@@ -71,7 +80,7 @@ conda -h
 nextflow -h
 ```
 
-3. **(Optional) Installing external pipelines as validation**
+4. **(Optional) Installing external pipelines as validation**
 
 After following these [installation instructions](docs/INSTALLATION_EXTERNAL_PIPELINES.md), users can run external pipelines simultaneaously with the BCA pre-processing pipeline. You only have to provide the path to the installation as within the [`conf/custom_parameters.config`](conf/custom_parameters.config) file, see Setup explenation below, and it will automatically start.
 
