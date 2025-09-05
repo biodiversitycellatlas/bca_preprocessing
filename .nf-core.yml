@@ -2,3 +2,4 @@ nf_core_version: 3.3.1
 repository_type: pipeline
 lint:
   nf_test_content: False
+  actions_awsfulltest: False
