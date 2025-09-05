@@ -7,7 +7,7 @@ docs/
 .DS_Store
 .nextflow*
 .github/
-
-email_template.html
-adaptivecard.json
-slackreport.json
+assets/email_template.html
+assets/adaptivecard.json
+assets/slackreport.json
+ro-crate-metadata.json
