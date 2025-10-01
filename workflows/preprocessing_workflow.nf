@@ -9,7 +9,7 @@
 */
 include { bd_rhapsody_workflow          } from '../subworkflows/preprocs_bd_rhapsody'
 include { parse_workflow                } from '../subworkflows/preprocs_parse_biosciences'
-include { tenx_genomics_workflow        } from '../subworkflows/preprocs_10xv3'
+include { tenx_genomics_workflow        } from '../subworkflows/preprocs_10x'
 include { sciRNAseq3_workflow           } from '../subworkflows/preprocs_sciRNAseq3'
 include { seqspec_workflow              } from '../subworkflows/preprocs_seqspec'
 
@@ -19,7 +19,7 @@ include { seqspec_workflow              } from '../subworkflows/preprocs_seqspec
         Sequencing-specific pre-processing of the data:
         - Parse Bioscience: Demultiplexing using groups of wells and mapping using split-pipe
         - BD Rhapsody: Removing variable bases and mapping using BD rhapsody pipeline
-        - 10xv3, OAK seq & Ultima Genomics : Mapping using CellRanger
+        - 10x, OAK seq & Ultima Genomics : Mapping using CellRanger
         - Sci-RNA-seq3: Pre-processing based on the sci-rocket pipeline
 ~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~
 */
@@ -36,7 +36,7 @@ workflow preprocessing_workflow {
             data_output_ch = bd_rhapsody_workflow(ch_samplesheet)
             bc_whitelist_ch  = Channel.value( params.seqtech_parameters[params.protocol].bc_whitelist )
 
-        } else if (params.protocol == '10xv3' || params.protocol == 'oak_seq' || params.protocol == 'ultima_genomics') {
+        } else if (params.protocol.startsWith('10x') || params.protocol == 'oak_seq' || params.protocol == 'ultima_genomics') {
             tenx_genomics_workflow(ch_samplesheet)
             data_output_ch = tenx_genomics_workflow.out.data_output
             bc_whitelist_ch  = tenx_genomics_workflow.out.bc_whitelist
@@ -55,7 +55,9 @@ workflow preprocessing_workflow {
             Invalid sequencing technology specified. Use one of the following parameters for 'protocol': 
             - 'parse_biosciences_WT_mini' or 'parse_biosciences_WT'
             - 'bd_rhapsody'
-            - '10xv3' 
+            - '10xv1'
+            - '10xv2'
+            - '10xv3'
             - 'oak_seq'
             - 'ultima_genomics' 
             - 'sciRNAseq3'

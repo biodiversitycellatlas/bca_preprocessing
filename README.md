@@ -111,7 +111,7 @@ Within each custom configuration file the following variables can be defined:
 |------------------------|-------------------|-------------|
 | `input`                | __Required__      | Path to the samplesheet. |
 | `output_dir`           | __Required__      | Path to the results/output directory; must exist before running. |
-| `protocol`              | __Required__     | Specifies the sequencing technology used (must be one of the following: `"oak_seq"`, `"10xv3"`, `"parse_biosciences_WT_mini"` or `"parse_biosciences_WT"`,     `"bd_rhapsody"`, `"sciRNAseq3"` , `"ultima_genomics"` or `"seqspec"`). |
+| `protocol`              | __Required__     | Specifies the sequencing technology used (must be one of the following: `"oak_seq"`, `"10xv1"`, `"10xv2"`, `"10xv3"`, `"parse_biosciences_WT_mini"` or `"parse_biosciences_WT"`,     `"bd_rhapsody"`, `"sciRNAseq3"` , `"ultima_genomics"` or `"seqspec"`). |
 | `ref_fasta`            | __Required__      | Path to the genome FASTA file used for mapping reads. |
 | `ref_gtf`              | __Required__      | Path to the GTF/GFF file formatted for STARsolo. |
 | `ref_gtf_alt`          | Optional          | Path to the GTF/GFF file formatted specifically for analysis with Parse Biosciences / CellRanger pipeline. Defaults to the same path as `ref_gtf`. |
