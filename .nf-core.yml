@@ -2,4 +2,14 @@ nf_core_version: 3.3.2
 repository_type: pipeline
 lint:
   nf_test_content: False
+  actions_nf_test: False
   actions_awsfulltest: False
+
+  files_unchanged:
+    - docs/README.md
+    - .gitignore
+    - .prettierignore
+
+  nextflow_config:
+    - manifest.name
+    - manifest.homePage
