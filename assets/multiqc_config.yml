@@ -11,5 +11,5 @@ report_header_info:
   - Application Version: "1.0.0"
 
 # Custom settings
-custom_logo: "BCALogotypeDesign_2024_Primary_Logo_Color.png"
+custom_logo: "nf-core-bca_preprocessing_logo_light.png"
 custom_logo_title: "Biodiversity Cell Atlas"
