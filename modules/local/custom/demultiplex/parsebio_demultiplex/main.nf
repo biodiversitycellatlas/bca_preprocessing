@@ -13,7 +13,6 @@ process PARSEBIO_CUSTOM_DEMUX {
     tuple val(meta), path("*group*_R1*"), path("*group*_R2*"), path(input_file), emit: splitted_files
 
     script:
-    bc_whitelist  = params.seqtech_parameters[params.protocol].bc_whitelist_splitwells
     """
     echo "\n\n==================  Parse Biosciences: Custom Demultiplexing  =================="
     echo "Conda environment: \$CONDA_DEFAULT_ENV"
@@ -25,7 +24,7 @@ process PARSEBIO_CUSTOM_DEMUX {
         --sample_id ${meta.id} \\
         --fq1 ${fastq_cDNA} \\
         --fq2 ${fastq_BC_UMI} \\
-        --whitelist ${bc_whitelist} \\
+        --whitelist ${params.bc_whitelist_parse_splitwells} \\
         --group ${meta.id} ${meta.p5} \\
         --output . \\
         --barcode_start 50 \\
