@@ -2,7 +2,7 @@ process FASTP {
     publishDir "${params.outdir}/fastp", mode: 'copy'
     tag "${meta.id}"
     label 'process_low'
-
+    debug true
 
     conda "${moduleDir}/environment.yml"
     container "${ workflow.containerEngine == 'singularity' && !task.ext.singularity_pull_docker_container ?
@@ -16,15 +16,18 @@ process FASTP {
     tuple val(meta), path("trimmed_${fastq_cDNA}"), path("trimmed_${fastq_BC_UMI}"), path(input_file)
 
     script:
-    // Retrieve fastp settings from conf/seqtech_parameters.config
-    def fastp_settings = params.seqtech_parameters[params.protocol].fastp
-    def fastp_args = fastp_settings instanceof List ? fastp_settings.join(' ') : fastp_settings
+    // Retrieve fastp settings from custom parameters if set, otherwise from conf/seqtech_parameters.config
+    def fastp_length_required = params.fastp_length_required ?: params.seqtech_parameters[params.protocol].fastp_length_required
+    def fastp_qualified_quality_phred = params.fastp_qualified_quality_phred ?: params.seqtech_parameters[params.protocol].fastp_qualified_quality_phred
 
     """
     echo "\n\n==================  TRIM FASTQs WITH FASTP  =================="
     echo "Metadata: ${meta}"
     echo "FASTQ cDNA: ${fastq_cDNA}"
     echo "FASTQ BC & UMI: ${fastq_BC_UMI}"
+    echo "-- Settings:"
+    echo "-- fastp nextflow.config: qualified_quality_phred: ${fastp_qualified_quality_phred}"
+    echo "-- fastp nextflow.config: length_required: ${fastp_length_required}"
 
     fastp \\
         --html fastp_${meta.id}.html \\
@@ -34,6 +37,9 @@ process FASTP {
         --in2 ${fastq_BC_UMI} \\
         --out1 trimmed_${fastq_cDNA} \\
         --out2 trimmed_${fastq_BC_UMI} \\
-        ${fastp_args}
+        --length_required ${fastp_length_required} \\
+        --qualified_quality_phred ${fastp_qualified_quality_phred} \\
+        --detect_adapter_for_pe \\
+        --dont_eval_duplication
     """
 }
