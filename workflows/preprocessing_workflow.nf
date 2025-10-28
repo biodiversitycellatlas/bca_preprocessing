@@ -30,11 +30,11 @@ workflow preprocessing_workflow {
     main:
         if (params.protocol == 'parse_biosciences_WT_mini' || params.protocol == 'parse_biosciences_WT') {
             data_output_ch = parse_workflow(ch_samplesheet)
-            bc_whitelist_ch  = params.seqtech_parameters[params.protocol].bc_whitelist
+            bc_whitelist_ch  = params.bc_whitelist
 
         } else if (params.protocol == 'bd_rhapsody') {
             data_output_ch = bd_rhapsody_workflow(ch_samplesheet)
-            bc_whitelist_ch  = Channel.value( params.seqtech_parameters[params.protocol].bc_whitelist )
+            bc_whitelist_ch  = params.bc_whitelist
 
         } else if (params.protocol == '10xv3' || params.protocol == 'oak_seq' || params.protocol == 'ultima_genomics') {
             tenx_genomics_workflow(ch_samplesheet)
@@ -48,7 +48,7 @@ workflow preprocessing_workflow {
 
         } else if (params.seqspec_file && file(params.seqspec_file).exists() && params.protocol == 'seqspec') {
             data_output_ch = seqspec_workflow(ch_samplesheet)
-            bc_whitelist_ch  = Channel.value( params.seqtech_parameters[params.protocol].bc_whitelist )
+            bc_whitelist_ch  = params.bc_whitelist
 
         } else {
             error """
