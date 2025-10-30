@@ -47,10 +47,10 @@ workflow sciRNAseq3_workflow {
         )
         SCIROCKET_SPL_GATHER(all_samples_R1, all_samples_R2)
 
-        // Capture once as a value (not a channel)
+        // Capture samplesheet as value
         def input_file_val = file(params.input)
 
-        // Re-wrap the meta so FASTP sees meta.id
+        // Re-wrap the outputs into the expected format for FASTP
         wrapped = SCIROCKET_SPL_GATHER.out
             .map { sampleId, r1_file, r2_file ->
                 def meta = [

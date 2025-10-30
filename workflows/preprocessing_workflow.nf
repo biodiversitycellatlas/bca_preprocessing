@@ -10,7 +10,7 @@
 include { bd_rhapsody_workflow          } from '../subworkflows/local/pre-processing/preprocs_bd_rhapsody'
 include { parse_workflow                } from '../subworkflows/local/pre-processing/preprocs_parse_biosciences'
 include { tenx_genomics_workflow        } from '../subworkflows/local/pre-processing/preprocs_10xv3'
-include { sciRNAseq3_workflow           } from '../subworkflows/local/pre-processing/preprocs_sciRNAseq3'
+include { sciRNAseq3_nogather_workflow  } from '../subworkflows/local/pre-processing/preprocs_sciRNAseq3_nogather'
 include { seqspec_workflow              } from '../subworkflows/local/pre-processing/preprocs_seqspec'
 
 /*
@@ -42,12 +42,13 @@ workflow preprocessing_workflow {
             bc_whitelist_ch  = tenx_genomics_workflow.out.bc_whitelist
 
         } else if (params.protocol == 'sciRNAseq3') {
-            sciRNAseq3_workflow(ch_samplesheet)
-            data_output_ch   = sciRNAseq3_workflow.out.data_output
-            bc_whitelist_ch  = sciRNAseq3_workflow.out.bc_whitelist.map { tup -> tup*.toString().join(' ') }
+            sciRNAseq3_nogather_workflow(ch_samplesheet)
+            data_output_ch   = sciRNAseq3_nogather_workflow.out.data_output
+            bc_whitelist_ch  = sciRNAseq3_nogather_workflow.out.bc_whitelist.map { tup -> tup*.toString().join(' ') }
 
         } else if (params.seqspec_file && file(params.seqspec_file).exists() && params.protocol == 'seqspec') {
-            data_output_ch = seqspec_workflow(ch_samplesheet)
+            seqspec_workflow(ch_samplesheet)
+            data_output_ch = seqspec_workflow.out.data_output
             bc_whitelist_ch  = params.bc_whitelist
 
         } else {
