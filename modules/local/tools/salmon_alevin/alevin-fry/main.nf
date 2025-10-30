@@ -12,6 +12,7 @@ process ALEVIN_FRY {
     input:
     tuple val(meta), path(fastq_cDNA), path(fastq_BC_UMI), path(input_file)
     path bc_whitelist
+    path(splici_index_reference)
     path(salmon_index)
 
     output:
@@ -26,18 +27,17 @@ process ALEVIN_FRY {
         read_geom = "2[1-end]"
 
     } else if (params.protocol.toLowerCase().contains("parse_biosciences")) {
-        bc_geom = "2[51-58,31-38,11-18]"
-        umi_geom = "2[1-10]"
-        read_geom = "1[1-end]"
+        bc_geom = "1[51-58,31-38,11-18]"
+        umi_geom = "1[1-10]"
+        read_geom = "2[1-end]"
 
     } else {
         bc_geom = "1[1-16]"
-        umi_geom = "1[17-29]"
+        umi_geom = "1[17-28]"
         read_geom = "2[1-end]"
     }
     """
     echo "\n\n==================  ALEVIN-FRY =================="
-    echo "Conda environment: \$CONDA_DEFAULT_ENV"
     echo "Sample ID: ${meta}"
     echo "Salmon Index: ${salmon_index}"
     echo "Reference fasta: ${params.ref_fasta}"
@@ -50,8 +50,8 @@ process ALEVIN_FRY {
     salmon alevin \\
         -i ${salmon_index} \\
         -l A \\
-        -1 ${fastq_cDNA} \\
-        -2 ${fastq_BC_UMI} \\
+        -1 ${fastq_BC_UMI} \\
+        -2 ${fastq_cDNA} \\
         -p 32 \\
         --bc-geometry ${bc_geom} \\
         --umi-geo ${umi_geom} \\
@@ -73,10 +73,8 @@ process ALEVIN_FRY {
         -r ./${meta.id}_run
 
     echo "\n\n-------------  quant -------------------"
-    txp2gene=\$(ls ./splici_index_reference/*t2g_3col.tsv)
-
     alevin-fry quant \\
-        -m \${txp2gene} \\
+        -m ${splici_index_reference}/*t2g_3col.tsv \\
         -i ./${meta.id}_out_permit_knee  \\
         -o ./${meta.id}_counts \\
         -t 16 \\
