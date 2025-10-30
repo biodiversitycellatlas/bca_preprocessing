@@ -50,7 +50,7 @@ workflow mapping_starsolo_workflow {
 
         // Conditionally run Gene Extension + Remapping branch
         if (params.perform_geneext) {
-            GENE_EXT(STARSOLO_ALIGN.out, SAMTOOLS_INDEX.out).out
+            GENE_EXT(STARSOLO_ALIGN.out, SAMTOOLS_INDEX.out)
 
             // Create STAR index with extended GTF
             STARSOLO_INDEX_GENEEXT(data_output, GENE_EXT.out)
@@ -62,7 +62,12 @@ workflow mapping_starsolo_workflow {
             // Add outputs from the Gene Extension branch to the output channel
             mapping_files = mapping_files.mix(STARSOLO_ALIGN_GENEEXT.out)
             all_outputs = all_outputs.mix(SAMTOOLS_INDEX_GENEEXT.out)
+
+        } else if (params.run_method == "geneext_only") {
+            GENE_EXT(STARSOLO_ALIGN.out, SAMTOOLS_INDEX.out)
+            all_outputs = all_outputs.mix(GENE_EXT.out)
         }
+
 
     emit:
         mapping_files

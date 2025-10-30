@@ -63,22 +63,29 @@ workflow BCA_PREPROCESSING {
         preprocessing_workflow.out.bc_whitelist
     )
 
-    // Filtering raw matrices of ambient RNA and detecting doublets
-    filter_out = filtering_workflow(QC_mapping_workflow.out.mapping_files)
+    // Placeholder for MultiQC report (remains empty if not standard)
+    def multiqc_report_ch = Channel.empty()
 
-    // Collect all outputs into a single channel and create trigger
-    all_outputs = preprocessing_workflow.out.data_output.mix(QC_mapping_workflow.out.all_outputs)
+    // Continue with filtering and MultiQC only with "standard" run_method
+    if (params.run_method == "standard") {
+        // Filtering raw matrices of ambient RNA and detecting doublets
+        filter_out = filtering_workflow(QC_mapping_workflow.out.mapping_files)
 
-    // Define a trigger that waits for both mapping_files and all_outputs
-    mapping_stats_trigger = all_outputs.mix(QC_mapping_workflow.out.mapping_files).collect().map { it -> true }
+        // Collect all outputs into a single channel and create trigger
+        all_outputs = preprocessing_workflow.out.data_output.mix(QC_mapping_workflow.out.all_outputs)
 
-    // MultiQC and mapping statistics, only triggered after all outputs are finished
-    MAPPING_STATS(mapping_stats_trigger)
-    ch_multiqc_config = Channel.fromPath("$projectDir/assets/multiqc_config.yml", checkIfExists: true)
-    MULTIQC(mapping_stats_trigger, ch_multiqc_config)
+        // Define a trigger that waits for both mapping_files and all_outputs
+        mapping_stats_trigger = all_outputs.mix(QC_mapping_workflow.out.mapping_files).collect().map { it -> true }
+
+        // MultiQC and mapping statistics, only triggered after all outputs are finished
+        MAPPING_STATS(mapping_stats_trigger)
+        ch_multiqc_config = Channel.fromPath("$projectDir/assets/multiqc_config.yml", checkIfExists: true)
+        MULTIQC(mapping_stats_trigger, ch_multiqc_config)
+        multiqc_report_ch = MULTIQC.out
+    }
 
     emit:
-    multiqc_report = MULTIQC.out
+    multiqc_report = multiqc_report_ch
 }
 
 
