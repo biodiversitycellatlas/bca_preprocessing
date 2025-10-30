@@ -2,7 +2,7 @@ process MAPPING_STATS {
     publishDir "${params.outdir}/summary_results", mode: 'copy'
     label 'process_single'
 
-
+    container 'quay.io/biocontainers/pandas:2.2.1'
     conda "${moduleDir}/environment.yml"
 
     input:

@@ -7,6 +7,7 @@
     IMPORT FUNCTIONS / MODULES / SUBWORKFLOWS
 ~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~
 */
+include { FASTP                 } from '../../../modules/local/tools/fastp/main'
 
 /*
 ~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~
@@ -17,10 +18,11 @@ workflow seqspec_workflow {
     take:
         ch_samplesheet
     main:
-        // TODO
+
+        FASTP(ch_samplesheet)
 
     emit:
-        ch_samplesheet
+        data_output     = FASTP.out
 }
 
 /*

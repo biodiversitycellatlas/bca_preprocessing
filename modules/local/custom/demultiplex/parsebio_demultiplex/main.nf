@@ -20,7 +20,7 @@ process PARSEBIO_CUSTOM_DEMUX {
     echo "Fastq files: ${fastq_cDNA}, ${fastq_BC_UMI}"
 
     # Run Parse Biosciences demultiplexing script
-    python parsebio_custom_demux.py \\
+    parsebio_custom_demux.py \\
         --sample_id ${meta.id} \\
         --fq1 ${fastq_cDNA} \\
         --fq2 ${fastq_BC_UMI} \\
