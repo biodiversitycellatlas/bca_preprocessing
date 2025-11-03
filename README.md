@@ -87,11 +87,11 @@ After following these [installation instructions](docs/INSTALLATION_EXTERNAL_PIP
 This is limited to the following software:
 | Sequencing Technology | External pipeline |
 |-----------------------|-------------------|
-| 10x Genomics | CellRanger |
-| OAKseq | CellRanger |
-| Ultima Genomics | CellRanger |
-| Parse Biosciences | split-pipe |
-| BD-Rhapsody | BD-Rhapsody |
+| 10x Genomics | [CellRanger](https://www.10xgenomics.com/support/software/cell-ranger/latest) |
+| OAKseq | [CellRanger](https://www.10xgenomics.com/support/software/cell-ranger/latest) |
+| Ultima Genomics | [CellRanger](https://www.10xgenomics.com/support/software/cell-ranger/latest) |
+| Parse Biosciences | [split-pipe](https://support.parsebiosciences.com/hc/en-us/articles/27066395947412-How-Do-I-Analyze-my-Parse-Biosciences-Data) |
+| BD-Rhapsody | [BD-Rhapsody](https://www.bdbiosciences.com/en-us/products/software/rhapsody-sequence-analysis-pipeline) |
 
 ---
 
@@ -105,11 +105,8 @@ When analysing sci-RNA-seq3 data, it is necessary to also provide the index to t
 
 In the case of Parse Biosciences data, the column of p5 should be filled with the group-well definitions, where:
 
-    Wells are specified in blocks, ranges, or individually like this:
-        'A1:C6' specifies a block as [top-left]:[bottom-right]; A1-A6, B1-B6, C1-C6.
-        'A1-B6' specifies a range as [start]-[end]; A1-A12, B1-6.
-        'C4' specifies a single well.
-        Multiple selections are joined by commas (no space), e.g. 'A1-A6,B1:D3,C4'
+> Wells are specified in blocks, ranges, or individually like this:<br/> >&nbsp;&nbsp;&nbsp;&nbsp;'A1:C6' specifies a block as [top-left]:[bottom-right]; A1-A6, B1-B6, C1-C6.<br/> >&nbsp;&nbsp;&nbsp;&nbsp;'A1-B6' specifies a range as [start]-[end]; A1-A12, B1-6.<br/> >&nbsp;&nbsp;&nbsp;&nbsp;'C4' specifies a single well.<br/>
+> Multiple selections are joined by commas (no space), e.g. 'A1-A6,B1:D3,C4'
 
 In the table below, the variables are summarized, with an example samplesheet listed [here](conf/example_samplesheet.csv).
 
@@ -125,9 +122,9 @@ In the table below, the variables are summarized, with an example samplesheet li
 
 ### 2. Edit (or create) a custom configuration file
 
-To set the custom parameters for each run, the easiest solution is to fill in the fiels in [`conf/custom_parameters.config`](conf/custom_parameters.config). This custom configuration file extends the general `nextflow.config` file in the base of this repository. `conf/custom_parameters.config` contains the minimum variables in order to run this pipeline, and are described in the table below in more detail.
+To set the custom parameters for each run, the easiest solution is to fill in the fiels in [`conf/custom_parameters.config`](conf/custom_parameters.config). This custom configuration file extends the general [`nextflow.config`](nextflow.config) file in the base of this repository. [`conf/custom_parameters.config`](conf/custom_parameters.config) contains the minimum variables in order to run this pipeline, and are described in the table below in more detail.
 
-To customize the run, you can add other (optional) variables to the `conf/custom_parameters.config` file. If you have a multi-species experiment, one configuration file per species must be created in order to analyze the data with the corresponding genome annotation files.
+To customize the run, you can add other (optional) variables to the [`conf/custom_parameters.config`](conf/custom_parameters.config) file. If you have a multi-species experiment, one configuration file per species must be created in order to analyze the data with the corresponding genome annotation files.
 
 Within each custom configuration file the following variables can be defined:
 

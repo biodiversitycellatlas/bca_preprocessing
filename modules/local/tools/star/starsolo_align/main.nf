@@ -42,9 +42,11 @@ process STARSOLO_ALIGN {
     echo "Barcode whitelist: ${bc_whitelist}"
     echo "Expected cells: ${meta.expected_cells}"
     echo "limitBAMsortRAM: ${limitBAMsortRAM}"
+    echo "star_solocellfilter: ${star_solocellfilter}"
+    echo "star_soloTypestring: ${star_soloTypestring}"
 
     # In case the protocol does not exist and the user has not provided a seqspec file
-    SOLO_ARGS=\"${starsolo_args}\"
+    SOLO_ARGS=\"${star_extraargs}\"
     if [[ -n \"${params.seqspec_file}\" && \"${params.protocol}\" == *\"seqspec\"* ]];
     then
         # Barcode structure information from seqspec file
@@ -57,14 +59,17 @@ process STARSOLO_ALIGN {
     # Adjust soloCellFilter arguments
     SOLO_CELL_FILTER_ARGS=""
     if [[ "${star_solocellfilter}" == "EmptyDrops_CR" ]]; then
-        SOLO_CELL_FILTER_ARGS="--soloCellFilter ${star_solocellfilter} ${meta.expected_cells} 0.99 10 45000 90000 500 0.01 20000 0.01 10000"
+        SOLO_CELL_FILTER_ARGS="${star_solocellfilter} ${meta.expected_cells} 0.99 10 45000 90000 500 0.01 20000 0.01 10000"
     else
-        SOLO_CELL_FILTER_ARGS="--soloCellFilter ${star_solocellfilter} ${meta.expected_cells} 0.99 10"
+        SOLO_CELL_FILTER_ARGS="${star_solocellfilter} ${meta.expected_cells} 0.99 10"
     fi
+
+    echo "SOLO_CELL_FILTER_ARGS: \${SOLO_CELL_FILTER_ARGS}"
 
     # Mapping step and generating count matrix using STAR
     STAR \\
         --runThreadN 8 \\
+        ${star_soloTypestring} \\
         --readFilesIn ${fastq_cDNA} ${fastq_BC_UMI} \\
         --genomeDir ${genome_index_files.toRealPath()} \\
         --readFilesCommand "pigz -dc -p ${task.cpus}" \\
@@ -75,7 +80,7 @@ process STARSOLO_ALIGN {
         --soloFeatures ${star_soloFeatures} \\
         --soloCBwhitelist ${bc_whitelist} \\
         --soloCellReadStats Standard \\
-        --soloCellFilter ${SOLO_CELL_FILTER_ARGS} \\
+        --soloCellFilter \${SOLO_CELL_FILTER_ARGS} \\
         --clipAdapterType ${star_clipAdapterType} \\
         --outFilterScoreMin ${star_outFilterScoreMin} \\
         --outSAMunmapped ${star_outSAMunmapped} \\
@@ -84,6 +89,6 @@ process STARSOLO_ALIGN {
         --outFileNamePrefix ${meta.id}_ \\
         --genomeChrSetMitochondrial ${params.mt_contig} \\
         ${limitBAMsortRAM} \\
-        ${star_extraargs}
+        \${SOLO_ARGS}
     """
 }
