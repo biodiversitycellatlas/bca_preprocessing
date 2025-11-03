@@ -2,6 +2,7 @@ process PARSEBIO_PIPELINE_DEMUX {
     publishDir "${params.outdir}/demultiplex/demux_spipe", mode: 'copy'
     tag "${meta.id}"
     label 'process_medium'
+    debug true
 
     conda "${moduleDir}/environment.yml"
 
@@ -13,7 +14,7 @@ process PARSEBIO_PIPELINE_DEMUX {
 
     script:
     """
-    echo "\n\n==================  splitting  =================="
+    echo "\n\n==================  split-pipe Demultiplex  =================="
     echo "Processing sample: ${meta}"
     echo "FASTQ cDNA: ${fastq_cDNA}"
     echo "FASTQ BC & UMI: ${fastq_BC_UMI}"

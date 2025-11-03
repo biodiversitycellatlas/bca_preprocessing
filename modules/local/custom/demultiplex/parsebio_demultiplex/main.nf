@@ -3,7 +3,6 @@ process PARSEBIO_CUSTOM_DEMUX {
     tag "${meta.id}"
     label 'process_medium'
 
-
     conda "${moduleDir}/environment.yml"
 
     input:
@@ -28,6 +27,7 @@ process PARSEBIO_CUSTOM_DEMUX {
         --group ${meta.id} ${meta.p5} \\
         --output . \\
         --barcode_start 50 \\
-        --barcode_end 58
+        --barcode_end 58 \\
+        --max_edit_dist 2
     """
 }
