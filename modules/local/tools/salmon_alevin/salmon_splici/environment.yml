@@ -1,0 +1,15 @@
+channels:
+  - conda-forge
+  - bioconda
+
+dependencies:
+  - r-base=4.4.*
+  - r-optparse
+  - r-dplyr
+  - r-stringr
+  - libdeflate=1.24.*
+  - bioconductor-eisar
+  - bioconductor-genomicfeatures
+  - bioconductor-biostrings
+  - bioconductor-bsgenome
+  - bioconductor-txdbmaker

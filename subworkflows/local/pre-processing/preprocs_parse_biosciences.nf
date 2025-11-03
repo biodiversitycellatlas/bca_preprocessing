@@ -7,7 +7,7 @@
     IMPORT FUNCTIONS / MODULES / SUBWORKFLOWS
 ~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~
 */
-include { PARSEBIO_PIPELINE_DEMUX } from '../../../modules/local/pipelines/split-pipe/split-pipe_demux/main'
+include { PARSEBIO_CUSTOM_DEMUX } from '../../../modules/local/custom/demultiplex/parsebio_demultiplex/main'
 include { PARSEBIO_PIPELINE_MKREF } from '../../../modules/local/pipelines/split-pipe/split-pipe_mkref/main'
 include { PARSEBIO_PIPELINE } from '../../../modules/local/pipelines/split-pipe/split-pipe_all/main'
 
@@ -23,19 +23,19 @@ include { PARSEBIO_PIPELINE } from '../../../modules/local/pipelines/split-pipe/
 workflow parse_workflow {
     take:
         ch_samplesheet
+
     main:
         // Demultiplex the fastq files based on the sample wells
-        PARSEBIO_PIPELINE_DEMUX(ch_samplesheet)
+        PARSEBIO_CUSTOM_DEMUX(ch_samplesheet)
 
         // Only run Parse pipeline if the path is defined and exists
         if (params.splitpipe_installation && file(params.splitpipe_installation).exists()) {
             PARSEBIO_PIPELINE_MKREF()
-            PARSEBIO_PIPELINE(PARSEBIO_PIPELINE_DEMUX.out.splitted_files, PARSEBIO_PIPELINE_MKREF.out)
+            PARSEBIO_PIPELINE(PARSEBIO_CUSTOM_DEMUX.out.splitted_files, PARSEBIO_PIPELINE_MKREF.out)
         }
 
     emit:
-        // Result: demultiplexed fastq files from split-pipe
-        PARSEBIO_PIPELINE_DEMUX.out.splitted_files
+        PARSEBIO_CUSTOM_DEMUX.out.splitted_files
 }
 
 /*

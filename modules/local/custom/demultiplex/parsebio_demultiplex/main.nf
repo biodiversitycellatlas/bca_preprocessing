@@ -3,7 +3,6 @@ process PARSEBIO_CUSTOM_DEMUX {
     tag "${meta.id}"
     label 'process_medium'
 
-
     conda "${moduleDir}/environment.yml"
 
     input:
@@ -13,7 +12,6 @@ process PARSEBIO_CUSTOM_DEMUX {
     tuple val(meta), path("*group*_R1*"), path("*group*_R2*"), path(input_file), emit: splitted_files
 
     script:
-    bc_whitelist  = params.seqtech_parameters[params.protocol].bc_whitelist_splitwells
     """
     echo "\n\n==================  Parse Biosciences: Custom Demultiplexing  =================="
     echo "Conda environment: \$CONDA_DEFAULT_ENV"
@@ -21,14 +19,15 @@ process PARSEBIO_CUSTOM_DEMUX {
     echo "Fastq files: ${fastq_cDNA}, ${fastq_BC_UMI}"
 
     # Run Parse Biosciences demultiplexing script
-    python parsebio_custom_demux.py \\
+    parsebio_custom_demux.py \\
         --sample_id ${meta.id} \\
         --fq1 ${fastq_cDNA} \\
         --fq2 ${fastq_BC_UMI} \\
-        --whitelist ${bc_whitelist} \\
+        --whitelist ${params.bc_whitelist_parse_splitwells} \\
         --group ${meta.id} ${meta.p5} \\
         --output . \\
         --barcode_start 50 \\
-        --barcode_end 58
+        --barcode_end 58 \\
+        --max_edit_dist 2
     """
 }

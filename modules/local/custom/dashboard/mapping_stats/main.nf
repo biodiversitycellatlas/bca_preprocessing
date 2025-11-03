@@ -2,7 +2,7 @@ process MAPPING_STATS {
     publishDir "${params.outdir}/summary_results", mode: 'copy'
     label 'process_single'
 
-
+    container 'quay.io/biocontainers/pandas:2.2.1'
     conda "${moduleDir}/environment.yml"
 
     input:
@@ -16,7 +16,9 @@ process MAPPING_STATS {
     # Produce summary (.tsv) of mapping statistics
     dashboard_mappingstats.py ${params.outdir}
 
-    # Create UMI distribution and Cell + Gene count plots
-    plot_umidist_cellgenecount.R ${params.outdir}
+    # If mapping_software is STARsolo or both, create UMI distribution and Cell + Gene count plots
+    if [ "${params.mapping_software}" == "starsolo" ] || [ "${params.mapping_software}" == "both" ]; then
+        plot_umidist_cellgenecount.R ${params.outdir}
+    fi
     """
 }

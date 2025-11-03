@@ -19,9 +19,19 @@ process STARSOLO_ALIGN {
     // Set default variables
     def limitBAMsortRAM = (params.protocol == 'bd_rhapsody' || params.protocol == '10xv3') ? '--limitBAMsortRAM 50000000000' : ''
 
-    // Retrieve starsolo settings from conf/seqtech_parameters.config
-    def starsolo_settings = params.seqtech_parameters[params.protocol].starsolo
-    def starsolo_args = starsolo_settings instanceof List ? starsolo_settings.join(' ') : starsolo_settings
+    // Retrieve settings from custom parameters if set, otherwise from conf/seqtech_parameters.config
+    def star_soloTypestring = params.star_soloTypestring ?: params.seqtech_parameters[params.protocol].star_soloTypestring
+    def star_soloCBmatchWLtype = params.star_soloCBmatchWLtype ?: params.seqtech_parameters[params.protocol].star_soloCBmatchWLtype
+    def star_soloUMIfiltering = params.star_soloUMIfiltering ?: params.seqtech_parameters[params.protocol].star_soloUMIfiltering
+    def star_soloMultiMappers = params.star_soloMultiMappers ?: params.seqtech_parameters[params.protocol].star_soloMultiMappers
+    def star_soloUMIdedup = params.star_soloUMIdedup ?: params.seqtech_parameters[params.protocol].star_soloUMIdedup
+    def star_soloFeatures = params.star_soloFeatures ?: params.seqtech_parameters[params.protocol].star_soloFeatures
+    def star_clipAdapterType = params.star_clipAdapterType ?: params.seqtech_parameters[params.protocol].star_clipAdapterType
+    def star_outFilterScoreMin = params.star_outFilterScoreMin ?: params.seqtech_parameters[params.protocol].star_outFilterScoreMin
+    def star_outSAMunmapped = params.star_outSAMunmapped ?: params.seqtech_parameters[params.protocol].star_outSAMunmapped
+    def star_outSAMattributes = params.star_outSAMattributes ?: params.seqtech_parameters[params.protocol].star_outSAMattributes
+    def star_solocellfilter = params.star_solocellfilter ?: params.seqtech_parameters[params.protocol].star_solocellfilter
+    def star_extraargs = params.star_extraargs ?: params.seqtech_parameters[params.protocol].star_extraargs
 
     """
     echo "\n\n==============  MAPPING STARSOLO  ================"
@@ -32,9 +42,11 @@ process STARSOLO_ALIGN {
     echo "Barcode whitelist: ${bc_whitelist}"
     echo "Expected cells: ${meta.expected_cells}"
     echo "limitBAMsortRAM: ${limitBAMsortRAM}"
+    echo "star_solocellfilter: ${star_solocellfilter}"
+    echo "star_soloTypestring: ${star_soloTypestring}"
 
     # In case the protocol does not exist and the user has not provided a seqspec file
-    SOLO_ARGS=\"${starsolo_args}\"
+    SOLO_ARGS=\"${star_extraargs}\"
     if [[ -n \"${params.seqspec_file}\" && \"${params.protocol}\" == *\"seqspec\"* ]];
     then
         # Barcode structure information from seqspec file
@@ -46,23 +58,35 @@ process STARSOLO_ALIGN {
 
     # Adjust soloCellFilter arguments
     SOLO_CELL_FILTER_ARGS=""
-    if [[ "${params.star_solocellfilter}" == "EmptyDrops_CR" ]]; then
-        SOLO_CELL_FILTER_ARGS="--soloCellFilter ${params.star_solocellfilter} ${meta.expected_cells} 0.99 10 45000 90000 500 0.01 20000 0.01 10000"
+    if [[ "${star_solocellfilter}" == "EmptyDrops_CR" ]]; then
+        SOLO_CELL_FILTER_ARGS="${star_solocellfilter} ${meta.expected_cells} 0.99 10 45000 90000 500 0.01 20000 0.01 10000"
     else
-        SOLO_CELL_FILTER_ARGS="--soloCellFilter ${params.star_solocellfilter} ${meta.expected_cells} 0.99 10"
+        SOLO_CELL_FILTER_ARGS="${star_solocellfilter} ${meta.expected_cells} 0.99 10"
     fi
+
+    echo "SOLO_CELL_FILTER_ARGS: \${SOLO_CELL_FILTER_ARGS}"
 
     # Mapping step and generating count matrix using STAR
     STAR \\
         --runThreadN 8 \\
+        ${star_soloTypestring} \\
         --readFilesIn ${fastq_cDNA} ${fastq_BC_UMI} \\
         --genomeDir ${genome_index_files.toRealPath()} \\
         --readFilesCommand "pigz -dc -p ${task.cpus}" \\
-        --outSAMtype BAM SortedByCoordinate \\
-        --outFileNamePrefix ${meta.id}_ \\
-        \${SOLO_CELL_FILTER_ARGS} \\
+        --soloCBmatchWLtype ${star_soloCBmatchWLtype} \\
+        --soloUMIfiltering ${star_soloUMIfiltering} \\
+        --soloMultiMappers ${star_soloMultiMappers} \\
+        --soloUMIdedup ${star_soloUMIdedup} \\
+        --soloFeatures ${star_soloFeatures} \\
         --soloCBwhitelist ${bc_whitelist} \\
         --soloCellReadStats Standard \\
+        --soloCellFilter \${SOLO_CELL_FILTER_ARGS} \\
+        --clipAdapterType ${star_clipAdapterType} \\
+        --outFilterScoreMin ${star_outFilterScoreMin} \\
+        --outSAMunmapped ${star_outSAMunmapped} \\
+        --outSAMattributes ${star_outSAMattributes} \\
+        --outSAMtype BAM SortedByCoordinate \\
+        --outFileNamePrefix ${meta.id}_ \\
         --genomeChrSetMitochondrial ${params.mt_contig} \\
         ${limitBAMsortRAM} \\
         \${SOLO_ARGS}

@@ -4,16 +4,3 @@ channels:
 
 dependencies:
   - salmon=1.10.3
-
-  # R version must match Bioconductor 3.19
-  - r-base=4.4
-  - r-optparse
-  - r-dplyr
-  - r-stringr
-
-  # Bioconductor 3.19 packages compatible with R 4.4
-  - bioconductor-eisar
-  - bioconductor-genomicfeatures
-  - bioconductor-biostrings
-  - bioconductor-bsgenome
-  - bioconductor-txdbmaker

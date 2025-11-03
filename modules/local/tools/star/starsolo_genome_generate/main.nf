@@ -1,6 +1,7 @@
 process STARSOLO_INDEX {
     publishDir "${params.outdir}/genome/star_index_${meta.id}", mode: 'copy'
     label 'process_medium'
+    debug true
 
     input:
     tuple val(meta), path(fastq_cDNA), path(fastq_BC_UMI), path(input_file)
@@ -15,13 +16,15 @@ process STARSOLO_INDEX {
     path("*")
 
     script:
-    // Retrieve star_index settings from conf/seqtech_parameters.config
-    def star_index_settings = params.seqtech_parameters[params.protocol].star_index
-    def star_index_args = star_index_settings instanceof List ? star_index_settings.join(' ') : star_index_settings
+    // Retrieve settings from custom parameters if set, otherwise from conf/seqtech_parameters.config
+    def star_genomeSAindexNbases = params.star_genomeSAindexNbases ?: params.seqtech_parameters[params.protocol].star_genomeSAindexNbases
+    def star_genomeSAsparseD = params.star_genomeSAsparseD ?: params.seqtech_parameters[params.protocol].star_genomeSAsparseD
 
     """
     echo "\n\n==================  GENOME INDEX STARSOLO =================="
     echo "Creating star index using GTF file: ${ref_gtf}"
+    echo "--genomeSAindexNbases = ${star_genomeSAindexNbases}"
+    echo "--genomeSAsparseD = ${star_genomeSAsparseD}"
 
     # Calculate SJDB overhang using the first read from the first fastq file
     sjdb_overhang=\$(zcat ${fastq_cDNA} | awk 'NR==2 {print length(\$0)-1; exit}' || echo "")
@@ -31,6 +34,7 @@ process STARSOLO_INDEX {
         --genomeFastaFiles ${params.ref_fasta} \\
         --sjdbGTFfile ${ref_gtf} \\
         --sjdbOverhang "\${sjdb_overhang}" \\
-        ${star_index_args}
+        --genomeSAsparseD ${star_genomeSAsparseD} \\
+        --genomeSAindexNbases ${star_genomeSAindexNbases}
     """
 }
