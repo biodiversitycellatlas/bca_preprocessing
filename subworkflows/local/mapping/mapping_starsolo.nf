@@ -49,7 +49,7 @@ workflow mapping_starsolo_workflow {
         }
 
         // Conditionally run Gene Extension + Remapping branch
-        if (params.perform_geneext) {
+        if (params.perform_geneext && params.run_method != "geneext_only") {
             GENE_EXT(STARSOLO_ALIGN.out, SAMTOOLS_INDEX.out)
 
             // Create STAR index with extended GTF

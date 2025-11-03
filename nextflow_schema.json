@@ -45,6 +45,13 @@
                 "bc_whitelist": {
                     "type": "string"
                 },
+                "bc_whitelist_parse_splitwells": {
+                    "type": "string"
+                },
+                "run_method": {
+                    "type": "string",
+                    "default": "standard"
+                },
                 "seqspec_file": {
                     "type": "string"
                 },
@@ -69,6 +76,48 @@
                 "mt_contig": {
                     "type": "string",
                     "default": "chrM M MT"
+                },
+                "star_genomeSAsparseD": {
+                    "type": "string"
+                },
+                "star_soloFeatures": {
+                    "type": "string"
+                },
+                "star_outFilterScoreMin": {
+                    "type": "string"
+                },
+                "star_outSAMattributes": {
+                    "type": "string"
+                },
+                "star_outSAMunmapped": {
+                    "type": "string"
+                },
+                "star_soloTypestring": {
+                    "type": "string"
+                },
+                "star_soloCBmatchWLtype": {
+                    "type": "string"
+                },
+                "star_soloUMIfiltering": {
+                    "type": "string"
+                },
+                "star_soloMultiMappers": {
+                    "type": "string"
+                },
+                "star_clipAdapterType": {
+                    "type": "string"
+                },
+                "star_extraargs": {
+                    "type": "string"
+                },
+                "star_genomeSAindexNbases": {
+                    "type": "string"
+                },
+                "star_solocellfilter": {
+                    "type": "string"
+                },
+                "star_soloUMIdedup": {
+                    "type": "string"
                 }
             }
         },
@@ -93,8 +142,7 @@
             "default": "",
             "properties": {
                 "perform_featurecounts": {
-                    "type": "boolean",
-                    "default": true
+                    "type": "boolean"
                 },
                 "grep_rrna": {
                     "type": "string",
@@ -233,53 +281,6 @@
                     "type": "string"
                 }
             }
-        },
-        "new_group_2": {
-            "title": "New Group 2",
-            "type": "object",
-            "description": "",
-            "default": "",
-            "properties": {
-                "star_genomeSAsparseD": {
-                    "type": "string"
-                },
-                "star_soloCellFilter": {
-                    "type": "string"
-                },
-                "star_soloFeatures": {
-                    "type": "string"
-                },
-                "star_outFilterScoreMin": {
-                    "type": "string"
-                },
-                "star_outSAMattributes": {
-                    "type": "string"
-                },
-                "star_outSAMunmapped": {
-                    "type": "string"
-                },
-                "star_soloTypestring": {
-                    "type": "string"
-                },
-                "star_soloCBmatchWLtype": {
-                    "type": "string"
-                },
-                "star_soloUMIfiltering": {
-                    "type": "string"
-                },
-                "star_soloMultiMappers": {
-                    "type": "string"
-                },
-                "star_clipAdapterType": {
-                    "type": "string"
-                },
-                "star_genomeSAindexNbases": {
-                    "type": "string"
-                },
-                "star_soloUMIdedup": {
-                    "type": "string"
-                }
-            }
         }
     },
     "allOf": [
@@ -309,9 +310,6 @@
         },
         {
             "$ref": "#/$defs/trimming_options"
-        },
-        {
-            "$ref": "#/$defs/new_group_2"
         }
     ]
 }
