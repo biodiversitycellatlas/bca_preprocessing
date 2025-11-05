@@ -2,11 +2,7 @@ process CALC_MT_RRNA {
     publishDir "${params.outdir}/rRNA_mtDNA", mode: 'copy'
     label 'process_single'
 
-
     conda "${moduleDir}/environment.yml"
-    container "${ workflow.containerEngine == 'singularity' && !task.ext.singularity_pull_docker_container ?
-        'https://depot.galaxyproject.org/singularity/subread:2.1.1--h577a1d6_0' :
-        'biocontainers/subread:2.1.1--h577a1d6_0' }"
 
     input:
     tuple val(meta), path(mapping_files)
