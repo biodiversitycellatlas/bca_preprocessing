@@ -35,7 +35,7 @@ export NXF_JVM_ARGS="-Xms2g -Xmx5g"
 
 if command -v module &> /dev/null; then
     echo "Loading Nextflow module..."
-    module load Nextflow
+    module load Nextflow/24.04.3
 else
     echo "Warning: 'module' command not found. Assuming Nextflow is already in PATH."
 fi

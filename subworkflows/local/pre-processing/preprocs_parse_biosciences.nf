@@ -26,33 +26,30 @@ workflow parse_workflow {
         ch_samplesheet
 
     main:
-        // Create output channel for fastqs
-        ch_demuxed_fastqs = Channel.create()
 
         // Demultiplex the fastq files based on the sample wells
         if (params.perform_demultiplexing && params.splitpipe_demultiplex_script == null) {
             log.info "Running Parse Biosciences demultiplexing using default script."
             PARSEBIO_CUSTOM_DEMUX(ch_samplesheet)
-            ch_demuxed_fastqs = PARSEBIO_CUSTOM_DEMUX.out.splitted_files
+            ch_samplesheet = PARSEBIO_CUSTOM_DEMUX.out.splitted_files
 
         } else if (params.perform_demultiplexing && params.splitpipe_demultiplex_script != null) {
             log.info "Running Parse Biosciences demultiplexing using script: ${params.splitpipe_demultiplex_script}"
             PARSEBIO_PIPELINE_DEMUX(ch_samplesheet)
-            ch_demuxed_fastqs = PARSEBIO_PIPELINE_DEMUX.out.splitted_files
+            ch_samplesheet = PARSEBIO_PIPELINE_DEMUX.out.splitted_files
 
         } else {
             log.info "Skipping Parse Biosciences demultiplexing as 'perform_demultiplexing' is set to false."
-            ch_demuxed_fastqs = ch_samplesheet
         }
 
         // Only run Parse pipeline if the path is defined and exists
         if (params.splitpipe_installation && file(params.splitpipe_installation).exists()) {
             PARSEBIO_PIPELINE_MKREF()
-            PARSEBIO_PIPELINE(ch_demuxed_fastqs, PARSEBIO_PIPELINE_MKREF.out)
+            PARSEBIO_PIPELINE(ch_samplesheet, PARSEBIO_PIPELINE_MKREF.out)
         }
 
     emit:
-        ch_demuxed_fastqs
+        ch_samplesheet
 }
 
 /*
