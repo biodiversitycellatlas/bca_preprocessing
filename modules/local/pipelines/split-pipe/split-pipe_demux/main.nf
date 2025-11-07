@@ -2,7 +2,6 @@ process PARSEBIO_PIPELINE_DEMUX {
     publishDir "${params.outdir}/demultiplex/demux_spipe", mode: 'copy'
     tag "${meta.id}"
     label 'process_medium'
-    debug true
 
     conda "${moduleDir}/environment.yml"
 
@@ -15,6 +14,7 @@ process PARSEBIO_PIPELINE_DEMUX {
     script:
     """
     echo "\n\n==================  split-pipe Demultiplex  =================="
+    echo "split-pipe script: ${params.splitpipe_demultiplex_script}"
     echo "Processing sample: ${meta}"
     echo "FASTQ cDNA: ${fastq_cDNA}"
     echo "FASTQ BC & UMI: ${fastq_BC_UMI}"
@@ -22,7 +22,7 @@ process PARSEBIO_PIPELINE_DEMUX {
     echo "Wells: ${meta.p5}"
 
     # Run Parse Biosciences demultiplexing script
-    fastq_sep_groups_v0.5.py \\
+    python ${params.splitpipe_demultiplex_script} \\
         --chemistry v3 \\
         --fq1 ${fastq_cDNA} \\
         --fq2 ${fastq_BC_UMI} \\

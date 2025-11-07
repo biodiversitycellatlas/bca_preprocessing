@@ -8,7 +8,8 @@
 2. [Installation](#installation)
 3. [Setup](#setup)
 4. [Usage](#usage)
-5. [Output & Logs](#output--logs)
+5. [Output](#output)
+6. [Citations](#citations)
 
 ---
 
@@ -28,9 +29,8 @@ Depending on the chosen sequencing technique, it handles the processing of the F
 
 The pipeline will produce the following output files:
 
-- Raw & Filtered count matrices (intronic, exonic & full gene) from Mapping step​
-- Filtered count matrices (h5 files) ​from Filtering step​
-- HTML summary dashboard
+- Raw & Filtered count matrices (exonic, exonic & intronic) from Mapping step​
+- Filtered count matrices (h5 files) ​from (optional) Filtering step​
 - MultiQC report
 
 ![pipeline](/img/Preprocs_Pipeline.png)
@@ -82,16 +82,16 @@ nextflow -h
 
 4. **(Optional) Installing external pipelines as validation**
 
-After following these [installation instructions](docs/INSTALLATION_EXTERNAL_PIPELINES.md), users can run external pipelines simultaneaously with the BCA pre-processing pipeline. You only have to provide the path to the installation as within the [`conf/custom_parameters.config`](conf/custom_parameters.config) file, see Setup explenation below, and it will automatically start.
+After following these [installation instructions](docs/INSTALLATION_EXTERNAL_PIPELINES.md) for some of the sequencing technologies, see table below, users can run external pipelines simultaneaously with the BCA pre-processing pipeline. Depending on the sequencing technique, you only have to provide the path to the installation as within the [`conf/custom_parameters.config`](conf/custom_parameters.config) file or a boolean flag to enable/disable the execution, see Setup explenation below, and it will automatically start.
 
-This is limited to the following software:
-| Sequencing Technology | External pipeline |
-|-----------------------|-------------------|
-| 10x Genomics | [CellRanger](https://www.10xgenomics.com/support/software/cell-ranger/latest) |
-| OAKseq | [CellRanger](https://www.10xgenomics.com/support/software/cell-ranger/latest) |
-| Ultima Genomics | [CellRanger](https://www.10xgenomics.com/support/software/cell-ranger/latest) |
-| Parse Biosciences | [split-pipe](https://support.parsebiosciences.com/hc/en-us/articles/27066395947412-How-Do-I-Analyze-my-Parse-Biosciences-Data) |
-| BD-Rhapsody | [BD-Rhapsody](https://www.bdbiosciences.com/en-us/products/software/rhapsody-sequence-analysis-pipeline) |
+This option is limited to the following sequencing technologies:
+| Sequencing technology | External pipeline | Requires manual installation |
+|-----------------------|-------------------|-------------------|
+| 10x Genomics | [10x Genomics Cell Ranger](https://github.com/10XGenomics/cellranger) | :x: |
+| OAKseq | [10x Genomics Cell Ranger](https://github.com/10XGenomics/cellranger) | :x: |
+| Ultima Genomics | [10x Genomics Cell Ranger](https://github.com/10XGenomics/cellranger) | :x: |
+| Parse Biosciences | [split-pipe](https://support.parsebiosciences.com/hc/en-us/articles/27066395947412-How-Do-I-Analyze-my-Parse-Biosciences-Data) | :heavy_check_mark: |
+| BD-Rhapsody | [BD Rhapsody™ Sequence Analysis Pipeline](https://www.bdbiosciences.com/en-us/products/software/rhapsody-sequence-analysis-pipeline) | :heavy_check_mark: |
 
 ---
 
@@ -171,10 +171,27 @@ To modify the behaviour of certain processes, additional variables can be added 
 
 ```
 
-nextflow run -profile <institution_config>,conda -c </path/to/custom_parameters.config> -w </path/to/workdir>
+nextflow run
+    -profile <institution_config>,conda
+    -c </path/to/custom_parameters.config>
+    -w </path/to/workdir>
 
-####### OR - submitting pipeline through a bash script #######
-
-# Submit pipeline to SLURM queue
+# OR - submitting pipeline through a bash script
 sbatch submit_nextflow.sh main.nf
 ```
+
+---
+
+## Output
+
+The pipeline will produce the following output files:
+
+- Raw & Filtered count matrices (exonic, exonic & intronic) from Mapping step​
+- Filtered count matrices (h5 files) ​from (optional) Filtering step​
+- MultiQC report
+
+---
+
+## Citations
+
+An extensive list of references for the tools used by the pipeline can be found in the [CITATIONS.md](CITATIONS.md) file.

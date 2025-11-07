@@ -52,7 +52,7 @@ workflow BCA_PREPROCESSING {
 
     main:
     // Save run configurations
-    SAVE_RUN_CONFIG(samplesheet)
+    SAVE_RUN_CONFIG(samplesheet.first())
 
     // Pre-processing workflow
     preprocessing_workflow(samplesheet)

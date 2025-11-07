@@ -1,4 +1,4 @@
-# Installing Commercial Software (optional)
+# Installing external software (optional)
 
 ---
 

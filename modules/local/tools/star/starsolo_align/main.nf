@@ -45,16 +45,16 @@ process STARSOLO_ALIGN {
     echo "star_solocellfilter: ${star_solocellfilter}"
     echo "star_soloTypestring: ${star_soloTypestring}"
 
-    # In case the protocol does not exist and the user has not provided a seqspec file
-    SOLO_ARGS=\"${star_extraargs}\"
     if [[ -n \"${params.seqspec_file}\" && \"${params.protocol}\" == *\"seqspec\"* ]];
     then
         # Barcode structure information from seqspec file
-        bc_struct=\$(seqspec index -m rna -t starsolo -s file spec.yaml)
-        SOLO_ARGS=\"\${bc_struct} \${SOLO_ARGS}\"
+        bc_struct=\$(seqspec index -m rna -t starsolo -s file ${params.seqspec_file})
+        SOLO_TYPE_STRING="--soloType CB_UMI_Simple \${bc_struct}"
+    else
+        # Use predefined barcode structure information based on protocol
+        SOLO_TYPE_STRING="${star_soloTypestring}"
     fi
-
-    echo "SOLO_ARGS: \${SOLO_ARGS}"
+    echo "SOLO_TYPE_STRING: \${SOLO_TYPE_STRING}"
 
     # Adjust soloCellFilter arguments
     SOLO_CELL_FILTER_ARGS=""
@@ -69,7 +69,7 @@ process STARSOLO_ALIGN {
     # Mapping step and generating count matrix using STAR
     STAR \\
         --runThreadN 8 \\
-        ${star_soloTypestring} \\
+        \${SOLO_TYPE_STRING} \\
         --readFilesIn ${fastq_cDNA} ${fastq_BC_UMI} \\
         --genomeDir ${genome_index_files.toRealPath()} \\
         --readFilesCommand "pigz -dc -p ${task.cpus}" \\
@@ -89,6 +89,6 @@ process STARSOLO_ALIGN {
         --outFileNamePrefix ${meta.id}_ \\
         --genomeChrSetMitochondrial ${params.mt_contig} \\
         ${limitBAMsortRAM} \\
-        \${SOLO_ARGS}
+        ${star_extraargs}
     """
 }
