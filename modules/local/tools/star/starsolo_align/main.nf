@@ -17,7 +17,7 @@ process STARSOLO_ALIGN {
 
     script:
     // Set default variables
-    def limitBAMsortRAM = (params.protocol == 'bd_rhapsody' || params.protocol == '10xv3') ? '--limitBAMsortRAM 50000000000' : ''
+    def limitBAMsortRAM = (params.protocol == 'bd_rhapsody' || params.protocol == 'ultima_genomics') ? '--limitBAMsortRAM 50000000000' : ''
 
     // Retrieve settings from custom parameters if set, otherwise from conf/seqtech_parameters.config
     def star_soloTypestring = params.star_soloTypestring ?: params.seqtech_parameters[params.protocol].star_soloTypestring

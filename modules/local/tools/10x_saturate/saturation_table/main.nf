@@ -19,13 +19,13 @@ process SATURATION_TABLE {
     echo "Processing files: ${mapping_files}"
 
     # Remove unmapped reads from the BAM file
-    samtools view -b -F 4 ${meta.id}_Aligned.sortedByCoord.out.bam > ${meta.id}_Aligned.sortedByCoord.out.mapped.bam
-    samtools index ${meta.id}_Aligned.sortedByCoord.out.mapped.bam
+    samtools view -b -F 4 ${meta.id}_Aligned.sortedByCoord.out.bam | samtools sort -o ${meta.id}_Aligned.filtered.sorted.bam
+    samtools index ${meta.id}_Aligned.filtered.sorted.bam
 
     # Find the correct files from the list (mapping_files)
     summary_file=\$(ls *Solo.out/Gene/Summary.csv | head -n 1)
     log_final_file=\$(ls *Log.final.out | head -n 1)
-    bam_file=\$(ls ${meta.id}_Aligned.sortedByCoord.out.mapped.bam | head -n 1)
+    bam_file=\$(ls ${meta.id}_Aligned.filtered.sorted.bam | head -n 1)
 
     echo "Summary file: \${summary_file}"
     echo "Log final file: \${log_final_file}"

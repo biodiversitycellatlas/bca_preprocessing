@@ -57,11 +57,10 @@ workflow BCA_PREPROCESSING {
     // Pre-processing workflow
     preprocessing_workflow(samplesheet)
 
-    // Mapping using STARsolo, Alevin, and/or comparison to commercial pipelines
-    QC_mapping_workflow(
-        preprocessing_workflow.out.data_output,
-        preprocessing_workflow.out.bc_whitelist
-    )
+    if ( params.run_method != "exteral_pipeline_only" ) {
+        // Mapping using STARsolo, Alevin, and/or comparison to commercial pipelines
+        QC_mapping_workflow(preprocessing_workflow.out.data_output, preprocessing_workflow.out.bc_whitelist)
+    }
 
     // Placeholder for MultiQC report (remains empty if not standard)
     def multiqc_report_ch = Channel.empty()
@@ -85,7 +84,8 @@ workflow BCA_PREPROCESSING {
     }
 
     emit:
-    multiqc_report = multiqc_report_ch
+    preprocs_output         = preprocessing_workflow.out.data_output
+    multiqc_report          = multiqc_report_ch
 }
 
 

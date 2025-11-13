@@ -1,8 +1,8 @@
 #!/usr/bin/env python
-# =============================================================================
-# Implementation of the sci-rocket preprocessing pipeline by Odom Lab, DKFZ
-# The original pipeline can be found at: https://github.com/odomlab2/sci-rocket/
-# =============================================================================
+"""
+Implementation of the sci-rocket preprocessing pipeline by Odom Lab, DKFZ
+The original pipeline can be found at: https://github.com/odomlab2/sci-rocket/
+"""
 
 __version__ = "1.0"
 

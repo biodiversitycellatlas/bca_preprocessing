@@ -1,6 +1,7 @@
 [submodule "submodules/10x_saturate"]
 	path = submodules/10x_saturate
-	url = https://github.com/zolotarovgl/10x_saturate.git
+	url = https://github.com/bonitavw/10x_saturate.git
+	branch = CR_UR_support
 [submodule "submodules/GeneExt"]
 	path = submodules/GeneExt
 	url = https://github.com/zolotarovgl/GeneExt.git
