@@ -6,7 +6,7 @@ process PARSEBIO_CUSTOM_DEMUX {
     conda "${moduleDir}/environment.yml"
 
     input:
-    tuple val(meta), path(fastq_cDNA), path(fastq_BC_UMI), path(input_file)
+    tuple val(meta), path(fastq_cDNA), path(fastq_BC_UMI), path(fastq_indices), path(input_file)
 
     output:
     tuple val(meta), path("*group*_R1*"), path("*group*_R2*"), path(input_file), emit: splitted_files

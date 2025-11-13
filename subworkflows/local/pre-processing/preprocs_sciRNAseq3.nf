@@ -52,7 +52,7 @@ workflow sciRNAseq3_workflow {
 
         // Re-wrap the outputs into the expected format for FASTP
         wrapped = SCIROCKET_SPL_GATHER.out
-            .map { sampleId, r1_file, r2_file ->
+            .map { sampleId, r1_file, r2_file, fastq_indices ->
                 def meta = [
                     id                : sampleId,
                     expected_cells    : 3000,
@@ -63,6 +63,7 @@ workflow sciRNAseq3_workflow {
                     meta         : meta,
                     fastq_cDNA   : r2_file,
                     fastq_BC_UMI : r1_file,
+                    fastq_indices : fastq_indices,
                     input_file   : input_file_val
                 ]
             }

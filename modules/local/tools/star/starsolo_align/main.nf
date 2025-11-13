@@ -8,7 +8,7 @@ process STARSOLO_ALIGN {
     conda "${moduleDir}/environment.yml"
 
     input:
-    tuple val(meta), path(fastq_cDNA), path(fastq_BC_UMI), path(input_file)
+    tuple val(meta), path(fastq_cDNA), path(fastq_BC_UMI), path(fastq_indices), path(input_file)
     val bc_whitelist
     path genome_index_files
 

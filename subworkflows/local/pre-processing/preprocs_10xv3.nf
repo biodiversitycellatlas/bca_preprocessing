@@ -23,7 +23,7 @@ workflow tenx_genomics_workflow {
         // Download data from the specified path, in this case the barcode whitelist
         DOWNLOAD_DATA()
 
-        // Only run Cell Ranger pipeline if the path is defined and exists
+        // Only run Cell Ranger pipeline if perform_cellranger is set to true
         if (params.perform_cellranger) {
             CR_PIPELINE_MKREF()
             CR_PIPELINE(ch_samplesheet, CR_PIPELINE_MKREF.out)

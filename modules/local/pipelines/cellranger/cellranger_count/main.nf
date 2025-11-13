@@ -7,7 +7,7 @@ process CR_PIPELINE {
     container "quay.io/nf-core/cellranger:9.0.1"
 
     input:
-    tuple val(meta), path(fastq_cDNA), path(fastq_BC_UMI), path(input_file)
+    tuple val(meta), path(fastq_cDNA), path(fastq_BC_UMI), path(fastq_indices), path(input_file)
     path(cr_reference_dir)
 
     output:
