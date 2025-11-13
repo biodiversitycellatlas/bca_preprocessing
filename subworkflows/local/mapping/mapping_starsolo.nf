@@ -33,8 +33,15 @@ workflow mapping_starsolo_workflow {
 
     main:
         // Mapping: STARsolo
-        STARSOLO_INDEX(data_output, params.ref_gtf)
-        mapping_files = STARSOLO_ALIGN(data_output, bc_whitelist, STARSOLO_INDEX.out)
+        // Check if star index is provided, if not create it
+        def star_index_ch
+        if (params.star_index && file(params.star_index).exists()) {
+            star_index_ch = params.star_index
+        } else {
+            STARSOLO_INDEX(ch_samplesheet, params.ref_gtf)
+            star_index_ch = STARSOLO_INDEX.out
+        }
+        mapping_files = STARSOLO_ALIGN(data_output, bc_whitelist, star_index_ch)
         SAMTOOLS_INDEX(STARSOLO_ALIGN.out)
 
         // Calculate saturation
