@@ -10,7 +10,7 @@ process ALEVIN_FRY {
         'biocontainers/simpleaf:0.19.4--ha6fb395_0' }"
 
     input:
-    tuple val(meta), path(fastq_cDNA), path(fastq_BC_UMI), path(input_file)
+    tuple val(meta), path(fastq_cDNA), path(fastq_BC_UMI), path(fastq_indices), path(input_file)
     path bc_whitelist
     path(splici_index_reference)
     path(salmon_index)

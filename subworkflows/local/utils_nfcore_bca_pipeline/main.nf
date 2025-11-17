@@ -76,20 +76,22 @@ workflow PIPELINE_INITIALISATION {
         def meta = [
         id                : row.sample,
         expected_cells    : row.expected_cells ? row.expected_cells.toInteger() : null,
-        p5                : row.p5 ? row.p5 : null,
-        p7                : row.p7 ? row.p7 : null,
-        rt                : row.rt ? row.rt : null,
+        p5                : row.p5 ? row.p5 : '',
+        p7                : row.p7 ? row.p7 : '',
+        rt                : row.rt ? row.rt : '',
         ]
 
         // Assign each FASTQ to its own variable (or null if missing)
         def fastq_cDNA  = row.fastq_cDNA  ? file(row.fastq_cDNA)  : null
         def fastq_BC_UMI = row.fastq_BC_UMI ? file(row.fastq_BC_UMI) : null
+        def fastq_indices = row['fastq_indices'] ? file(row['fastq_indices']) : []
 
         // Return a single map with named entries
         [
             meta         : meta,
             fastq_cDNA   : fastq_cDNA,
             fastq_BC_UMI : fastq_BC_UMI,
+            fastq_indices : fastq_indices,
             input_file   : samples_file
         ]
     }
