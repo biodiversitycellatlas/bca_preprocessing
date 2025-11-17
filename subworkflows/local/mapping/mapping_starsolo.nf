@@ -38,7 +38,7 @@ workflow mapping_starsolo_workflow {
         if (params.star_index && file(params.star_index).exists()) {
             star_index_ch = params.star_index
         } else {
-            STARSOLO_INDEX(ch_samplesheet, params.ref_gtf)
+            STARSOLO_INDEX(data_output, params.ref_gtf)
             star_index_ch = STARSOLO_INDEX.out
         }
         mapping_files = STARSOLO_ALIGN(data_output, bc_whitelist, star_index_ch)
