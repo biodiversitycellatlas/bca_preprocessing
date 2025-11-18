@@ -17,6 +17,7 @@ process PARSEBIO_CUSTOM_DEMUX {
     echo "Conda environment: \$CONDA_DEFAULT_ENV"
     echo "Processing sample: ${meta}"
     echo "Fastq files: ${fastq_cDNA}, ${fastq_BC_UMI}"
+    echo "Group id: ${meta.id}, wells (rt): ${meta.rt}"
 
     # Run Parse Biosciences demultiplexing script
     parsebio_custom_demux.py \\
@@ -24,7 +25,7 @@ process PARSEBIO_CUSTOM_DEMUX {
         --fq1 ${fastq_cDNA} \\
         --fq2 ${fastq_BC_UMI} \\
         --whitelist ${params.bc_whitelist_parse_splitwells} \\
-        --group ${meta.id} ${meta.p5} \\
+        --group ${meta.id} ${meta.rt} \\
         --output . \\
         --barcode_start 50 \\
         --barcode_end 58 \\

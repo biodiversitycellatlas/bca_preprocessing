@@ -23,7 +23,6 @@ This nextflow pipeline is designed to pre-process single-cell and single-nucleus
 - OAK-seq
 - Ultima Genomics
 - sci-RNA-seq3
-- ScaleBio
 - and others, when providing a [seqspec](https://github.com/pachterlab/seqspec) file
 
 Depending on the chosen sequencing technique, it handles the processing of the FASTQ files accordingly. Whenever possible, we compared our results to a commercial pre-processing pipeline for that sequencing technique. For example, comparing our Parse Biosciences results to the official split-pipe pipeline from Parse Biosciences. While we cannot provide this commercial software directly, you can install it yourself (e.g. by following [these instructions](docs/INSTALLATION_EXTERNAL_PIPELINES.md)), and provide a path where the installation is located in the configuration file. This way, it will be executed alongside of the BCA pre-processing pipeline.
