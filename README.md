@@ -90,7 +90,6 @@ This option is limited to the following sequencing technologies:
 | 10x Genomics | [10x Genomics Cell Ranger](https://github.com/10XGenomics/cellranger) | :x: |
 | OAKseq | [10x Genomics Cell Ranger](https://github.com/10XGenomics/cellranger) | :x: |
 | Ultima Genomics | [10x Genomics Cell Ranger](https://github.com/10XGenomics/cellranger) | :x: |
-| ScaleBio | [ScaleRna](https://github.com/ScaleBio/ScaleRna) | :x: |
 | Parse Biosciences | [split-pipe](https://support.parsebiosciences.com/hc/en-us/articles/27066395947412-How-Do-I-Analyze-my-Parse-Biosciences-Data) | :heavy_check_mark: |
 | BD-Rhapsody | [BD Rhapsody™ Sequence Analysis Pipeline](https://www.bdbiosciences.com/en-us/products/software/rhapsody-sequence-analysis-pipeline) | :heavy_check_mark: |
 
@@ -131,8 +130,8 @@ To illustrate how the samplesheet would be filled across the different sequencin
 | 10xv3_example             | R2         | R1           |               | expected_cells |                |     |               |
 | oak_seq_example           | R2         | R1           |               | expected_cells |                |     |               |
 | ultima_genomics_example   | R2         | R1           |               | expected_cells |                |     |               |
-| scalebio_example          | R2         | R1           | I1 & I2       | expected_cells | p5 (libIndex2) |     | p7 (barcodes) |
-| scalebio_quantum_example  | R1         | R2           | I1 & I2       | expected_cells | p5 (libIndex2) |     | p7 (barcodes) |
+| scalebio_example          | R2         | R1           | I1 & I2       | expected_cells | p5 (libIndex2) |     | rt (barcodes) |
+| scalebio_quantum_example  | R1         | R2           | I1 & I2       | expected_cells | p5 (libIndex2) |     | rt (barcodes) |
 
 ### 2. Edit (or create) a custom configuration file
 
