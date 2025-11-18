@@ -9,7 +9,7 @@ process PARSEBIO_PIPELINE_DEMUX {
     tuple val(meta), path(fastq_cDNA), path(fastq_BC_UMI), path(fastq_indices), path(input_file)
 
     output:
-    tuple val(meta), path("*group*_R1*"), path("*group*_R2*"), path(input_file), emit: splitted_files
+    tuple val(meta), path("*group*_R1*"), path("*group*_R2*"), path(fastq_indices), path(input_file), emit: splitted_files
 
     script:
     """
