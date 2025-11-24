@@ -25,7 +25,7 @@ workflow mapping_alevin_workflow {
 
     main:
         SALMON_SPLICI(data_output)
-        SALMON_INDEX(SALMON_SPLICI.out)
+        SALMON_INDEX(data_output, SALMON_SPLICI.out)
         ALEVIN_FRY(data_output, bc_whitelist, SALMON_SPLICI.out, SALMON_INDEX.out)
 
     emit:
