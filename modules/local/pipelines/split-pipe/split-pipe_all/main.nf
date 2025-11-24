@@ -37,7 +37,7 @@ process PARSEBIO_PIPELINE {
         --fq2 ${fastq_BC_UMI} \\
         --nthreads 16 \\
         --genome_dir genome_index \\
-        --outdir . \\
+        --output_dir . \\
         --parfile config_${params.protocol}_splitpipe.txt \\
         --no_keep_going
     """

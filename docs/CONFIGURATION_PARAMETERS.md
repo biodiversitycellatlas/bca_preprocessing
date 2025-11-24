@@ -28,6 +28,7 @@ Within each custom configuration file the following variables can be defined:
 | `ref_gtf`              | __Required__      | Path to the GTF/GFF file formatted for STARsolo. |
 | `ref_gtf_alt`          | Optional          | Path to the GTF/GFF file formatted specifically for analysis with Parse Biosciences / CellRanger pipeline. Defaults to the same path as `ref_gtf`. |
 | `run_method`             | Optional          | Method of running the pre-processing pipeline, demonstrated in the [pipeline diagram](img/Preprocs_Pipeline.png), currently either `"standard"` or `"geneext_only"`. Default is set to `"standard"`. |
+| `perform_demultiplexing` | Optional        | Boolean flag to enable or disable demultiplexing of the FASTQ files, where applicable. Default is `true`. |
 | `seqspec_file`         | Optional          | Path to the seqspec file. |
 
 
@@ -67,7 +68,14 @@ Within each custom configuration file the following variables can be defined:
 
 | Variable               | Required/Optional | Description |
 |------------------------|-------------------|-------------|
-| `perform_geneext`      | Optional          | Boolean flag to enable or disable the gene extension step in preprocessing. Default is `false`. |
+| `perform_geneext`      | Optional          | Boolean flag to enable or disable the gene extension step after mapping. Default is `false`. |
+
+
+## 10x_saturate Variables
+
+| Variable               | Required/Optional | Description |
+|------------------------|-------------------|-------------|
+| `perform_10x_saturate`      | Optional          | Boolean flag to enable or disable the 10x_saturate step after mapping. Default is `true`. |
 
 
 

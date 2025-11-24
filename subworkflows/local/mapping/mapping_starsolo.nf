@@ -44,10 +44,12 @@ workflow mapping_starsolo_workflow {
         mapping_files = STARSOLO_ALIGN(data_output, bc_whitelist, star_index_ch)
         SAMTOOLS_INDEX(STARSOLO_ALIGN.out)
 
-        // Calculate saturation
-        SATURATION_TABLE(STARSOLO_ALIGN.out, SAMTOOLS_INDEX.out)
-        SATURATION_PLOT(STARSOLO_ALIGN.out, SATURATION_TABLE.out)
-        all_outputs.mix(SATURATION_PLOT.out)
+        // Calculate saturation curve if perform_10x_saturate is true
+        if (params.perform_10x_saturate) {
+            SATURATION_TABLE(STARSOLO_ALIGN.out, SAMTOOLS_INDEX.out)
+            SATURATION_PLOT(STARSOLO_ALIGN.out, SATURATION_TABLE.out)
+            all_outputs.mix(SATURATION_PLOT.out)
+        }
 
         // Calculate percentages mitochondrial DNA and ribosomal RNA
         if (params.perform_featurecounts) {

@@ -16,12 +16,16 @@ workflow sciRNAseq3_nogather_workflow {
         ch_samplesheet
 
     main:
-
-        // Run demux per‐sample
-        SCIROCKET_DEMUX(ch_samplesheet)
+        if (params.perform_demultiplexing) {
+            log.info "Starting demultiplexing with sci-rocket"
+            SCIROCKET_DEMUX(ch_samplesheet)
+            ch_samplesheet = SCIROCKET_DEMUX.out.demux_samplesheet
+        } else {
+            log.info "Skipping demultiplexing as perform_demultiplexing is set to false"
+        }
 
         // Trimming adapters and low-quality reads
-        FASTP(SCIROCKET_DEMUX.out.demux_samplesheet)
+        FASTP(ch_samplesheet)
 
     emit:
         data_output     = FASTP.out

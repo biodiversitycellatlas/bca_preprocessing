@@ -23,7 +23,6 @@ This nextflow pipeline is designed to pre-process single-cell and single-nucleus
 - OAK-seq
 - Ultima Genomics
 - sci-RNA-seq3
-- ScaleBio
 - and others, when providing a [seqspec](https://github.com/pachterlab/seqspec) file
 
 Depending on the chosen sequencing technique, it handles the processing of the FASTQ files accordingly. Whenever possible, we compared our results to a commercial pre-processing pipeline for that sequencing technique. For example, comparing our Parse Biosciences results to the official split-pipe pipeline from Parse Biosciences. While we cannot provide this commercial software directly, you can install it yourself (e.g. by following [these instructions](docs/INSTALLATION_EXTERNAL_PIPELINES.md)), and provide a path where the installation is located in the configuration file. This way, it will be executed alongside of the BCA pre-processing pipeline.
@@ -91,7 +90,6 @@ This option is limited to the following sequencing technologies:
 | 10x Genomics | [10x Genomics Cell Ranger](https://github.com/10XGenomics/cellranger) | :x: |
 | OAKseq | [10x Genomics Cell Ranger](https://github.com/10XGenomics/cellranger) | :x: |
 | Ultima Genomics | [10x Genomics Cell Ranger](https://github.com/10XGenomics/cellranger) | :x: |
-| ScaleBio | [ScaleRna](https://github.com/ScaleBio/ScaleRna) | :x: |
 | Parse Biosciences | [split-pipe](https://support.parsebiosciences.com/hc/en-us/articles/27066395947412-How-Do-I-Analyze-my-Parse-Biosciences-Data) | :heavy_check_mark: |
 | BD-Rhapsody | [BD Rhapsody™ Sequence Analysis Pipeline](https://www.bdbiosciences.com/en-us/products/software/rhapsody-sequence-analysis-pipeline) | :heavy_check_mark: |
 
@@ -132,8 +130,8 @@ To illustrate how the samplesheet would be filled across the different sequencin
 | 10xv3_example             | R2         | R1           |               | expected_cells |                |     |               |
 | oak_seq_example           | R2         | R1           |               | expected_cells |                |     |               |
 | ultima_genomics_example   | R2         | R1           |               | expected_cells |                |     |               |
-| scalebio_example          | R2         | R1           | I1 & I2       | expected_cells | p5 (libIndex2) |     | p7 (barcodes) |
-| scalebio_quantum_example  | R1         | R2           | I1 & I2       | expected_cells | p5 (libIndex2) |     | p7 (barcodes) |
+| scalebio_example          | R2         | R1           | I1 & I2       | expected_cells | p5 (libIndex2) |     | rt (barcodes) |
+| scalebio_quantum_example  | R1         | R2           | I1 & I2       | expected_cells | p5 (libIndex2) |     | rt (barcodes) |
 
 ### 2. Edit (or create) a custom configuration file
 
@@ -143,22 +141,21 @@ To customize the run, you can add other (optional) variables to the [`conf/custo
 
 Within each custom configuration file the following variables can be defined:
 
-| Variable                | Required/Optional | Description                                                                                                                                                                                                                       |
-| ----------------------- | ----------------- | --------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------- |
-| `input`                 | **Required**      | Path to the samplesheet.                                                                                                                                                                                                          |
-| `outdir`                | **Required**      | Path to the results/output directory; must exist before running.                                                                                                                                                                  |
-| `protocol`              | **Required**      | Specifies the sequencing technology used (must be one of the following: `"oak_seq"`, `"10xv3"`, `"parse_biosciences_WT_mini"` or `"parse_biosciences_WT"`, `"bd_rhapsody"`, `"sciRNAseq3"` , `"ultima_genomics"` or `"seqspec"`). |
-| `bc_whitelist`          | **Required**      | Path or link to the barcode whitelist file(s). If it's a link, it will be automatically downloaded and unzipped if applicable.                                                                                                    |
-| `ref_fasta`             | **Required**      | Path to the genome FASTA file used for mapping reads.                                                                                                                                                                             |
-| `ref_gtf`               | **Required**      | Path to the GTF/GFF file formatted for STARsolo.                                                                                                                                                                                  |
-| `run_method`            | Optional          | Method of running the pre-processing pipeline, demonstrated in the [pipeline diagram](img/Preprocs_Pipeline.png), currently either `"standard"`, `"geneext_only"` or `"exteral_pipeline_only"`. Default is set to `"standard"`.   |
-| `seqspec_file`          | Optional          | Path to the seqspec file.                                                                                                                                                                                                         |
-| `mapping_software`      | Optional          | Software used to map reads (must be one of the following: `"starsolo"`, `"alevin"` or `"both"`). Default set to `"starsolo"`.                                                                                                     |
-| `perform_geneext`       | Optional          | Boolean flag to enable or disable the gene extension step in preprocessing. Default is `false`.                                                                                                                                   |
-| `perform_featurecounts` | Optional          | Boolean flag to enable or disable calculation of mtDNA & rRNA percentages. Default is `false`.                                                                                                                                    |
-| `perform_kraken`        | Optional          | Boolean flag to enable or disable Kraken2 classification of unmapped reads. Default is `false`.                                                                                                                                   |
-| `perform_cellbender`    | Optional          | Boolean flag to enable or disable removal of ambient RNA using CellBender. Default is `false`.                                                                                                                                    |
-| `kraken_db_path`        | Optional          | Path to the Kraken2 database used for taxonomic classification of unmapped reads, if empty, a default database will be installed.                                                                                                 |
+| Variable                 | Required/Optional | Description                                                                                                                                                                                                                       |
+| ------------------------ | ----------------- | --------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------- |
+| `input`                  | **Required**      | Path to the samplesheet.                                                                                                                                                                                                          |
+| `outdir`                 | **Required**      | Path to the results/output directory; must exist before running.                                                                                                                                                                  |
+| `protocol`               | **Required**      | Specifies the sequencing technology used (must be one of the following: `"oak_seq"`, `"10xv3"`, `"parse_biosciences_WT_mini"` or `"parse_biosciences_WT"`, `"bd_rhapsody"`, `"sciRNAseq3"` , `"ultima_genomics"` or `"seqspec"`). |
+| `bc_whitelist`           | **Required**      | Path or link to the barcode whitelist file(s). If it's a link, it will be automatically downloaded and unzipped if applicable.                                                                                                    |
+| `ref_fasta`              | **Required**      | Path to the genome FASTA file used for mapping reads.                                                                                                                                                                             |
+| `ref_gtf`                | **Required**      | Path to the GTF/GFF file formatted for STARsolo.                                                                                                                                                                                  |
+| `run_method`             | Optional          | Method of running the pre-processing pipeline, demonstrated in the [pipeline diagram](img/Preprocs_Pipeline.png), currently either `"standard"`, `"geneext_only"` or `"exteral_pipeline_only"`. Default is set to `"standard"`.   |
+| `perform_demultiplexing` | Optional          | Boolean flag to enable or disable demultiplexing of the FASTQ files, where applicable. Default is `true`.                                                                                                                         |
+| `seqspec_file`           | Optional          | Path to the seqspec file.                                                                                                                                                                                                         |
+| `mapping_software`       | Optional          | Software used to map reads (must be one of the following: `"starsolo"`, `"alevin"` or `"both"`). Default set to `"starsolo"`.                                                                                                     |
+| `perform_geneext`        | Optional          | Boolean flag to enable or disable the gene extension step in preprocessing. Default is `false`.                                                                                                                                   |
+| `perform_featurecounts`  | Optional          | Boolean flag to enable or disable calculation of mtDNA & rRNA percentages. Default is `false`.                                                                                                                                    |
+| `perform_kraken`         | Optional          | Boolean flag to enable or disable Kraken2 classification of unmapped reads. Default is `false`.                                                                                                                                   |
 
 To modify the behaviour of certain processes or enable external pipelines, additional variables can be added to the configuration file. An overview of the extended custom parameters is listed [here](docs/CONFIGURATION_PARAMETERS.md).
 
