@@ -27,17 +27,8 @@ base_dir   <- normalizePath(args[1])
 sample_id  <- args[2]
 report_dir <- if (length(args) >= 3) normalizePath(args[3]) else base_dir
 
-## --- Install / load alevinQC -------------------------------------------------
-
-if (!requireNamespace("BiocManager", quietly = TRUE)) {
-  install.packages("BiocManager", repos = "https://cloud.r-project.org")
-}
-
-if (!requireNamespace("alevinQC", quietly = TRUE)) {
-  BiocManager::install("alevinQC", ask = FALSE, update = FALSE)
-}
-
-suppressPackageStartupMessages(library(alevinQC))
+## --- Load alevinQC -------------------------------------------------
+library(alevinQC)
 
 ## --- Build alevin-fry directory paths ----------------------------------------
 
