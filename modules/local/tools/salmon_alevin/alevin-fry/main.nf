@@ -7,7 +7,7 @@ process ALEVIN_FRY {
     conda "${moduleDir}/environment.yml"
     container "${ workflow.containerEngine == 'singularity' && !task.ext.singularity_pull_docker_container ?
         'https://depot.galaxyproject.org/singularity/simpleaf:0.19.4--ha6fb395_0':
-        'biocontainers/simpleaf:0.19.4--ha6fb395_0' }"
+        'quay.io/biocontainers/simpleaf:0.19.4--ha6fb395_0' }"
 
     input:
     tuple val(meta), path(fastq_cDNA), path(fastq_BC_UMI), path(fastq_indices), path(input_file)
