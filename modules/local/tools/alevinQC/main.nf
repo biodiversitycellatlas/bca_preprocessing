@@ -9,7 +9,7 @@ process ALEVIN_QC {
     path(alevin_fry_output)
 
     output:
-    path("*_alevinFry_QC.html"), emit: alevinQC_report
+    path("*_run/*_alevinFry_QC.html"), emit: alevinQC_report
 
     script:
     """
@@ -17,6 +17,6 @@ process ALEVIN_QC {
     echo "Sample ID: ${meta.id}"
     echo "Alevin-Fry output: ${alevin_fry_output}"
 
-    Rscript alevin_QC.R ${alevin_fry_output} ${meta.id}
+    alevin_QC.R ${alevin_fry_output} ${meta.id}
     """
 }

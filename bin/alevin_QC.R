@@ -11,30 +11,17 @@
 ## Usage:
 ##   Rscript alevin_QC.R /path/to/output_dir sample_id [report_dir]
 
-args <- commandArgs(trailingOnly = TRUE)
-
-if (length(args) < 2) {
-  stop(
-    paste0(
-      "Usage: Rscript run_alevin_fry_QC.R ",
-      "/path/to/output_dir sample_id [report_dir]\n",
-      "Example: Rscript run_alevin_fry_QC.R /data/alevin_out sample1"
-    )
-  )
-}
-
-base_dir   <- normalizePath(args[1])
-sample_id  <- args[2]
-report_dir <- if (length(args) >= 3) normalizePath(args[3]) else base_dir
-
 ## --- Load alevinQC -------------------------------------------------
 library(alevinQC)
 
 ## --- Build alevin-fry directory paths ----------------------------------------
 
-map_dir    <- file.path(base_dir, paste0(sample_id, "_run"))
-permit_dir <- file.path(base_dir, paste0(sample_id, "_out_permit_knee"))
-quant_dir  <- file.path(base_dir, paste0(sample_id, "_counts"))
+args <- commandArgs(trailingOnly = TRUE)
+quant_dir  <- normalizePath(args[1])  # e.g. BCA..._counts
+permit_dir <- normalizePath(args[2])  # e.g. BCA..._out_permit_knee
+map_dir    <- normalizePath(args[3])  # e.g. BCA..._run
+sample_id  <- args[4]
+report_dir <- if (length(args) >= 5) normalizePath(args[5]) else map_dir
 
 message("Using directories:")
 message("  mapDir    : ", map_dir)
