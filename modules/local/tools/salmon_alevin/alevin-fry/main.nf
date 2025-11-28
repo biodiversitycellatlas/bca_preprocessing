@@ -16,7 +16,7 @@ process ALEVIN_FRY {
     path(salmon_index)
 
     output:
-    path("*")
+    path("${meta.id}_*")
 
     script:
     // If protocol is "bd_rhapsody", then cDNA = R2 and CB/UMI = R1

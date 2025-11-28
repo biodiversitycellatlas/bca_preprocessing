@@ -1,6 +1,7 @@
 process ALEVIN_QC {
     publishDir "${params.outdir}/mapping_alevin/${meta.id}", mode: 'copy'
     tag "${meta.id}"
+    label 'process_low'
 
     conda "${moduleDir}/environment.yml"
 
@@ -9,7 +10,7 @@ process ALEVIN_QC {
     path(alevin_fry_output)
 
     output:
-    path("*_run/*_alevinFry_QC.html"), emit: alevinQC_report
+    path("${meta.id}_run/${meta.id}_alevinFry_QC.html"), emit: alevinQC_report
 
     script:
     """
