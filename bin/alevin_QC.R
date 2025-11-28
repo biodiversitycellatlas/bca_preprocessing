@@ -37,6 +37,13 @@ alevinQC::checkAlevinFryInputFiles(
   quantDir  = quant_dir
 )
 
+## --- Remove existing Rmd file if present -------------------------------------
+rmd_file <- file.path(report_dir, paste0(sample_id, "_alevinFry_QC.Rmd"))
+if (file.exists(rmd_file)) {
+  message("Existing Rmd found, removing: ", rmd_file)
+  file.remove(rmd_file)
+}
+
 ## --- Run QC report -----------------------------------------------------------
 
 output_file <- paste0(sample_id, "_alevinFry_QC.html")
