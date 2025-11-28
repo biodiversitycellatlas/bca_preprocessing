@@ -13,7 +13,9 @@ process SALMON_INDEX {
     path(splici_index_reference)
 
     output:
-    path("salmon_index_${meta.id}/")
+    path("salmon_index_${meta.id}/"), emit: salmon_index
+    tuple val(meta), path(fastq_cDNA), path(fastq_BC_UMI), path(fastq_indices), path(input_file), emit: salmon_samplesheet
+
 
     script:
     """

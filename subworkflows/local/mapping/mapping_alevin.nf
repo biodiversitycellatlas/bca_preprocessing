@@ -26,13 +26,13 @@ workflow mapping_alevin_workflow {
 
     main:
         SALMON_SPLICI(data_output)
-        SALMON_INDEX(data_output, SALMON_SPLICI.out)
-        ALEVIN_FRY(data_output, bc_whitelist, SALMON_SPLICI.out, SALMON_INDEX.out)
+        SALMON_INDEX(SALMON_SPLICI.out.splici_samplesheet, SALMON_SPLICI.out.splici_index_reference)
+        ALEVIN_FRY(SALMON_INDEX.out.salmon_samplesheet, bc_whitelist, SALMON_SPLICI.out.splici_index_reference, SALMON_INDEX.out.salmon_index)
 
-        ALEVIN_QC(data_output, ALEVIN_FRY.out)
+        ALEVIN_QC(ALEVIN_FRY.out.alevinFry_samplesheet, ALEVIN_FRY.out.mapping_files)
 
     emit:
-        mapping_files = ALEVIN_FRY.out
+        mapping_files = ALEVIN_FRY.out.mapping_files
         all_outputs
 }
 

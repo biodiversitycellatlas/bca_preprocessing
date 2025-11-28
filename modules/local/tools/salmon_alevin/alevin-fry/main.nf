@@ -16,7 +16,8 @@ process ALEVIN_FRY {
     path(salmon_index)
 
     output:
-    path("${meta.id}_*")
+    path("${meta.id}_*"), emit: mapping_files
+    tuple val(meta), path(fastq_cDNA), path(fastq_BC_UMI), path(fastq_indices), path(input_file), emit: alevinFry_samplesheet
 
     script:
     // If protocol is "bd_rhapsody", then cDNA = R2 and CB/UMI = R1
