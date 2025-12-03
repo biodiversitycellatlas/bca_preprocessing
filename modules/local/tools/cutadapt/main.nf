@@ -21,6 +21,6 @@ process RM_VARBASES {
         -g "^A" -g "^GT" -g "^TCA" \\
         --quality-cutoff 0 \\
         -o noVB_${meta.id}_R1_001.fastq.gz -p noVB_${meta.id}_R2_001.fastq.gz \\
-        ${meta.id}_R1_001.fastq.gz ${meta.id}_R2_001.fastq.gz
+        ${fastq_BC_UMI} ${fastq_cDNA}
     """
 }
