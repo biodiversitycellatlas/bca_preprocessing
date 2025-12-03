@@ -16,9 +16,6 @@ process BDRHAP_PIPELINE {
     echo "BD Rhapsody reference files: ${bd_ref_path}"
     echo "Conda environment: \$CONDA_DEFAULT_ENV"
 
-    # Add cwlref-runner to PATH
-    export PATH=$PATH:\$CONDA_DEFAULT_ENV/env/lib/python3.13/site-packages
-
     cd ${params.rhapsody_installation}
 
     cwl-runner \\
