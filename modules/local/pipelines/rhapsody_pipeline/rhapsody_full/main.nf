@@ -16,13 +16,10 @@ process BDRHAP_PIPELINE {
     echo "BD Rhapsody reference files: ${bd_ref_path}"
     echo "Conda environment: \$CONDA_DEFAULT_ENV"
 
-    cd ${params.rhapsody_installation}
-
-    cwl-runner \\
+    cwltool \\
         --outdir ${params.outdir}/BD_Rhapsody_pipeline/${run_name} \\
         --singularity \\
-        --reference-archive ${bd_ref_path} \\
-        rhapsody_pipeline_2.2.1.cwl \\
+        ${params.rhapsody_installation}/rhapsody_pipeline_2.2.1.cwl \\
         ${input_yaml}
     """
 }
