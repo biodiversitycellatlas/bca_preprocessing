@@ -12,7 +12,7 @@ process RM_VARBASES {
     tuple val(meta), path(fastq_cDNA), path(fastq_BC_UMI), path(fastq_indices), path(input_file)
 
     output:
-    tuple val(meta), path("noVB_${meta.id}_R2_001.fastq.gz"), path("noVB_${meta.id}_R1_001.fastq.gz"), path(input_file), emit: fastq_noVB_files
+    tuple val(meta), path("noVB_${meta.id}_R2_001.fastq.gz"), path("noVB_${meta.id}_R1_001.fastq.gz"), path(fastq_indices), path(input_file)
 
     script:
     """
