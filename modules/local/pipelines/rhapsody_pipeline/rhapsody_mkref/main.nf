@@ -4,7 +4,7 @@ process BDRHAP_PIPELINE_MKREF {
     conda "${moduleDir}/environment.yml"
 
     output:
-    path("*")
+    path("BD_Rhapsody_Reference_Files.tar.gz")
 
     script:
     """
