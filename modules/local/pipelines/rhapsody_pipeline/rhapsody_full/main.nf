@@ -8,6 +8,7 @@ process BDRHAP_PIPELINE {
     val run_name
     path bd_ref_path
     path input_yaml
+    tuple val(meta), path(fastq_cDNA), path(fastq_BC_UMI), path(fastq_indices), path(input_file)
 
     script:
     """
