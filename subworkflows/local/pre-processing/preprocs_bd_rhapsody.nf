@@ -29,7 +29,7 @@ workflow bd_rhapsody_workflow {
         if (params.rhapsody_installation) {
             BDRHAP_PIPELINE_MKREF()
             BDRHAP_PIPELINE_YAML(ch_samplesheet, BDRHAP_PIPELINE_MKREF.out)
-            BDRHAP_PIPELINE(BDRHAP_PIPELINE_YAML.out.run_name, BDRHAP_PIPELINE_YAML.out.bd_ref_path, BDRHAP_PIPELINE_YAML.out.yaml_file)
+            BDRHAP_PIPELINE(BDRHAP_PIPELINE_YAML.out.run_name, BDRHAP_PIPELINE_YAML.out.bd_ref_path, BDRHAP_PIPELINE_YAML.out.yaml_file, BDRHAP_PIPELINE_YAML.out.samplesheet)
         } else {
             log.warn "BD Rhapsody pipeline directory not provided or doesn't exist: '${params.rhapsody_installation}'"
         }

@@ -9,6 +9,7 @@ process BDRHAP_PIPELINE_YAML {
     tuple val(meta.id),                     emit: run_name
     path(bd_ref_path),                      emit: bd_ref_path
     path("rhapsody_input_${meta.id}.yml"),  emit: yaml_file
+    tuple val(meta), path(fastq_cDNA), path(fastq_BC_UMI), path(fastq_indices), path(input_file), emit: samplesheet
 
     script:
     """
