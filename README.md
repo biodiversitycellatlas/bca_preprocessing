@@ -40,7 +40,8 @@ The pipeline will produce the following output files:
 ## Installation
 
 1. **Download the latest release**
-   Go to the [Releases](releases) page and download the `.zip` or `.tar.gz` file for the version you want.
+
+Go to the [Releases](https://github.com/biodiversitycellatlas/bca_preprocessing/releases) page and download the `.zip` or `.tar.gz` file for the version you want.
 
 2. **Unpack the files**
 
