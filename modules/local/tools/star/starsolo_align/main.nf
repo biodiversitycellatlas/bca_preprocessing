@@ -2,8 +2,7 @@
 process STARSOLO_ALIGN {
     publishDir "${params.outdir}/mapping_STARsolo/${meta.id}", mode: 'copy'
     tag "${meta.id}_STARsolo"
-    label 'process_high'
-
+    label 'process_high_memory'
 
     conda "${moduleDir}/environment.yml"
 
@@ -33,6 +32,19 @@ process STARSOLO_ALIGN {
     def star_solocellfilter = params.star_solocellfilter ?: params.seqtech_parameters[params.protocol].star_solocellfilter
     def star_extraargs = params.star_extraargs ?: params.seqtech_parameters[params.protocol].star_extraargs
 
+    // If star_generateBAM is true, remove CR/UR/CB/UB tags from outSAMattributes
+    def removableTags = ['CR', 'UR', 'CB', 'UB']
+    def star_outSAMattributes_effective = star_outSAMattributes
+    if( params.star_generateBAM ) {
+        star_outSAMattributes_effective = star_outSAMattributes
+            .split(/\s+/)
+            .findAll { !(it in removableTags) }
+            .join(' ')
+    }
+
+    // If star_generateBAM is true, do NOT output BAM (omit --outSAMtype)
+    def outSAMtype_option = params.star_generateBAM ? '' : '--outSAMtype BAM SortedByCoordinate'
+
     """
     echo "\n\n==============  MAPPING STARSOLO  ================"
     echo "Mapping sample ${meta.id} with STARsolo"
@@ -44,6 +56,9 @@ process STARSOLO_ALIGN {
     echo "limitBAMsortRAM: ${limitBAMsortRAM}"
     echo "star_solocellfilter: ${star_solocellfilter}"
     echo "star_soloTypestring: ${star_soloTypestring}"
+    echo "star_generateBAM: ${params.star_generateBAM}"
+    echo "star_outSAMattributes (effective): ${star_outSAMattributes_effective}"
+    echo "outSAMtype_option: ${outSAMtype_option}"
 
     if [[ -n \"${params.seqspec_file}\" && \"${params.protocol}\" == *\"seqspec\"* ]];
     then
@@ -84,8 +99,8 @@ process STARSOLO_ALIGN {
         --clipAdapterType ${star_clipAdapterType} \\
         --outFilterScoreMin ${star_outFilterScoreMin} \\
         --outSAMunmapped ${star_outSAMunmapped} \\
-        --outSAMattributes ${star_outSAMattributes} \\
-        --outSAMtype BAM SortedByCoordinate \\
+        --outSAMattributes ${star_outSAMattributes_effective} \\
+        ${outSAMtype_option} \\
         --outFileNamePrefix ${meta.id}_ \\
         --genomeChrSetMitochondrial ${params.mt_contig} \\
         ${limitBAMsortRAM} \\

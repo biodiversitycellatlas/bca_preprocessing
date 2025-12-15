@@ -47,6 +47,7 @@ Within each custom configuration file the following variables can be defined:
 | `star_outFilterScoreMin` | Optional       | Alignment will be output only if its score is higher than or equal to this value normalized by read length. See [protocol-specific defaults](../conf/seqtech_parameters.config) set in the seqtech_paramaters.config file. |
 | `star_outSAMunmapped`     | Optional      | Output of unmapped reads in the SAM format. See [protocol-specific defaults](../conf/seqtech_parameters.config) set in the seqtech_paramaters.config file. |
 | `star_outSAMattributes` | Optional        | String of desired SAM attributes. See [protocol-specific defaults](../conf/seqtech_parameters.config) set in the seqtech_paramaters.config file. |
+| `star_generateBAM`      | Optional        | Boolean to determine if a BAM file should be generated. Will automatically adjust the star_outSAMattributes. Default is set to `true`. |
 | `star_soloTypestring` | Optional          | String of defining soloType and barcode structure. See [protocol-specific defaults](../conf/seqtech_parameters.config) set in the seqtech_paramaters.config file. |
 | `star_soloCBmatchWLtype` | Optional       | Type of matching the cell barcodes to the barcode whiteList. See [protocol-specific defaults](../conf/seqtech_parameters.config) set in the seqtech_paramaters.config file. |
 | `star_soloUMIfiltering` | Optional        | Type of UMI filtering. See [protocol-specific defaults](../conf/seqtech_parameters.config) set in the seqtech_paramaters.config file. |
@@ -101,6 +102,9 @@ Within each custom configuration file the following variables can be defined:
 | Variable               | Required/Optional | Description |
 |------------------------|-------------------|-------------|
 | `perform_cellranger`   | Optional          | Boolean flag to enable or disable the CellRanger pipeline. Default is `false`. |
-| `splitpipe_installation`| Optional         | Path to the split-pipe installation folder, that can be used as a control. |
-| `splitpipe_conda_env`   | Optional         | Path to the split-pipe conda environment created by following these [instructions](docs/INSTALLATION_EXTERNAL_PIPELINES.md), required if running the split-pipe pipeline. |
-| `rhapsody_installation`| Optional          | Path to the BD-Rhapsody pipeline installation folder, that can be used as a control. |
+| `rhapsody_installation` | Optional          | Path to the BD-Rhapsody pipeline installation folder. |
+| `splitpipe_installation`| Optional        | Path to the split-pipe installation folder. |
+| `splitpipe_conda_env`   | Required (if `splitpipe_installation` is provided)         | Path to the split-pipe conda environment created by following these [instructions](docs/INSTALLATION_EXTERNAL_PIPELINES.md), required if running the split-pipe pipeline. |
+| `scalerna_installation`  | Optional          | Path to the base of the ScaleRna pipeline installation folder. |
+| `scalerna_scalePlex`     | Required (if `scalerna_installation` is provided)  | Boolean flag if the data is a ScalePlex dataset. |
+| `scalerna_libStructure`  | Required (if `scalerna_installation` is provided) | Scale scRNA assay version, should be one of the following: "libV1.json", "libV1.1.json", or "libQuantumV1.0.json" |
