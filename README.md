@@ -29,8 +29,13 @@ Depending on the chosen sequencing technique, it handles the processing of the F
 
 The pipeline will produce the following output files:
 
-- Raw & Filtered count matrices (exonic, exonic & intronic) from Mapping step​
-- Filtered count matrices (h5 files) ​from (optional) Filtering step​
+- Quality control reports for raw FASTQ files
+- Raw & Filtered count matrices (exonic, exonic & intronic) from STARsolo and/or Alevin-fry
+- (Optional) mtDNA and rRNA statistics
+- (Optional) Sequencing saturation analysis
+- (Optional) Extended gene annotation file
+- (Optional) Filtered count matrices (h5 files) ​from CellBender step
+- (Optional) Kraken2 taxonomic classification
 - MultiQC report
 
 ![pipeline](/img/Preprocs_Pipeline.png)
@@ -112,7 +117,7 @@ This option is limited to the following sequencing technologies:
 
 The samplesheet should be a comma-seperated file, specifying the names and locations of the files and details necessary for pipeline execution. Depending on the chosen sequencing technique the order of the FASTQ files is altered, R1 might contain the cDNA while in other cases this might contain the Cell barcode & UMI's, check the available documentation or do a manual inspection.
 
-When analysing sci-RNA-seq3 data, it is necessary to also provide the index to the p5, p7 and rt's for each sample to analyse this data successfully. These indexes are defined in the [sci-RNA-seq3 barcode whitelist file](assets/sciRNAseq3_bwl.txt), where you can match the sequences to the corresponding barcode, which is used in the samplesheet. It is also important to note that for sci-RNA-seq3 data, the p5 + p7 should be present in the headers of the FASTQ files, see [this bcl2fastq script](assets/bcl2fastq2.sh).
+When analysing sci-RNA-seq3 data, it is necessary to also provide the index to the p5, p7 and rt's for each sample to analyse this data successfully. These indexes are defined in the sci-RNA-seq3 barcode whitelist file, where you can match the sequences to the corresponding barcode, which is used in the samplesheet. It is also important to note that for sci-RNA-seq3 data, the p5 + p7 should be present in the headers of the FASTQ files, see [this bcl2fastq script](assets/bcl2fastq2.sh).
 
 In the case of Parse Biosciences data, the rt column should be filled with the group-well definitions, where:
 
@@ -127,22 +132,20 @@ In the table below, the available variables are summarized:
 | fastq_CB_UMI | **Required** | Path to the FASTQ file containing the cell barcode & UMI |
 | fastq_indices | Optional | Path to the FASTQ index file(s), to provide both I1 and I2, use an asterisk to the path like /path/name_I\* |
 | expected_cells | **Required** | Number of expected cells |
-| p5 | Optional | Only required for sci-RNA-seq3 (p5-associated barcode from [sci-RNA-seq3 barcode whitelist file](assets/sciRNAseq3_bwl.txt)|
-| p7 | Optional | Only required for sci-RNA-seq3 (p7-associated barcode from [sci-RNA-seq3 barcode whitelist file](assets/sciRNAseq3_bwl.txt) |
-| rt | Optional | Only required for sci-RNA-seq3 (rt-associated barcode from [sci-RNA-seq3 barcode whitelist file](assets/sciRNAseq3_bwl.txt) & Parse Biosciences (group-well definition) |
+| p5 | Optional | Only required for sci-RNA-seq3 |
+| p7 | Optional | Only required for sci-RNA-seq3 |
+| rt | Optional | Only required for sci-RNA-seq3 & Parse Biosciences (group-well definition) |
 
 To illustrate how the samplesheet would be filled across the different sequencing techniques, the table below is given, as well as an example samplesheet published [here](conf/example_samplesheet.csv). The names within the parenthesis of the p5 and rt column indicate the official names, often referenced like this in the official documentation of this protocol.
 
-| sample                    | fastq_cDNA | fastq_BC_UMI | fastq_indices | expected_cells | p5             | p7  | rt            |
-| ------------------------- | ---------- | ------------ | ------------- | -------------- | -------------- | --- | ------------- |
-| sciRNAseq3_example        | R2         | R1           |               | expected_cells | p5             | p7  | rt            |
-| bd_rhapsody_example       | R2         | R1           |               | expected_cells |                |     |               |
-| parse_biosciences_example | R1         | R2           |               | expected_cells |                |     | rt (wells)    |
-| 10xv3_example             | R2         | R1           |               | expected_cells |                |     |               |
-| oak_seq_example           | R2         | R1           |               | expected_cells |                |     |               |
-| ultima_genomics_example   | R2         | R1           |               | expected_cells |                |     |               |
-| scalebio_example          | R2         | R1           | I1 & I2       | expected_cells | p5 (libIndex2) |     | rt (barcodes) |
-| scalebio_quantum_example  | R1         | R2           | I1 & I2       | expected_cells | p5 (libIndex2) |     | rt (barcodes) |
+| sample                    | fastq_cDNA | fastq_BC_UMI | fastq_indices | expected_cells | p5  | p7  | rt         |
+| ------------------------- | ---------- | ------------ | ------------- | -------------- | --- | --- | ---------- |
+| sciRNAseq3_example        | R2         | R1           |               | expected_cells | p5  | p7  | rt         |
+| bd_rhapsody_example       | R2         | R1           |               | expected_cells |     |     |            |
+| parse_biosciences_example | R1         | R2           |               | expected_cells |     |     | rt (wells) |
+| 10xv3_example             | R2         | R1           |               | expected_cells |     |     |            |
+| oak_seq_example           | R2         | R1           |               | expected_cells |     |     |            |
+| ultima_genomics_example   | R2         | R1           |               | expected_cells |     |     |            |
 
 ### 2. Edit (or create) a custom configuration file
 
@@ -200,11 +203,27 @@ sbatch submit_nextflow.sh main.nf
 
 ## Output
 
-The pipeline will produce the following output files:
+The pipeline outputs are organized into sub-directories based on the analysis steps performed.
+Below is an overview of the possible directory structure:
 
-- Raw & Filtered count matrices (exonic, exonic & intronic) from Mapping step​
-- Filtered count matrices (h5 files) ​from (optional) Filtering step​
-- MultiQC report
+```
+output_directory/
+├── pipeline_info/          # Run execution details (configs, logs, samplesheets)
+├── fastqc/                 # Quality control reports for raw FASTQ files
+├── mapping_STARsolo/       # STARsolo count matrices and stats
+├── mapping_alevin/         # Alevin-fry count matrices and AlevinQC
+├── summary_results/        # Aggregated QC report
+│
+├── cellbender/             # (Optional) CellBender filtered matrices
+├── saturation/             # (Optional) Sequencing saturation analysis
+├── gene_ext/               # (Optional) Extended gene annotations
+├── rRNA_mtDNA/             # (Optional) mtDNA and rRNA statistics
+├── kraken/                 # (Optional) Kraken2 taxonomic classification
+│
+├── CellRanger_pipeline/    # (Optional) External Cell Ranger outputs
+├── ParseBio_pipeline/      # (Optional) External Split-pipe outputs
+└── BDrhapsody_pipeline/    # (Optional) External BD Rhapsody outputs
+```
 
 ---
 
