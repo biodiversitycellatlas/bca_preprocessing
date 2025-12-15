@@ -6,6 +6,8 @@ Split paired FASTQs by group using a whitelist and edit-distance (≤2) barcode 
 import argparse, gzip, os
 from collections import Counter
 from typing import Dict, Iterable, Tuple, Optional, Set, List
+import re
+import string
 
 # --------------------------- Utilities ---------------------------
 
@@ -20,15 +22,31 @@ def load_whitelist_csv(path: str) -> Dict[str, str]:
                 wl[p[1].strip().upper()] = p[3].strip().upper()
     return wl
 
-def parse_well_range(spec: str) -> Set[str]:
-    """Parse same-row range 'A1-A3' or single well 'B6' → set of wells."""
-    spec = spec.strip().upper()
-    if "-" in spec:
-        s, e = spec.split("-")
-        if s[0] != e[0]: raise ValueError("Only same-row ranges supported (e.g., A1-A6).")
-        a, b = int(s[1:]), int(e[1:])
-        return {f"{s[0]}{i}" for i in range(a, b + 1)}
-    return {spec}
+def parse_well_range(rng_str):
+    """Parse expanded well ranges into list of well IDs (e.g., ['A1','A2',...])"""
+    rng_str = rng_str.replace(" ", "").replace(";", ",").upper()
+    wells = []
+
+    def col_row(w):
+        m = re.match(r"([A-Z]+)(\d+)", w)
+        return m.group(1), int(m.group(2)) if m else (None, None)
+
+    for part in rng_str.split(","):
+        if ":" in part:  # block e.g., A1:C6
+            start, end = part.split(":")
+        elif "-" in part:  # range e.g., A1-B6
+            start, end = part.split("-")
+        else:  # single well
+            wells.append(part)
+            continue
+
+        start_col, start_row = col_row(start)
+        end_col, end_row = col_row(end)
+        for c in string.ascii_uppercase[string.ascii_uppercase.index(start_col):string.ascii_uppercase.index(end_col)+1]:
+            for r in range(start_row, end_row+1):
+                wells.append(f"{c}{r}")
+
+    return wells
 
 def deduce_fq2(fq1: str) -> str:
     """Replace last 'R1' with 'R2' to infer R2 filename."""
