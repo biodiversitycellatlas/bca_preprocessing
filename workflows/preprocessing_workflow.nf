@@ -60,6 +60,7 @@ workflow preprocessing_workflow {
             - '10xv1'
             - '10xv2'
             - '10xv3'
+            - '10xv4'
             - 'oak_seq'
             - 'ultima_genomics'
             - 'sciRNAseq3'
