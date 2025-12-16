@@ -8,7 +8,9 @@ process SATURATION_TABLE {
 
     input:
     tuple val(meta), path(mapping_files)
+    file(filtered_bam)
     file(bam_index)
+    val MAPREADS
 
     output:
     path("saturation_output.tsv")
@@ -17,10 +19,9 @@ process SATURATION_TABLE {
     """
     echo "\n\n==================  SATURATION TABLE =================="
     echo "Processing files: ${mapping_files}"
-
-    # Remove unmapped reads from the BAM file
-    samtools view -b -F 4 ${meta.id}_Aligned.sortedByCoord.out.bam | samtools sort -o ${meta.id}_Aligned.filtered.sorted.bam
-    samtools index ${meta.id}_Aligned.filtered.sorted.bam
+    echo "Filtered BAM file: ${filtered_bam}"
+    echo "Filtered BAM index file: ${bam_index}"
+    echo "Mapped reads: ${MAPREADS}"
 
     # Find the correct files from the list (mapping_files)
     summary_file=\$(ls *Solo.out/Gene/Summary.csv | head -n 1)
@@ -33,10 +34,10 @@ process SATURATION_TABLE {
 
     n_cells=\$( cat \${summary_file} | grep 'Estimated Number of Cells' | sed 's/,/ /g' | awk '{print \$NF}' )
     n_reads=\$( cat \${log_final_file} | grep 'Number of input reads' | awk '{print \$NF}' )
-    MAPREADS=\$( samtools view -F 260 \${bam_file} | wc -l )
-    map_rate=\$( echo "scale=4; \${MAPREADS}/\${n_reads}" | bc )
+
+    map_rate=\$( echo "scale=4; ${MAPREADS}/\${n_reads}" | bc )
     temp_folder="_tmp"
-    echo "cells:\${n_cells} reads:\${n_reads} mapreads:\${MAPREADS} maprate:\${map_rate}"
+    echo "cells:\${n_cells} reads:\${n_reads} mapreads:${MAPREADS} maprate:\${map_rate}"
 
     python ${projectDir}/submodules/10x_saturate/saturation_table.py \\
         --bam \${bam_file} \\
