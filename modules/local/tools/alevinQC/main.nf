@@ -4,6 +4,7 @@ process ALEVIN_QC {
     label 'process_medium'
 
     conda "${moduleDir}/environment.yml"
+    container "oras://community.wave.seqera.io/library/bioconductor-alevinqc_r-base:62474ff3de946976"
 
     input:
     tuple val(meta), path(fastq_cDNA), path(fastq_BC_UMI), path(fastq_indices), path(input_file)

@@ -2,8 +2,8 @@ process SALMON_SPLICI {
     publishDir "${params.outdir}/genome", mode: 'copy'
     label 'process_high'
 
-
     conda "${moduleDir}/environment.yml"
+    container "oras://community.wave.seqera.io/library/bioconductor-biostrings_bioconductor-bsgenome_bioconductor-eisar_bioconductor-genomicfeatures_pruned:b68bd7a74397c700"
 
     input:
     tuple val(meta), path(fastq_cDNA), path(fastq_BC_UMI), path(fastq_indices), path(input_file)

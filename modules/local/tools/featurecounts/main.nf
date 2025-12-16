@@ -3,6 +3,7 @@ process CALC_MT_RRNA {
     label 'process_single'
 
     conda "${moduleDir}/environment.yml"
+    container "oras://community.wave.seqera.io/library/samtools_subread:f5fd17c543add0fd"
 
     input:
     tuple val(meta), path(mapping_files)

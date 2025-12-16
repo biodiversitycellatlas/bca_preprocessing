@@ -3,6 +3,7 @@ process BDRHAP_PIPELINE {
     label 'process_high'
 
     conda "${moduleDir}/environment.yml"
+    container "oras://community.wave.seqera.io/library/cwltool_python:d7b534cc8e4f1511"
 
     input:
     val run_name

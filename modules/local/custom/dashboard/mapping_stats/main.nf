@@ -3,6 +3,7 @@ process MAPPING_STATS {
     label 'process_low'
 
     conda "${moduleDir}/environment.yml"
+    container "oras://community.wave.seqera.io/library/pandas_python_r-base_r-data.table_pruned:30aa8e8a69298cb8"
 
     input:
     val(trigger)

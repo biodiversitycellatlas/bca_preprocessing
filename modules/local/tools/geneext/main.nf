@@ -3,8 +3,8 @@ process GENE_EXT {
     tag "${meta.id}"
     label 'process_medium'
 
-
     conda "${projectDir}/submodules/GeneExt/environment.yaml"
+    container "oras://community.wave.seqera.io/library/bedtools_gffutils_macs2_pysam_pruned:2fdc33bd87da26bd"
 
     input:
     tuple val(meta), path(mapping_files)
