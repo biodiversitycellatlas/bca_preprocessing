@@ -48,7 +48,7 @@ workflow mapping_starsolo_workflow {
         // Calculate saturation curve if perform_10x_saturate is true
         if (params.perform_10x_saturate) {
             SAMTOOLS_VIEW(STARSOLO_ALIGN.out)
-            SATURATION_TABLE(STARSOLO_ALIGN.out, SAMTOOLS_VIEW.bam_file, SAMTOOLS_VIEW.bam_index, SAMTOOLS_VIEW.out.mapreads)
+            SATURATION_TABLE(STARSOLO_ALIGN.out, SAMTOOLS_VIEW.out.bam_file, SAMTOOLS_VIEW.out.bam_index, SAMTOOLS_VIEW.out.mapreads)
             SATURATION_PLOT(STARSOLO_ALIGN.out, SATURATION_TABLE.out)
             all_outputs.mix(SATURATION_PLOT.out)
         }

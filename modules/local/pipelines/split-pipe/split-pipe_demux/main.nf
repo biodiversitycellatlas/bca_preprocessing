@@ -4,6 +4,7 @@ process PARSEBIO_PIPELINE_DEMUX {
     label 'process_medium'
 
     conda "${moduleDir}/environment.yml"
+    container "oras://community.wave.seqera.io/library/numpy_pandas_python:b78d8279027c3c38"
 
     input:
     tuple val(meta), path(fastq_cDNA), path(fastq_BC_UMI), path(fastq_indices), path(input_file)
