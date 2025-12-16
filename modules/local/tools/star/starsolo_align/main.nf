@@ -5,6 +5,7 @@ process STARSOLO_ALIGN {
     label 'process_high_memory'
 
     conda "${moduleDir}/environment.yml"
+    container "oras://community.wave.seqera.io/library/htslib_samtools_star_gawk_pruned:013449d5b9eb8c27"
 
     input:
     tuple val(meta), path(fastq_cDNA), path(fastq_BC_UMI), path(fastq_indices), path(input_file)

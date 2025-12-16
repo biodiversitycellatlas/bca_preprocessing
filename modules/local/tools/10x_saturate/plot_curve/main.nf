@@ -3,8 +3,8 @@ process SATURATION_PLOT {
     tag "${meta.id}"
     label 'process_single'
 
-
     conda "${moduleDir}/environment.yml"
+    container "oras://community.wave.seqera.io/library/pysam_samtools_matplotlib_numpy_pruned:b8f551e4a5153343"
 
     input:
     tuple val(meta), path(mapping_files)
