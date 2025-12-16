@@ -13,6 +13,7 @@ include { STARSOLO_ALIGN as STARSOLO_ALIGN                  } from '../../../mod
 include { STARSOLO_ALIGN as STARSOLO_ALIGN_GENEEXT          } from '../../../modules/local/tools/star/starsolo_align/main'
 include { SAMTOOLS_INDEX as SAMTOOLS_INDEX                  } from '../../../modules/local/tools/samtools/samtools_index/main'
 include { SAMTOOLS_INDEX as SAMTOOLS_INDEX_GENEEXT          } from '../../../modules/local/tools/samtools/samtools_index/main'
+include { SAMTOOLS_VIEW                                     } from '../../../modules/local/tools/samtools/samtools_view/main'
 include { SATURATION_TABLE                                  } from '../../../modules/local/tools/10x_saturate/saturation_table/main'
 include { SATURATION_PLOT                                   } from '../../../modules/local/tools/10x_saturate/plot_curve/main'
 include { CALC_MT_RRNA as CALC_MT_RRNA                      } from '../../../modules/local/tools/featurecounts/main'
@@ -46,7 +47,8 @@ workflow mapping_starsolo_workflow {
 
         // Calculate saturation curve if perform_10x_saturate is true
         if (params.perform_10x_saturate) {
-            SATURATION_TABLE(STARSOLO_ALIGN.out, SAMTOOLS_INDEX.out)
+            SAMTOOLS_VIEW(STARSOLO_ALIGN.out)
+            SATURATION_TABLE(STARSOLO_ALIGN.out, SAMTOOLS_VIEW.bam_file, SAMTOOLS_VIEW.bam_index, SAMTOOLS_VIEW.out.mapreads)
             SATURATION_PLOT(STARSOLO_ALIGN.out, SATURATION_TABLE.out)
             all_outputs.mix(SATURATION_PLOT.out)
         }
