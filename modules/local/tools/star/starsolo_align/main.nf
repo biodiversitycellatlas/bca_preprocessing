@@ -33,18 +33,18 @@ process STARSOLO_ALIGN {
     def star_solocellfilter = params.star_solocellfilter ?: params.seqtech_parameters[params.protocol].star_solocellfilter
     def star_extraargs = params.star_extraargs ?: params.seqtech_parameters[params.protocol].star_extraargs
 
-    // If star_generateBAM is true, remove CR/UR/CB/UB tags from outSAMattributes
+    // If star_generateBAM is false, remove CR/UR/CB/UB tags from outSAMattributes
     def removableTags = ['CR', 'UR', 'CB', 'UB']
     def star_outSAMattributes_effective = star_outSAMattributes
-    if( params.star_generateBAM ) {
+    if( params.star_generateBAM == false) {
         star_outSAMattributes_effective = star_outSAMattributes
             .split(/\s+/)
             .findAll { !(it in removableTags) }
             .join(' ')
     }
 
-    // If star_generateBAM is true, do NOT output BAM (omit --outSAMtype)
-    def outSAMtype_option = params.star_generateBAM ? '' : '--outSAMtype BAM SortedByCoordinate'
+    // If star_generateBAM is false, do not output BAM (omit --outSAMtype)
+    def outSAMtype_option = params.star_generateBAM ? '--outSAMtype BAM SortedByCoordinate' : ''
 
     """
     echo "\n\n==============  MAPPING STARSOLO  ================"

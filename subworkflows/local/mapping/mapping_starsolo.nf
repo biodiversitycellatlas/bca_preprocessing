@@ -43,41 +43,46 @@ workflow mapping_starsolo_workflow {
             star_index_ch = STARSOLO_INDEX.out
         }
         mapping_files = STARSOLO_ALIGN(data_output, bc_whitelist, star_index_ch)
-        SAMTOOLS_INDEX(STARSOLO_ALIGN.out)
 
-        // Calculate saturation curve if perform_10x_saturate is true
-        if (params.perform_10x_saturate) {
-            SAMTOOLS_VIEW(STARSOLO_ALIGN.out)
-            SATURATION_TABLE(STARSOLO_ALIGN.out, SAMTOOLS_VIEW.out.bam_file, SAMTOOLS_VIEW.out.bam_index, SAMTOOLS_VIEW.out.mapreads)
-            SATURATION_PLOT(STARSOLO_ALIGN.out, SATURATION_TABLE.out)
-            all_outputs.mix(SATURATION_PLOT.out)
+        if (params.star_generateBAM) {
+            SAMTOOLS_INDEX(STARSOLO_ALIGN.out)
+
+            // Calculate saturation curve if perform_10x_saturate is true
+            if (params.perform_10x_saturate) {
+                SAMTOOLS_VIEW(STARSOLO_ALIGN.out)
+                SATURATION_TABLE(STARSOLO_ALIGN.out, SAMTOOLS_VIEW.out.bam_file, SAMTOOLS_VIEW.out.bam_index, SAMTOOLS_VIEW.out.mapreads)
+                SATURATION_PLOT(STARSOLO_ALIGN.out, SATURATION_TABLE.out)
+                all_outputs.mix(SATURATION_PLOT.out)
+            }
+
+            // Calculate percentages mitochondrial DNA and ribosomal RNA
+            if (params.perform_featurecounts) {
+                CALC_MT_RRNA(STARSOLO_ALIGN.out, SAMTOOLS_INDEX.out)
+                all_outputs = all_outputs.mix(CALC_MT_RRNA.out)
+            }
+
+            // Conditionally run Gene Extension + Remapping branch
+            if (params.perform_geneext && params.run_method != "geneext_only") {
+                GENE_EXT(STARSOLO_ALIGN.out, SAMTOOLS_INDEX.out)
+
+                // Create STAR index with extended GTF
+                STARSOLO_INDEX_GENEEXT(data_output, GENE_EXT.out)
+
+                // Remap with STARsolo using the extended GTF
+                STARSOLO_ALIGN_GENEEXT(data_output, bc_whitelist, STARSOLO_INDEX_GENEEXT.out)
+                SAMTOOLS_INDEX_GENEEXT(STARSOLO_ALIGN_GENEEXT.out)
+
+                // Add outputs from the Gene Extension branch to the output channel
+                mapping_files = mapping_files.mix(STARSOLO_ALIGN_GENEEXT.out)
+                all_outputs = all_outputs.mix(SAMTOOLS_INDEX_GENEEXT.out)
+
+            } else if (params.run_method == "geneext_only") {
+                GENE_EXT(STARSOLO_ALIGN.out, SAMTOOLS_INDEX.out)
+                all_outputs = all_outputs.mix(GENE_EXT.out)
+            }
         }
 
-        // Calculate percentages mitochondrial DNA and ribosomal RNA
-        if (params.perform_featurecounts) {
-            CALC_MT_RRNA(STARSOLO_ALIGN.out, SAMTOOLS_INDEX.out)
-            all_outputs = all_outputs.mix(CALC_MT_RRNA.out)
-        }
 
-        // Conditionally run Gene Extension + Remapping branch
-        if (params.perform_geneext && params.run_method != "geneext_only") {
-            GENE_EXT(STARSOLO_ALIGN.out, SAMTOOLS_INDEX.out)
-
-            // Create STAR index with extended GTF
-            STARSOLO_INDEX_GENEEXT(data_output, GENE_EXT.out)
-
-            // Remap with STARsolo using the extended GTF
-            STARSOLO_ALIGN_GENEEXT(data_output, bc_whitelist, STARSOLO_INDEX_GENEEXT.out)
-            SAMTOOLS_INDEX_GENEEXT(STARSOLO_ALIGN_GENEEXT.out)
-
-            // Add outputs from the Gene Extension branch to the output channel
-            mapping_files = mapping_files.mix(STARSOLO_ALIGN_GENEEXT.out)
-            all_outputs = all_outputs.mix(SAMTOOLS_INDEX_GENEEXT.out)
-
-        } else if (params.run_method == "geneext_only") {
-            GENE_EXT(STARSOLO_ALIGN.out, SAMTOOLS_INDEX.out)
-            all_outputs = all_outputs.mix(GENE_EXT.out)
-        }
 
 
     emit:
