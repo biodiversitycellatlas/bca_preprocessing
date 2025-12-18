@@ -19,12 +19,11 @@ process GENE_EXT {
     echo "Sample ID: ${meta}"
     echo "BAM index: ${bam_index}"
     echo "Original GTF: ${params.ref_gtf}"
-    echo "Conda environment: \$CONDA_DEFAULT_ENV"
 
     # Install dependencies
-    pip install pyyaml
-    conda remove macs2   # -y flag missing?
-    pip install macs2==2.2.9.1
+    # pip install pyyaml
+    # conda remove macs2   # -y flag missing?
+    # pip install macs2==2.2.9.1
 
     # Remove temporary directory if it exists
     if [ -d "tmp" ]; then rm -r tmp; fi
