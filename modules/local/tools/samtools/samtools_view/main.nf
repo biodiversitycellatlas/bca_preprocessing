@@ -14,7 +14,7 @@ process SAMTOOLS_VIEW {
     output:
     path("${meta.id}_Aligned.filtered.sorted.bam"),     emit : bam_file
     path("${meta.id}_Aligned.filtered.sorted.bam.bai"), emit : bam_index
-    val MAPREADS,                                       emit : mapreads
+    path("mapreads.txt"),                               emit : mapreads
 
     script:
     """
@@ -27,6 +27,6 @@ process SAMTOOLS_VIEW {
     samtools index ${meta.id}_Aligned.filtered.sorted.bam
 
     # Calculate mapped reads
-    MAPREADS=\$( samtools view -F 260 \${bam_file} | wc -l )
+    samtools view -F 260 ${meta.id}_Aligned.filtered.sorted.bam | wc -l > mapreads.txt
     """
 }
