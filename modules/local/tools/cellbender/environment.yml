@@ -3,4 +3,4 @@ channels:
   - bioconda
 
 dependencies:
-  - bioconda::cellbender=0.3.2
+  - bioconda::cellbender
