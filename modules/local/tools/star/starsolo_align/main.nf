@@ -44,7 +44,7 @@ process STARSOLO_ALIGN {
     }
 
     // If star_generateBAM is false, do not output BAM (omit --outSAMtype)
-    def outSAMtype_option = params.star_generateBAM ? '--outSAMtype BAM SortedByCoordinate' : ''
+    def outSAMtype_option = params.star_generateBAM ? '--outSAMtype BAM SortedByCoordinate' : '--outSAMtype None'
 
     """
     echo "\n\n==============  MAPPING STARSOLO  ================"
