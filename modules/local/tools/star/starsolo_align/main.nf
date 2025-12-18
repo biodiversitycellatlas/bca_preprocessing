@@ -5,7 +5,7 @@ process STARSOLO_ALIGN {
     label 'process_high_memory'
 
     conda "${moduleDir}/environment.yml"
-    container "oras://community.wave.seqera.io/library/htslib_samtools_star_gawk_pruned:013449d5b9eb8c27"
+    container "oras://community.wave.seqera.io/library/htslib_samtools_seqspec_star_pruned:cef769c7e3b03dd0"
 
     input:
     tuple val(meta), path(fastq_cDNA), path(fastq_BC_UMI), path(fastq_indices), path(input_file)
@@ -44,7 +44,7 @@ process STARSOLO_ALIGN {
     }
 
     // If star_generateBAM is false, do not output BAM (omit --outSAMtype)
-    def outSAMtype_option = params.star_generateBAM ? '--outSAMtype BAM SortedByCoordinate' : ''
+    def outSAMtype_option = params.star_generateBAM ? '--outSAMtype BAM SortedByCoordinate' : '--outSAMtype None'
 
     """
     echo "\n\n==============  MAPPING STARSOLO  ================"
