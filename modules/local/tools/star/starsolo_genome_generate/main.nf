@@ -1,6 +1,6 @@
 process STARSOLO_INDEX {
     publishDir "${params.outdir}/genome/star_index_${meta.id}", mode: 'copy'
-    label 'process_medium'
+    label 'process_high'
 
     input:
     tuple val(meta), path(fastq_cDNA), path(fastq_BC_UMI), path(fastq_indices), path(input_file)

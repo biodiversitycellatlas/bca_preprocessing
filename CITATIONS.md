@@ -84,9 +84,14 @@
   > Zolotarov, G., Elek, A. (2024). 10x_saturate: Compute sample saturation curve by downsampling.
 
 - [GeneExt](https://github.com/zolotarovgl/GeneExt)
+
   > Zolotarov, G., Grau-Bové, X., & Sebé-Pedrós, A.
   > GeneExt: a gene model extension tool for enhanced single-cell RNA-seq analysis
   > bioRxiv 2023.12.05.570120. https://doi.org/10.1101/2023.12.05.570120
+
+- [pavianCore](https://github.com/Enthusiasm23/pavianCore)
+
+  > Florian P Breitwieser, Steven L Salzberg, Pavian: interactive analysis of metagenomics data for microbiome studies and pathogen identification, Bioinformatics, Volume 36, Issue 4, February 2020, Pages 1303–1304, https://doi.org/10.1093/bioinformatics/btz715
 
 ## External software/pipelines
 
@@ -97,6 +102,10 @@
 - [BD Rhapsody™ Sequence Analysis Pipeline](https://www.bdbiosciences.com/en-us/products/software/rhapsody-sequence-analysis-pipeline)
 
   > Becton, Dickinson and Company (2023). BD Rhapsody™ Sequence Analysis Pipeline: performs analysis of single-cell multiomic sequence read (FASTQ) data.
+
+- [Scale Bio SeqSuite](https://github.com/ScaleBio/ScaleRna)
+
+  > ScaleBio (2023). ScaleBio Seq Suite: RNA Workflow.
 
 - [sci-rocket](https://github.com/lauren-saunders-lab/sci-rocket)
 
