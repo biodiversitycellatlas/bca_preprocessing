@@ -17,7 +17,7 @@ process STARSOLO_ALIGN {
 
     script:
     // Set default variables
-    def limitBAMsortRAM = (params.protocol == 'bd_rhapsody' || params.protocol == 'ultima_genomics') ? '--limitBAMsortRAM 50000000000' : ''
+    // def limitBAMsortRAM = (params.protocol == 'bd_rhapsody' || params.protocol == 'ultima_genomics') ? '--limitBAMsortRAM 50000000000' : ''
 
     // Retrieve settings from custom parameters if set, otherwise from conf/seqtech_parameters.config
     def star_soloTypestring = params.star_soloTypestring ?: params.seqtech_parameters[params.protocol].star_soloTypestring
@@ -54,7 +54,7 @@ process STARSOLO_ALIGN {
     echo "Genome index directory: ${genome_index_files}"
     echo "Barcode whitelist: ${bc_whitelist}"
     echo "Expected cells: ${meta.expected_cells}"
-    echo "limitBAMsortRAM: ${limitBAMsortRAM}"
+    echo "star_limitBAMsortRAM: ${params.star_limitBAMsortRAM}"
     echo "star_solocellfilter: ${star_solocellfilter}"
     echo "star_soloTypestring: ${star_soloTypestring}"
     echo "star_generateBAM: ${params.star_generateBAM}"
@@ -104,7 +104,7 @@ process STARSOLO_ALIGN {
         ${outSAMtype_option} \\
         --outFileNamePrefix ${meta.id}_ \\
         --genomeChrSetMitochondrial ${params.mt_contig} \\
-        ${limitBAMsortRAM} \\
+        --limitBAMsortRAM ${params.star_limitBAMsortRAM} \\
         ${star_extraargs}
     """
 }

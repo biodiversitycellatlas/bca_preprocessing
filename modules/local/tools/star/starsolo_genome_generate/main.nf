@@ -1,6 +1,6 @@
 process STARSOLO_INDEX {
     publishDir "${params.outdir}/genome/star_index_${meta.id}", mode: 'copy'
-    label 'process_high'
+    label 'process_high_memory'
 
     input:
     tuple val(meta), path(fastq_cDNA), path(fastq_BC_UMI), path(fastq_indices), path(input_file)
@@ -34,6 +34,7 @@ process STARSOLO_INDEX {
         --sjdbGTFfile ${ref_gtf} \\
         --sjdbOverhang "\${sjdb_overhang}" \\
         --genomeSAsparseD ${star_genomeSAsparseD} \\
-        --genomeSAindexNbases ${star_genomeSAindexNbases}
+        --genomeSAindexNbases ${star_genomeSAindexNbases} \\
+        --limitGenomeGenerateRAM ${params.star_limitGenomeGenerateRAM}
     """
 }
