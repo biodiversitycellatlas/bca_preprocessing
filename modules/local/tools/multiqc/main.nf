@@ -4,9 +4,7 @@ process MULTIQC {
 
 
     conda "${moduleDir}/environment.yml"
-    container "${ workflow.containerEngine == 'singularity' && !task.ext.singularity_pull_docker_container ?
-        'https://depot.galaxyproject.org/singularity/multiqc:1.30--pyhdfd78af_1' :
-        'quay.io/biocontainers/multiqc:1.30--pyhdfd78af_1' }"
+    container "oras://community.wave.seqera.io/library/multiqc:1.30--d3e586af7b974fba"
 
     input:
     val(trigger)

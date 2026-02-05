@@ -4,9 +4,7 @@ process KRONA {
 
 
     conda "${moduleDir}/environment.yml"
-    container "${ workflow.containerEngine == 'singularity' && !task.ext.singularity_pull_docker_container ?
-        'https://depot.galaxyproject.org/singularity/krona:2.8--pl5262hdfd78af_2' :
-        'quay.io/biocontainers/krona:2.8--pl5262hdfd78af_2' }"
+    container "oras://community.wave.seqera.io/library/krona:2.8--8fc5aef4acd456a6"
 
     input:
     val(trigger)
