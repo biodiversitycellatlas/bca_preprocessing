@@ -45,6 +45,24 @@ echo -e "Number of ribosomal RNA reads in uniquely mapped reads,$rrna" >> $outfi
 perc_rrna=$(awk -v r="$rrna" -v u="$uniquely_mapped" 'BEGIN {printf "%.4f", (r/u)}')
 echo -e "Percentage of rRNA reads (of uniquely mapped reads),$perc_rrna" >> $outfile
 
+# Count rRNA in multimapped primary alignments
+featureCounts -t "${grep_rrna}" -a ${ref_gtf} -o feat_counts_rRNA_mmpa.txt multimapped_primealign.bam
+rrna_mmpa=$(cat feat_counts_rRNA_mmpa.txt.summary | grep -E "Assigned" | awk '{print $2}')
+echo -e "rRNA counts in Multimapped reads (primary alignment),$rrna_mmpa" >> $outfile
+
+# Percentage of rRNA in multimapped primary alignments
+perc_rrna_mmpa=$(awk -v r="$rrna_mmpa" -v tot="$total_mmpa" 'BEGIN {printf "%.4f", (r/tot)}')
+echo -e "Percentage of rRNA in multimapped reads (primary alignment),$perc_rrna_mmpa" >> $outfile
+
+# Count rRNA in multimapped all alignments
+featureCounts -t "${grep_rrna}" -a ${ref_gtf} -o feat_counts_rRNA_mmaa.txt multimapped_allalign.bam
+rrna_mmaa=$(cat feat_counts_rRNA_mmaa.txt.summary | grep -E "Assigned" | awk '{print $2}')
+echo -e "rRNA counts in Multimapped reads (all alignments),$rrna_mmaa" >> $outfile
+
+# Percentage of rRNA in multimapped all alignments
+perc_rrna_mmaa=$(awk -v r="$rrna_mmaa" -v tot="$total_mmaa" 'BEGIN {printf "%.4f", (r/tot)}')
+echo -e "Percentage of rRNA in multimapped reads (all alignments),$perc_rrna_mmaa" >> $outfile
+
 
 # ------------------------------------------------------------------
 # Calculate mtDNA metrics

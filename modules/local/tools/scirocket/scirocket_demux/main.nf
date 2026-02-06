@@ -4,8 +4,8 @@ process SCIROCKET_DEMUX {
     label 'process_medium'
     debug true
 
-
     conda "${moduleDir}/environment.yml"
+    container "oras://community.wave.seqera.io/library/fastp_pysam_sambamba_star_pruned:ac8b1ecd993405dd"
 
     input:
     tuple val(meta), path(fastq_cDNA), path(fastq_BC_UMI), path(fastq_indices), path(input_file)
@@ -29,7 +29,6 @@ process SCIROCKET_DEMUX {
 
     """
     echo "\n\n==================  DEMULTIPLEXING FASTQ FILES  =================="
-    echo "Conda environment: \$CONDA_DEFAULT_ENV"
     echo "Sample ID: ${meta.id}"
     echo "FASTQ cDNA: ${fastq_cDNA}"
     echo "FASTQ BC & UMI: ${fastq_BC_UMI}"

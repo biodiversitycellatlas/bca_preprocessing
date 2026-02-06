@@ -10,12 +10,11 @@ process PARSEBIO_CUSTOM_DEMUX {
     tuple val(meta), path(fastq_cDNA), path(fastq_BC_UMI), path(fastq_indices), path(input_file)
 
     output:
-    tuple val(meta), path("*group*_R1*"), path("*group*_R2*"), path(input_file), emit: splitted_files
+    tuple val(meta), path("*group*_R1*"), path("*group*_R2*"), path(fastq_indices), path(input_file), emit: splitted_files
 
     script:
     """
     echo "\n\n==================  Parse Biosciences: Custom Demultiplexing  =================="
-    echo "Conda environment: \$CONDA_DEFAULT_ENV"
     echo "Processing sample: ${meta}"
     echo "Fastq files: ${fastq_cDNA}, ${fastq_BC_UMI}"
     echo "Group id: ${meta.id}, wells (rt): ${meta.rt}"

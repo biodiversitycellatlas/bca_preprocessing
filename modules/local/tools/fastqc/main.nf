@@ -4,9 +4,7 @@ process FASTQC {
     label 'process_low'
 
     conda "${moduleDir}/environment.yml"
-    container "${ workflow.containerEngine == 'singularity' && !task.ext.singularity_pull_docker_container ?
-        'https://depot.galaxyproject.org/singularity/fastqc:0.12.1--hdfd78af_0' :
-        'quay.io/biocontainers/fastqc:0.12.1--hdfd78af_0' }"
+    container "oras://community.wave.seqera.io/library/fastqc:0.12.1--104d26ddd9519960"
 
     input:
     tuple val(meta), path(fastq_cDNA), path(fastq_BC_UMI), path(fastq_indices), path(input_file)

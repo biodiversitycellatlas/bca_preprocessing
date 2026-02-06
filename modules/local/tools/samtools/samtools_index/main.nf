@@ -4,9 +4,7 @@ process SAMTOOLS_INDEX {
     label 'process_single'
 
     conda "${moduleDir}/environment.yml"
-    container "${ workflow.containerEngine == 'singularity' && !task.ext.singularity_pull_docker_container ?
-        'https://depot.galaxyproject.org/singularity/samtools:1.22.1--h96c455f_0' :
-        'quay.io/biocontainers/samtools:1.22.1--h96c455f_0' }"
+    container "oras://community.wave.seqera.io/library/samtools:1.22.1--9a10f06c24cdf05f"
 
     input:
     tuple val(meta), path(mapping_files)
