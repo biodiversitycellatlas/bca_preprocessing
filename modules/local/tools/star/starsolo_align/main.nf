@@ -13,7 +13,10 @@ process STARSOLO_ALIGN {
     path genome_index_files
 
     output:
-    tuple val(meta), path("*")
+    tuple val(meta), path("*"),                               emit: starsolo_files
+    tuple val(meta), path("*_Log.final.out"),                 emit: log_final_file
+    tuple val(meta), path("*_Solo.out/GeneFull_Ex50pAS/raw"), emit: genefull50_raw_dir
+    tuple val(meta), path("*_Aligned.sortedByCoord.out.bam"), emit: bam_file, optional: true
 
     script:
     // Set default variables
@@ -87,7 +90,7 @@ process STARSOLO_ALIGN {
         --runThreadN 8 \\
         \${SOLO_TYPE_STRING} \\
         --readFilesIn ${fastq_cDNA} ${fastq_BC_UMI} \\
-        --genomeDir ${genome_index_files.toRealPath()} \\
+        --genomeDir ${genome_index_files} \\
         --readFilesCommand "pigz -dc -p ${task.cpus}" \\
         --soloCBmatchWLtype ${star_soloCBmatchWLtype} \\
         --soloUMIfiltering ${star_soloUMIfiltering} \\

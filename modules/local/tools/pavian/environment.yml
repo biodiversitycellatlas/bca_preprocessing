@@ -1,0 +1,22 @@
+channels:
+  - conda-forge
+
+dependencies:
+  - r-base=4.5
+  - r-dplyr
+  - r-readr
+  - r-purrr
+  - r-argparse
+  - r-plyr
+  - r-writexl
+  - r-htmlwidgets
+  - r-webshot
+  - r-stringi
+  - r-devtools
+  - r-usethis
+  - r-roxygen2
+  - r-pkgdown
+  - r-miniui
+  - r-xml2
+  - r-shiny
+  - phantomjs

@@ -68,7 +68,7 @@ workflow BCA_PREPROCESSING {
     // Continue with filtering and MultiQC only with "standard" run_method
     if (params.run_method == "standard") {
         // Filtering raw matrices of ambient RNA and detecting doublets
-        filter_out = filtering_workflow(QC_mapping_workflow.out.mapping_files)
+        filter_out = filtering_workflow(QC_mapping_workflow.out.starsolo_genefull50_raw)
 
         // Collect all outputs into a single channel and create trigger
         all_outputs = preprocessing_workflow.out.data_output.mix(QC_mapping_workflow.out.all_outputs)

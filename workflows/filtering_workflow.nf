@@ -17,11 +17,11 @@ include { CELLBENDER } from '../modules/local/tools/cellbender/main'
 */
 workflow filtering_workflow {
     take:
-        raw_matrix
+        ch_starsolo_genefull50_raw
     main:
         // Ambient RNA removal using CellBender
         if (params.perform_cellbender) {
-            CELLBENDER(raw_matrix)
+            CELLBENDER(ch_starsolo_genefull50_raw)
         }
 }
 
