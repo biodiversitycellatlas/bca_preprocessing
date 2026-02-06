@@ -13,6 +13,9 @@ process PARSEBIO_PIPELINE_DEMUX {
     tuple val(meta), path("*group*_R1*"), path("*group*_R2*"), path(fastq_indices), path(input_file), emit: splitted_files
 
     script:
+    // Retrieve kit specification for split-pipe from custom parameters if set, otherwise from conf/seqtech_parameters.config
+    def kit_specification = params.splitpipe_kit ? "--kit ${params.splitpipe_kit} --kit_score_skip" : ''
+
     """
     echo "\n\n==================  split-pipe Demultiplex  =================="
     echo "split-pipe script: ${params.splitpipe_demultiplex_script}"
@@ -28,6 +31,7 @@ process PARSEBIO_PIPELINE_DEMUX {
         --fq1 ${fastq_cDNA} \\
         --fq2 ${fastq_BC_UMI} \\
         --opath . \\
-        --group ${meta.id} ${meta.rt}
+        --group ${meta.id} ${meta.rt} \\
+        ${kit_specification}
     """
 }
