@@ -16,7 +16,6 @@ process BDRHAP_PIPELINE {
     echo "\n\n===============  BD Rhapsody pipeline  ==============="
     echo "Run name: ${run_name}"
     echo "BD Rhapsody reference files: ${bd_ref_path}"
-    echo "Conda environment: \$CONDA_DEFAULT_ENV"
 
     cwltool \\
         --outdir ${params.outdir}/BD_Rhapsody_pipeline/${run_name} \\

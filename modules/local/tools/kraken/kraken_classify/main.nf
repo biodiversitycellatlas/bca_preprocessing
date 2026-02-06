@@ -2,6 +2,7 @@ process KRAKEN {
     publishDir "${params.outdir}/kraken/${meta.id}", mode: 'copy'
     tag "${meta.id}"
     label 'process_high_memory'
+    debug true
 
     input:
     path db_path_file
@@ -16,9 +17,10 @@ process KRAKEN {
     script:
     """
     echo "\n\n==================  KRAKEN  =================="
-    echo "Conda environment: \$CONDA_DEFAULT_ENV"
-    echo "Running KRAKEN for ${meta}"
-    echo "Path: ${mapping_files}"
+    echo "Kraken db path file: ${db_path_file}"
+    echo "Running KRAKEN for ${meta.id}"
+    echo "Mapping files: ${mapping_files}"
+    echo "BAM file: \$(ls *_Aligned.sortedByCoord.out.bam)"
 
     kraken_db_path=\$(cat ${db_path_file})
     echo "Using Kraken2 DB at: \$kraken_db_path"
