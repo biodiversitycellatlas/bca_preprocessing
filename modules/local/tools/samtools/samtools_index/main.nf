@@ -7,20 +7,17 @@ process SAMTOOLS_INDEX {
     container "oras://community.wave.seqera.io/library/samtools:1.22.1--9a10f06c24cdf05f"
 
     input:
-    tuple val(meta), path(mapping_files)
+    tuple val(meta), path(bam_file)
 
     output:
-    path("${meta.id}_Aligned.sortedByCoord.out.bam.bai")
+    tuple val(meta), path("*.bai"), emit: bam_index
 
     script:
     """
     echo "\n\n==================  SAMTOOLS INDEX  =================="
-    echo "Sample ID: ${meta}"
-    echo "Processing files: ${mapping_files}"
+    echo "Sample ID: ${meta.id}"
+    echo "Indexing BAM file: ${bam_file}"
 
-    bam_file=\$(ls ${meta.id}_Aligned.sortedByCoord.out.bam | head -n 1)
-    echo "BAM file: \${bam_file}"
-
-    samtools index \${bam_file}
+    samtools index ${bam_file}
     """
 }
