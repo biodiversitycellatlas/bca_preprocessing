@@ -1,7 +1,7 @@
 process KRAKEN {
     publishDir "${params.outdir}/kraken/${meta.id}", mode: 'copy'
     tag "${meta.id}"
-    label 'process_high_memory'
+    label 'process_high'
     debug true
 
     input:
@@ -31,7 +31,7 @@ process KRAKEN {
 
     # Run Kraken2
     k2 classify \\
-        --threads 8 \\
+        --threads ${task.cpus} \\
         --db \${kraken_db_path} \\
         --report ${meta.id}_kraken_taxonomy.txt \\
         --report-minimizer-data \\

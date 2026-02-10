@@ -87,7 +87,7 @@ process STARSOLO_ALIGN {
 
     # Mapping step and generating count matrix using STAR
     STAR \\
-        --runThreadN 8 \\
+        --runThreadN ${task.cpus} \\
         \${SOLO_TYPE_STRING} \\
         --readFilesIn ${fastq_cDNA} ${fastq_BC_UMI} \\
         --genomeDir ${genome_index_files} \\
