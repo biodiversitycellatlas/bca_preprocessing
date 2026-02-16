@@ -2,6 +2,7 @@
 *.log
 .next*
 .DS*
+.pyc
 
 # Ignore all files in the following directories
 logs/*

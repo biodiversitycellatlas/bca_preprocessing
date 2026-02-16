@@ -40,9 +40,10 @@ workflow QC_mapping_workflow {
         // Mapping: STARsolo, Alevin-fry, or both
         if (params.mapping_software == "starsolo") {
             mapping_starsolo_workflow(data_output, bc_whitelist, ch_all_outputs)
-            ch_mapping_files = mapping_starsolo_workflow.out.ch_mapping_files
-            ch_all_outputs = ch_all_outputs.mix(mapping_starsolo_workflow.out.all_outputs)
-            ch_starsolo_bam  = mapping_starsolo_workflow.out.starsolo_bam
+
+            ch_mapping_files         =  mapping_starsolo_workflow.out.mapping_files
+            ch_all_outputs           =  ch_all_outputs.mix(mapping_starsolo_workflow.out.all_outputs)
+            ch_starsolo_bam          =  mapping_starsolo_workflow.out.starsolo_bam
             ch_starsolo_genefull50_raw  = mapping_starsolo_workflow.out.starsolo_genefull50_raw
 
         } else if (params.mapping_software == "alevin") {

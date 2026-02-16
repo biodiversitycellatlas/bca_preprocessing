@@ -1,7 +1,7 @@
 
 process STARSOLO_ALIGN {
     publishDir "${params.outdir}/mapping_STARsolo/${meta.id}", mode: 'copy'
-    tag "${meta.id}_STARsolo"
+    tag "${meta.id}"
     label 'process_high_memory'
 
     conda "${moduleDir}/environment.yml"

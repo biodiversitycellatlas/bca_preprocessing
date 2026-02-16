@@ -1,5 +1,6 @@
 process SALMON_SPLICI {
     publishDir "${params.outdir}/genome", mode: 'copy'
+    tag "${meta.id}"
     label 'process_high'
 
     conda "${moduleDir}/environment.yml"

@@ -1,5 +1,6 @@
 process SALMON_INDEX {
     publishDir "${params.outdir}/genome", mode: 'copy'
+    tag "${meta.id}"
     label 'process_high'
 
 
