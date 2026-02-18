@@ -28,56 +28,95 @@ workflow QC_mapping_workflow {
         bc_whitelist
 
     main:
+        // Initialize reporting channels
+        def ch_mapping_files = Channel.empty()
+        def ch_starsolo_bam  = Channel.empty()
+        def ch_star_solodir  = Channel.empty()
+        def ch_starsolo_genefull50_raw  = Channel.empty()
+        def ch_sat_imgs         = Channel.empty()
+        def ch_sat_res_imgs     = Channel.empty()
+        def ch_sat_logs         = Channel.empty()
+        def ch_star_umi         = Channel.empty()
+        def ch_star_log         = Channel.empty()
+        def ch_star_final_log   = Channel.empty()
+        def ch_star_summaries   = Channel.empty()
+        def ch_star_cellreads  = Channel.empty()
+        def ch_featurecounts    = Channel.empty()
+        def ch_pavian_sankey    = Channel.empty()
+
         // Quality Control
         FASTQC(data_output)
 
-        // Initialize variables to ensure scope visibility
-        def ch_all_outputs   = FASTQC.out
-        def ch_mapping_files = Channel.empty()
-        def ch_starsolo_bam  = Channel.empty()
-        def ch_starsolo_genefull50_raw  = Channel.empty()
-
         // Mapping: STARsolo, Alevin-fry, or both
         if (params.mapping_software == "starsolo") {
-            mapping_starsolo_workflow(data_output, bc_whitelist, ch_all_outputs)
+            mapping_starsolo_workflow(data_output, bc_whitelist)
 
             ch_mapping_files         =  mapping_starsolo_workflow.out.mapping_files
-            ch_all_outputs           =  ch_all_outputs.mix(mapping_starsolo_workflow.out.all_outputs)
             ch_starsolo_bam          =  mapping_starsolo_workflow.out.starsolo_bam
+            ch_star_solodir          =  mapping_starsolo_workflow.out.star_solodir
             ch_starsolo_genefull50_raw  = mapping_starsolo_workflow.out.starsolo_genefull50_raw
+            ch_sat_imgs              =  mapping_starsolo_workflow.out.saturation_imgs
+            ch_sat_res_imgs          =  mapping_starsolo_workflow.out.saturation_residual_imgs
+            ch_sat_logs              =  mapping_starsolo_workflow.out.saturation_logs
+            ch_star_umi              =  mapping_starsolo_workflow.out.star_umipercell
+            ch_star_log              =  mapping_starsolo_workflow.out.star_log
+            ch_star_final_log        =  mapping_starsolo_workflow.out.star_final_log
+            ch_star_summaries        =  mapping_starsolo_workflow.out.star_summaries
+            ch_star_cellreads        =  mapping_starsolo_workflow.out.star_cellreads
+            ch_featurecounts         =  mapping_starsolo_workflow.out.featurecount_txt
 
         } else if (params.mapping_software == "alevin") {
-            mapping_alevin_workflow(data_output, bc_whitelist, ch_all_outputs)
+            mapping_alevin_workflow(data_output, bc_whitelist)
             ch_mapping_files = mapping_alevin_workflow.out.mapping_files
-            ch_all_outputs = ch_all_outputs.mix(mapping_alevin_workflow.out.all_outputs)
 
         } else if (params.mapping_software == "both") {
-            mapping_starsolo_workflow(data_output, bc_whitelist, ch_all_outputs)
-            mapping_alevin_workflow(data_output, bc_whitelist, ch_all_outputs)
-            ch_mapping_files = mapping_alevin_workflow.out.mapping_files.mix(mapping_starsolo_workflow.out.mapping_files)
-            ch_all_outputs = ch_all_outputs.mix(mapping_alevin_workflow.out.all_outputs)
-            ch_all_outputs = ch_all_outputs.mix(mapping_starsolo_workflow.out.all_outputs)
-            ch_starsolo_bam  = mapping_starsolo_workflow.out.starsolo_bam
+            mapping_starsolo_workflow(data_output, bc_whitelist)
+            mapping_alevin_workflow(data_output, bc_whitelist)
+
+            ch_mapping_files         = mapping_alevin_workflow.out.mapping_files.mix(mapping_starsolo_workflow.out.mapping_files)
+            ch_starsolo_bam          = mapping_starsolo_workflow.out.starsolo_bam
+            ch_star_solodir          =  mapping_starsolo_workflow.out.star_solodir
             ch_starsolo_genefull50_raw  = mapping_starsolo_workflow.out.starsolo_genefull50_raw
+            ch_sat_imgs              =  mapping_starsolo_workflow.out.saturation_imgs
+            ch_sat_res_imgs          =  mapping_starsolo_workflow.out.saturation_residual_imgs
+            ch_sat_logs              =  mapping_starsolo_workflow.out.saturation_logs
+            ch_star_umi              =  mapping_starsolo_workflow.out.star_umipercell
+            ch_star_log              =  mapping_starsolo_workflow.out.star_log
+            ch_star_final_log        =  mapping_starsolo_workflow.out.star_final_log
+            ch_star_summaries        =  mapping_starsolo_workflow.out.star_summaries
+            ch_star_cellreads        =  mapping_starsolo_workflow.out.star_cellreads
+            ch_featurecounts         =  mapping_starsolo_workflow.out.featurecount_txt
 
         } else {
             error "Invalid mapping software specified. Use one of the following parameters: 'starsolo', 'alevin' or 'both'."
         }
 
-        // Inspecting unmapped reads
-        // Conditionally run Kraken only if params.perform_kraken is true
+        // Inspecting unmapped reads using Kraken2 and Pavian (STARsolo output only)
         if (params.perform_kraken && params.mapping_software != "alevin") {
             KRAKEN_CREATE_DB()
             KRAKEN(KRAKEN_CREATE_DB.out.db_path_file, ch_starsolo_bam)
-            ch_all_outputs = ch_all_outputs.mix(KRAKEN.out)
             KRONA(KRAKEN.out)
             PAVIAN(KRAKEN.out)
+            ch_pavian_sankey = PAVIAN.out
         }
 
     emit:
         mapping_files = ch_mapping_files
-        all_outputs   = ch_all_outputs
+        starsolo_bam  = ch_starsolo_bam
+        star_solodir  = ch_star_solodir
         starsolo_genefull50_raw  = ch_starsolo_genefull50_raw
+
+        // REPORT REQUIRED
+        saturation_imgs          = ch_sat_imgs
+        saturation_residual_imgs = ch_sat_res_imgs
+        saturation_logs          = ch_sat_logs
+        star_umipercell          = ch_star_umi
+        star_log                 = ch_star_log
+        star_final_log           = ch_star_final_log
+        star_summaries           = ch_star_summaries
+        star_cellreads           = ch_star_cellreads
+        featurecount_txt         = ch_featurecounts
+        pavian_sankey            = ch_pavian_sankey
 }
 
 /*

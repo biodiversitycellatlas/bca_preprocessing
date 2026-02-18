@@ -8,12 +8,10 @@ process SALMON_INDEX {
     container "oras://community.wave.seqera.io/library/salmon:1.10.3--726401738a281398"
 
     input:
-    tuple val(meta), path(fastq_cDNA), path(fastq_BC_UMI), path(fastq_indices), path(input_file)
-    path(splici_index_reference)
+    tuple val(meta), path(splici_index_reference)
 
     output:
-    path("salmon_index_${meta.id}/"), emit: salmon_index
-    tuple val(meta), path(fastq_cDNA), path(fastq_BC_UMI), path(fastq_indices), path(input_file), emit: salmon_samplesheet
+    tuple val(meta), path("salmon_index_${meta.id}/"), emit: salmon_index
 
 
     script:

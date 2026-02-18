@@ -13,15 +13,17 @@ process STARSOLO_ALIGN {
     path genome_index_files
 
     output:
-    tuple val(meta), path("*"),                               emit: starsolo_files
-    tuple val(meta), path("*_Log.final.out"),                 emit: log_final_file
-    tuple val(meta), path("*_Solo.out/GeneFull_Ex50pAS/raw"), emit: genefull50_raw_dir
-    tuple val(meta), path("*_Aligned.sortedByCoord.out.bam"), emit: bam_file, optional: true
+    tuple val(meta), path("*"),                                 emit: starsolo_files
+    tuple val(meta), path("*_Log.final.out"),                   emit: log_final_file
+    tuple val(meta), path("*_Log.out"),                         emit: log_file
+    tuple val(meta), path("*_Solo.out"),                        emit: star_solodir
+    tuple val(meta), path("*_Solo.out/GeneFull_Ex50pAS/raw"),   emit: genefull50_raw_dir
+    tuple val(meta), path("*_Solo.out/GeneFull_Ex50pAS/Summary.csv"), emit: summary_csv
+    tuple val(meta), path("*_Solo.out/GeneFull_Ex50pAS/CellReads.stats"), emit: cellreads_stats
+    tuple val(meta), path("*_Solo.out/GeneFull_Ex50pAS/UMIperCellSorted.txt"), emit: umi_per_cell
+    tuple val(meta), path("*_Aligned.sortedByCoord.out.bam"),   emit: bam_file, optional: true
 
     script:
-    // Set default variables
-    // def limitBAMsortRAM = (params.protocol == 'bd_rhapsody' || params.protocol == 'ultima_genomics') ? '--limitBAMsortRAM 50000000000' : ''
-
     // Retrieve settings from custom parameters if set, otherwise from conf/seqtech_parameters.config
     def star_soloTypestring = params.star_soloTypestring ?: params.seqtech_parameters[params.protocol].star_soloTypestring
     def star_soloCBmatchWLtype = params.star_soloCBmatchWLtype ?: params.seqtech_parameters[params.protocol].star_soloCBmatchWLtype

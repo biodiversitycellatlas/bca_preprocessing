@@ -10,8 +10,7 @@ process SALMON_SPLICI {
     tuple val(meta), path(fastq_cDNA), path(fastq_BC_UMI), path(fastq_indices), path(input_file)
 
     output:
-    path("splici_index_${meta.id}/"), emit: splici_index_reference
-    tuple val(meta), path(fastq_cDNA), path(fastq_BC_UMI), path(fastq_indices), path(input_file), emit: splici_samplesheet
+    tuple val(meta), path("splici_index_${meta.id}/"), emit: splici_index_reference
 
     script:
     """
