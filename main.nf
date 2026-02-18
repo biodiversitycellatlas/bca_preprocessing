@@ -5,7 +5,7 @@
 BCA Pre-processing Pipeline
 ==============================================================================
 This pipeline handles the analysis of single-cell RNA sequencing data, including
-quality control, demultiplexing, mapping, and filtering.
+quality control, demultiplexing, mapping, and reporting.
 
 Pre-requisites:
 - Created a samplesheet in CSV format (see conf/example_samplesheet.csv)
@@ -25,6 +25,7 @@ nextflow run -profile <institution_config>,conda -c /path/to/custom_config
 include { preprocessing_workflow    } from './workflows/preprocessing_workflow'
 include { QC_mapping_workflow       } from './workflows/mapping_workflow'
 include { filtering_workflow        } from './workflows/filtering_workflow'
+include { reporting_workflow        } from './workflows/reporting_workflow'
 
 include { PIPELINE_INITIALISATION   } from './subworkflows/local/utils_nfcore_bca_pipeline'
 include { PIPELINE_COMPLETION       } from './subworkflows/local/utils_nfcore_bca_pipeline'
@@ -48,44 +49,51 @@ include { MULTIQC                   } from './modules/local/tools/multiqc/main'
 workflow BCA_PREPROCESSING {
 
     take:
-    samplesheet // channel: samplesheet read in from --input
+        samplesheet     // channel: samplesheet read in from --input
 
     main:
-    // Save run configurations
-    SAVE_RUN_CONFIG(samplesheet.first())
+        // Initialize reporting channels
+        def multiqc_report_ch   = Channel.empty()
 
-    // Pre-processing workflow
-    preprocessing_workflow(samplesheet)
+        // Save run configurations
+        SAVE_RUN_CONFIG(samplesheet.first())
 
-    if ( params.run_method != "exteral_pipeline_only" ) {
-        // Mapping using STARsolo, Alevin, and/or comparison to commercial pipelines
-        QC_mapping_workflow(preprocessing_workflow.out.data_output, preprocessing_workflow.out.bc_whitelist)
-    }
+        // Pre-processing workflow
+        preprocessing_workflow(samplesheet)
 
-    // Placeholder for MultiQC report (remains empty if not standard)
-    def multiqc_report_ch = Channel.empty()
+        if ( params.run_method != "exteral_pipeline_only" ) {
+            // Mapping using STARsolo, Alevin, and/or comparison to commercial pipelines
+            QC_mapping_workflow(preprocessing_workflow.out.data_output, preprocessing_workflow.out.bc_whitelist)
+        }
 
-    // Continue with filtering and MultiQC only with "standard" run_method
-    if (params.run_method == "standard") {
-        // Filtering raw matrices of ambient RNA and detecting doublets
-        filter_out = filtering_workflow(QC_mapping_workflow.out.starsolo_genefull50_raw)
+        // Continue with filtering and MultiQC only with "standard" run_method
+        if (params.run_method == "standard") {
+            // Filtering raw matrices of ambient RNA
+            filter_out = filtering_workflow(QC_mapping_workflow.out.starsolo_genefull50_raw)
 
-        // Collect all outputs into a single channel and create trigger
-        all_outputs = preprocessing_workflow.out.data_output.mix(QC_mapping_workflow.out.all_outputs)
+            reporting_workflow(
+                SAVE_RUN_CONFIG.out.samplesheet,
+                SAVE_RUN_CONFIG.out.run_config,
+                QC_mapping_workflow.out.star_final_log,
+                QC_mapping_workflow.out.star_summaries,
+                QC_mapping_workflow.out.star_log,
+                QC_mapping_workflow.out.starsolo_bam,
+                QC_mapping_workflow.out.star_solodir,
+                QC_mapping_workflow.out.saturation_logs,
+                QC_mapping_workflow.out.star_cellreads,
+                QC_mapping_workflow.out.pavian_sankey,
+                QC_mapping_workflow.out.saturation_imgs,
+                QC_mapping_workflow.out.saturation_residual_imgs,
+                QC_mapping_workflow.out.star_umipercell,
+                QC_mapping_workflow.out.featurecount_txt
+            )
 
-        // Define a trigger that waits for both mapping_files and all_outputs
-        mapping_stats_trigger = all_outputs.mix(QC_mapping_workflow.out.mapping_files).collect().map { it -> true }
-
-        // MultiQC and mapping statistics, only triggered after all outputs are finished
-        MAPPING_STATS(mapping_stats_trigger)
-        ch_multiqc_config = Channel.fromPath("$projectDir/assets/multiqc_config.yml", checkIfExists: true)
-        MULTIQC(mapping_stats_trigger, ch_multiqc_config)
-        multiqc_report_ch = MULTIQC.out
-    }
+            multiqc_report_ch = reporting_workflow.out.multiqc_report
+        }
 
     emit:
-    preprocs_output         = preprocessing_workflow.out.data_output
-    multiqc_report          = multiqc_report_ch
+        preprocs_output         = preprocessing_workflow.out.data_output
+        multiqc_report          = multiqc_report_ch
 }
 
 
