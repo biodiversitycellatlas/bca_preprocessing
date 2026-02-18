@@ -7,12 +7,10 @@ process ALEVIN_QC {
     container "oras://community.wave.seqera.io/library/bioconductor-alevinqc_r-base:62474ff3de946976"
 
     input:
-    tuple val(meta), path(fastq_cDNA), path(fastq_BC_UMI), path(fastq_indices), path(input_file)
-    path(alevin_fry_output)
+    tuple val(meta), path(alevin_fry_output)
 
     output:
-    path("${meta.id}_run/${meta.id}_alevinFry_QC.html"), emit: alevinQC_report
-    tuple val(meta), path(fastq_cDNA), path(fastq_BC_UMI), path(fastq_indices), path(input_file), emit: alevinQC_samplesheet
+    tuple val(meta), path("${meta.id}_run/${meta.id}_alevinFry_QC.html"), emit: alevinQC_report
 
     script:
     """

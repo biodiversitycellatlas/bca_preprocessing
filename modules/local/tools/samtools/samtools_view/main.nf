@@ -1,5 +1,4 @@
 process SAMTOOLS_VIEW {
-    publishDir "${params.outdir}/mapping_STARsolo/${meta.id}", mode: 'copy'
     tag "${meta.id}"
     label 'process_single'
 
@@ -10,9 +9,9 @@ process SAMTOOLS_VIEW {
     tuple val(meta), path(mapping_files)
 
     output:
-    path("${meta.id}_Aligned.filtered.sorted.bam"),     emit : bam_file
-    path("${meta.id}_Aligned.filtered.sorted.bam.bai"), emit : bam_index
-    path("mapreads.txt"),                               emit : mapreads
+    tuple val(meta), path("${meta.id}_Aligned.filtered.sorted.bam"),     emit : filtered_bam
+    tuple val(meta), path("${meta.id}_Aligned.filtered.sorted.bam.bai"), emit : filtered_bam_index
+    tuple val(meta), path("mapreads.txt"),                               emit : mapreads
 
     script:
     """

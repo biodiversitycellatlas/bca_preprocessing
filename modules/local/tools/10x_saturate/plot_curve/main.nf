@@ -7,19 +7,21 @@ process SATURATION_PLOT {
     container "oras://community.wave.seqera.io/library/pysam_samtools_matplotlib_numpy_pruned:b8f551e4a5153343"
 
     input:
-    tuple val(meta), path(mapping_files)
-    file(saturation_output)
+    tuple val(meta), file(saturation_output)
 
     output:
-    path("saturation*")
+    path("${meta.id}_saturation*"),                         emit: all
+    path("${meta.id}_saturation.log"),                      emit: logs
+    path("${meta.id}_saturation.png"),                      emit: img_saturation
+    path("${meta.id}_saturation_residuals.png"),            emit: img_residuals
 
     script:
     """
     echo "\n\n==================  SATURATION PLOT =================="
     python ${projectDir}/submodules/10x_saturate/scripts/plot_curve.py  \\
         ${saturation_output} \\
-        saturation.png \\
+        ${meta.id}_saturation.png \\
         --target 0.7 \\
-        > saturation.log 2>&1 || true
+        > ${meta.id}_saturation.log 2>&1 || true
     """
 }

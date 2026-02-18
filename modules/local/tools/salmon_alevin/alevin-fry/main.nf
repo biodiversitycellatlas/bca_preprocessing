@@ -10,12 +10,11 @@ process ALEVIN_FRY {
     input:
     tuple val(meta), path(fastq_cDNA), path(fastq_BC_UMI), path(fastq_indices), path(input_file)
     path bc_whitelist
-    path(splici_index_reference)
-    path(salmon_index)
+    tuple val(meta), path(splici_index_reference)
+    tuple val(meta), path(salmon_index)
 
     output:
-    path("${meta.id}_*"), emit: mapping_files
-    tuple val(meta), path(fastq_cDNA), path(fastq_BC_UMI), path(fastq_indices), path(input_file), emit: alevinFry_samplesheet
+    tuple val(meta), path("${meta.id}_*"), emit: mapping_files
 
     script:
     // If protocol is "bd_rhapsody", then cDNA = R2 and CB/UMI = R1

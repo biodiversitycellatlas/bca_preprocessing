@@ -7,8 +7,8 @@ process SAVE_RUN_CONFIG {
     tuple val(meta), path(fastq_cDNA), path(fastq_BC_UMI), path(fastq_indices), path(input_file)
 
     output:
-    path("run_config_${params.trace_report_suffix}.txt")
-    path("samplesheet_${params.trace_report_suffix}.csv")
+    path("run_config_${params.trace_report_suffix}.txt"), emit: run_config
+    path("samplesheet_${params.trace_report_suffix}.csv"), emit: samplesheet
 
     script:
     """

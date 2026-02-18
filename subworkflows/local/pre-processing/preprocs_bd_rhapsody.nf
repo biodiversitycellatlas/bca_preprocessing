@@ -28,8 +28,30 @@ workflow bd_rhapsody_workflow {
         // Only run BD Rhapsody pipeline if the path is defined and exists
         if (params.rhapsody_installation) {
             BDRHAP_PIPELINE_MKREF()
-            BDRHAP_PIPELINE_YAML(ch_samplesheet, BDRHAP_PIPELINE_MKREF.out)
-            BDRHAP_PIPELINE(BDRHAP_PIPELINE_YAML.out.run_name, BDRHAP_PIPELINE_YAML.out.bd_ref_path, BDRHAP_PIPELINE_YAML.out.yaml_file, BDRHAP_PIPELINE_YAML.out.samplesheet)
+
+            // Use .first() to treat the reference as a reusable Value Channel
+            BDRHAP_PIPELINE_YAML(ch_samplesheet, BDRHAP_PIPELINE_MKREF.out.first())
+
+            // Join all 4 outputs from YAML generation
+            BDRHAP_PIPELINE_YAML.out.run_name
+                .join(BDRHAP_PIPELINE_YAML.out.bd_ref_path)
+                .join(BDRHAP_PIPELINE_YAML.out.yaml_file)
+                .join(BDRHAP_PIPELINE_YAML.out.samplesheet)
+                .multiMap { meta, run_name, ref, yaml, sheet ->
+                    run_name_ch: [meta, run_name]
+                    ref_ch:      [meta, ref]
+                    yaml_ch:     [meta, yaml]
+                    sheet_ch:    [meta, sheet]
+                }
+                .set { ch_bd_pipeline_inputs }
+
+            BDRHAP_PIPELINE(
+                ch_bd_pipeline_inputs.run_name_ch,
+                ch_bd_pipeline_inputs.ref_ch,
+                ch_bd_pipeline_inputs.yaml_ch,
+                ch_bd_pipeline_inputs.sheet_ch
+            )
+
         } else {
             log.warn "BD Rhapsody pipeline directory not provided or doesn't exist: '${params.rhapsody_installation}'"
         }
