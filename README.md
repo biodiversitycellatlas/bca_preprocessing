@@ -37,6 +37,7 @@ The pipeline will produce the following output files:
 - (Optional) Filtered count matrices (h5 files) ​from CellBender step
 - (Optional) Kraken2 taxonomic classification
 - MultiQC report
+- Portable HTML dashboard displaying results
 
 ![pipeline](/img/Preprocs_Pipeline.png)
 
@@ -208,17 +209,19 @@ Below is an overview of the possible directory structure:
 
 ```
 output_directory/
-├── pipeline_info/          # Run execution details (configs, logs, samplesheets)
+├── demultiplex/            # Demultiplexed FASTQ files
+├── pipeline_info/          # Run execution details (configs, logs, samplesheet)
 ├── fastqc/                 # Quality control reports for raw FASTQ files
 ├── mapping_STARsolo/       # STARsolo count matrices and stats
-├── mapping_alevin/         # Alevin-fry count matrices and AlevinQC
-├── summary_results/        # Aggregated QC report
+├── mapping_alevin/         # (Optional) Alevin-fry count matrices and AlevinQC
+├── summary_results/        # MultiQC report, Per-Cell metrics, and mapping_stats.tsv table
+├── dashboard.html          # Portable HTML dashboard displaying results
 │
 ├── cellbender/             # (Optional) CellBender filtered matrices
 ├── saturation/             # (Optional) Sequencing saturation analysis
-├── gene_ext/               # (Optional) Extended gene annotations
-├── rRNA_mtDNA/             # (Optional) mtDNA and rRNA statistics
-├── kraken/                 # (Optional) Kraken2 taxonomic classification
+├── gene_ext/               # (Optional) Extended GTF file and outputs from GeneExt
+├── rRNA_mtDNA/             # (Optional) mtDNA and rRNA results from FeatureCounts
+├── kraken/                 # (Optional) Kraken2 taxonomic classification of unmapped reads
 │
 ├── CellRanger_pipeline/    # (Optional) External Cell Ranger outputs
 ├── ParseBio_pipeline/      # (Optional) External Split-pipe outputs
