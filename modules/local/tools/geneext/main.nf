@@ -3,15 +3,15 @@ process GENE_EXT {
     tag "${meta.id}"
     label 'process_medium'
 
-    conda "${projectDir}/submodules/GeneExt/environment.yaml"
-    container "oras://community.wave.seqera.io/library/bedtools_gffutils_macs2_pysam_pruned:2fdc33bd87da26bd"
+    // conda "${projectDir}/submodules/GeneExt/environment.yaml"
+    conda "${moduleDir}/environment.yml"
 
     input:
     tuple val(meta), path(mapping_files)
     file(bam_index)
 
     output:
-    path("${meta.id}*.geneext.g{tf, ff}")
+    path("${meta.id}*_geneext.g{tf, ff}")
 
     script:
     """
@@ -19,11 +19,6 @@ process GENE_EXT {
     echo "Sample ID: ${meta}"
     echo "BAM index: ${bam_index}"
     echo "Original GTF: ${params.ref_gtf}"
-
-    # Install dependencies
-    # pip install pyyaml
-    # conda remove macs2   # -y flag missing?
-    # pip install macs2==2.2.9.1
 
     # Remove temporary directory if it exists
     if [ -d "tmp" ]; then rm -r tmp; fi
