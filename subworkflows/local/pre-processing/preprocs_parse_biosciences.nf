@@ -45,7 +45,9 @@ workflow parse_workflow {
         // Only run Parse pipeline if the path is defined and exists
         if (params.splitpipe_installation && file(params.splitpipe_installation).exists()) {
             PARSEBIO_PIPELINE_MKREF()
-            PARSEBIO_PIPELINE(ch_samplesheet, PARSEBIO_PIPELINE_MKREF.out)
+
+            // Use .first() to reuse the reference output for all split samples
+            PARSEBIO_PIPELINE(ch_samplesheet, PARSEBIO_PIPELINE_MKREF.out.first())
         }
 
     emit:
