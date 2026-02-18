@@ -26,7 +26,9 @@ workflow tenx_genomics_workflow {
         // Only run Cell Ranger pipeline if perform_cellranger is set to true
         if (params.perform_cellranger) {
             CR_PIPELINE_MKREF()
-            CR_PIPELINE(ch_samplesheet, CR_PIPELINE_MKREF.out)
+
+            // Use .first() to allow the reference index to be reused for all samples
+            CR_PIPELINE(ch_samplesheet, CR_PIPELINE_MKREF.out.first())
         }
 
     emit:
