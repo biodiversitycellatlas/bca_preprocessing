@@ -31,15 +31,16 @@ workflow parse_workflow {
         if (params.perform_demultiplexing && params.splitpipe_demultiplex_script == null) {
             log.info "Running Parse Biosciences demultiplexing using default script."
             PARSEBIO_CUSTOM_DEMUX(ch_samplesheet)
-            ch_samplesheet = PARSEBIO_CUSTOM_DEMUX.out.splitted_files
+            demux_samplesheet = PARSEBIO_CUSTOM_DEMUX.out.splitted_files
 
         } else if (params.perform_demultiplexing && params.splitpipe_demultiplex_script != null) {
             log.info "Running Parse Biosciences demultiplexing using script: ${params.splitpipe_demultiplex_script}"
             PARSEBIO_PIPELINE_DEMUX(ch_samplesheet)
-            ch_samplesheet = PARSEBIO_PIPELINE_DEMUX.out.splitted_files
+            demux_samplesheet = PARSEBIO_PIPELINE_DEMUX.out.splitted_files
 
         } else {
             log.info "Skipping Parse Biosciences demultiplexing as 'perform_demultiplexing' is set to false."
+            demux_samplesheet = ch_samplesheet
         }
 
         // Only run Parse pipeline if the path is defined and exists
@@ -47,11 +48,12 @@ workflow parse_workflow {
             PARSEBIO_PIPELINE_MKREF()
 
             // Use .first() to reuse the reference output for all split samples
-            PARSEBIO_PIPELINE(ch_samplesheet, PARSEBIO_PIPELINE_MKREF.out.first())
+            PARSEBIO_PIPELINE(demux_samplesheet, PARSEBIO_PIPELINE_MKREF.out.first())
         }
 
     emit:
-        ch_samplesheet
+        data_output     = demux_samplesheet
+        bc_whitelist    = params.bc_whitelist
 }
 
 /*

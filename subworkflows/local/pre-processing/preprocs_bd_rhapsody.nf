@@ -57,7 +57,8 @@ workflow bd_rhapsody_workflow {
         }
 
     emit:
-        RM_VARBASES.out
+        data_output = RM_VARBASES.out
+        bc_whitelist    = params.bc_whitelist
 }
 
 /*
