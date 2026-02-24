@@ -29,12 +29,14 @@ workflow preprocessing_workflow {
 
     main:
         if (params.protocol.startsWith('parse_biosciences')) {
-            data_output_ch = parse_workflow(ch_samplesheet)
-            bc_whitelist_ch  = params.bc_whitelist
+            parse_workflow(ch_samplesheet)
+            data_output_ch = parse_workflow.out.data_output
+            bc_whitelist_ch  = parse_workflow.out.bc_whitelist
 
         } else if (params.protocol == 'bd_rhapsody') {
-            data_output_ch = bd_rhapsody_workflow(ch_samplesheet)
-            bc_whitelist_ch  = params.bc_whitelist
+            bd_rhapsody_workflow(ch_samplesheet)
+            data_output_ch = bd_rhapsody_workflow.out.data_output
+            bc_whitelist_ch  =  bd_rhapsody_workflow.out.bc_whitelist
 
         } else if (params.protocol.startsWith('10x') || params.protocol == 'oak_seq' || params.protocol == 'ultima_genomics') {
             tenx_genomics_workflow(ch_samplesheet)
