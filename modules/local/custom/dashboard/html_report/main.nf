@@ -43,7 +43,7 @@ process GENERATE_DASHBOARD {
     echo "Per-cell metrics: ${per_cell_files}"
 
     # Execute the python dashboard generator
-    python3 ${baseDir}/bin/generate_dashboard.py \\
+    generate_dashboard.py \\
         --project "bca_preprocessing" \\
         --samplesheet ${samplesheet} \\
         --template ${projectDir}/bin/dashboard_report.html \\
