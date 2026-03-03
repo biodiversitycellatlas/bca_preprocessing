@@ -48,12 +48,17 @@ workflow reporting_workflow {
             }
             .set { ch_percell_inputs }
 
+        // Only create per-cell plots if params.mt_contig is set by user
+        if (params.mt_contig != "chrM M MT") {
         PERCELL_METRICS(
             ch_percell_inputs.bam_ch,
             ch_percell_inputs.solodir_ch,
             ch_percell_inputs.logs_ch
         )
         percell_json = PERCELL_METRICS.out.percell_json
+        } else {
+            percell_json = Channel.empty()
+        }
 
         // Join channels that need renaming by meta ID
         ch_to_rename = star_summaries
