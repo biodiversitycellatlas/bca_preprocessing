@@ -24,25 +24,16 @@ workflow mapping_alevin_workflow {
         bc_whitelist
 
     main:
-        SALMON_SPLICI(data_output)
+        // Build one Salmon splici and index for all samples
+        SALMON_SPLICI(data_output.first())
         SALMON_INDEX(SALMON_SPLICI.out.splici_index_reference)
 
-        // Join SALMON_INDEX outputs with SALMON_SPLICI outputs
-        SALMON_INDEX.out.salmon_index
-            .join(data_output)
-            .join(SALMON_SPLICI.out.splici_index_reference)
-            .multiMap { meta, index, cdna, bc_umi, indices, input_file, splici_ref ->
-                ssheet_ch:      [meta, cdna, bc_umi, indices, input_file]
-                index_ch:       [meta, index]
-                splici_ref_ch:  [meta, splici_ref]
-            }
-            .set { ch_alevin_inputs }
-
+        // Run Alevin-fry for each sample
         ALEVIN_FRY(
-            ch_alevin_inputs.ssheet_ch,
+            data_output,
             bc_whitelist,
-            ch_alevin_inputs.splici_ref_ch,
-            ch_alevin_inputs.index_ch
+            SALMON_SPLICI.out.splici_index_reference,
+            SALMON_INDEX.out.salmon_index
         )
 
         // Quality control report for Alevin-fry outputs

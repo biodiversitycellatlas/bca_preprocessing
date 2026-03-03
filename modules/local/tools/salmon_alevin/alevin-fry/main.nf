@@ -9,9 +9,9 @@ process ALEVIN_FRY {
 
     input:
     tuple val(meta), path(fastq_cDNA), path(fastq_BC_UMI), path(fastq_indices), path(input_file)
-    path bc_whitelist
-    tuple val(meta), path(splici_index_reference)
-    tuple val(meta), path(salmon_index)
+    path(bc_whitelist)
+    path(splici_index_reference)
+    path(salmon_index)
 
     output:
     tuple val(meta), path("${meta.id}_*"), emit: mapping_files

@@ -1,6 +1,21 @@
 # BCA Pre-Processing Pipeline
 
----
+[![website][]][website-link]
+[![nextflow][]][nextflow-link]
+[![conda][]][conda-link]
+[![docker][]][docker-link]
+[![singularity][]][singularity-link]
+
+[website]: https://img.shields.io/badge/website-biodiversitycellatlas.org-blue
+[website-link]: https://biodiversitycellatlas.org
+[nextflow]: https://img.shields.io/badge/version-%E2%89%A525.04.0-green?style=flat&logo=nextflow&logoColor=white&color=%230DC09D&link=https%3A%2F%2Fnextflow.io
+[nextflow-link]: https://www.nextflow.io/
+[conda]: http://img.shields.io/badge/run%20with-conda-3EB049?labelColor=000000&logo=anaconda
+[conda-link]: https://docs.conda.io/en/latest/
+[docker]: https://img.shields.io/badge/run%20with-docker-0db7ed?labelColor=000000&logo=docker
+[docker-link]: https://www.docker.com/
+[singularity]: https://img.shields.io/badge/run%20with-singularity-1d355c.svg?labelColor=000000
+[singularity-link]: https://sylabs.io/docs/
 
 ## Table of Contents
 
@@ -10,8 +25,6 @@
 4. [Usage](#usage)
 5. [Output](#output)
 6. [Citations](#citations)
-
----
 
 ## Overview
 
@@ -110,8 +123,6 @@ This option is limited to the following sequencing technologies:
 | Parse Biosciences | [split-pipe](https://support.parsebiosciences.com/hc/en-us/articles/27066395947412-How-Do-I-Analyze-my-Parse-Biosciences-Data) | :heavy_check_mark: |
 | BD-Rhapsody | [BD Rhapsody™ Sequence Analysis Pipeline](https://www.bdbiosciences.com/en-us/products/software/rhapsody-sequence-analysis-pipeline) | :heavy_check_mark: |
 
----
-
 ## Setup
 
 ### 1. Create a samplesheet
@@ -174,8 +185,6 @@ Within each custom configuration file the following variables can be defined:
 
 To modify the behaviour of certain processes or enable external pipelines, additional variables can be added to the configuration file. An overview of the extended custom parameters is listed [here](docs/CONFIGURATION_PARAMETERS.md).
 
----
-
 ## Usage
 
 ### Pre-requisites:
@@ -199,8 +208,6 @@ nextflow run
 # OR - submitting pipeline through a bash script
 sbatch submit_nextflow.sh main.nf
 ```
-
----
 
 ## Output
 
@@ -228,8 +235,15 @@ output_directory/
 └── BDrhapsody_pipeline/    # (Optional) External BD Rhapsody outputs
 ```
 
----
-
 ## Citations
 
 An extensive list of references for the tools used by the pipeline can be found in the [CITATIONS.md](CITATIONS.md) file.
+
+## Contact us
+
+[<img src="img/LOGOs-CRG-ENG_2014_transparent_back.png" width="130" target="_blank" alt="Centre for Genomic Regulation (CRG)"/>][CRG] [<img src="img/EMBL_EBI_Logo_black.svg" width="200" target="_blank" alt="European Bioinformatics Institute (EMBL-EBI)"/>][EBI] [<img src="img/Wellcome_Sanger_Institute_Logo_Landscape_Digital_RGB_Full_Colour.svg" width="200" target="_blank" alt="Wellcome Sanger Institute (Sanger)"/>][Sanger] [<img src="img/Gordon_and_Betty_Moore_Foundation_logo.svg" width="160" target="_blank" alt="Gordon and Betty Moore Foundation"/>][Moore]
+
+[CRG]: https://crg.eu
+[EBI]: https://ebi.ac.uk/
+[Sanger]: https://sanger.ac.uk/
+[Moore]: https://moore.org
