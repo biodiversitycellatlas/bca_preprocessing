@@ -23,7 +23,7 @@ Within each custom configuration file the following variables can be defined:
 | `input`                | __Required__      | Path to the samplesheet. |
 | `outdir`               | __Required__      | Path to the results/output directory; must exist before running. |
 | `bc_whitelist`         | __Required__      | Path or link to the barcode whitelist file(s). If it's a link, it will be automatically downloaded and unzipped if applicable.|
-| `protocol`              | __Required__     | Specifies the sequencing technology used (must be one of the following: `"oak_seq"`, `"10xv3"`, `"parse_biosciences_WT_mini"` or `"parse_biosciences_WT"`,     `"bd_rhapsody"`, `"sciRNAseq3"` , `"ultima_genomics"` or `"seqspec"`). |
+| `protocol`              | __Required__     | Specifies the sequencing technology used (must be one of the following: `"oak_seq"`, `"10xv1"`, `"10xv2"`, `"10xv3"`, `"10xv4"`, `"parse_biosciences_WT_mini"` or `"parse_biosciences_WT"`,     `"bd_rhapsody"`, `"sciRNAseq3"` , `"ultima_genomics"` or `"seqspec"`). |
 | `ref_fasta`            | __Required__      | Path to the genome FASTA file used for mapping reads. |
 | `ref_gtf`              | __Required__      | Path to the GTF/GFF file formatted for STARsolo. |
 | `ref_gtf_alt`          | Optional          | Path to the GTF/GFF file formatted specifically for analysis with Parse Biosciences / CellRanger pipeline. Defaults to the same path as `ref_gtf`. |
@@ -38,7 +38,6 @@ Within each custom configuration file the following variables can be defined:
 | Variable               | Required/Optional | Description |
 |------------------------|-------------------|-------------|
 | `mapping_software`     | Optional          | Software used to map reads (must be one of the following: `"starsolo"`, `"alevin"` or `"both"`). Default set to `"starsolo"`. |
-| `mt_contig`            | Optional          | Name of the mitochondrial contig in the reference annotation, used to calculate mtDNA content. Default set to `"chrM M MT"`. |
 | `star_index`           | Optional          | Path to the pre-generated STAR index. By default the STAR index is created within the pipeline.|
 | `star_genomeSAindexNbases` | Optional         | Lenght of the SA pre-indexing string in STAR. See [protocol-specific defaults](../conf/seqtech_parameters.config) set in the seqtech_paramaters.config file. |
 | `star_genomeSAsparseD`    | Optional       | Suffix array sparsity in STAR.  See [protocol-specific defaults](../conf/seqtech_parameters.config) set in the seqtech_paramaters.config file. |
@@ -61,6 +60,7 @@ Within each custom configuration file the following variables can be defined:
 | Variable               | Required/Optional | Description |
 |------------------------|-------------------|-------------|
 | `perform_featurecounts`  | Optional        | Boolean flag to enable or disable calculation of mtDNA & rRNA percentages. Default is `false`. |
+| `mt_contig`            | Optional          | Name of the mitochondrial contig in the reference annotation, used to calculate mtDNA content. Default set to `"chrM M MT"`. |
 | `grep_rrna`            | Optional          | String used to grep ribosomal RNA (rRNA) reads from annotations. Default set to `"rRNA"`|
 
 
