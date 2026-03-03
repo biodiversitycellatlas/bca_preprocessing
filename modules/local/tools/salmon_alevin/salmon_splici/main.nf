@@ -1,6 +1,5 @@
 process SALMON_SPLICI {
     publishDir "${params.outdir}/genome", mode: 'copy'
-    tag "${meta.id}"
     label 'process_high'
 
     conda "${moduleDir}/environment.yml"
@@ -10,7 +9,7 @@ process SALMON_SPLICI {
     tuple val(meta), path(fastq_cDNA), path(fastq_BC_UMI), path(fastq_indices), path(input_file)
 
     output:
-    tuple val(meta), path("splici_index_${meta.id}/"), emit: splici_index_reference
+    path("splici_index/"), emit: splici_index_reference
 
     script:
     """
@@ -29,7 +28,7 @@ process SALMON_SPLICI {
         --readlen \${readlen} \\
         --flanklen 5 \\
         --prefix "transcriptome_splici" \\
-        --out_dir ./splici_index_${meta.id}
+        --out_dir ./splici_index
 
     # Define the reference fasta file created by the R script
     # ref_fasta=\$(ls ./splici_index_reference/*.fa)
