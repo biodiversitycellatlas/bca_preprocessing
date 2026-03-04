@@ -102,21 +102,23 @@ def extract_sankey_data(html_path):
         sys.stderr.write(f"Error extracting Sankey from {html_path}: {e}\n")
     return None
 
-def parse_saturation_log(path):
+
+def parse_saturation_log(path: Optional[str]) -> str:
     """
-    Extracts numeric value for 0.70 saturation.
-    From: 'To achieve a saturation of 0.70, ninput should be approximately: 22.5 M reads'
-    To: '22.5 M'
+    Extract read input needed to achieve n saturation from saturation.log.
+    Returns a string like '22.5 M' or 'N/A'.
     """
     if not path or not os.path.exists(path):
         return "N/A"
     try:
         with open(path, 'r') as f:
             content = f.read()
-            # This regex looks for the number and unit, but stops before "reads"
-            match = re.search(r"To achieve a saturation of 0\.70, ninput should be approximately:\s*(.*?)\s*reads", content)
-            if match:
-                return match.group(1).strip()
+        match = re.search(
+            r"To achieve a saturation of [0-9.]+, ninput should be approximately:\s*(.*?)\s*reads",
+            content
+        )
+        if match:
+            return match.group(1).strip()
     except Exception as e:
         sys.stderr.write(f"Error parsing saturation log {path}: {e}\n")
     return "N/A"
@@ -281,7 +283,7 @@ def main():
     # 4. Process Samples
     global_cols = [
         "Sample", "% Uniquely Mapped Reads", "N cells", "Saturation",
-        "Reads Needed for 0.7 Saturation", "Noise (% UMIs non-cell barcodes)",
+        "Reads Needed for Target Saturation", "Noise (% UMIs non-cell barcodes)",
         "Median Transcripts Per Cell", "% Intronic Reads", "% rRNA in Unique reads",
         "% mtDNA in Unique reads", "% mtDNA in multimappers all pos"
     ]
