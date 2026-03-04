@@ -13,13 +13,17 @@ include { STARSOLO_ALIGN as STARSOLO_ALIGN                  } from '../../../mod
 include { STARSOLO_ALIGN as STARSOLO_ALIGN_GENEEXT          } from '../../../modules/local/tools/star/starsolo_align/main'
 include { SAMTOOLS_INDEX as SAMTOOLS_INDEX                  } from '../../../modules/local/tools/samtools/samtools_index/main'
 include { SAMTOOLS_INDEX as SAMTOOLS_INDEX_GENEEXT          } from '../../../modules/local/tools/samtools/samtools_index/main'
-include { SAMTOOLS_VIEW                                     } from '../../../modules/local/tools/samtools/samtools_view/main'
+include { SAMTOOLS_VIEW_MAPPED                              } from '../../../modules/local/tools/samtools/samtools_view_mapped/main'
+include { SAMTOOLS_VIEW_UNMAPPED                            } from '../../../modules/local/tools/samtools/samtools_view_unmapped/main'
 include { SATURATION_TABLE                                  } from '../../../modules/local/tools/10x_saturate/saturation_table/main'
 include { SATURATION_PLOT                                   } from '../../../modules/local/tools/10x_saturate/plot_curve/main'
 include { CALC_MT_RRNA as CALC_MT_RRNA                      } from '../../../modules/local/tools/featurecounts/main'
 include { CALC_MT_RRNA as CALC_MT_RRNA_GENEEXT              } from '../../../modules/local/tools/featurecounts/main'
 include { GENE_EXT                                          } from '../../../modules/local/tools/geneext/main'
-
+include { KRAKEN_CREATE_DB                                  } from '../../../modules/local/tools/kraken/kraken_create_db/main'
+include { KRAKEN                                            } from '../../../modules/local/tools/kraken/kraken_classify/main'
+include { KRONA                                             } from '../../../modules/local/tools/krona/main'
+include { PAVIAN                                            } from '../../../modules/local/tools/pavian/main'
 
 /*
 ~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~
@@ -46,6 +50,7 @@ workflow mapping_starsolo_workflow {
         def ch_star_summaries   = Channel.empty()
         def ch_star_cellreads   = Channel.empty()
         def ch_featurecounts    = Channel.empty()
+        def ch_pavian_sankey    = Channel.empty()
 
         // Get the first cDNA fastq file from the samplesheet to use for STAR index generation
         def ch_first_cDNA = data_output
@@ -84,14 +89,14 @@ workflow mapping_starsolo_workflow {
 
             // Calculate saturation curve if perform_10x_saturate is true
             if (params.perform_10x_saturate) {
-                SAMTOOLS_VIEW(STARSOLO_ALIGN.out.starsolo_files)
+                SAMTOOLS_VIEW_MAPPED(ch_starsolo_bam)
 
                 // Join channels on sample ID before 10x_saturate
-                SAMTOOLS_VIEW.out.filtered_bam
+                SAMTOOLS_VIEW_MAPPED.out.filtered_mapped_bam
                     .join(STARSOLO_ALIGN.out.summary_csv)
                     .join(STARSOLO_ALIGN.out.log_final_file)
-                    .join(SAMTOOLS_VIEW.out.filtered_bam_index)
-                    .join(SAMTOOLS_VIEW.out.mapreads)
+                    .join(SAMTOOLS_VIEW_MAPPED.out.filtered_mapped_bai)
+                    .join(SAMTOOLS_VIEW_MAPPED.out.mapreads)
                     .multiMap { meta, bam, summary, log_final, bai, mapreads ->
                         bam_ch:         [meta, bam]
                         summary_ch:     [meta, summary]
@@ -176,6 +181,19 @@ workflow mapping_starsolo_workflow {
                     ch_star_cellreads = ch_star_cellreads.mix(STARSOLO_ALIGN_GENEEXT.out.cellreads_stats)
                 }
             }
+
+            // Inspecting unmapped reads using Kraken2
+            if (params.perform_kraken) {
+                // Extract unmapped reads
+                SAMTOOLS_VIEW_UNMAPPED(ch_starsolo_bam)
+
+                // Perform kraken tools plus visualization with Krona and Pavian
+                KRAKEN_CREATE_DB()
+                KRAKEN(KRAKEN_CREATE_DB.out.db_path_file, SAMTOOLS_VIEW_UNMAPPED.out.filtered_unmapped_fasta)
+                KRONA(KRAKEN.out)
+                PAVIAN(KRAKEN.out)
+                ch_pavian_sankey = PAVIAN.out
+            }
         }
 
     emit:
@@ -192,6 +210,7 @@ workflow mapping_starsolo_workflow {
         star_summaries           = ch_star_summaries
         star_cellreads           = ch_star_cellreads
         featurecount_txt         = ch_featurecounts
+        pavian_sankey            = ch_pavian_sankey
 }
 
 /*
