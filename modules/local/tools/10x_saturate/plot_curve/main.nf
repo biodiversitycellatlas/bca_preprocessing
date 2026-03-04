@@ -21,7 +21,7 @@ process SATURATION_PLOT {
     python ${projectDir}/submodules/10x_saturate/scripts/plot_curve.py  \\
         ${saturation_output} \\
         ${meta.id}_saturation.png \\
-        --target 0.7 \\
+        --target ${params.saturation_target} \\
         > ${meta.id}_saturation.log 2>&1 || true
     """
 }
