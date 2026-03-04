@@ -13,7 +13,8 @@ include { STARSOLO_ALIGN as STARSOLO_ALIGN                  } from '../../../mod
 include { STARSOLO_ALIGN as STARSOLO_ALIGN_GENEEXT          } from '../../../modules/local/tools/star/starsolo_align/main'
 include { SAMTOOLS_INDEX as SAMTOOLS_INDEX                  } from '../../../modules/local/tools/samtools/samtools_index/main'
 include { SAMTOOLS_INDEX as SAMTOOLS_INDEX_GENEEXT          } from '../../../modules/local/tools/samtools/samtools_index/main'
-include { SAMTOOLS_VIEW                                     } from '../../../modules/local/tools/samtools/samtools_view/main'
+include { SAMTOOLS_VIEW_MAPPED                              } from '../../../modules/local/tools/samtools/samtools_view_mapped/main'
+include { SAMTOOLS_VIEW_UNMAPPED                            } from '../../../modules/local/tools/samtools/samtools_view_unmapped/main'
 include { SATURATION_TABLE                                  } from '../../../modules/local/tools/10x_saturate/saturation_table/main'
 include { SATURATION_PLOT                                   } from '../../../modules/local/tools/10x_saturate/plot_curve/main'
 include { CALC_MT_RRNA as CALC_MT_RRNA                      } from '../../../modules/local/tools/featurecounts/main'
@@ -84,14 +85,14 @@ workflow mapping_starsolo_workflow {
 
             // Calculate saturation curve if perform_10x_saturate is true
             if (params.perform_10x_saturate) {
-                SAMTOOLS_VIEW(STARSOLO_ALIGN.out.starsolo_files)
+                SAMTOOLS_VIEW_MAPPED(ch_starsolo_bam)
 
                 // Join channels on sample ID before 10x_saturate
-                SAMTOOLS_VIEW.out.filtered_bam
+                SAMTOOLS_VIEW_MAPPED.out.filtered_mapped_bam
                     .join(STARSOLO_ALIGN.out.summary_csv)
                     .join(STARSOLO_ALIGN.out.log_final_file)
-                    .join(SAMTOOLS_VIEW.out.filtered_bam_index)
-                    .join(SAMTOOLS_VIEW.out.mapreads)
+                    .join(SAMTOOLS_VIEW_MAPPED.out.filtered_mapped_bai)
+                    .join(SAMTOOLS_VIEW_MAPPED.out.mapreads)
                     .multiMap { meta, bam, summary, log_final, bai, mapreads ->
                         bam_ch:         [meta, bam]
                         summary_ch:     [meta, summary]
