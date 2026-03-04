@@ -11,10 +11,6 @@ include { mapping_starsolo_workflow } from '../subworkflows/local/mapping/mappin
 include { mapping_alevin_workflow   } from '../subworkflows/local/mapping/mapping_alevin'
 
 include { FASTQC                    } from '../modules/local/tools/fastqc/main'
-include { KRAKEN_CREATE_DB          } from '../modules/local/tools/kraken/kraken_create_db/main'
-include { KRAKEN                    } from '../modules/local/tools/kraken/kraken_classify/main'
-include { KRONA                     } from '../modules/local/tools/krona/main'
-include { PAVIAN                    } from '../modules/local/tools/pavian/main'
 
 
 /*
@@ -41,6 +37,9 @@ workflow QC_mapping_workflow {
         def ch_star_final_log   = Channel.empty()
         def ch_star_summaries   = Channel.empty()
         def ch_star_cellreads  = Channel.empty()
+        def ch_alevin_meta_info = Channel.empty()
+        def ch_alevin_quant_json = Channel.empty()
+        def ch_alevin_cell_meta = Channel.empty()
         def ch_featurecounts    = Channel.empty()
         def ch_pavian_sankey    = Channel.empty()
 
@@ -64,6 +63,7 @@ workflow QC_mapping_workflow {
             ch_star_summaries        =  mapping_starsolo_workflow.out.star_summaries
             ch_star_cellreads        =  mapping_starsolo_workflow.out.star_cellreads
             ch_featurecounts         =  mapping_starsolo_workflow.out.featurecount_txt
+            ch_pavian_sankey         =  mapping_starsolo_workflow.out.pavian_sankey
 
         } else if (params.mapping_software == "alevin") {
             mapping_alevin_workflow(data_output, bc_whitelist)
@@ -86,18 +86,10 @@ workflow QC_mapping_workflow {
             ch_star_summaries        =  mapping_starsolo_workflow.out.star_summaries
             ch_star_cellreads        =  mapping_starsolo_workflow.out.star_cellreads
             ch_featurecounts         =  mapping_starsolo_workflow.out.featurecount_txt
+            ch_pavian_sankey         =  mapping_starsolo_workflow.out.pavian_sankey
 
         } else {
             error "Invalid mapping software specified. Use one of the following parameters: 'starsolo', 'alevin' or 'both'."
-        }
-
-        // Inspecting unmapped reads using Kraken2 and Pavian (STARsolo output only)
-        if (params.perform_kraken && params.mapping_software != "alevin") {
-            KRAKEN_CREATE_DB()
-            KRAKEN(KRAKEN_CREATE_DB.out.db_path_file, ch_starsolo_bam)
-            KRONA(KRAKEN.out)
-            PAVIAN(KRAKEN.out)
-            ch_pavian_sankey = PAVIAN.out
         }
 
     emit:
