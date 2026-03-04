@@ -10,6 +10,9 @@ process GENERATE_DASHBOARD {
     path(star_full_logs)
     path(saturation_logs)
     path(cell_stats)
+    path(af_meta_info)
+    path(af_quant_json)
+    path(af_cell_meta)
     path(sankey_files)
     path(saturation_imgs)
     path(residuals_imgs)
@@ -35,6 +38,9 @@ process GENERATE_DASHBOARD {
     echo "STAR full logs: ${star_full_logs}"
     echo "Saturation logs: ${saturation_logs}"
     echo "Cell stats: ${cell_stats}"
+    echo "Alevin-fry meta_info: ${af_meta_info}"
+    echo "Alevin-fry quant.json: ${af_quant_json}"
+    echo "Alevin-fry cell_meta: ${af_cell_meta}"
     echo "Sankey files: ${sankey_files}"
     echo "Saturation images: ${saturation_imgs}"
     echo "Residuals images: ${residuals_imgs}"
@@ -55,6 +61,9 @@ process GENERATE_DASHBOARD {
         --mt_rrna_metrics ${mt_rrna_metrics} \\
         --saturation_logs ${saturation_logs} \\
         --cell_stats ${cell_stats} \\
+        --af_meta_info ${af_meta_info} \\
+        --af_quant_json ${af_quant_json} \\
+        --af_cell_meta ${af_cell_meta} \\
         --sankey_files ${sankey_files} \\
         --per_cell_files ${per_cell_files} \\
         --saturation_imgs ${saturation_imgs} \\

@@ -68,6 +68,9 @@ workflow QC_mapping_workflow {
         } else if (params.mapping_software == "alevin") {
             mapping_alevin_workflow(data_output, bc_whitelist)
             ch_mapping_files = mapping_alevin_workflow.out.mapping_files
+            ch_alevin_meta_info = mapping_alevin_workflow.out.af_meta_info
+            ch_alevin_quant_json = mapping_alevin_workflow.out.af_quant_json
+            ch_alevin_cell_meta = mapping_alevin_workflow.out.af_cell_meta
 
         } else if (params.mapping_software == "both") {
             mapping_starsolo_workflow(data_output, bc_whitelist)
@@ -107,6 +110,9 @@ workflow QC_mapping_workflow {
         star_final_log           = ch_star_final_log
         star_summaries           = ch_star_summaries
         star_cellreads           = ch_star_cellreads
+        af_meta_info             = ch_alevin_meta_info
+        af_quant_json            = ch_alevin_quant_json
+        af_cell_meta             = ch_alevin_cell_meta
         featurecount_txt         = ch_featurecounts
         pavian_sankey            = ch_pavian_sankey
 }

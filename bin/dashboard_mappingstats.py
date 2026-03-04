@@ -497,7 +497,7 @@ def parse_alevin_quant(quant_path: Path) -> Dict[str, Optional[int]]:
 
 def summarize_cell_meta(cell_meta_path: Path) -> Dict[str, Optional[int]]:
     """
-    Summarize alevin-fry cell_meta.tsv-like file.
+    Summarize alevin-fry cell_meta.tsv file.
 
     Returns:
         - n_cells
@@ -551,9 +551,9 @@ def parse_alevinfry_sample(sample_root: Path) -> Dict[str, object]:
     Parse one alevin-fry sample directory under mapping_alevin/<sample_id>.
 
     Uses:
-      - <sample_id>_run/aux_info/meta_info.json   → total & mapped reads
-      - <sample_id>_counts/quant.json             → N cells, Total Genes Detected
-      - cell_meta.tsv                             → per-cell summaries
+      - <sample_id>_run/aux_info/meta_info.json   : total & mapped reads
+      - <sample_id>_counts/quant.json             : N cells, Total Genes Detected
+      - cell_meta.tsv                             : per-cell summaries
     """
     sample_name = sample_root.name
     row: Dict[str, object] = {
@@ -573,12 +573,12 @@ def parse_alevinfry_sample(sample_root: Path) -> Dict[str, object]:
     run_dir = first_existing(d for d in sample_root.glob("*_run") if d.is_dir())
     counts_dir = first_existing(d for d in sample_root.glob("*_counts") if d.is_dir())
 
-    # ---- meta_info.json → total & mapped reads ----
+    # ---- meta_info.json : total & mapped reads ----
     meta_candidates: List[Path] = []
     if run_dir is not None:
         meta_candidates.extend(
             [
-                run_dir / "aux_info" / "meta_info.json",  # your real path
+                run_dir / "aux_info" / "meta_info.json",
                 run_dir / "meta_info.json",
                 run_dir / "quant" / "meta_info.json",
             ]
@@ -606,7 +606,7 @@ def parse_alevinfry_sample(sample_root: Path) -> Dict[str, object]:
     if uniq_frac is not None:
         row["% uniquely mapped reads"] = convert_to_pct(uniq_frac)
 
-    # ---- quant.json in *_counts → N cells, Total Genes Detected ----
+    # ---- quant.json in *_counts : N cells, Total Genes Detected ----
     quant_candidates: List[Path] = []
     if counts_dir is not None:
         quant_candidates.extend(
@@ -625,7 +625,7 @@ def parse_alevinfry_sample(sample_root: Path) -> Dict[str, object]:
     if quant_summary.get("num_genes") is not None:
         row["Total Genes Detected"] = quant_summary["num_genes"]
 
-    # ---- cell_meta.tsv → per-cell summaries (mean / medians) ----
+    # ---- cell_meta.tsv : per-cell summaries (mean / medians) ----
     cell_meta_candidates: List[Path] = []
     if counts_dir is not None:
         cell_meta_candidates.extend(

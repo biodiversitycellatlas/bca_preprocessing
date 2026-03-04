@@ -22,6 +22,7 @@ include { PERCELL_METRICS           } from '../modules/local/custom/dashboard/pe
 workflow reporting_workflow {
     take:
         samplesheet
+        samplesheet_file
         run_config
         star_logs
         star_summaries
@@ -30,6 +31,9 @@ workflow reporting_workflow {
         star_solodir
         saturation_logs
         cell_stats
+        af_meta_info
+        af_quant_json
+        af_cell_meta
         sankey_files
         saturation_imgs
         residuals_imgs
@@ -50,33 +54,47 @@ workflow reporting_workflow {
 
         // Only create per-cell plots if params.mt_contig is set by user
         if (params.mt_contig != "chrM M MT") {
-        PERCELL_METRICS(
-            ch_percell_inputs.bam_ch,
-            ch_percell_inputs.solodir_ch,
-            ch_percell_inputs.logs_ch
-        )
-        percell_json = PERCELL_METRICS.out.percell_json
+            PERCELL_METRICS(
+                ch_percell_inputs.bam_ch,
+                ch_percell_inputs.solodir_ch,
+                ch_percell_inputs.logs_ch
+            )
+            percell_json = PERCELL_METRICS.out.percell_json
         } else {
             percell_json = Channel.empty()
         }
 
         // Join channels that need renaming by meta ID
-        ch_to_rename = star_summaries
-            .join(cell_stats)
-            .join(knee_files)
+        ch_to_rename = samplesheet
+            .map { it -> [it.meta] }
+            .join(star_summaries, remainder: true)
+            .join(cell_stats, remainder: true)
+            .join(knee_files, remainder: true)
+            .join(af_meta_info, remainder: true)
+            .join(af_quant_json, remainder: true)
+            .join(af_cell_meta, remainder: true)
+            .map { row ->
+                def meta = row[0]
+                // Extract all elements after 'meta', flatten them, and filter out nulls
+                def input_files = row[1..-1].flatten().findAll { it != null }
+                [ meta, input_files ]
+            }
 
         // Rename STARsolo files
         PREPARE_DASHBOARD_INPUTS(ch_to_rename)
 
         // Run Dashboard Generation
         GENERATE_DASHBOARD(
-            samplesheet,
+            samplesheet_file,
             run_config,
             star_logs.map{ it[1] }.collect().ifEmpty([]),
             PREPARE_DASHBOARD_INPUTS.out.summary.collect().ifEmpty([]),
             star_full_logs.map{ it[1] }.collect().ifEmpty([]),
             saturation_logs.collect().ifEmpty([]),
             PREPARE_DASHBOARD_INPUTS.out.cell_stats.collect().ifEmpty([]),
+            PREPARE_DASHBOARD_INPUTS.out.af_meta_info.collect().ifEmpty([]),
+            PREPARE_DASHBOARD_INPUTS.out.af_quant_json.collect().ifEmpty([]),
+            PREPARE_DASHBOARD_INPUTS.out.af_cell_meta.collect().ifEmpty([]),
             sankey_files.collect().ifEmpty([]),
             saturation_imgs.collect().ifEmpty([]),
             residuals_imgs.collect().ifEmpty([]),
