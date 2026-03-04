@@ -9,3 +9,4 @@ logs/*
 seperate_scripts/*
 conf/[0-9]*
 work/*
+*scale*

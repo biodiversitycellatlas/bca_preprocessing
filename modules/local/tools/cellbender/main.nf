@@ -32,6 +32,7 @@ process CELLBENDER {
         --output cellbender_output.h5 \\
         --epochs 150 \\
         --expected-cells ${meta.expected_cells} \\
-        --fpr 0.01
+        --fpr 0.01 \\
+        ${params.cellbender_extraargs ?: ''}
     """
 }
