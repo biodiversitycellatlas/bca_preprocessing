@@ -72,6 +72,7 @@ workflow BCA_PREPROCESSING {
             filter_out = filtering_workflow(QC_mapping_workflow.out.starsolo_genefull50_raw)
 
             reporting_workflow(
+                samplesheet,
                 SAVE_RUN_CONFIG.out.samplesheet,
                 SAVE_RUN_CONFIG.out.run_config,
                 QC_mapping_workflow.out.star_final_log,
@@ -81,6 +82,9 @@ workflow BCA_PREPROCESSING {
                 QC_mapping_workflow.out.star_solodir,
                 QC_mapping_workflow.out.saturation_logs,
                 QC_mapping_workflow.out.star_cellreads,
+                QC_mapping_workflow.out.af_meta_info,
+                QC_mapping_workflow.out.af_quant_json,
+                QC_mapping_workflow.out.af_cell_meta,
                 QC_mapping_workflow.out.pavian_sankey,
                 QC_mapping_workflow.out.saturation_imgs,
                 QC_mapping_workflow.out.saturation_residual_imgs,

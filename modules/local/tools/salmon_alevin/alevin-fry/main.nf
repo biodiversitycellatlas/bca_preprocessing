@@ -15,6 +15,9 @@ process ALEVIN_FRY {
 
     output:
     tuple val(meta), path("${meta.id}_*"), emit: mapping_files
+    tuple val(meta), path("${meta.id}_run/aux_info/meta_info.json"),    emit: af_meta_info
+    tuple val(meta), path("${meta.id}_counts/quant.json"),              emit: af_quant_json
+    tuple val(meta), path("${meta.id}_counts/cell_meta.tsv"),           emit: af_cell_meta, optional: true
 
     script:
     // If protocol is "bd_rhapsody", then cDNA = R2 and CB/UMI = R1

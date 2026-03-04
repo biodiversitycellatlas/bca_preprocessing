@@ -3,18 +3,26 @@ process PREPARE_DASHBOARD_INPUTS {
     label 'process_low'
 
     input:
-    tuple val(meta), path(summary), path(cell_stats), path(knee_files)
+    tuple val(meta), path(files)
 
     output:
-    path "*_Summary.csv"           , emit: summary
-    path "*_CellReads.stats"       , emit: cell_stats
-    path "*_UMIperCellSorted.txt"  , emit: knee_files
+    path "*_Summary.csv"           , emit: summary, optional: true
+    path "*_CellReads.stats"       , emit: cell_stats, optional: true
+    path "*_UMIperCellSorted.txt"  , emit: knee_files, optional: true
+    path "*_meta_info.json"         , emit: af_meta_info, optional: true
+    path "*_quant.json"            , emit: af_quant_json, optional: true
+    path "*_cell_meta.tsv"         , emit: af_cell_meta, optional: true
 
     script:
     """
-    # Rename files by adding the Sample ID prefix
-    ln -s ${summary}    ${meta.id}_Summary.csv
-    ln -s ${cell_stats} ${meta.id}_CellReads.stats
-    ln -s ${knee_files} ${meta.id}_UMIperCellSorted.txt
+    for f in $files; do
+        # Use simple bash logic to match the file type and link it
+        if [[ "\$f" == *"Summary.csv"* ]]; then ln -s "\$f" "${meta.id}_Summary.csv"; fi
+        if [[ "\$f" == *"CellReads.stats"* ]]; then ln -s "\$f" "${meta.id}_CellReads.stats"; fi
+        if [[ "\$f" == *"UMIperCellSorted.txt"* ]]; then ln -s "\$f" "${meta.id}_UMIperCellSorted.txt"; fi
+        if [[ "\$f" == *"meta_info.json"* ]]; then ln -s "\$f" "${meta.id}_meta_info.json"; fi
+        if [[ "\$f" == *"quant.json"* ]]; then ln -s "\$f" "${meta.id}_quant.json"; fi
+        if [[ "\$f" == *"cell_meta.tsv"* ]]; then ln -s "\$f" "${meta.id}_cell_meta.tsv"; fi
+    done
     """
 }
