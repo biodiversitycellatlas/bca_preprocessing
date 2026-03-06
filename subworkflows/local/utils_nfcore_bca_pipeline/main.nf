@@ -66,7 +66,7 @@ workflow PIPELINE_INITIALISATION {
     //
     // Create channel from input file provided through params.input
     //
-    def samples_file = file(params.input)   // Absolute if given, relative resolved to projectDir
+    def samples_file = file(params.input)
 
     Channel
     .fromPath(params.input)
@@ -74,26 +74,37 @@ workflow PIPELINE_INITIALISATION {
     .map { row ->
         // Concat metadata into a Map object
         def meta = [
-        id                : row.sample,
-        expected_cells    : row.expected_cells ? row.expected_cells.toInteger() : null,
-        p5                : row.p5 ? row.p5 : '',
-        p7                : row.p7 ? row.p7 : '',
-        rt                : row.rt ? row.rt : '',
+            id             : row.sample,
+            expected_cells : row.expected_cells ? row.expected_cells.toInteger() : null,
+            p5             : row.p5 ? row.p5 : '',
+            p7             : row.p7 ? row.p7 : '',
+            rt             : row.rt ? row.rt : '',
         ]
 
         // Assign each FASTQ to its own variable (or null if missing)
-        def fastq_cDNA  = row.fastq_cDNA  ? file(row.fastq_cDNA)  : null
-        def fastq_BC_UMI = row.fastq_BC_UMI ? file(row.fastq_BC_UMI) : null
-        def fastq_indices = row['fastq_indices'] ? file(row['fastq_indices']) : []
+        def fastq_cDNA   = row.fastq_cDNA   ? [file(row.fastq_cDNA)]   : []
+        def fastq_BC_UMI = row.fastq_BC_UMI ? [file(row.fastq_BC_UMI)] : []
+        def fastq_indices = row.fastq_indices ? [file(row.fastq_indices)] : []
 
-        // Return a single map with named entries
-        [
-            meta         : meta,
-            fastq_cDNA   : fastq_cDNA,
-            fastq_BC_UMI : fastq_BC_UMI,
-            fastq_indices : fastq_indices,
-            input_file   : samples_file
-        ]
+        // Returng tuple
+        [ meta.id, meta, fastq_cDNA, fastq_BC_UMI, fastq_indices, samples_file ]
+    }
+    // Group by sample ID
+    .groupTuple(by: 0)
+
+    .map { sample_id, metas, fastq_cDNAs, fastq_BC_UMIs, fastq_indices_list, samples_files ->
+
+        def meta = metas[0]
+
+        // Filter out empty lists, flatten valid files only
+        def merged_fastq_cDNA = fastq_cDNAs.findResults { it }.flatten().findAll { it.exists() }
+        def merged_fastq_BC_UMI = fastq_BC_UMIs.findResults { it }.flatten().findAll { it.exists() }
+        def merged_fastq_indices = fastq_indices_list.findResults { it }.flatten()
+
+        samples_file = samples_files[0]
+
+        // Return tuple for merging FASTQs
+        tuple(meta, merged_fastq_cDNA, merged_fastq_BC_UMI, merged_fastq_indices, samples_file)
     }
     .set { ch_samplesheet }
 

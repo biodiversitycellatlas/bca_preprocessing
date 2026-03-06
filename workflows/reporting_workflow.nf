@@ -66,7 +66,7 @@ workflow reporting_workflow {
 
         // Join channels that need renaming by meta ID
         ch_to_rename = samplesheet
-            .map { it -> [it.meta] }
+            .map { row -> [ row[0] ] }
             .join(star_summaries, remainder: true)
             .join(cell_stats, remainder: true)
             .join(knee_files, remainder: true)

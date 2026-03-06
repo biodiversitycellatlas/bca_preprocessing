@@ -96,12 +96,10 @@ workflow QC_mapping_workflow {
         }
 
     emit:
-        mapping_files = ch_mapping_files
-        starsolo_bam  = ch_starsolo_bam
-        star_solodir  = ch_star_solodir
+        mapping_files            = ch_mapping_files
+        starsolo_bam             = ch_starsolo_bam
+        star_solodir             = ch_star_solodir
         starsolo_genefull50_raw  = ch_starsolo_genefull50_raw
-
-        // REPORT REQUIRED
         saturation_imgs          = ch_sat_imgs
         saturation_residual_imgs = ch_sat_res_imgs
         saturation_logs          = ch_sat_logs
