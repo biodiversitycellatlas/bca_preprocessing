@@ -29,7 +29,7 @@ process KRAKEN {
         --report ${meta.id}_kraken_taxonomy.txt \\
         --report-minimizer-data \\
         --use-names \\
-        --memory-mapping \
+        --memory-mapping \\
         --log ${meta.id}_kraken.log \\
         --output ${meta.id}_kraken_output.txt \\
         ${filtered_fasta}

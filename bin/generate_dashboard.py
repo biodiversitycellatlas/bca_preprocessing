@@ -505,6 +505,10 @@ def main() -> None:
 
         else:
             # alevin-fry fallback: require at least one of meta_info or quant.json to proceed
+            af_meta_file = find_file_for_sample(s_id, args.af_meta_info)
+            af_quant_file = find_file_for_sample(s_id, args.af_quant_json)
+            af_cell_meta_file = find_file_for_sample(s_id, args.af_cell_meta)
+
             af_meta = _safe_read_json(af_meta_file)
             af_quant = _safe_read_json(af_quant_file)
             af_cell = parse_cell_meta_tsv(af_cell_meta_file)

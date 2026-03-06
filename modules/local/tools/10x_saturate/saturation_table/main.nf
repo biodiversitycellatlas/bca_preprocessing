@@ -1,7 +1,7 @@
 process SATURATION_TABLE {
     publishDir "${params.outdir}/saturation/${meta.id}", mode: 'copy'
     tag "${meta.id}"
-    label 'process_single'
+    label 'process_medium'
 
     conda "${moduleDir}/environment.yml"
     container "oras://community.wave.seqera.io/library/pysam_samtools_bc_python_pruned:82a1e27e868113f0"
