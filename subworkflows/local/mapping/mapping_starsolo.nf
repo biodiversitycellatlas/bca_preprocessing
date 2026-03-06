@@ -159,17 +159,8 @@ workflow mapping_starsolo_workflow {
                     // Create STAR index with extended GTF
                     STARSOLO_INDEX_GENEEXT(GENE_EXT.out, ch_first_cDNA)
 
-                    // Join original data with the new sample-specific index
-                    data_output
-                        .join(STARSOLO_INDEX_GENEEXT.out)
-                        .multiMap { meta, f_cdna, f_umi, empty, sheet, index ->
-                            data_ch:  [meta, f_cdna, f_umi, empty, sheet]
-                            index_ch: [meta, index]
-                        }
-                        .set { ch_remap_inputs }
-
                     // Remap with STARsolo using the extended GTF
-                    STARSOLO_ALIGN_GENEEXT(ch_remap_inputs.data_ch, bc_whitelist, ch_remap_inputs.index_ch)
+                    STARSOLO_ALIGN_GENEEXT(data_output, bc_whitelist, STARSOLO_INDEX_GENEEXT.out)
                     SAMTOOLS_INDEX_GENEEXT(STARSOLO_ALIGN_GENEEXT.out.bam_file)
 
                     // Capture remapped STARsolo outputs
