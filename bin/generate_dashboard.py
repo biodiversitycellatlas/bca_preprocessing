@@ -33,7 +33,7 @@ def parse_args() -> argparse.Namespace:
     # Core Metadata / Dashboard Headers
     parser.add_argument("--project", default="Biodiversity Cell Atlas", help="Project Name")
     parser.add_argument("--pipeline", default="bca-preprocessing", help="Pipeline Name")
-    parser.add_argument("--version", default="0.2.0", help="Pipeline Version")
+    parser.add_argument("--version", default="0.2.1", help="Pipeline Version")
     parser.add_argument("--commit", default="unknown", help="Git Commit Hash")
 
     # Data Inputs
