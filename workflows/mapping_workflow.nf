@@ -11,6 +11,7 @@ include { mapping_starsolo_workflow } from '../subworkflows/local/mapping/mappin
 include { mapping_alevin_workflow   } from '../subworkflows/local/mapping/mapping_alevin'
 
 include { FASTQC                    } from '../modules/local/tools/fastqc/main'
+include { SUBSAMPLE_FASTQS          } from '../modules/local/tools/seqtk/main'
 
 
 /*
@@ -72,9 +73,19 @@ workflow QC_mapping_workflow {
             ch_alevin_quant_json = mapping_alevin_workflow.out.af_quant_json
             ch_alevin_cell_meta = mapping_alevin_workflow.out.af_cell_meta
 
-        } else if (params.mapping_software == "both") {
-            mapping_starsolo_workflow(data_output, bc_whitelist)
+        } else if (params.mapping_software == "both" || params.mapping_software == "alevin_subsampled_starsolo" || params.mapping_software == "alevin_starsolo") {
+
             mapping_alevin_workflow(data_output, bc_whitelist)
+
+            // If 'alevin_subsampled_starsolo' is selected, run STARsolo on a subsampled dataset
+            if (params.mapping_software == "alevin_subsampled_starsolo") {
+                SUBSAMPLE_FASTQS(data_output)
+                mapping_starsolo_workflow(SUBSAMPLE_FASTQS.out, bc_whitelist)
+
+            // If 'both'/'alevin_starsolo' is selected, run STARsolo on the full dataset
+            } else if (params.mapping_software == "both" || params.mapping_software == "alevin_starsolo") {
+                mapping_starsolo_workflow(data_output, bc_whitelist)
+            }
 
             ch_mapping_files         = mapping_alevin_workflow.out.mapping_files.mix(mapping_starsolo_workflow.out.mapping_files)
             ch_starsolo_bam          = mapping_starsolo_workflow.out.starsolo_bam

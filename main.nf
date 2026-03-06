@@ -72,7 +72,7 @@ workflow BCA_PREPROCESSING {
             filter_out = filtering_workflow(QC_mapping_workflow.out.starsolo_genefull50_raw)
 
             reporting_workflow(
-                samplesheet,
+                preprocessing_workflow.out.merged_samplesheet,
                 SAVE_RUN_CONFIG.out.samplesheet,
                 SAVE_RUN_CONFIG.out.run_config,
                 QC_mapping_workflow.out.star_final_log,

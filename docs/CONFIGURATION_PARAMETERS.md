@@ -6,7 +6,7 @@ Within each custom configuration file the following variables can be defined:
 ## Table of Contents
 
 1. [Base Variables](#base-variables)
-2. [Mapping Variables](#mapping-variables)
+2. [STAR Variables](#star-variables)
 3. [FeatureCounts Variables](#featurecounts-variables)
 4. [Gene Extension Variables](#gene-extension-variables)
 5. [Taxonomic-classification Variables](#taxonomic-classification-variables)
@@ -28,16 +28,17 @@ Within each custom configuration file the following variables can be defined:
 | `ref_gtf`              | __Required__      | Path to the GTF/GFF file formatted for STARsolo. |
 | `ref_gtf_alt`          | Optional          | Path to the GTF/GFF file formatted specifically for analysis with Parse Biosciences / CellRanger pipeline. Defaults to the same path as `ref_gtf`. |
 | `run_method`             | Optional          | Method of running the pre-processing pipeline, demonstrated in the [pipeline diagram](img/Preprocs_Pipeline.png), currently either `"standard"` or `"geneext_only"`. Default is set to `"standard"`. |
+| `mapping_software`     | Optional          | Software used to map reads (must be one of the following: `"starsolo"`, `"alevin"`, `"both"/"alevin_starsolo"` or `"alevin_subsampled_starsolo"`). Default set to `"starsolo"`. |
 | `perform_demultiplexing` | Optional        | Boolean flag to enable or disable demultiplexing of the FASTQ files, where applicable. Default is `true`. |
 | `seqspec_file`         | Optional          | Path to the seqspec file. |
+| `subsample_nreads`     | Optional          | The size (number of reads) of the subset used to map to STARsolo, in case the parameter `mapping_software = alevin_subsampled_starsolo`. Default set to `100000000` reads. |
 
 
 
-## Mapping Variables
+## STAR Variables
 
 | Variable               | Required/Optional | Description |
 |------------------------|-------------------|-------------|
-| `mapping_software`     | Optional          | Software used to map reads (must be one of the following: `"starsolo"`, `"alevin"` or `"both"`). Default set to `"starsolo"`. |
 | `star_index`           | Optional          | Path to the pre-generated STAR index. By default the STAR index is created within the pipeline.|
 | `star_genomeSAindexNbases` | Optional         | Lenght of the SA pre-indexing string in STAR. See [protocol-specific defaults](../conf/seqtech_parameters.config) set in the seqtech_paramaters.config file. |
 | `star_genomeSAsparseD`    | Optional       | Suffix array sparsity in STAR.  See [protocol-specific defaults](../conf/seqtech_parameters.config) set in the seqtech_paramaters.config file. |
@@ -76,7 +77,8 @@ Within each custom configuration file the following variables can be defined:
 
 | Variable               | Required/Optional | Description |
 |------------------------|-------------------|-------------|
-| `perform_10x_saturate`      | Optional          | Boolean flag to enable or disable the 10x_saturate step after mapping. Default is `true`. |
+| `perform_10x_saturate` | Optional          | Boolean flag to enable or disable the 10x_saturate step after mapping. Default is `true`. |
+| `saturation_target`    | Optional          | The saturation target fraction used to predict the input reads needed. Default set to `0.7`. |
 
 
 
@@ -94,6 +96,7 @@ Within each custom configuration file the following variables can be defined:
 | Variable               | Required/Optional | Description |
 |------------------------|-------------------|-------------|
 | `perform_cellbender`   | Optional          | Boolean flag to enable or disable removal of ambient RNA using CellBender. Default is `false`. |
+| `cellbender_extraargs` | Optional          | Provide extra arguments to the CellBender function as a string. Refer to the [CellBender manual](https://cellbender.readthedocs.io/en/latest/reference/index.html) for options. |
 
 
 

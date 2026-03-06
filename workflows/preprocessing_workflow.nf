@@ -77,6 +77,7 @@ workflow preprocessing_workflow {
         }
 
     emit:
+        merged_samplesheet = merged_samplesheet
         data_output     = data_output_ch
         bc_whitelist    = bc_whitelist_ch
 }
