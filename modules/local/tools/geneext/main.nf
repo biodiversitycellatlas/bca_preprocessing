@@ -7,7 +7,7 @@ process GENE_EXT {
     conda "${moduleDir}/environment.yml"
 
     input:
-    tuple val(meta), path(mapping_files)
+    tuple val(meta), path(bam_file)
     file(bam_index)
 
     output:
@@ -18,6 +18,7 @@ process GENE_EXT {
     echo "\n\n==================  GENE EXTENSION =================="
     echo "Sample ID: ${meta}"
     echo "BAM index: ${bam_index}"
+    echo "BAM file: ${bam_file}"
     echo "Original GTF: ${params.ref_gtf}"
 
     # Remove temporary directory if it exists
@@ -25,7 +26,6 @@ process GENE_EXT {
 
     # Extract file extension
     extension=\$(echo "${params.ref_gtf}" | awk -F. '{print \$NF}')
-
     if [ \$extension == "gff" ];
     then
         gtf_output="${meta.id}_geneext.gff"
@@ -33,14 +33,12 @@ process GENE_EXT {
         gtf_output="${meta.id}_geneext.gtf"
     fi
     echo \${gtf_output}
-    bam_file=\$(ls *_Aligned.sortedByCoord.out.bam | head -n 1)
 
     # Run GeneExt
     python ${projectDir}/submodules/GeneExt/geneext.py \\
         -g ${params.ref_gtf} \\
-        -b \${bam_file} \\
+        -b ${bam_file} \\
         -o \${gtf_output} \\
         -j 4
-
     """
 }

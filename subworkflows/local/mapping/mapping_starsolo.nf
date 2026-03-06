@@ -125,16 +125,16 @@ workflow mapping_starsolo_workflow {
             // Calculate percentages mitochondrial DNA and ribosomal RNA
             if (params.perform_featurecounts) {
                 // Join STARsolo files with samtools index
-                STARSOLO_ALIGN.out.starsolo_files
+                ch_starsolo_bam
                     .join(SAMTOOLS_INDEX.out.bam_index)
-                    .multiMap { meta, star_files, bai ->
-                        star_ch: [meta, star_files]
+                    .multiMap { meta, bam_file, bai ->
+                        bam_ch: [meta, bam_file]
                         bai_ch:  [meta, bai]
                     }
                     .set { ch_fc_inputs }
 
                 // Run featureCounts to calculate mtDNA and rRNA percentages and capture output
-                CALC_MT_RRNA(ch_fc_inputs.star_ch, ch_fc_inputs.bai_ch)
+                CALC_MT_RRNA(ch_fc_inputs.bam_ch, ch_fc_inputs.bai_ch)
                 ch_featurecounts = CALC_MT_RRNA.out
             }
 
@@ -142,16 +142,16 @@ workflow mapping_starsolo_workflow {
             if (params.perform_geneext || params.run_method == "geneext_only") {
 
                 // Join inputs for GENE_EXT
-                STARSOLO_ALIGN.out.starsolo_files
+                ch_starsolo_bam
                     .join(SAMTOOLS_INDEX.out.bam_index)
-                    .multiMap { meta, star_files, bai ->
-                        star_ch: [meta, star_files]
+                    .multiMap { meta, bam_file, bai ->
+                        bam_ch: [meta, bam_file]
                         bai_ch:  [meta, bai]
                     }
                     .set { ch_geneext_inputs }
 
                 // Run gene extension using GeneExt
-                GENE_EXT(ch_geneext_inputs.star_ch, ch_geneext_inputs.bai_ch)
+                GENE_EXT(ch_geneext_inputs.bam_ch, ch_geneext_inputs.bai_ch)
 
                 // Remap STARsolo with extended GTF if run_method is not "geneext_only"
                 if (params.run_method != "geneext_only") {
