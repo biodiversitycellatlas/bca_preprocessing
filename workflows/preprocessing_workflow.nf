@@ -13,6 +13,8 @@ include { tenx_genomics_workflow        } from '../subworkflows/local/pre-proces
 include { sciRNAseq3_nogather_workflow  } from '../subworkflows/local/pre-processing/preprocs_sciRNAseq3_nogather'
 include { seqspec_workflow              } from '../subworkflows/local/pre-processing/preprocs_seqspec'
 
+include { MERGE_FASTQS                  } from '../modules/local/custom/manipulate/merge_files/main'
+
 /*
 ~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~
     WORKFLOW TO RUN PRE-PROCESSING
@@ -28,28 +30,32 @@ workflow preprocessing_workflow {
         ch_samplesheet
 
     main:
+        // Merge fastq files of duplicate sample IDs
+        merged_samplesheet = MERGE_FASTQS(ch_samplesheet)
+
+        // Check for protocol and run appropriate pre-processing workflow
         if (params.protocol.startsWith('parse_biosciences')) {
-            parse_workflow(ch_samplesheet)
+            parse_workflow(merged_samplesheet)
             data_output_ch = parse_workflow.out.data_output
             bc_whitelist_ch  = parse_workflow.out.bc_whitelist
 
         } else if (params.protocol == 'bd_rhapsody') {
-            bd_rhapsody_workflow(ch_samplesheet)
+            bd_rhapsody_workflow(merged_samplesheet)
             data_output_ch = bd_rhapsody_workflow.out.data_output
             bc_whitelist_ch  =  bd_rhapsody_workflow.out.bc_whitelist
 
         } else if (params.protocol.startsWith('10x') || params.protocol == 'oak_seq' || params.protocol == 'ultima_genomics') {
-            tenx_genomics_workflow(ch_samplesheet)
+            tenx_genomics_workflow(merged_samplesheet)
             data_output_ch = tenx_genomics_workflow.out.data_output
             bc_whitelist_ch  = tenx_genomics_workflow.out.bc_whitelist
 
         } else if (params.protocol == 'sciRNAseq3') {
-            sciRNAseq3_nogather_workflow(ch_samplesheet)
+            sciRNAseq3_nogather_workflow(merged_samplesheet)
             data_output_ch   = sciRNAseq3_nogather_workflow.out.data_output
             bc_whitelist_ch  = sciRNAseq3_nogather_workflow.out.bc_whitelist.map { tup -> tup*.toString().join(' ') }
 
         } else if (params.seqspec_file && file(params.seqspec_file).exists() && params.protocol == 'seqspec') {
-            seqspec_workflow(ch_samplesheet)
+            seqspec_workflow(merged_samplesheet)
             data_output_ch = seqspec_workflow.out.data_output
             bc_whitelist_ch  = params.bc_whitelist
 
