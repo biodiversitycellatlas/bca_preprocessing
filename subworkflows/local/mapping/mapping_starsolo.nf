@@ -15,6 +15,7 @@ include { SAMTOOLS_INDEX as SAMTOOLS_INDEX                  } from '../../../mod
 include { SAMTOOLS_INDEX as SAMTOOLS_INDEX_GENEEXT          } from '../../../modules/local/tools/samtools/samtools_index/main'
 include { SAMTOOLS_VIEW_MAPPED                              } from '../../../modules/local/tools/samtools/samtools_view_mapped/main'
 include { SAMTOOLS_VIEW_UNMAPPED                            } from '../../../modules/local/tools/samtools/samtools_view_unmapped/main'
+include { SAMTOOLS_MERGE                                    } from '../../../modules/local/tools/samtools/samtools_merge/main'
 include { SATURATION_TABLE                                  } from '../../../modules/local/tools/10x_saturate/saturation_table/main'
 include { SATURATION_PLOT                                   } from '../../../modules/local/tools/10x_saturate/plot_curve/main'
 include { CALC_MT_RRNA as CALC_MT_RRNA                      } from '../../../modules/local/tools/featurecounts/main'
@@ -37,20 +38,21 @@ workflow mapping_starsolo_workflow {
 
     main:
         // Initialize reporting channels
-        def ch_mapping_files    = Channel.empty()
-        def ch_starsolo_bam     = Channel.empty()
-        def ch_star_solodir     = Channel.empty()
-        def ch_genefull50_raw_dir = Channel.empty()
-        def ch_sat_imgs         = Channel.empty()
-        def ch_sat_res_imgs     = Channel.empty()
-        def ch_sat_logs         = Channel.empty()
-        def ch_star_umi         = Channel.empty()
-        def ch_star_log         = Channel.empty()
-        def ch_star_final_log   = Channel.empty()
-        def ch_star_summaries   = Channel.empty()
-        def ch_star_cellreads   = Channel.empty()
-        def ch_featurecounts    = Channel.empty()
-        def ch_pavian_sankey    = Channel.empty()
+        def ch_mapping_files            = Channel.empty()
+        def ch_starsolo_bam             = Channel.empty()
+        def ch_star_solodir             = Channel.empty()
+        def ch_genefull50_raw_dir       = Channel.empty()
+        def ch_genefull50_filtered_dir  = Channel.empty()
+        def ch_sat_imgs                 = Channel.empty()
+        def ch_sat_res_imgs             = Channel.empty()
+        def ch_sat_logs                 = Channel.empty()
+        def ch_star_umi                 = Channel.empty()
+        def ch_star_log                 = Channel.empty()
+        def ch_star_final_log           = Channel.empty()
+        def ch_star_summaries           = Channel.empty()
+        def ch_star_cellreads           = Channel.empty()
+        def ch_featurecounts            = Channel.empty()
+        def ch_pavian_sankey            = Channel.empty()
 
         // Get the first cDNA fastq file from the samplesheet to use for STAR index generation
         def ch_first_cDNA = data_output
@@ -67,17 +69,18 @@ workflow mapping_starsolo_workflow {
         }
 
         // Run STARsolo alignment
-        STARSOLO_ALIGN(data_output, bc_whitelist, star_index_ch)
+        STARSOLO_ALIGN(data_output, bc_whitelist, star_index_ch, '')
         ch_mapping_files = STARSOLO_ALIGN.out.starsolo_files
 
         // Capture STARsolo outputs
-        ch_star_umi         = STARSOLO_ALIGN.out.umi_per_cell
-        ch_star_log         = STARSOLO_ALIGN.out.log_file
-        ch_star_final_log   = STARSOLO_ALIGN.out.log_final_file
-        ch_star_summaries   = STARSOLO_ALIGN.out.summary_csv
-        ch_star_cellreads   = STARSOLO_ALIGN.out.cellreads_stats
-        ch_star_solodir     = STARSOLO_ALIGN.out.star_solodir
-        ch_genefull50_raw_dir = STARSOLO_ALIGN.out.genefull50_raw_dir
+        ch_star_umi                 = STARSOLO_ALIGN.out.umi_per_cell
+        ch_star_log                 = STARSOLO_ALIGN.out.log_file
+        ch_star_final_log           = STARSOLO_ALIGN.out.log_final_file
+        ch_star_summaries           = STARSOLO_ALIGN.out.summary_csv
+        ch_star_cellreads           = STARSOLO_ALIGN.out.cellreads_stats
+        ch_star_solodir             = STARSOLO_ALIGN.out.star_solodir
+        ch_genefull50_raw_dir       = STARSOLO_ALIGN.out.genefull50_raw_dir
+        ch_genefull50_filtered_dir  = STARSOLO_ALIGN.out.genefull50_filtered_dir
 
 
         // Optional saturation analysis, feature inspection and gene extension if BAM is generated
@@ -141,17 +144,16 @@ workflow mapping_starsolo_workflow {
             // Gene Extension
             if (params.perform_geneext || params.run_method == "geneext_only") {
 
-                // Join inputs for GENE_EXT
-                ch_starsolo_bam
-                    .join(SAMTOOLS_INDEX.out.bam_index)
-                    .multiMap { meta, bam_file, bai ->
-                        bam_ch: [meta, bam_file]
-                        bai_ch:  [meta, bai]
-                    }
-                    .set { ch_geneext_inputs }
+                // Extract the BAM files and collect them into a single list
+                bams_to_merge = ch_starsolo_bam
+                    .map { meta, bam -> bam }
+                    .collect()
+
+                // Merge all BAMs
+                SAMTOOLS_MERGE(bams_to_merge)
 
                 // Run gene extension using GeneExt
-                GENE_EXT(ch_geneext_inputs.bam_ch, ch_geneext_inputs.bai_ch)
+                GENE_EXT(SAMTOOLS_MERGE.out.merged_bam, SAMTOOLS_MERGE.out.merged_bai)
 
                 // Remap STARsolo with extended GTF if run_method is not "geneext_only"
                 if (params.run_method != "geneext_only") {
@@ -160,16 +162,18 @@ workflow mapping_starsolo_workflow {
                     STARSOLO_INDEX_GENEEXT(GENE_EXT.out, ch_first_cDNA)
 
                     // Remap with STARsolo using the extended GTF
-                    STARSOLO_ALIGN_GENEEXT(data_output, bc_whitelist, STARSOLO_INDEX_GENEEXT.out)
+                    STARSOLO_ALIGN_GENEEXT(data_output, bc_whitelist, STARSOLO_INDEX_GENEEXT.out, '_geneext')
                     SAMTOOLS_INDEX_GENEEXT(STARSOLO_ALIGN_GENEEXT.out.bam_file)
 
                     // Capture remapped STARsolo outputs
-                    ch_mapping_files = ch_mapping_files.mix(STARSOLO_ALIGN_GENEEXT.out.starsolo_files)
-                    ch_star_umi       = ch_star_umi.mix(STARSOLO_ALIGN_GENEEXT.out.umi_per_cell)
-                    ch_star_log       = ch_star_log.mix(STARSOLO_ALIGN_GENEEXT.out.log_file)
-                    ch_star_final_log = ch_star_final_log.mix(STARSOLO_ALIGN_GENEEXT.out.log_final_file)
-                    ch_star_summaries = ch_star_summaries.mix(STARSOLO_ALIGN_GENEEXT.out.summary_csv)
-                    ch_star_cellreads = ch_star_cellreads.mix(STARSOLO_ALIGN_GENEEXT.out.cellreads_stats)
+                    ch_star_umi                 = STARSOLO_ALIGN_GENEEXT.out.umi_per_cell
+                    ch_star_log                 = STARSOLO_ALIGN_GENEEXT.out.log_file
+                    ch_star_final_log           = STARSOLO_ALIGN_GENEEXT.out.log_final_file
+                    ch_star_summaries           = STARSOLO_ALIGN_GENEEXT.out.summary_csv
+                    ch_star_cellreads           = STARSOLO_ALIGN_GENEEXT.out.cellreads_stats
+                    ch_star_solodir             = STARSOLO_ALIGN_GENEEXT.out.star_solodir
+                    ch_genefull50_raw_dir       = STARSOLO_ALIGN_GENEEXT.out.genefull50_raw_dir
+                    ch_genefull50_filtered_dir  = STARSOLO_ALIGN_GENEEXT.out.genefull50_filtered_dir
                 }
             }
 
@@ -188,20 +192,21 @@ workflow mapping_starsolo_workflow {
         }
 
     emit:
-        mapping_files            = ch_mapping_files
-        starsolo_bam             = ch_starsolo_bam
-        star_solodir             = ch_star_solodir
-        starsolo_genefull50_raw  = ch_genefull50_raw_dir
-        saturation_imgs          = ch_sat_imgs
-        saturation_residual_imgs = ch_sat_res_imgs
-        saturation_logs          = ch_sat_logs
-        star_umipercell          = ch_star_umi
-        star_log                 = ch_star_log
-        star_final_log           = ch_star_final_log
-        star_summaries           = ch_star_summaries
-        star_cellreads           = ch_star_cellreads
-        featurecount_txt         = ch_featurecounts
-        pavian_sankey            = ch_pavian_sankey
+        mapping_files                   = ch_mapping_files
+        starsolo_bam                    = ch_starsolo_bam
+        star_solodir                    = ch_star_solodir
+        starsolo_genefull50_raw         = ch_genefull50_raw_dir
+        starsolo_genefull50_filtered    = ch_genefull50_filtered_dir
+        saturation_imgs                 = ch_sat_imgs
+        saturation_residual_imgs        = ch_sat_res_imgs
+        saturation_logs                 = ch_sat_logs
+        star_umipercell                 = ch_star_umi
+        star_log                        = ch_star_log
+        star_final_log                  = ch_star_final_log
+        star_summaries                  = ch_star_summaries
+        star_cellreads                  = ch_star_cellreads
+        featurecount_txt                = ch_featurecounts
+        pavian_sankey                   = ch_pavian_sankey
 }
 
 /*
