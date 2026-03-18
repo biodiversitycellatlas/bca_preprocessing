@@ -30,6 +30,7 @@ workflow QC_mapping_workflow {
         def ch_starsolo_bam  = Channel.empty()
         def ch_star_solodir  = Channel.empty()
         def ch_starsolo_genefull50_raw  = Channel.empty()
+        def ch_starsolo_genefull50_filtered  = Channel.empty()
         def ch_sat_imgs         = Channel.empty()
         def ch_sat_res_imgs     = Channel.empty()
         def ch_sat_logs         = Channel.empty()
@@ -41,13 +42,14 @@ workflow QC_mapping_workflow {
         def ch_alevin_meta_info = Channel.empty()
         def ch_alevin_quant_json = Channel.empty()
         def ch_alevin_cell_meta = Channel.empty()
+        def ch_alevin_mtx       = Channel.empty()
         def ch_featurecounts    = Channel.empty()
         def ch_pavian_sankey    = Channel.empty()
 
         // Quality Control
         FASTQC(data_output)
 
-        // Mapping: STARsolo, Alevin-fry, or both
+        // Mapping: starsolo, alevin, alevin_starsolo (both), or alevin_subsampled_starsolo
         if (params.mapping_software == "starsolo") {
             mapping_starsolo_workflow(data_output, bc_whitelist)
 
@@ -55,6 +57,7 @@ workflow QC_mapping_workflow {
             ch_starsolo_bam          =  mapping_starsolo_workflow.out.starsolo_bam
             ch_star_solodir          =  mapping_starsolo_workflow.out.star_solodir
             ch_starsolo_genefull50_raw  = mapping_starsolo_workflow.out.starsolo_genefull50_raw
+            ch_starsolo_genefull50_filtered = mapping_starsolo_workflow.out.starsolo_genefull50_filtered
             ch_sat_imgs              =  mapping_starsolo_workflow.out.saturation_imgs
             ch_sat_res_imgs          =  mapping_starsolo_workflow.out.saturation_residual_imgs
             ch_sat_logs              =  mapping_starsolo_workflow.out.saturation_logs
@@ -72,6 +75,7 @@ workflow QC_mapping_workflow {
             ch_alevin_meta_info = mapping_alevin_workflow.out.af_meta_info
             ch_alevin_quant_json = mapping_alevin_workflow.out.af_quant_json
             ch_alevin_cell_meta = mapping_alevin_workflow.out.af_cell_meta
+            ch_alevin_mtx = mapping_alevin_workflow.out.af_mtx
 
         } else if (params.mapping_software == "both" || params.mapping_software == "alevin_subsampled_starsolo" || params.mapping_software == "alevin_starsolo") {
 
@@ -91,6 +95,7 @@ workflow QC_mapping_workflow {
             ch_starsolo_bam          = mapping_starsolo_workflow.out.starsolo_bam
             ch_star_solodir          =  mapping_starsolo_workflow.out.star_solodir
             ch_starsolo_genefull50_raw  = mapping_starsolo_workflow.out.starsolo_genefull50_raw
+            ch_starsolo_genefull50_filtered = mapping_starsolo_workflow.out.starsolo_genefull50_filtered
             ch_sat_imgs              =  mapping_starsolo_workflow.out.saturation_imgs
             ch_sat_res_imgs          =  mapping_starsolo_workflow.out.saturation_residual_imgs
             ch_sat_logs              =  mapping_starsolo_workflow.out.saturation_logs
@@ -101,9 +106,10 @@ workflow QC_mapping_workflow {
             ch_star_cellreads        =  mapping_starsolo_workflow.out.star_cellreads
             ch_featurecounts         =  mapping_starsolo_workflow.out.featurecount_txt
             ch_pavian_sankey         =  mapping_starsolo_workflow.out.pavian_sankey
+            ch_alevin_mtx            =  mapping_alevin_workflow.out.af_mtx
 
         } else {
-            error "Invalid mapping software specified. Use one of the following parameters: 'starsolo', 'alevin' or 'both'."
+            error "Invalid mapping software specified. Use one of the following parameters: 'starsolo', 'alevin', 'alevin_starsolo'/'both' or 'alevin_subsampled_starsolo'."
         }
 
     emit:
@@ -111,6 +117,7 @@ workflow QC_mapping_workflow {
         starsolo_bam             = ch_starsolo_bam
         star_solodir             = ch_star_solodir
         starsolo_genefull50_raw  = ch_starsolo_genefull50_raw
+        starsolo_genefull50_filtered = ch_starsolo_genefull50_filtered
         saturation_imgs          = ch_sat_imgs
         saturation_residual_imgs = ch_sat_res_imgs
         saturation_logs          = ch_sat_logs
@@ -122,6 +129,7 @@ workflow QC_mapping_workflow {
         af_meta_info             = ch_alevin_meta_info
         af_quant_json            = ch_alevin_quant_json
         af_cell_meta             = ch_alevin_cell_meta
+        af_mtx                   = ch_alevin_mtx
         featurecount_txt         = ch_featurecounts
         pavian_sankey            = ch_pavian_sankey
 }

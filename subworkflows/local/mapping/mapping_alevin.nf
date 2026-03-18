@@ -44,6 +44,7 @@ workflow mapping_alevin_workflow {
         af_meta_info    = ALEVIN_FRY.out.af_meta_info
         af_quant_json   = ALEVIN_FRY.out.af_quant_json
         af_cell_meta    = ALEVIN_FRY.out.af_cell_meta
+        af_mtx          = ALEVIN_FRY.out.af_mtx
         qc_reports      = ALEVIN_QC.out.alevinQC_report
 }
 

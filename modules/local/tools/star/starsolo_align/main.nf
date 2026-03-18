@@ -1,6 +1,6 @@
 
 process STARSOLO_ALIGN {
-    publishDir "${params.outdir}/mapping_STARsolo/${meta.id}", mode: 'copy'
+    publishDir "${params.outdir}/mapping_STARsolo/${meta.id}${out_suffix}", mode: 'copy'
     tag "${meta.id}"
     label 'process_high_memory'
 
@@ -11,6 +11,7 @@ process STARSOLO_ALIGN {
     tuple val(meta), path(fastq_cDNA), path(fastq_BC_UMI), path(fastq_indices), path(input_file)
     val bc_whitelist
     path genome_index_files
+    val out_suffix
 
     output:
     tuple val(meta), path("*"),                                 emit: starsolo_files
@@ -18,7 +19,8 @@ process STARSOLO_ALIGN {
     tuple val(meta), path("*_Log.out"),                         emit: log_file
     tuple val(meta), path("*_Solo.out"),                        emit: star_solodir
     tuple val(meta), path("*_Solo.out/GeneFull_Ex50pAS/raw"),   emit: genefull50_raw_dir
-    tuple val(meta), path("*_Solo.out/GeneFull_Ex50pAS/Summary.csv"), emit: summary_csv
+    tuple val(meta), path("*_Solo.out/GeneFull_Ex50pAS/filtered"),      emit: genefull50_filtered_dir
+    tuple val(meta), path("*_Solo.out/GeneFull_Ex50pAS/Summary.csv"),   emit: summary_csv
     tuple val(meta), path("*_Solo.out/GeneFull_Ex50pAS/CellReads.stats"), emit: cellreads_stats
     tuple val(meta), path("*_Solo.out/GeneFull_Ex50pAS/UMIperCellSorted.txt"), emit: umi_per_cell
     tuple val(meta), path("*_Aligned.sortedByCoord.out.bam"),   emit: bam_file, optional: true
@@ -107,7 +109,7 @@ process STARSOLO_ALIGN {
         --outSAMunmapped ${star_outSAMunmapped} \\
         --outSAMattributes ${star_outSAMattributes_effective} \\
         ${outSAMtype_option} \\
-        --outFileNamePrefix ${meta.id}_ \\
+        --outFileNamePrefix ${meta.id}${out_suffix}_ \\
         --genomeChrSetMitochondrial ${params.mt_contig} \\
         --limitBAMsortRAM ${params.star_limitBAMsortRAM} \\
         ${star_extraargs}
