@@ -69,7 +69,7 @@ workflow BCA_PREPROCESSING {
         // Continue with filtering and MultiQC only with "standard" run_method
         if (params.run_method == "standard") {
             // Filtering raw matrices of ambient RNA
-            filter_out = filtering_workflow(QC_mapping_workflow.out.starsolo_genefull50_raw)
+            filter_out = filtering_workflow(QC_mapping_workflow.out.starsolo_genefull50_raw, QC_mapping_workflow.out.starsolo_genefull50_filtered, QC_mapping_workflow.out.af_mtx)
 
             reporting_workflow(
                 preprocessing_workflow.out.merged_samplesheet,
