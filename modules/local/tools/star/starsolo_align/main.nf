@@ -1,6 +1,6 @@
 
 process STARSOLO_ALIGN {
-    publishDir "${params.outdir}/mapping_STARsolo/${meta.id}${out_suffix}", mode: 'copy'
+    publishDir "${params.outdir}/mapping_STARsolo/${meta.id}", mode: 'copy'
     tag "${meta.id}"
     label 'process_high_memory'
 
@@ -11,7 +11,6 @@ process STARSOLO_ALIGN {
     tuple val(meta), path(fastq_cDNA), path(fastq_BC_UMI), path(fastq_indices), path(input_file)
     val bc_whitelist
     path genome_index_files
-    val out_suffix
 
     output:
     tuple val(meta), path("*"),                                 emit: starsolo_files
@@ -39,6 +38,13 @@ process STARSOLO_ALIGN {
     def star_outSAMattributes = params.star_outSAMattributes ?: params.seqtech_parameters[params.protocol].star_outSAMattributes
     def star_solocellfilter = params.star_solocellfilter ?: params.seqtech_parameters[params.protocol].star_solocellfilter
     def star_extraargs = params.star_extraargs ?: params.seqtech_parameters[params.protocol].star_extraargs
+
+    // Logic for BAM vs FASTQ input
+    def is_bam = fastq_cDNA.name.endsWith(".bam")
+    def read_files_command = is_bam ? "samtools view" : "pigz -dc -p ${task.cpus}"
+    def input_files        = is_bam ? "${fastq_cDNA}" : "${fastq_cDNA} ${fastq_BC_UMI}"
+
+    def whitelist_option = bc_whitelist ? ${bc_whitelist} : 'None'
 
     // If star_generateBAM is false, remove CR/UR/CB/UB tags from outSAMattributes
     def removableTags = ['CR', 'UR', 'CB', 'UB']
@@ -93,15 +99,15 @@ process STARSOLO_ALIGN {
     STAR \\
         --runThreadN ${task.cpus} \\
         \${SOLO_TYPE_STRING} \\
-        --readFilesIn ${fastq_cDNA} ${fastq_BC_UMI} \\
+        --readFilesIn ${input_files} \\
         --genomeDir ${genome_index_files} \\
-        --readFilesCommand "pigz -dc -p ${task.cpus}" \\
+        --readFilesCommand ${read_files_command} \\
         --soloCBmatchWLtype ${star_soloCBmatchWLtype} \\
         --soloUMIfiltering ${star_soloUMIfiltering} \\
         --soloMultiMappers ${star_soloMultiMappers} \\
         --soloUMIdedup ${star_soloUMIdedup} \\
         --soloFeatures ${star_soloFeatures} \\
-        --soloCBwhitelist ${bc_whitelist} \\
+        --soloCBwhitelist ${whitelist_option} \\
         --soloCellReadStats Standard \\
         --soloCellFilter \${SOLO_CELL_FILTER_ARGS} \\
         --clipAdapterType ${star_clipAdapterType} \\
@@ -109,9 +115,10 @@ process STARSOLO_ALIGN {
         --outSAMunmapped ${star_outSAMunmapped} \\
         --outSAMattributes ${star_outSAMattributes_effective} \\
         ${outSAMtype_option} \\
-        --outFileNamePrefix ${meta.id}${out_suffix}_ \\
+        --outFileNamePrefix ${meta.id}_ \\
         --genomeChrSetMitochondrial ${params.mt_contig} \\
         --limitBAMsortRAM ${params.star_limitBAMsortRAM} \\
+        --soloStrand ${params.star_soloStrand} \\
         ${star_extraargs}
     """
 }
