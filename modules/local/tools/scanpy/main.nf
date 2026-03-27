@@ -1,5 +1,5 @@
 process MTX_TO_H5AD {
-    publishDir "${params.outdir}/anndata/${meta.id}/${mapping_method}_${datatype}", mode: 'copy'
+    publishDir "${params.outdir}/anndata/${meta.id}/${datatype}", mode: 'copy'
     tag "${meta.id} | ${mapping_method} | ${datatype}"
     label 'process_low'
 
@@ -40,9 +40,8 @@ process MTX_TO_H5AD {
     # Clean up names and metadata
     adata.var_names_make_unique()
     adata.obs['sample_id'] = "${meta.id}"
-    adata.obs['aligner'] = "${mapping_method}"
 
     # Write compressed H5AD
-    adata.write_h5ad("${meta.id}_${mapping_method}_${datatype}.h5ad", compression="gzip")
+    adata.write_h5ad("${meta.id}_${datatype}.h5ad", compression="gzip")
     """
 }

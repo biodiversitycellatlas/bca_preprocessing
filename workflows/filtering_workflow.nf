@@ -26,6 +26,12 @@ workflow filtering_workflow {
         af_mtx
 
     main:
+        // Initialize reporting channels
+        def ch_cb_html                  = Channel.empty()
+        def ch_cs_ambient_hist_plot     = Channel.empty()
+        def ch_cs_umap_comparison_plot  = Channel.empty()
+        def ch_cs_top_genes             = Channel.empty()
+
         // Process STARsolo raw
         ch_starsolo_raw_ready = ch_starsolo_genefull50_raw.map { meta, dir ->
             def mtx      = file("${dir}/matrix.mtx")
@@ -69,9 +75,21 @@ workflow filtering_workflow {
         // Ambient RNA removal
         if (params.ambient_rna_remover == "cellbender" || params.perform_cellbender) {
             CELLBENDER(ch_raw_h5ad)
+            ch_cb_html = CELLBENDER.out.cb_html
+            // TODO: create script to convert pdf to imgs and table
+
         } else if (params.ambient_rna_remover == "cellsweep") {
             CELLSWEEP(ch_raw_h5ad)
+            ch_cs_ambient_hist_plot     = CELLSWEEP.out.cs_ambient_hist_plot
+            ch_cs_umap_comparison_plot  = CELLSWEEP.out.cs_umap_comparison_plot
+            ch_cs_top_genes             = CELLSWEEP.out.cs_top_genes
         }
+
+    emit:
+        cb_html                     = ch_cb_html
+        cs_ambient_hist_plot        = ch_cs_ambient_hist_plot
+        cs_umap_comparison_plot     = ch_cs_umap_comparison_plot
+        cs_top_genes                = ch_cs_top_genes
 }
 
 

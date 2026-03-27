@@ -61,6 +61,7 @@ workflow BCA_PREPROCESSING {
         // Pre-processing workflow
         preprocessing_workflow(samplesheet)
 
+        // Runs mapping for "standard", "geneext_only"
         if ( params.run_method != "exteral_pipeline_only" ) {
             // Mapping using STARsolo, Alevin, and/or comparison to commercial pipelines
             QC_mapping_workflow(preprocessing_workflow.out.data_output, preprocessing_workflow.out.bc_whitelist)
@@ -69,7 +70,7 @@ workflow BCA_PREPROCESSING {
         // Continue with filtering and MultiQC only with "standard" run_method
         if (params.run_method == "standard") {
             // Filtering raw matrices of ambient RNA
-            filter_out = filtering_workflow(QC_mapping_workflow.out.starsolo_genefull50_raw, QC_mapping_workflow.out.starsolo_genefull50_filtered, QC_mapping_workflow.out.af_mtx)
+            filtering_workflow(QC_mapping_workflow.out.starsolo_genefull50_raw, QC_mapping_workflow.out.starsolo_genefull50_filtered, QC_mapping_workflow.out.af_mtx)
 
             reporting_workflow(
                 preprocessing_workflow.out.merged_samplesheet,
@@ -89,7 +90,10 @@ workflow BCA_PREPROCESSING {
                 QC_mapping_workflow.out.saturation_imgs,
                 QC_mapping_workflow.out.saturation_residual_imgs,
                 QC_mapping_workflow.out.star_umipercell,
-                QC_mapping_workflow.out.featurecount_txt
+                QC_mapping_workflow.out.featurecount_txt,
+                filtering_workflow.out.cs_ambient_hist_plot,
+                filtering_workflow.out.cs_umap_comparison_plot,
+                filtering_workflow.out.cs_top_genes
             )
 
             multiqc_report_ch = reporting_workflow.out.multiqc_report
