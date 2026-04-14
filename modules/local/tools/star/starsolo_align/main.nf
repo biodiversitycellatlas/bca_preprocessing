@@ -39,12 +39,20 @@ process STARSOLO_ALIGN {
     def star_solocellfilter = params.star_solocellfilter ?: params.seqtech_parameters[params.protocol].star_solocellfilter
     def star_extraargs = params.star_extraargs ?: params.seqtech_parameters[params.protocol].star_extraargs
 
-    // Logic for BAM vs FASTQ input
-    def is_bam = fastq_cDNA.name.endsWith(".bam")
-    def read_files_command = is_bam ? "samtools view" : "pigz -dc -p ${task.cpus}"
-    def input_files        = is_bam ? "${fastq_cDNA}" : "${fastq_cDNA} ${fastq_BC_UMI}"
+    // Old logic for BAM vs FASTQ input
+    // def is_bam = fastq_cDNA.name.endsWith(".bam")
+    // def read_files_command = is_bam ? "samtools view" : "pigz -dc -p ${task.cpus}"
+    // def input_files        = is_bam ? "${fastq_cDNA}" : "${fastq_cDNA} ${fastq_BC_UMI}"
 
     def whitelist_option = bc_whitelist ? ${bc_whitelist} : 'None'
+
+    // Detect CRAM (and BAM) by inspecting the first file in the list
+    def first_file     = fastq_cDNA instanceof List ? fastq_cDNA[0] : fastq_cDNA
+    def is_bam_or_cram = first_file.name.endsWith(".bam") || first_file.name.endsWith(".cram")
+    def read_files_command   = is_bam_or_cram ? "samtools view" : "pigz -dc -p ${task.cpus}"
+    def input_files          = is_bam_or_cram
+        ? (fastq_cDNA instanceof List ? fastq_cDNA.join(',') : "${fastq_cDNA}")
+        : "${fastq_cDNA} ${fastq_BC_UMI}"
 
     // If star_generateBAM is false, remove CR/UR/CB/UB tags from outSAMattributes
     def removableTags = ['CR', 'UR', 'CB', 'UB']

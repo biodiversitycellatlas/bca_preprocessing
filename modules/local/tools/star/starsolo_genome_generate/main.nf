@@ -23,8 +23,13 @@ process STARSOLO_INDEX {
     echo "--genomeSAindexNbases = ${star_genomeSAindexNbases}"
     echo "--genomeSAsparseD = ${star_genomeSAsparseD}"
 
-    # Calculate SJDB overhang using the first read from the first fastq file
-    sjdb_overhang=\$(zcat ${fastq_cDNA} | awk 'NR==2 {print length(\$0)-1; exit}' || echo "")
+    if [[ ${params.scalerna_inputFormat} == "crams" ]]; then
+        # For CRAM input, use STARsolo default
+        sjdb_overhang=100
+    else
+        # Calculate SJDB overhang using the first read from the first fastq file
+        sjdb_overhang=\$(zcat ${fastq_cDNA} | awk 'NR==2 {print length(\$0)-1; exit}' || echo "")
+    fi
 
     echo "Generating genome index with STAR"
     STAR --runMode genomeGenerate \\

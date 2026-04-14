@@ -30,8 +30,6 @@ process GENE_EXT {
         -o geneext.gtf \\
         -t tmp_geneext \\
         -j 4 \\
-        -v 3 \\
-        -keep \\
         -force ${subsamplebam}
     """
 }
