@@ -73,7 +73,7 @@ workflow BCA_PREPROCESSING {
             filtering_workflow(QC_mapping_workflow.out.starsolo_genefull50_raw, QC_mapping_workflow.out.starsolo_genefull50_filtered, QC_mapping_workflow.out.af_mtx)
 
             reporting_workflow(
-                preprocessing_workflow.out.merged_samplesheet,
+                QC_mapping_workflow.out.mapped_samplesheet,
                 SAVE_RUN_CONFIG.out.samplesheet,
                 SAVE_RUN_CONFIG.out.run_config,
                 QC_mapping_workflow.out.star_final_log,
