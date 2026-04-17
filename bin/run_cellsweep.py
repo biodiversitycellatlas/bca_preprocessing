@@ -49,7 +49,7 @@ def detect_empty_droplets(adata, expected_cells, image_prefix):
     return adata
 
 
-def assign_clusters(adata, min_genes, max_mt_percent, remove_doublets):
+def assign_clusters(adata, min_genes, max_mt_percent, remove_doublets, image_prefix):
     """
     Perform clustering to provide CellSweep with biological groups.
     """
@@ -71,6 +71,20 @@ def assign_clusters(adata, min_genes, max_mt_percent, remove_doublets):
     # At minimum, it is recommended to remove doublets since cellsweep is not designed to handle them
     if remove_doublets:
         sc.pp.scrublet(adata_celltype)
+
+        total_cells = len(adata_celltype)
+        num_doublets = int(adata_celltype.obs["predicted_doublet"].sum())
+        doublet_pct = (num_doublets / total_cells * 100) if total_cells > 0 else 0.0
+
+        logger.info(f"Removed {num_doublets} doublets ({doublet_pct:.2f}%).")
+
+        # Save doublet stats to file
+        doublet_out_path = f"{image_prefix}doublet_summary.txt"
+        with open(doublet_out_path, "w") as f:
+            f.write(f"Total_Cells_Evaluated\t{total_cells}\n")
+            f.write(f"Doublets_Removed\t{num_doublets}\n")
+            f.write(f"Doublet_Percentage\t{doublet_pct:.2f}%\n")
+
         adata_celltype = adata_celltype[~adata_celltype.obs["predicted_doublet"]]
 
     # Standard Scanpy preprocessing for clustering
@@ -164,7 +178,7 @@ def main():
     adata = detect_empty_droplets(adata, args.expected_cells, args.image_prefix)
 
     # 3. Cluster Cells
-    adata = assign_clusters(adata, args.min_genes, args.max_mt_percent, args.remove_doublets)
+    adata = assign_clusters(adata, args.min_genes, args.max_mt_percent, args.remove_doublets, args.image_prefix)
 
     # 4. Run CellSweep Denoising
     logger.info("Starting CellSweep denoising (this may take a few minutes)...")

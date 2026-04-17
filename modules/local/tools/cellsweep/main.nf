@@ -15,6 +15,7 @@ process CELLSWEEP {
     path("*_ambient_hat_histogram.png"),      emit: cs_ambient_hist_plot
     path("*_top_ambient_genes.csv"),          emit: cs_top_genes
     path("*_umap_comparison.png"),            emit: cs_umap_comparison_plot
+    path("*_doublet_summary.txt"),            emit: cs_doublet_summary, optional: true
 
     script:
     """
