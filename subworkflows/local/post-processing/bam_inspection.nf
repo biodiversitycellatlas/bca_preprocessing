@@ -28,6 +28,7 @@ include { PAVIAN                                            } from '../../../mod
 workflow bam_inspection_workflow {
     take:
         bam_file
+        ref_gtf
         summary_csv
         log_final_file
 
@@ -88,7 +89,7 @@ workflow bam_inspection_workflow {
                 .set { ch_fc_inputs }
 
             // Run featureCounts to calculate mtDNA and rRNA percentages and capture output
-            CALC_MT_RRNA(ch_fc_inputs.bam_ch, ch_fc_inputs.bai_ch)
+            CALC_MT_RRNA(ch_fc_inputs.bam_ch, ch_fc_inputs.bai_ch, ref_gtf)
             ch_featurecounts = CALC_MT_RRNA.out
         }
 

@@ -39,14 +39,10 @@ process STARSOLO_ALIGN {
     def star_solocellfilter = params.star_solocellfilter ?: params.seqtech_parameters[params.protocol].star_solocellfilter
     def star_extraargs = params.star_extraargs ?: params.seqtech_parameters[params.protocol].star_extraargs
 
-    // Old logic for BAM vs FASTQ input
-    // def is_bam = fastq_cDNA.name.endsWith(".bam")
-    // def read_files_command = is_bam ? "samtools view" : "pigz -dc -p ${task.cpus}"
-    // def input_files        = is_bam ? "${fastq_cDNA}" : "${fastq_cDNA} ${fastq_BC_UMI}"
+    // Convert empty bc_whitelist to None
+    def safe_bc_whitelist = (bc_whitelist && bc_whitelist != "") ? bc_whitelist : 'None'
 
-    def whitelist_option = bc_whitelist ? ${bc_whitelist} : 'None'
-
-    // Detect CRAM (and BAM) by inspecting the first file in the list
+    // Detect CRAM or BAM by inspecting the first file in the list
     def first_file     = fastq_cDNA instanceof List ? fastq_cDNA[0] : fastq_cDNA
     def is_bam_or_cram = first_file.name.endsWith(".bam") || first_file.name.endsWith(".cram")
     def read_files_command   = is_bam_or_cram ? "samtools view" : "pigz -dc -p ${task.cpus}"
@@ -73,7 +69,7 @@ process STARSOLO_ALIGN {
     echo "FASTQ cDNA: ${fastq_cDNA}"
     echo "FASTQ BC & UMI: ${fastq_BC_UMI}"
     echo "Genome index directory: ${genome_index_files}"
-    echo "Barcode whitelist: ${bc_whitelist}"
+    echo "Barcode whitelist: ${safe_bc_whitelist}"
     echo "Expected cells: ${meta.expected_cells}"
     echo "star_limitBAMsortRAM: ${params.star_limitBAMsortRAM}"
     echo "star_solocellfilter: ${star_solocellfilter}"
@@ -115,7 +111,7 @@ process STARSOLO_ALIGN {
         --soloMultiMappers ${star_soloMultiMappers} \\
         --soloUMIdedup ${star_soloUMIdedup} \\
         --soloFeatures ${star_soloFeatures} \\
-        --soloCBwhitelist ${whitelist_option} \\
+        --soloCBwhitelist ${safe_bc_whitelist} \\
         --soloCellReadStats Standard \\
         --soloCellFilter \${SOLO_CELL_FILTER_ARGS} \\
         --clipAdapterType ${star_clipAdapterType} \\

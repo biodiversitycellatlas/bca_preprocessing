@@ -14,8 +14,12 @@ include { bam_inspection_workflow                                           } fr
 include { bam_inspection_workflow as bam_inspection_geneext_workflow        } from '../subworkflows/local/post-processing/bam_inspection'
 include { geneext_workflow                                                  } from '../subworkflows/local/mapping/geneext'
 
-include { FASTQC                    } from '../modules/local/tools/fastqc/main'
-include { SUBSAMPLE_FASTQS          } from '../modules/local/tools/seqtk/main'
+include { MERGE_REF_FASTA                                                   } from '../modules/local/custom/manipulate/merge_ref_fasta/main'
+include { MERGE_REF_FASTA as MERGE_REF_FASTA_GENEEXT                        } from '../modules/local/custom/manipulate/merge_ref_fasta/main'
+include { MERGE_REF_GTF                                                     } from '../modules/local/custom/manipulate/merge_ref_gtf/main'
+include { MERGE_REF_GTF as MERGE_REF_GTF_GENEEXT                            } from '../modules/local/custom/manipulate/merge_ref_gtf/main'
+include { FASTQC                                                            } from '../modules/local/tools/fastqc/main'
+include { SUBSAMPLE_FASTQS                                                  } from '../modules/local/tools/seqtk/main'
 
 
 /*
@@ -30,39 +34,66 @@ workflow QC_mapping_workflow {
 
     main:
         // Initialize reporting channels
-        def ch_mapping_files = Channel.empty()
-        def ch_starsolo_bam  = Channel.empty()
-        def ch_star_solodir  = Channel.empty()
-        def ch_starsolo_genefull50_raw  = Channel.empty()
-        def ch_starsolo_genefull50_filtered  = Channel.empty()
-        def ch_sat_imgs         = Channel.empty()
-        def ch_sat_res_imgs     = Channel.empty()
-        def ch_sat_logs         = Channel.empty()
-        def ch_star_umi         = Channel.empty()
-        def ch_star_log         = Channel.empty()
-        def ch_star_final_log   = Channel.empty()
-        def ch_star_summaries   = Channel.empty()
-        def ch_star_cellreads  = Channel.empty()
-        def ch_alevin_meta_info = Channel.empty()
-        def ch_alevin_quant_json = Channel.empty()
-        def ch_alevin_cell_meta = Channel.empty()
-        def ch_alevin_mtx       = Channel.empty()
-        def ch_featurecounts    = Channel.empty()
-        def ch_pavian_sankey    = Channel.empty()
+        def ch_mapped_ss                    = Channel.empty()
+        def ch_mapping_files                = Channel.empty()
+        def ch_starsolo_bam                 = Channel.empty()
+        def ch_star_solodir                 = Channel.empty()
+        def ch_starsolo_genefull50_raw      = Channel.empty()
+        def ch_starsolo_genefull50_filtered = Channel.empty()
+        def ch_sat_imgs                     = Channel.empty()
+        def ch_sat_res_imgs                 = Channel.empty()
+        def ch_sat_logs                     = Channel.empty()
+        def ch_star_umi                     = Channel.empty()
+        def ch_star_log                     = Channel.empty()
+        def ch_star_final_log               = Channel.empty()
+        def ch_star_summaries               = Channel.empty()
+        def ch_star_cellreads               = Channel.empty()
+        def ch_alevin_meta_info             = Channel.empty()
+        def ch_alevin_quant_json            = Channel.empty()
+        def ch_alevin_cell_meta             = Channel.empty()
+        def ch_alevin_mtx                   = Channel.empty()
+        def ch_featurecounts                = Channel.empty()
+        def ch_pavian_sankey                = Channel.empty()
+
+        // Conditionally bypass MERGE_REF_GTF/FASTA when no additiona features are provided
+        def ref_gtf_ch
+        if (params.ref_gtf_addfeature) {
+            MERGE_REF_GTF(params.ref_gtf, Channel.fromPath(params.ref_gtf_addfeature))
+            ref_gtf_ch = MERGE_REF_GTF.out
+        } else {
+            ref_gtf_ch = Channel.value(file(params.ref_gtf))
+        }
+
+        def ref_fasta_ch
+        if (params.ref_fasta_addfeature) {
+            MERGE_REF_FASTA(params.ref_fasta, Channel.fromPath(params.ref_fasta_addfeature))
+            ref_fasta_ch = MERGE_REF_FASTA.out
+        } else {
+            ref_fasta_ch = Channel.value(file(params.ref_fasta))
+        }
+
+        // Safe bc_whitelist: emit empty string when no whitelist is produced by preprocessing
+        def bc_whitelist_safe = bc_whitelist
+            .ifEmpty("")
+
+        // Suffix application: uses index access to avoid fixed-arity destructuring
+        def apply_suffix = { ch, suffix ->
+            ch.map { row ->
+                def new_meta = row[0].clone()
+                new_meta.base_id = row[0].id
+                new_meta.id = row[0].id + suffix
+                [new_meta] + row.drop(1)
+            }
+        }
+
+        // First cDNA extraction: uses index access
+        def first_cdna_from = { ch ->
+            ch.map { row -> row[1] }.first()
+        }
 
         // Quality Control
         if (params.protocol != "scalebio") {
             FASTQC(data_output)
-        }
-
-        // Add suffix to metadata for seperation of results
-        def apply_suffix = { ch, suffix ->
-            ch.map { meta, fq1, fq2, fqidx, ss ->
-                def new_meta = meta.clone()
-                new_meta.base_id = meta.id          // Preserve 'sample1'
-                new_meta.id = meta.id + suffix      // Creates 'sample1_starsolo'
-                [new_meta, fq1, fq2, fqidx, ss]
-            }
         }
 
         // Mapping: starsolo, alevin, alevin_starsolo (both), or alevin_subsampled_starsolo
@@ -71,14 +102,21 @@ workflow QC_mapping_workflow {
             // If 'alevin_subsampled_starsolo' is selected, run STARsolo on a subsampled dataset
             if (params.mapping_software == "alevin_subsampled_starsolo") {
                 def ch_star = apply_suffix(data_output, "_subsampled_starsolo")
-
+                ch_mapped_ss = ch_mapped_ss.mix(ch_star)
                 SUBSAMPLE_FASTQS(ch_star)
-                mapping_starsolo_workflow(SUBSAMPLE_FASTQS.out, bc_whitelist, params.ref_gtf, 'false')
+
+                def ch_star_subsampled = SUBSAMPLE_FASTQS.out
+                def ch_star_subsampled_first_cdna = first_cdna_from(ch_star_subsampled)
+
+                mapping_starsolo_workflow(SUBSAMPLE_FASTQS.out, bc_whitelist_safe, ref_gtf_ch, ref_fasta_ch, ch_star_subsampled_first_cdna, 'false')
 
             // Run STARsolo on the full dataset
             } else {
                 def ch_star = apply_suffix(data_output, "_starsolo")
-                mapping_starsolo_workflow(ch_star, bc_whitelist, params.ref_gtf, 'false')
+                ch_mapped_ss = ch_mapped_ss.mix(ch_star)
+                def ch_star_first_cdna = first_cdna_from(ch_star)
+
+                mapping_starsolo_workflow(ch_star, bc_whitelist_safe, ref_gtf_ch, ref_fasta_ch, ch_star_first_cdna, 'false')
             }
 
             // Assign starsolo standard mapping outputs
@@ -96,7 +134,7 @@ workflow QC_mapping_workflow {
 
             // Run BAM inspection workflow on standard STARsolo output
             if (params.star_generateBAM) {
-                bam_inspection_workflow(ch_starsolo_bam, ch_star_summaries, ch_star_final_log)
+                bam_inspection_workflow(ch_starsolo_bam, ref_gtf_ch, ch_star_summaries, ch_star_final_log)
 
                 ch_sat_imgs              =  bam_inspection_workflow.out.saturation_imgs
                 ch_sat_res_imgs          =  bam_inspection_workflow.out.saturation_residual_imgs
@@ -110,8 +148,31 @@ workflow QC_mapping_workflow {
                 geneext_workflow(mapping_starsolo_workflow.out.starsolo_bam)
 
                 if (params.perform_geneext) {
-                    def ch_geneext = apply_suffix(data_output, "_geneext_starsolo")   // TODO: add _geneext_subsampled_starsolo option
-                    mapping_starsolo_geneext_workflow(ch_geneext, bc_whitelist, geneext_workflow.out.ref_gtf, 'true')
+
+                    // Same conditional bypass for geneext GTF/FASTA
+                    def ref_gtf_geneext_ch
+                    if (params.ref_gtf_addfeature) {
+                        MERGE_REF_GTF_GENEEXT(geneext_workflow.out.ref_gtf, Channel.fromPath(params.ref_gtf_addfeature))
+                        ref_gtf_geneext_ch = MERGE_REF_GTF_GENEEXT.out
+                    } else {
+                        // Geneext always extends from the geneext output, no bypass possible here
+                        MERGE_REF_GTF_GENEEXT(geneext_workflow.out.ref_gtf, Channel.value([]))
+                        ref_gtf_geneext_ch = MERGE_REF_GTF_GENEEXT.out
+                    }
+
+                    def ref_fasta_geneext_ch
+                    if (params.ref_fasta_addfeature) {
+                        MERGE_REF_FASTA_GENEEXT(params.ref_fasta, Channel.fromPath(params.ref_fasta_addfeature))
+                        ref_fasta_geneext_ch = MERGE_REF_FASTA_GENEEXT.out
+                    } else {
+                        ref_fasta_geneext_ch = Channel.value(file(params.ref_fasta))
+                    }
+
+                    def ch_geneext = apply_suffix(data_output, "_geneext_starsolo")
+                    ch_mapped_ss = ch_mapped_ss.mix(ch_geneext)
+                    def ch_geneext_first_cdna = first_cdna_from(ch_geneext)
+
+                    mapping_starsolo_geneext_workflow(ch_geneext, bc_whitelist_safe, ref_gtf_geneext_ch, ref_fasta_geneext_ch, ch_geneext_first_cdna, 'true')
 
                     // Mix the geneext starsolo outputs with standard run
                     ch_mapping_files                = ch_mapping_files.mix(mapping_starsolo_geneext_workflow.out.mapping_files)
@@ -128,6 +189,7 @@ workflow QC_mapping_workflow {
                     // Run BAM inspection workflow on geneext STARsolo output
                     if (params.star_generateBAM) {
                         bam_inspection_geneext_workflow(mapping_starsolo_geneext_workflow.out.starsolo_bam,
+                                                    ref_gtf_geneext_ch,
                                                     mapping_starsolo_geneext_workflow.out.star_summaries,
                                                     mapping_starsolo_geneext_workflow.out.star_final_log)
 
@@ -143,6 +205,7 @@ workflow QC_mapping_workflow {
 
         if (params.mapping_software == "alevin" || params.mapping_software == "both" || params.mapping_software == "alevin_subsampled_starsolo" || params.mapping_software == "alevin_starsolo") {
             def ch_alevin = apply_suffix(data_output, "_alevinfry")
+            ch_mapped_ss = ch_mapped_ss.mix(ch_alevin)
             mapping_alevin_workflow(ch_alevin, bc_whitelist)
 
             ch_mapping_files = ch_mapping_files.mix(mapping_alevin_workflow.out.mapping_files)
@@ -154,6 +217,8 @@ workflow QC_mapping_workflow {
         }
 
     emit:
+        mapped_samplesheet = ch_mapped_ss
+        ref_gtf                  = ref_gtf_ch
         mapping_files            = ch_mapping_files
         starsolo_bam             = ch_starsolo_bam
         star_solodir             = ch_star_solodir

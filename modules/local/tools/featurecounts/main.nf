@@ -9,6 +9,7 @@ process CALC_MT_RRNA {
     input:
     tuple val(meta), path(bam_file)
     file(bam_index)
+    file(ref_gtf)
 
     output:
     file("${meta.id}_mt_rrna_metrics.txt")
@@ -18,12 +19,12 @@ process CALC_MT_RRNA {
     echo "\n\n==================  CALCULATION rRNA & mtDNA =================="
     echo "Sample ID: ${meta}"
     echo "BAM file: ${bam_file}"
+    echo "GTF: ${ref_gtf}"
 
     calculate_rrna_mtdna.sh \\
         ${bam_file} \\
         ${meta.id}_mt_rrna_metrics.txt \\
-        ${params.ref_gtf} \\
-        ${params.grep_rrna} \\
+        ${ref_gtf} \\
         ${params.mt_contig}
 
     echo "Created file: ${meta.id}_mt_rrna_metrics.txt"

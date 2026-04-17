@@ -33,10 +33,11 @@ workflow preprocessing_workflow {
 
     main:
         // Merge fastq files of duplicate sample IDs
-        if (!params.scalerna_inputFormat == "crams") {
-            merged_samplesheet = MERGE_FASTQS(ch_samplesheet)
-        } else {
+        if (params.scalerna_inputFormat == "crams") {
             merged_samplesheet = ch_samplesheet
+        } else {
+            MERGE_FASTQS(ch_samplesheet)
+            merged_samplesheet = MERGE_FASTQS.out
         }
 
         // Check for protocol and run appropriate pre-processing workflow
@@ -60,7 +61,7 @@ workflow preprocessing_workflow {
             data_output_ch   = sciRNAseq3_nogather_workflow.out.data_output
             bc_whitelist_ch  = sciRNAseq3_nogather_workflow.out.bc_whitelist.map { tup -> tup*.toString().join(' ') }
 
-        } else if (params.protocol == 'scalebio'){
+        } else if (params.protocol == 'scalebio') {
             scalebio_workflow(merged_samplesheet)
             data_output_ch = scalebio_workflow.out.data_output
             bc_whitelist_ch  = params.bc_whitelist

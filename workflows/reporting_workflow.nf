@@ -23,6 +23,7 @@ workflow reporting_workflow {
     take:
         samplesheet
         samplesheet_file
+        ref_gtf
         run_config
         star_logs
         star_summaries
@@ -60,26 +61,29 @@ workflow reporting_workflow {
             PERCELL_METRICS(
                 ch_percell_inputs.bam_ch,
                 ch_percell_inputs.solodir_ch,
-                ch_percell_inputs.logs_ch
+                ch_percell_inputs.logs_ch,
+                ref_gtf
             )
             percell_json = PERCELL_METRICS.out.percell_json
         } else {
             percell_json = Channel.empty()
         }
 
+        // Build anchor from whichever mapping software was run
+        def ch_anchor = star_summaries.mix(af_meta_info)
+
         // Join channels that need renaming by meta ID
-        ch_to_rename = samplesheet
-            .map { row -> [ row[0] ] }
-            .join(star_summaries, remainder: true)
-            .join(cell_stats, remainder: true)
-            .join(knee_files, remainder: true)
-            .join(af_meta_info, remainder: true)
+        ch_to_rename = ch_anchor
+            .join(cell_stats,    remainder: true)
+            .join(knee_files,    remainder: true)
+            .join(af_meta_info,  remainder: true)
             .join(af_quant_json, remainder: true)
-            .join(af_cell_meta, remainder: true)
+            .join(af_cell_meta,  remainder: true)
             .map { row ->
-                def meta = row[0]
-                // Extract all elements after 'meta', flatten them, and filter out nulls
-                def input_files = row[1..-1].flatten().findAll { it != null }
+                def meta        = row[0]
+                def input_files = row.drop(1).findAll { item ->
+                    item != null && !(item instanceof java.util.Map)
+                }
                 [ meta, input_files ]
             }
 

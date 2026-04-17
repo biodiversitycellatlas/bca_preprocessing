@@ -21,25 +21,27 @@ workflow mapping_starsolo_workflow {
         data_output
         bc_whitelist
         ref_gtf
+        ref_fasta
+        first_cDNA
         remap_geneext
 
     main:
         // Initialize reporting channels
         def ch_starsolo_bam  = Channel.empty()
 
-        // Get the first cDNA fastq file from the samplesheet to use for STAR index generation
-        def ch_first_cDNA = data_output
-            .map { meta, fastq_cDNA, fastq_BC_UMI, empty_list, samplesheet -> fastq_cDNA }
-            .first()
-
         // Check if star index is provided, if not create it
         def star_index_ch
         if (params.star_index && file(params.star_index).exists() && remap_geneext == 'false') {
             star_index_ch = Channel.value(file(params.star_index))
         } else {
-            STARSOLO_INDEX(ref_gtf, ch_first_cDNA)
+            STARSOLO_INDEX(ref_gtf, ref_fasta, first_cDNA)
             star_index_ch = STARSOLO_INDEX.out
         }
+
+        // Confirm bc_whitelist is a safe value channel
+        def bc_whitelist_ch = bc_whitelist instanceof List
+            ? Channel.value(bc_whitelist)
+            : bc_whitelist.ifEmpty([]).first()
 
         // Run STARsolo alignment
         STARSOLO_ALIGN(data_output, bc_whitelist, star_index_ch)

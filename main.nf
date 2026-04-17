@@ -62,19 +62,21 @@ workflow BCA_PREPROCESSING {
         preprocessing_workflow(samplesheet)
 
         // Runs mapping for "standard", "geneext_only"
-        if ( params.run_method != "exteral_pipeline_only" ) {
+        if ( params.run_method != "external_pipeline_only" ) {
             // Mapping using STARsolo, Alevin, and/or comparison to commercial pipelines
             QC_mapping_workflow(preprocessing_workflow.out.data_output, preprocessing_workflow.out.bc_whitelist)
         }
 
         // Continue with filtering and MultiQC only with "standard" run_method
         if (params.run_method == "standard") {
+
             // Filtering raw matrices of ambient RNA
             filtering_workflow(QC_mapping_workflow.out.starsolo_genefull50_raw, QC_mapping_workflow.out.starsolo_genefull50_filtered, QC_mapping_workflow.out.af_mtx)
 
             reporting_workflow(
                 QC_mapping_workflow.out.mapped_samplesheet,
                 SAVE_RUN_CONFIG.out.samplesheet,
+                QC_mapping_workflow.out.ref_gtf,
                 SAVE_RUN_CONFIG.out.run_config,
                 QC_mapping_workflow.out.star_final_log,
                 QC_mapping_workflow.out.star_summaries,

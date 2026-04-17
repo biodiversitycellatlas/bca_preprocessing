@@ -4,6 +4,7 @@ process STARSOLO_INDEX {
 
     input:
     path ref_gtf
+    path ref_fasta
     path fastq_cDNA
 
     conda "${moduleDir}/environment.yml"
@@ -33,7 +34,7 @@ process STARSOLO_INDEX {
 
     echo "Generating genome index with STAR"
     STAR --runMode genomeGenerate \\
-        --genomeFastaFiles ${params.ref_fasta} \\
+        --genomeFastaFiles ${ref_fasta} \\
         --sjdbGTFfile ${ref_gtf} \\
         --sjdbOverhang "\${sjdb_overhang}" \\
         --genomeSAsparseD ${star_genomeSAsparseD} \\
