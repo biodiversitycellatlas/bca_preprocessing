@@ -31,6 +31,7 @@ process CELLSWEEP {
         --cs_full_h5ad ${meta.id}_cs_full.h5ad \\
         --image_prefix ${meta.id}_ \\
         --expected_cells ${meta.expected_cells} \\
+        --no-remove-doublets \\
         --threads ${task.cpus}
     """
 }
