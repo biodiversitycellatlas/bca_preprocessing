@@ -1,10 +1,12 @@
 process MERGE_REF_FASTA {
+    publishDir "${params.outdir}/genome", mode: 'copy'
+
     input:
-        path base_fasta
-        path add_fasta
+    path base_fasta
+    path add_fasta
 
     output:
-        path "ref.fasta"
+    path "ref.fasta"
 
     script:
     def do_merge = add_fasta ? true : false

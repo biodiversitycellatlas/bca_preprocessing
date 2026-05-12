@@ -1,10 +1,12 @@
 process MERGE_REF_GTF {
+    publishDir "${params.outdir}/genome", mode: 'copy'
+
     input:
-        path base_gtf
-        path add_gtf
+    path base_gtf
+    path add_gtf
 
     output:
-        path "ref.gtf"
+    path "ref.gtf"
 
     script:
     def do_merge = add_gtf ? true : false
