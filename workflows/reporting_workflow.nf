@@ -62,7 +62,7 @@ workflow reporting_workflow {
                 ch_percell_inputs.bam_ch,
                 ch_percell_inputs.solodir_ch,
                 ch_percell_inputs.logs_ch,
-                ref_gtf
+                ref_gtf.first()
             )
             percell_json = PERCELL_METRICS.out.percell_json
         } else {

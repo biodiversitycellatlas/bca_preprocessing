@@ -55,7 +55,10 @@ workflow QC_mapping_workflow {
         def ch_featurecounts                = Channel.empty()
         def ch_pavian_sankey                = Channel.empty()
 
-        // Conditionally bypass MERGE_REF_GTF/FASTA when no additiona features are provided
+
+        data_output.view { "data_output received: ${it[0].id}" }
+
+        // Conditionally bypass MERGE_REF_GTF/FASTA when no additional features are provided
         def ref_gtf_ch
         if (params.ref_gtf_addfeature) {
             MERGE_REF_GTF(params.ref_gtf, Channel.fromPath(params.ref_gtf_addfeature))
@@ -86,11 +89,6 @@ workflow QC_mapping_workflow {
             }
         }
 
-        // First cDNA extraction: uses index access
-        def first_cdna_from = { ch ->
-            ch.map { row -> row[1] }.first()
-        }
-
         // Quality Control
         if (params.protocol != "scalebio") {
             FASTQC(data_output)
@@ -101,36 +99,33 @@ workflow QC_mapping_workflow {
 
             // If 'alevin_subsampled_starsolo' is selected, run STARsolo on a subsampled dataset
             if (params.mapping_software == "alevin_subsampled_starsolo") {
-                def ch_star = apply_suffix(data_output, "_subsampled_starsolo")
+
+                def ch_star           = apply_suffix(data_output, "_subsampled_starsolo")
                 ch_mapped_ss = ch_mapped_ss.mix(ch_star)
                 SUBSAMPLE_FASTQS(ch_star)
 
-                def ch_star_subsampled = SUBSAMPLE_FASTQS.out
-                def ch_star_subsampled_first_cdna = first_cdna_from(ch_star_subsampled)
-
-                mapping_starsolo_workflow(SUBSAMPLE_FASTQS.out, bc_whitelist_safe, ref_gtf_ch, ref_fasta_ch, ch_star_subsampled_first_cdna, 'false')
+                mapping_starsolo_workflow(SUBSAMPLE_FASTQS.out, bc_whitelist_safe, ref_gtf_ch, ref_fasta_ch, 'false')
 
             // Run STARsolo on the full dataset
             } else {
-                def ch_star = apply_suffix(data_output, "_starsolo")
-                ch_mapped_ss = ch_mapped_ss.mix(ch_star)
-                def ch_star_first_cdna = first_cdna_from(ch_star)
 
-                mapping_starsolo_workflow(ch_star, bc_whitelist_safe, ref_gtf_ch, ref_fasta_ch, ch_star_first_cdna, 'false')
+                def ch_star           = apply_suffix(data_output, "_starsolo")
+                ch_mapped_ss = ch_mapped_ss.mix(ch_star)
+
+                mapping_starsolo_workflow(ch_star, bc_whitelist_safe, ref_gtf_ch, ref_fasta_ch, 'false')
             }
 
             // Assign starsolo standard mapping outputs
-            ch_mapping_files         =  mapping_starsolo_workflow.out.mapping_files
-            ch_starsolo_bam          =  mapping_starsolo_workflow.out.starsolo_bam
-            ch_star_solodir          =  mapping_starsolo_workflow.out.star_solodir
-            ch_starsolo_genefull50_raw  = mapping_starsolo_workflow.out.starsolo_genefull50_raw
+            ch_mapping_files             =  mapping_starsolo_workflow.out.mapping_files
+            ch_starsolo_bam              =  mapping_starsolo_workflow.out.starsolo_bam
+            ch_star_solodir              =  mapping_starsolo_workflow.out.star_solodir
+            ch_starsolo_genefull50_raw   =  mapping_starsolo_workflow.out.starsolo_genefull50_raw
             ch_starsolo_genefull50_filtered = mapping_starsolo_workflow.out.starsolo_genefull50_filtered
-            ch_star_umi              =  mapping_starsolo_workflow.out.star_umipercell
-            ch_star_log              =  mapping_starsolo_workflow.out.star_log
-            ch_star_final_log        =  mapping_starsolo_workflow.out.star_final_log
-            ch_star_summaries        =  mapping_starsolo_workflow.out.star_summaries
-            ch_star_cellreads        =  mapping_starsolo_workflow.out.star_cellreads
-
+            ch_star_umi                  =  mapping_starsolo_workflow.out.star_umipercell
+            ch_star_log                  =  mapping_starsolo_workflow.out.star_log
+            ch_star_final_log            =  mapping_starsolo_workflow.out.star_final_log
+            ch_star_summaries            =  mapping_starsolo_workflow.out.star_summaries
+            ch_star_cellreads            =  mapping_starsolo_workflow.out.star_cellreads
 
             // Run BAM inspection workflow on standard STARsolo output
             if (params.star_generateBAM) {
@@ -145,6 +140,8 @@ workflow QC_mapping_workflow {
 
             // Optionally run geneext and rerun mapping steps
             if (params.perform_geneext || params.run_method == "geneext_only") {
+
+                // Collect ALL BAMs from all samples before running geneext
                 geneext_workflow(mapping_starsolo_workflow.out.starsolo_bam)
 
                 if (params.perform_geneext) {
@@ -168,11 +165,10 @@ workflow QC_mapping_workflow {
                         ref_fasta_geneext_ch = Channel.value(file(params.ref_fasta))
                     }
 
-                    def ch_geneext = apply_suffix(data_output, "_geneext_starsolo")
+                    def ch_geneext           = apply_suffix(data_output, "_geneext_starsolo")
                     ch_mapped_ss = ch_mapped_ss.mix(ch_geneext)
-                    def ch_geneext_first_cdna = first_cdna_from(ch_geneext)
 
-                    mapping_starsolo_geneext_workflow(ch_geneext, bc_whitelist_safe, ref_gtf_geneext_ch, ref_fasta_geneext_ch, ch_geneext_first_cdna, 'true')
+                    mapping_starsolo_geneext_workflow(ch_geneext, bc_whitelist_safe, ref_gtf_geneext_ch, ref_fasta_geneext_ch, 'true')
 
                     // Mix the geneext starsolo outputs with standard run
                     ch_mapping_files                = ch_mapping_files.mix(mapping_starsolo_geneext_workflow.out.mapping_files)
@@ -208,36 +204,35 @@ workflow QC_mapping_workflow {
             ch_mapped_ss = ch_mapped_ss.mix(ch_alevin)
             mapping_alevin_workflow(ch_alevin, bc_whitelist)
 
-            ch_mapping_files = ch_mapping_files.mix(mapping_alevin_workflow.out.mapping_files)
+            ch_mapping_files    = ch_mapping_files.mix(mapping_alevin_workflow.out.mapping_files)
             ch_alevin_meta_info = mapping_alevin_workflow.out.af_meta_info
             ch_alevin_quant_json = mapping_alevin_workflow.out.af_quant_json
             ch_alevin_cell_meta = mapping_alevin_workflow.out.af_cell_meta
-            ch_alevin_mtx = mapping_alevin_workflow.out.af_mtx
-
+            ch_alevin_mtx       = mapping_alevin_workflow.out.af_mtx
         }
 
     emit:
-        mapped_samplesheet = ch_mapped_ss
-        ref_gtf                  = ref_gtf_ch
-        mapping_files            = ch_mapping_files
-        starsolo_bam             = ch_starsolo_bam
-        star_solodir             = ch_star_solodir
-        starsolo_genefull50_raw  = ch_starsolo_genefull50_raw
+        mapped_samplesheet           = ch_mapped_ss
+        ref_gtf                      = ref_gtf_ch
+        mapping_files                = ch_mapping_files
+        starsolo_bam                 = ch_starsolo_bam
+        star_solodir                 = ch_star_solodir
+        starsolo_genefull50_raw      = ch_starsolo_genefull50_raw
         starsolo_genefull50_filtered = ch_starsolo_genefull50_filtered
-        saturation_imgs          = ch_sat_imgs
-        saturation_residual_imgs = ch_sat_res_imgs
-        saturation_logs          = ch_sat_logs
-        star_umipercell          = ch_star_umi
-        star_log                 = ch_star_log
-        star_final_log           = ch_star_final_log
-        star_summaries           = ch_star_summaries
-        star_cellreads           = ch_star_cellreads
-        af_meta_info             = ch_alevin_meta_info
-        af_quant_json            = ch_alevin_quant_json
-        af_cell_meta             = ch_alevin_cell_meta
-        af_mtx                   = ch_alevin_mtx
-        featurecount_txt         = ch_featurecounts
-        pavian_sankey            = ch_pavian_sankey
+        saturation_imgs              = ch_sat_imgs
+        saturation_residual_imgs     = ch_sat_res_imgs
+        saturation_logs              = ch_sat_logs
+        star_umipercell              = ch_star_umi
+        star_log                     = ch_star_log
+        star_final_log               = ch_star_final_log
+        star_summaries               = ch_star_summaries
+        star_cellreads               = ch_star_cellreads
+        af_meta_info                 = ch_alevin_meta_info
+        af_quant_json                = ch_alevin_quant_json
+        af_cell_meta                 = ch_alevin_cell_meta
+        af_mtx                       = ch_alevin_mtx
+        featurecount_txt             = ch_featurecounts
+        pavian_sankey                = ch_pavian_sankey
 }
 
 /*

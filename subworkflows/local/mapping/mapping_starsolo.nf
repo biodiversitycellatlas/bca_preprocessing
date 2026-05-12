@@ -22,7 +22,6 @@ workflow mapping_starsolo_workflow {
         bc_whitelist
         ref_gtf
         ref_fasta
-        first_cDNA
         remap_geneext
 
     main:
@@ -34,8 +33,8 @@ workflow mapping_starsolo_workflow {
         if (params.star_index && file(params.star_index).exists() && remap_geneext == 'false') {
             star_index_ch = Channel.value(file(params.star_index))
         } else {
-            STARSOLO_INDEX(ref_gtf, ref_fasta, first_cDNA)
-            star_index_ch = STARSOLO_INDEX.out
+            STARSOLO_INDEX(data_output, ref_gtf, ref_fasta)
+            star_index_ch = STARSOLO_INDEX.out.first()
         }
 
         // Confirm bc_whitelist is a safe value channel

@@ -89,7 +89,7 @@ workflow bam_inspection_workflow {
                 .set { ch_fc_inputs }
 
             // Run featureCounts to calculate mtDNA and rRNA percentages and capture output
-            CALC_MT_RRNA(ch_fc_inputs.bam_ch, ch_fc_inputs.bai_ch, ref_gtf)
+            CALC_MT_RRNA(ch_fc_inputs.bam_ch, ch_fc_inputs.bai_ch, ref_gtf.first())
             ch_featurecounts = CALC_MT_RRNA.out
         }
 

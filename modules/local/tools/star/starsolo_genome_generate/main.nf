@@ -1,11 +1,11 @@
 process STARSOLO_INDEX {
-    publishDir "${params.outdir}/genome/star_index_${ref_gtf.simpleName}", mode: 'copy'
+    publishDir "${params.outdir}/genome/star_index_${ref_gtf.simpleName}_${meta.id}", mode: 'copy'
     label 'process_high_memory'
 
     input:
+    tuple val(meta), path(fastq_cDNA), path(fastq_BC_UMI), path(fastq_indices), path(input_file)
     path ref_gtf
     path ref_fasta
-    path fastq_cDNA
 
     conda "${moduleDir}/environment.yml"
     container "oras://community.wave.seqera.io/library/htslib_samtools_star_gawk:f196f82abbbc8871"
