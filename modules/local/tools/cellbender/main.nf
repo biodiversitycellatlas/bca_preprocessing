@@ -26,10 +26,6 @@ process CELLBENDER {
     echo "Number of expected cells: ${meta.expected_cells}"
     echo "GPU Profile Active: ${use_gpu}"
 
-    # Copy features file as cellbender expects the file to be named genes.tsv
-    # TODO: include this in the workflow
-    ln -s ${raw_h5ad}/features.tsv ${raw_h5ad}/genes.tsv
-
     cellbender remove-background \\
         ${cuda_flag} \\
         --input ${raw_h5ad} \\
