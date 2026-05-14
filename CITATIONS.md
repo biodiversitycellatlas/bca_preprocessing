@@ -18,6 +18,14 @@
 
   > He, D., Zakeri, M., Sarkar, H. et al. Alevin-fry unlocks rapid, accurate and memory-frugal quantification of single-cell RNA-seq data. Nat Methods 19, 316–322 (2022).
 
+- [CellBender](https://www.nature.com/articles/s41592-023-01943-7)
+
+  > Stephen J Fleming, Mark D Chaffin, Alessandro Arduini et al. Unsupervised removal of systematic background noise from droplet-based single-cell experiments using CellBender. Nature Methods, 2023. https://doi.org/10.1038/s41592-023-01943-7
+
+- [CellSweep](https://www.biorxiv.org/content/10.64898/2026.03.04.709349v1)
+
+  > Maya Caskey, Joseph Rich, Ryan Weber et al. Single-Cell Genomics Decontamination with CellSweep. bioRxiv 2026.03.04.709349, doi: https://doi.org/10.64898/2026.03.04.709349.
+
 - [fastp](https://www.ncbi.nlm.nih.gov/pubmed/30423086/)
 
   > Chen S, Zhou Y, Chen Y, Gu J. fastp: an ultra-fast all-in-one FASTQ preprocessor. Bioinformatics. 2018 Sep 1;34(17):i884-i890. doi: 10.1093/bioinformatics/bty560. PubMed PMID: 30423086; PubMed Central PMCID: PMC6129281.
@@ -75,6 +83,7 @@
   > He, D., Patro, R. simpleaf: a simple, flexible, and scalable framework for single-cell data processing using alevin-fry, Bioinformatics 39, 10 (2023).
 
 - [STARsolo](https://www.biorxiv.org/content/10.1101/2021.05.05.442755v1)
+
   > Benjamin Kaminow, Dinar Yunusov, Alexander Dobin. STARsolo: accurate, fast and versatile mapping/quantification of single-cell and single-nucleus RNA-seq data. BioRxiv 2021.05.05.442755 (2021).
 
 ## Git modules
@@ -85,9 +94,7 @@
 
 - [GeneExt](https://github.com/zolotarovgl/GeneExt)
 
-  > Zolotarov, G., Grau-Bové, X., & Sebé-Pedrós, A.
-  > GeneExt: a gene model extension tool for enhanced single-cell RNA-seq analysis
-  > bioRxiv 2023.12.05.570120. https://doi.org/10.1101/2023.12.05.570120
+  > Zolotarov, G., Grau-Bové, X., & Sebé-Pedrós, A. GeneExt: a gene model extension tool for enhanced single-cell RNA-seq analysis. bioRxiv 2023.12.05.570120. https://doi.org/10.1101/2023.12.05.570120
 
 - [pavianCore](https://github.com/Enthusiasm23/pavianCore)
 

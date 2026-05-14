@@ -18,7 +18,8 @@ process STARSOLO_ALIGN {
     tuple val(meta), path("*_Log.out"),                         emit: log_file
     tuple val(meta), path("*_Solo.out"),                        emit: star_solodir
     tuple val(meta), path("*_Solo.out/GeneFull_Ex50pAS/raw"),   emit: genefull50_raw_dir
-    tuple val(meta), path("*_Solo.out/GeneFull_Ex50pAS/Summary.csv"), emit: summary_csv
+    tuple val(meta), path("*_Solo.out/GeneFull_Ex50pAS/filtered"),      emit: genefull50_filtered_dir
+    tuple val(meta), path("*_Solo.out/GeneFull_Ex50pAS/Summary.csv"),   emit: summary_csv
     tuple val(meta), path("*_Solo.out/GeneFull_Ex50pAS/CellReads.stats"), emit: cellreads_stats
     tuple val(meta), path("*_Solo.out/GeneFull_Ex50pAS/UMIperCellSorted.txt"), emit: umi_per_cell
     tuple val(meta), path("*_Aligned.sortedByCoord.out.bam"),   emit: bam_file, optional: true
@@ -37,6 +38,17 @@ process STARSOLO_ALIGN {
     def star_outSAMattributes = params.star_outSAMattributes ?: params.seqtech_parameters[params.protocol].star_outSAMattributes
     def star_solocellfilter = params.star_solocellfilter ?: params.seqtech_parameters[params.protocol].star_solocellfilter
     def star_extraargs = params.star_extraargs ?: params.seqtech_parameters[params.protocol].star_extraargs
+
+    // Convert empty bc_whitelist to None
+    def safe_bc_whitelist = (bc_whitelist && bc_whitelist != "") ? bc_whitelist : 'None'
+
+    // Detect CRAM or BAM by inspecting the first file in the list
+    def first_file     = fastq_cDNA instanceof List ? fastq_cDNA[0] : fastq_cDNA
+    def is_bam_or_cram = first_file.name.endsWith(".bam") || first_file.name.endsWith(".cram")
+    def read_files_command   = is_bam_or_cram ? "samtools view" : "pigz -dc -p ${task.cpus}"
+    def input_files          = is_bam_or_cram
+        ? (fastq_cDNA instanceof List ? fastq_cDNA.join(',') : "${fastq_cDNA}")
+        : "${fastq_cDNA} ${fastq_BC_UMI}"
 
     // If star_generateBAM is false, remove CR/UR/CB/UB tags from outSAMattributes
     def removableTags = ['CR', 'UR', 'CB', 'UB']
@@ -57,7 +69,7 @@ process STARSOLO_ALIGN {
     echo "FASTQ cDNA: ${fastq_cDNA}"
     echo "FASTQ BC & UMI: ${fastq_BC_UMI}"
     echo "Genome index directory: ${genome_index_files}"
-    echo "Barcode whitelist: ${bc_whitelist}"
+    echo "Barcode whitelist: ${safe_bc_whitelist}"
     echo "Expected cells: ${meta.expected_cells}"
     echo "star_limitBAMsortRAM: ${params.star_limitBAMsortRAM}"
     echo "star_solocellfilter: ${star_solocellfilter}"
@@ -91,15 +103,15 @@ process STARSOLO_ALIGN {
     STAR \\
         --runThreadN ${task.cpus} \\
         \${SOLO_TYPE_STRING} \\
-        --readFilesIn ${fastq_cDNA} ${fastq_BC_UMI} \\
+        --readFilesIn ${input_files} \\
         --genomeDir ${genome_index_files} \\
-        --readFilesCommand "pigz -dc -p ${task.cpus}" \\
+        --readFilesCommand ${read_files_command} \\
         --soloCBmatchWLtype ${star_soloCBmatchWLtype} \\
         --soloUMIfiltering ${star_soloUMIfiltering} \\
         --soloMultiMappers ${star_soloMultiMappers} \\
         --soloUMIdedup ${star_soloUMIdedup} \\
         --soloFeatures ${star_soloFeatures} \\
-        --soloCBwhitelist ${bc_whitelist} \\
+        --soloCBwhitelist ${safe_bc_whitelist} \\
         --soloCellReadStats Standard \\
         --soloCellFilter \${SOLO_CELL_FILTER_ARGS} \\
         --clipAdapterType ${star_clipAdapterType} \\
@@ -110,6 +122,7 @@ process STARSOLO_ALIGN {
         --outFileNamePrefix ${meta.id}_ \\
         --genomeChrSetMitochondrial ${params.mt_contig} \\
         --limitBAMsortRAM ${params.star_limitBAMsortRAM} \\
+        --soloStrand ${params.star_soloStrand} \\
         ${star_extraargs}
     """
 }

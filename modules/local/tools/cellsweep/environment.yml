@@ -1,0 +1,12 @@
+channels:
+  - conda-forge
+  - bioconda
+
+dependencies:
+  - python
+  - pip:
+      - anndata
+      - scanpy
+      - numpy
+      - pandas
+      - cellsweep[analysis]

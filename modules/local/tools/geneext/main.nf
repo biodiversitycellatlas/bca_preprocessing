@@ -1,44 +1,35 @@
 process GENE_EXT {
-    publishDir "${params.outdir}/gene_ext/${meta.id}", mode: 'copy'
-    tag "${meta.id}"
-    label 'process_medium'
+    publishDir "${params.outdir}/gene_ext", mode: 'copy'
+    label 'process_high'
 
     // conda "${projectDir}/submodules/GeneExt/environment.yaml"
     conda "${moduleDir}/environment.yml"
 
     input:
-    tuple val(meta), path(bam_file)
-    file(bam_index)
+    path(bam_file)
+    path(bam_index)
 
     output:
-    path("${meta.id}*_geneext.g{tf, ff}")
+    path("geneext.gtf")
 
     script:
+    def subsamplebam = params.geneext_subsamplebam ? "--subsamplebam ${params.geneext_subsamplebam}" : ""
     """
     echo "\n\n==================  GENE EXTENSION =================="
-    echo "Sample ID: ${meta}"
-    echo "BAM index: ${bam_index}"
     echo "BAM file: ${bam_file}"
+    echo "BAM index: ${bam_index}"
     echo "Original GTF: ${params.ref_gtf}"
 
     # Remove temporary directory if it exists
     if [ -d "tmp" ]; then rm -r tmp; fi
 
-    # Extract file extension
-    extension=\$(echo "${params.ref_gtf}" | awk -F. '{print \$NF}')
-    if [ \$extension == "gff" ];
-    then
-        gtf_output="${meta.id}_geneext.gff"
-    else
-        gtf_output="${meta.id}_geneext.gtf"
-    fi
-    echo \${gtf_output}
-
     # Run GeneExt
     python ${projectDir}/submodules/GeneExt/geneext.py \\
         -g ${params.ref_gtf} \\
         -b ${bam_file} \\
-        -o \${gtf_output} \\
-        -j 4
+        -o geneext.gtf \\
+        -t tmp_geneext \\
+        -j 4 \\
+        -force ${subsamplebam}
     """
 }

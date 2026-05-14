@@ -8,7 +8,7 @@ process MERGE_FASTQS {
     tuple val(meta), path(fastq_cDNA_list), path(fastq_BC_UMI_list), path(fastq_indices), path(input_file)
 
     output:
-    tuple val(meta), path("${meta.id}_merged_cDNA.fastq.gz"), path("${meta.id}_merged_BC_UMI.fastq.gz"), path("${meta.id}_merged_indices/"), path(input_file)
+    tuple val(meta), path("${meta.id}_merged_cDNA.fastq.gz"), path("${meta.id}_merged_BC_UMI.fastq.gz"), path("${meta.id}_merged_I*.fastq.gz", arity: '0..2'), path(input_file)
 
     script:
     """
@@ -46,16 +46,16 @@ process MERGE_FASTQS {
 
         # I1
         if [ \${#I1_LIST[@]} -eq 1 ]; then
-            ln -s \${I1_LIST[0]} ${meta.id}_merged_indices/${meta.id}_merged_I1.fastq.gz
+            ln -s \${I1_LIST[0]} ${meta.id}_merged_I1.fastq.gz
         elif [ \${#I1_LIST[@]} -gt 1 ]; then
-            zcat \${I1_LIST[@]} | \$COMPRESSOR -c > ${meta.id}_merged_indices/${meta.id}_merged_I1.fastq.gz
+            zcat \${I1_LIST[@]} | \$COMPRESSOR -c > ${meta.id}_merged_I1.fastq.gz
         fi
 
         # I2
         if [ \${#I2_LIST[@]} -eq 1 ]; then
-            ln -s \${I2_LIST[0]} ${meta.id}_merged_indices/${meta.id}_merged_I2.fastq.gz
+            ln -s \${I2_LIST[0]} ${meta.id}_merged_I2.fastq.gz
         elif [ \${#I2_LIST[@]} -gt 1 ]; then
-            zcat \${I2_LIST[@]} | \$COMPRESSOR -c > ${meta.id}_merged_indices/${meta.id}_merged_I2.fastq.gz
+            zcat \${I2_LIST[@]} | \$COMPRESSOR -c > ${meta.id}_merged_I2.fastq.gz
         fi
     fi
 

@@ -51,45 +51,106 @@ def parse_args():
             "cell/non-cell threshold)"
         )
     )
+    parser.add_argument(
+        "-w", "--whitelist", required=False,
+        help="Path to an optional text file containing rRNA gene names/IDs (one per row)"
+    )
     return parser.parse_args()
 
 
-def load_rrna_intervals(gtf_path):
+def load_rrna_intervals(gtf_path, whitelist_path=None):
     """
     Parse GTF file and return a mapping of chromosome -> rRNA intervals.
     """
+    # Load whitelist if provided
+    whitelist = set()
+    if whitelist_path and os.path.exists(whitelist_path):
+        with open(whitelist_path) as f:
+            whitelist = {line.strip() for line in f if line.strip()}
+
     intervals = defaultdict(list)
     with open(gtf_path) as gtf:
         for line in gtf:
             if line.startswith("#"):
                 continue
+
             cols = line.strip().split("\t")
-            chrom, ftype, start, end = cols[0], cols[2], cols[3], cols[4]
+            if len(cols) < 9:
+                continue
+
+            # Fixed GTF column indexing: end is cols[4], attributes are cols[8]
+            chrom = cols[0]
+            ftype = cols[2]
+            start = int(cols[3])
+            end = int(cols[4])
+            attributes = cols[8]
+
+            is_rrna = False
+
+            # Check if feature type is explicitly rRNA
             if ftype.lower() == "rrna":
+                is_rrna = True
+
+            # Check if attributes contain rRNA biotype (handles both GENCODE 'gene_type' and Ensembl 'gene_biotype')
+            elif 'gene_biotype "rRNA"' in attributes or 'gene_type "rRNA"' in attributes:
+                is_rrna = True
+            elif 'transcript_biotype "rRNA"' in attributes or 'transcript_type "rRNA"' in attributes:
+                is_rrna = True
+
+            # Check if feature matches a user-provided whitelist
+            elif whitelist:
+                for item in whitelist:
+                    if f'"{item}"' in attributes:
+                        is_rrna = True
+                        break
+
+            if is_rrna:
                 # Convert 1-based inclusive to 0-based half-open
-                intervals[chrom].append((int(start) - 1, int(end)))
+                intervals[chrom].append((start - 1, end))
+
     return intervals
 
 
 def load_matrices(solo_dir):
     """
     Load GeneFull_Ex50pAS and Gene matrices and computes intronic percentages.
+    Aligns barcodes safely to prevent IndexErrors.
     """
+    # File paths
     full_path = os.path.join(solo_dir, "GeneFull_Ex50pAS/raw/matrix.mtx")
     gene_path = os.path.join(solo_dir, "Gene/raw/matrix.mtx")
+    full_bc_path = os.path.join(solo_dir, "GeneFull_Ex50pAS/raw/barcodes.tsv")
+    gene_bc_path = os.path.join(solo_dir, "Gene/raw/barcodes.tsv")
 
+    # Load matrix data and sum across features (axis=0)
     mat_full = scipy.io.mmread(full_path).tocsc()
     mat_gene = scipy.io.mmread(gene_path).tocsc()
 
-    counts_full = np.array(mat_full.sum(axis=0)).ravel()
-    counts_gene = np.array(mat_gene.sum(axis=0)).ravel()
+    counts_full_raw = np.array(mat_full.sum(axis=0)).ravel()
+    counts_gene_raw = np.array(mat_gene.sum(axis=0)).ravel()
 
-    # Avoid division by zero
+    # Read barcodes using your existing helper function
+    bc_full = read_barcodes(full_bc_path)
+    bc_gene = read_barcodes(gene_bc_path)
+
+    # Use Pandas to align gene counts to full counts by barcode string
+    s_full = pd.Series(counts_full_raw, index=bc_full)
+    s_gene = pd.Series(counts_gene_raw, index=bc_gene)
+
+    # Reindex s_gene to match the barcodes of s_full, filling missing ones with 0
+    s_gene_aligned = s_gene.reindex(s_full.index, fill_value=0)
+
+    # Extract back to NumPy arrays
+    counts_full = s_full.values
+    counts_gene = s_gene_aligned.values
+
+    # Avoid division by zero and compute intronic percent
     intronic = np.zeros_like(counts_full, dtype=float)
     mask = counts_full > 0
     intronic[mask] = (
         counts_full[mask] - counts_gene[mask]
     ) / counts_full[mask]
+
     intronic[intronic < 0] = 0
     return intronic
 
@@ -246,7 +307,7 @@ def main():
             solo_out, "GeneFull_Ex50pAS/raw/barcodes.tsv"
         )
     )
-    rrna_int = load_rrna_intervals(args.gtf)
+    rrna_int = load_rrna_intervals(args.gtf, args.whitelist)
 
     # Compute read counts
     total_cnt, mt_cnt, rrna_cnt = scan_bam(

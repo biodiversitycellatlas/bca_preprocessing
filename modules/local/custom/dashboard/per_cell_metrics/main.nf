@@ -9,6 +9,7 @@ process PERCELL_METRICS {
     tuple val(meta), path(star_bam)
     tuple val(meta), path(star_solodir)
     tuple val(meta), path(star_log)
+    path (ref_gtf)
 
     output:
     path("*_metrics.json"), emit: percell_json
@@ -34,7 +35,7 @@ process PERCELL_METRICS {
         --solo-output ${star_solodir} \\
         --bam ${star_bam} \\
         --mt-contig ${params.mt_contig} \\
-        --gtf ${params.ref_gtf} \\
+        --gtf ${ref_gtf} \\
         --outdir . \\
         --min-reads \${starsolo_thres}
     """

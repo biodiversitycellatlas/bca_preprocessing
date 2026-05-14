@@ -5,6 +5,7 @@ process GENERATE_DASHBOARD {
     input:
     path(samplesheet)
     path(run_config)
+    path(analytical_manifest)
     path(star_logs)
     path(star_summaries)
     path(star_full_logs)
@@ -19,6 +20,10 @@ process GENERATE_DASHBOARD {
     path(knee_files)
     path(mt_rrna_metrics)
     path(per_cell_files)
+    path(cellsweep_plots_contrib)
+    path(cellsweep_plots_umap)
+    path(cellsweep_top_genes)
+
 
     output:
     path "dashboard.html"  , emit: html
@@ -30,30 +35,13 @@ process GENERATE_DASHBOARD {
     script:
     def args = task.ext.args ?: ''
     """
-    echo "======== Generating Dashboard ==========="
-    echo "Samplesheet: ${samplesheet}"
-    echo "Run config: ${run_config}"
-    echo "STAR logs: ${star_logs}"
-    echo "STAR summaries: ${star_summaries}"
-    echo "STAR full logs: ${star_full_logs}"
-    echo "Saturation logs: ${saturation_logs}"
-    echo "Cell stats: ${cell_stats}"
-    echo "Alevin-fry meta_info: ${af_meta_info}"
-    echo "Alevin-fry quant.json: ${af_quant_json}"
-    echo "Alevin-fry cell_meta: ${af_cell_meta}"
-    echo "Sankey files: ${sankey_files}"
-    echo "Saturation images: ${saturation_imgs}"
-    echo "Residuals images: ${residuals_imgs}"
-    echo "Knee files: ${knee_files}"
-    echo "Mitochondrial rRNA metrics: ${mt_rrna_metrics}"
-    echo "Per-cell metrics: ${per_cell_files}"
-
     # Execute the python dashboard generator
     generate_dashboard.py \\
         --project "bca_preprocessing" \\
         --samplesheet ${samplesheet} \\
         --template ${projectDir}/bin/dashboard_report.html \\
         --run_config ${run_config} \\
+        --analytical_samples ${analytical_manifest} \\
         --output "dashboard.html" \\
         --star_logs ${star_logs} \\
         --star_summaries ${star_summaries} \\
@@ -68,7 +56,10 @@ process GENERATE_DASHBOARD {
         --per_cell_files ${per_cell_files} \\
         --saturation_imgs ${saturation_imgs} \\
         --residuals_imgs ${residuals_imgs} \\
-        --knee_files ${knee_files}
+        --knee_files ${knee_files} \\
+        --cellsweep_tables ${cellsweep_top_genes} \\
+        --cellsweep_plots_contrib ${cellsweep_plots_contrib} \\
+        --cellsweep_plots_umap ${cellsweep_plots_umap}
 
     cat <<-END_VERSIONS > versions.yml
     "${task.process}":

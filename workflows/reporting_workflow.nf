@@ -23,6 +23,7 @@ workflow reporting_workflow {
     take:
         samplesheet
         samplesheet_file
+        ref_gtf
         run_config
         star_logs
         star_summaries
@@ -39,6 +40,9 @@ workflow reporting_workflow {
         residuals_imgs
         knee_files
         mt_rrna_metrics
+        cs_ambient_hist_plot
+        cs_umap_comparison_plot
+        cs_top_genes
 
     main:
         // Join BAM, SoloDir, and Logs before per-cell metrics
@@ -57,36 +61,53 @@ workflow reporting_workflow {
             PERCELL_METRICS(
                 ch_percell_inputs.bam_ch,
                 ch_percell_inputs.solodir_ch,
-                ch_percell_inputs.logs_ch
+                ch_percell_inputs.logs_ch,
+                ref_gtf.first()
             )
             percell_json = PERCELL_METRICS.out.percell_json
         } else {
             percell_json = Channel.empty()
         }
 
+        // Build anchor from whichever mapping software was run
+        def ch_anchor = star_summaries.mix(af_meta_info)
+
         // Join channels that need renaming by meta ID
-        ch_to_rename = samplesheet
-            .map { row -> [ row[0] ] }
-            .join(star_summaries, remainder: true)
-            .join(cell_stats, remainder: true)
-            .join(knee_files, remainder: true)
-            .join(af_meta_info, remainder: true)
+        ch_to_rename = ch_anchor
+            .join(cell_stats,    remainder: true)
+            .join(knee_files,    remainder: true)
+            .join(af_meta_info,  remainder: true)
             .join(af_quant_json, remainder: true)
-            .join(af_cell_meta, remainder: true)
+            .join(af_cell_meta,  remainder: true)
             .map { row ->
-                def meta = row[0]
-                // Extract all elements after 'meta', flatten them, and filter out nulls
-                def input_files = row[1..-1].flatten().findAll { it != null }
+                def meta        = row[0]
+                def input_files = row.drop(1).findAll { item ->
+                    item != null && !(item instanceof java.util.Map)
+                }
                 [ meta, input_files ]
             }
 
         // Rename STARsolo files
         PREPARE_DASHBOARD_INPUTS(ch_to_rename)
 
+        // Extract the exact analytical mappings that were successfully processed
+        def ch_analytical_manifest = star_logs
+            .map { meta, log -> "${meta.id},${meta.base_id ?: meta.id},starsolo" }
+            .mix(
+                af_meta_info.map { meta, info -> "${meta.id},${meta.base_id ?: meta.id},alevin" }
+            )
+            .unique()
+            .collectFile(
+                name: 'analytical_samples.csv',
+                newLine: true,
+                seed: "analytical_id,base_id,source\n"
+            )
+
         // Run Dashboard Generation
         GENERATE_DASHBOARD(
             samplesheet_file,
             run_config,
+            ch_analytical_manifest,
             star_logs.map{ it[1] }.collect().ifEmpty([]),
             PREPARE_DASHBOARD_INPUTS.out.summary.collect().ifEmpty([]),
             star_full_logs.map{ it[1] }.collect().ifEmpty([]),
@@ -100,7 +121,10 @@ workflow reporting_workflow {
             residuals_imgs.collect().ifEmpty([]),
             PREPARE_DASHBOARD_INPUTS.out.knee_files.collect().ifEmpty([]),
             mt_rrna_metrics.collect().ifEmpty([]),
-            percell_json.collect().ifEmpty([])
+            percell_json.collect().ifEmpty([]),
+            cs_ambient_hist_plot.collect().ifEmpty([]),
+            cs_umap_comparison_plot.collect().ifEmpty([]),
+            cs_top_genes.collect().ifEmpty([])
         )
 
         // Trigger Mapping Stats & MultiQC

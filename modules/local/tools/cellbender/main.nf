@@ -7,10 +7,13 @@ process CELLBENDER {
     container "us.gcr.io/broad-dsde-methods/cellbender:latest"
 
     input:
-    tuple val(meta), path(starsolo_genefull50_raw)
+    tuple val(meta), path(raw_h5ad)
 
     output:
-    path("cellbender_output*")
+    path("cellbender_output_report.html"),      emit: cb_html
+    path("cellbender_output_metrics.csv"),      emit: cb_metrics
+    path("cellbender_output.h5"),               emit: cb_output_h5
+    path("cellbender_output_filtered.h5"),      emit: cb_output_filtered_h5
 
     script:
     // Check if the workflow profile includes 'gpu' to determine whether to use GPU or CPU threads
@@ -19,16 +22,13 @@ process CELLBENDER {
     """
     echo "\n\n===============  Ambient RNA removal  ==============="
     echo "Sample ID: ${meta}"
-    echo "STARsolo files: ${starsolo_genefull50_raw}"
+    echo "Input files: ${raw_h5ad}"
     echo "Number of expected cells: ${meta.expected_cells}"
     echo "GPU Profile Active: ${use_gpu}"
 
-    # Copy features file as cellbender expects the file to be named genes.tsv
-    cp ${starsolo_genefull50_raw}/features.tsv ${starsolo_genefull50_raw}/genes.tsv
-
     cellbender remove-background \\
         ${cuda_flag} \\
-        --input ${starsolo_genefull50_raw} \\
+        --input ${raw_h5ad} \\
         --output cellbender_output.h5 \\
         --epochs 150 \\
         --expected-cells ${meta.expected_cells} \\
