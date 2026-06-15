@@ -1,18 +1,18 @@
 process KRAKEN {
-    publishDir "${params.outdir}/kraken/${meta.id}", mode: 'copy'
+    publishDir "${params.outdir}/kraken/", mode: 'copy'
     tag "${meta.id}"
-    label 'process_high'
+    label 'process_high_memory'
     debug true
+
+    conda "${moduleDir}/environment.yml"
+    container "oras://community.wave.seqera.io/library/kraken2_samtools_coreutils_pigz:8961943c277652a6"
 
     input:
     path db_path_file
     tuple val(meta), path(filtered_fasta)
 
-    conda "${moduleDir}/environment.yml"
-    container "oras://community.wave.seqera.io/library/kraken2_samtools_coreutils_pigz:8961943c277652a6"
-
     output:
-    path("*")
+    path("${meta.id}_kraken_taxonomy.txt")
 
     script:
     """
@@ -27,9 +27,6 @@ process KRAKEN {
         --threads ${task.cpus} \\
         --db \${kraken_db_path} \\
         --report ${meta.id}_kraken_taxonomy.txt \\
-        --report-minimizer-data \\
-        --use-names \\
-        --memory-mapping \\
         --log ${meta.id}_kraken.log \\
         --output ${meta.id}_kraken_output.txt \\
         ${filtered_fasta}
