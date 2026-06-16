@@ -2,10 +2,9 @@ process KRAKEN {
     publishDir "${params.outdir}/kraken/", mode: 'copy'
     tag "${meta.id}"
     label 'process_high_memory'
-    debug true
 
     conda "${moduleDir}/environment.yml"
-    container "oras://community.wave.seqera.io/library/kraken2_samtools_coreutils_pigz:8961943c277652a6"
+    container "oras://community.wave.seqera.io/library/kraken2:2.17.1--9b129e69b7bcd776"
 
     input:
     path db_path_file
