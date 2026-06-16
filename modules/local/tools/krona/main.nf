@@ -23,6 +23,6 @@ process KRONA {
 
     # Running Krona on Kraken reports
     # -t is set to 7 as kraken reports are created with --report-minimizer-data
-    ktImportTaxonomy -t 7 -m 3 -o multi-krona.html *_taxonomy.txt
+    ktImportTaxonomy -t 7 -m 3 -o multi-krona.html ${kraken_out}
     """
 }

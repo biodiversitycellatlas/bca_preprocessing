@@ -20,11 +20,8 @@ process PAVIAN {
     # Make pavianCoreTools script executable
     chmod +x ${projectDir}/submodules/pavianCore/exec/pavianCoreTools.R
 
-    # Rename kraken2 report to expected input name
-    mv *_taxonomy.txt result.k2report
-
     # Run pavianCoreTools
     Rscript ${projectDir}/submodules/pavianCore/exec/pavianCoreTools.R \\
-        --input result.k2report
+        --input ${kraken_out}
     """
 }

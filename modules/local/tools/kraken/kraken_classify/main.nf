@@ -12,7 +12,7 @@ process KRAKEN {
     tuple val(meta), path(filtered_fasta)
 
     output:
-    path("${meta.id}_kraken_taxonomy.txt")
+    path("${meta.id}.k2report")
 
     script:
     """
@@ -23,12 +23,11 @@ process KRAKEN {
 
     kraken_db_path=\$(cat ${db_path_file})
 
-    k2 classify \\
+    kraken2 \\
         --threads ${task.cpus} \\
         --db \${kraken_db_path} \\
-        --report ${meta.id}_kraken_taxonomy.txt \\
-        --log ${meta.id}_kraken.log \\
-        --output ${meta.id}_kraken_output.txt \\
+        --report ${meta.id}.k2report \\
+        --output ${meta.id}.kraken \\
         ${filtered_fasta}
     """
 }
