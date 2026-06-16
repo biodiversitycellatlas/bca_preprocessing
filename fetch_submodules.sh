@@ -23,4 +23,13 @@ if [ ! -f "$BASE_DIR/submodules/GeneExt/environment.yaml" ]; then
     rm -rf /tmp/GeneExt-main /tmp/GeneExt.zip
 fi
 
+# PavianCore
+if [ ! -f "$BASE_DIR/submodules/pavianCore/exec/install_pavianCoreTools_packges.R" ]; then
+    echo "Downloading pavianCore..."
+    curl -L -o /tmp/pavianCore.zip https://github.com/Enthusiasm23/pavianCore/archive/refs/heads/master.zip
+    unzip -q /tmp/pavianCore.zip -d /tmp
+    cp -r /tmp/pavianCore-master/* "$BASE_DIR/submodules/pavianCore/"
+    rm -rf /tmp/pavianCore-master /tmp/pavianCore.zip
+fi
+
 echo "Submodules downloaded successfully!"
