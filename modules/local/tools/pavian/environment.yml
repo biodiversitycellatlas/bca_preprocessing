@@ -20,3 +20,4 @@ dependencies:
   - r-xml2
   - r-shiny
   - phantomjs
+  - pandoc

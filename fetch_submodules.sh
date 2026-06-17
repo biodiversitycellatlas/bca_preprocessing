@@ -1,7 +1,14 @@
 #!/bin/bash
-set -e
+set -euo pipefail
 
 BASE_DIR="$(cd "$(dirname "$0")" && pwd)"
+WORK_DIR="$BASE_DIR/work"
+ENVS_DIR="$WORK_DIR/envs"
+PAVIAN_ENV_DIR="$ENVS_DIR/pavian"
+
+mkdir -p "$BASE_DIR/submodules/10x_saturate"
+mkdir -p "$BASE_DIR/submodules/GeneExt"
+mkdir -p "$ENVS_DIR"
 
 echo "Fetching submodules..."
 
@@ -23,13 +30,27 @@ if [ ! -f "$BASE_DIR/submodules/GeneExt/environment.yaml" ]; then
     rm -rf /tmp/GeneExt-main /tmp/GeneExt.zip
 fi
 
-# PavianCore
-if [ ! -f "$BASE_DIR/submodules/pavianCore/exec/install_pavianCoreTools_packges.R" ]; then
-    echo "Downloading pavianCore..."
-    curl -L -o /tmp/pavianCore.zip https://github.com/Enthusiasm23/pavianCore/archive/refs/heads/master.zip
-    unzip -q /tmp/pavianCore.zip -d /tmp
-    cp -r /tmp/pavianCore-master/* "$BASE_DIR/submodules/pavianCore/"
-    rm -rf /tmp/pavianCore-master /tmp/pavianCore.zip
+echo "Submodules downloaded successfully!"
+
+echo "Setting up Pavian Conda environment..."
+
+if [ ! -d "$PAVIAN_ENV_DIR" ]; then
+    echo "Creating Conda env at $PAVIAN_ENV_DIR"
+    mamba env create -p "$PAVIAN_ENV_DIR" -f "$BASE_DIR/modules/local/tools/pavian/environment.yml"
+else
+    echo "Conda env already exists at $PAVIAN_ENV_DIR"
 fi
 
-echo "Submodules downloaded successfully!"
+echo "Installing sankeyD3 into Pavian env..."
+conda run -p "$PAVIAN_ENV_DIR" R --vanilla -e '
+if (!requireNamespace("remotes", quietly = TRUE) && !requireNamespace("devtools", quietly = TRUE)) {
+  install.packages("remotes", repos = "https://cloud.r-project.org")
+}
+if (requireNamespace("remotes", quietly = TRUE)) {
+  remotes::install_github("fbreitwieser/sankeyD3", upgrade = "never", dependencies = TRUE)
+} else {
+  devtools::install_github("fbreitwieser/sankeyD3", upgrade = "never", dependencies = TRUE)
+}
+'
+
+echo "Pavian environment is ready at $PAVIAN_ENV_DIR"

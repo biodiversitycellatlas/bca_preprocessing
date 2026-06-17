@@ -55,9 +55,6 @@ workflow QC_mapping_workflow {
         def ch_featurecounts                = Channel.empty()
         def ch_pavian_sankey                = Channel.empty()
 
-
-        data_output.view { "data_output received: ${it[0].id}" }
-
         // Conditionally bypass MERGE_REF_GTF/FASTA when no additional features are provided
         def ref_gtf_ch
         if (params.ref_gtf_addfeature) {
