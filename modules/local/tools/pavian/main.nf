@@ -1,5 +1,5 @@
 process PAVIAN {
-    publishDir "${params.outdir}/kraken2", mode: 'copy'
+    publishDir "${params.outdir}/kraken", mode: 'copy'
     label 'process_single'
 
     conda "${projectDir}/work/envs/pavian"
