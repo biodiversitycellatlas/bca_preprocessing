@@ -36,7 +36,7 @@ echo "Setting up Pavian Conda environment..."
 
 if [ ! -d "$PAVIAN_ENV_DIR" ]; then
     echo "Creating Conda env at $PAVIAN_ENV_DIR"
-    mamba env create -p "$PAVIAN_ENV_DIR" -f "$BASE_DIR/modules/local/tools/pavian/environment.yml"
+    conda env create -p "$PAVIAN_ENV_DIR" -f "$BASE_DIR/modules/local/tools/pavian/environment.yml"
 else
     echo "Conda env already exists at $PAVIAN_ENV_DIR"
 fi
