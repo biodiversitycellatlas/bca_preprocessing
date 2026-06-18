@@ -2,17 +2,16 @@ process KRAKEN {
     publishDir "${params.outdir}/kraken/", mode: 'copy'
     tag "${meta.id}"
     label 'process_high_memory'
-    debug true
 
     conda "${moduleDir}/environment.yml"
-    container "oras://community.wave.seqera.io/library/kraken2_samtools_coreutils_pigz:8961943c277652a6"
+    container "oras://community.wave.seqera.io/library/kraken2:2.17.1--9b129e69b7bcd776"
 
     input:
     path db_path_file
     tuple val(meta), path(filtered_fasta)
 
     output:
-    path("${meta.id}_kraken_taxonomy.txt")
+    path("${meta.id}.k2report")
 
     script:
     """
@@ -23,12 +22,11 @@ process KRAKEN {
 
     kraken_db_path=\$(cat ${db_path_file})
 
-    k2 classify \\
+    kraken2 \\
         --threads ${task.cpus} \\
         --db \${kraken_db_path} \\
-        --report ${meta.id}_kraken_taxonomy.txt \\
-        --log ${meta.id}_kraken.log \\
-        --output ${meta.id}_kraken_output.txt \\
+        --report ${meta.id}.k2report \\
+        --output ${meta.id}.kraken \\
         ${filtered_fasta}
     """
 }

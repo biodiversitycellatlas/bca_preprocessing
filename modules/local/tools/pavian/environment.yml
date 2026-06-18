@@ -13,6 +13,7 @@ dependencies:
   - r-webshot
   - r-stringi
   - r-devtools
+  - r-remotes
   - r-usethis
   - r-roxygen2
   - r-pkgdown
@@ -20,3 +21,4 @@ dependencies:
   - r-xml2
   - r-shiny
   - phantomjs
+  - pandoc
