@@ -38,6 +38,7 @@ if [ ! -f "$BASE_DIR/submodules/pavianCore/exec/install_pavianCoreTools_packges.
     unzip -q /tmp/pavianCore.zip -d /tmp
     cp -r /tmp/pavianCore-master/* "$BASE_DIR/submodules/pavianCore/"
     rm -rf /tmp/pavianCore-master /tmp/pavianCore.zip
+fi
 
 echo "Submodules downloaded successfully!"
 
