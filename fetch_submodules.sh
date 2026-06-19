@@ -8,6 +8,7 @@ PAVIAN_ENV_DIR="$ENVS_DIR/pavian"
 
 mkdir -p "$BASE_DIR/submodules/10x_saturate"
 mkdir -p "$BASE_DIR/submodules/GeneExt"
+mkdir -p "$BASE_DIR/submodules/pavianCore"
 mkdir -p "$ENVS_DIR"
 
 echo "Fetching submodules..."
@@ -29,6 +30,14 @@ if [ ! -f "$BASE_DIR/submodules/GeneExt/environment.yaml" ]; then
     cp -r /tmp/GeneExt-main/* "$BASE_DIR/submodules/GeneExt/"
     rm -rf /tmp/GeneExt-main /tmp/GeneExt.zip
 fi
+
+# PavianCore
+if [ ! -f "$BASE_DIR/submodules/pavianCore/exec/install_pavianCoreTools_packges.R" ]; then
+    echo "Downloading pavianCore..."
+    curl -L -o /tmp/pavianCore.zip https://github.com/Enthusiasm23/pavianCore/archive/refs/heads/master.zip
+    unzip -q /tmp/pavianCore.zip -d /tmp
+    cp -r /tmp/pavianCore-master/* "$BASE_DIR/submodules/pavianCore/"
+    rm -rf /tmp/pavianCore-master /tmp/pavianCore.zip
 
 echo "Submodules downloaded successfully!"
 
