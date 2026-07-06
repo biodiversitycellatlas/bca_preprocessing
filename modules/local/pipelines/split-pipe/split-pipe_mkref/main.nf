@@ -4,7 +4,8 @@ process PARSEBIO_PIPELINE_MKREF {
     conda "${params.splitpipe_conda_env}"
 
     output:
-    path("*")
+    path("*"),          emit: reference
+    path "versions.yml", emit: versions
 
     script:
     """
@@ -20,5 +21,10 @@ process PARSEBIO_PIPELINE_MKREF {
         --genes \$GTF_FILE \\
         --fasta ${params.ref_fasta} \\
         --output_dir .
+
+    cat <<-END_VERSIONS > versions.yml
+    "${task.process}":
+        split-pipe: \$(split-pipe --version 2>&1 | sed -n '1p')
+    END_VERSIONS
     """
 }

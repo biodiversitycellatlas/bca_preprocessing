@@ -11,6 +11,7 @@ process SALMON_INDEX {
 
     output:
     path("salmon_index/"), emit: salmon_index
+    path "versions.yml",   emit: versions
 
 
     script:
@@ -21,5 +22,10 @@ process SALMON_INDEX {
         -t ${splici_index_reference}/*.fa \\
         -i ./salmon_index \\
         -k 31
+
+    cat <<-END_VERSIONS > versions.yml
+    "${task.process}":
+        salmon: \$(salmon --version | sed 's/salmon //')
+    END_VERSIONS
     """
 }

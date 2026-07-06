@@ -11,6 +11,7 @@ process SAMTOOLS_INDEX {
 
     output:
     tuple val(meta), path("*.bai"), emit: bam_index
+    path "versions.yml",            emit: versions
 
     script:
     """
@@ -19,5 +20,10 @@ process SAMTOOLS_INDEX {
     echo "Indexing BAM file: ${bam_file}"
 
     samtools index -@ ${task.cpus} ${bam_file}
+
+    cat <<-END_VERSIONS > versions.yml
+    "${task.process}":
+        samtools: \$(samtools --version | sed '1!d; s/samtools //')
+    END_VERSIONS
     """
 }

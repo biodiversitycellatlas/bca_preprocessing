@@ -8,7 +8,8 @@ process OAK_DEMUX {
     tuple val(meta), path(fastq_cDNA), path(fastq_BC_UMI), path(fastq_indices), path(input_file)
 
     output:
-    tuple val(meta), path("demux_reads"), path("demux_reads/*.fastq.gz"), path(input_file)
+    tuple val(meta), path("demux_reads"), path("demux_reads/*.fastq.gz"), path(input_file), emit: demux_files
+    path "versions.yml", emit: versions
 
     when:
 
@@ -52,5 +53,10 @@ process OAK_DEMUX {
 
     echo "Demultiplexing i5 index completed."
     echo "Demultiplexing completed. Output files are in 'demux_reads' directory."
+
+    cat <<-END_VERSIONS > versions.yml
+    "${task.process}":
+        bash: \$(bash --version | head -n1 | sed 's/^GNU bash, version //; s/ .*\$//')
+    END_VERSIONS
     """
 }

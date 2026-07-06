@@ -68,7 +68,7 @@ workflow bam_inspection_workflow {
                 ch_saturation_inputs.reads_ch
             )
 
-            SATURATION_PLOT(SATURATION_TABLE.out)
+            SATURATION_PLOT(SATURATION_TABLE.out.saturation_table)
 
             // Capture saturation plot outputs
             ch_sat_imgs     = SATURATION_PLOT.out.img_saturation
@@ -89,7 +89,7 @@ workflow bam_inspection_workflow {
 
             // Run featureCounts to calculate mtDNA and rRNA percentages and capture output
             CALC_MT_RRNA(ch_fc_inputs.bam_ch, ch_fc_inputs.bai_ch, ref_gtf.first())
-            ch_featurecounts = CALC_MT_RRNA.out
+            ch_featurecounts = CALC_MT_RRNA.out.mt_rrna_metrics
         }
 
         // Inspecting unmapped reads using Kraken2
@@ -100,8 +100,8 @@ workflow bam_inspection_workflow {
             // Perform kraken tools plus visualization with Pavian
             KRAKEN_CREATE_DB()
             KRAKEN(KRAKEN_CREATE_DB.out.db_path_file, SAMTOOLS_VIEW_UNMAPPED.out.filtered_unmapped_fasta)
-            PAVIAN(KRAKEN.out)
-            ch_pavian_sankey = PAVIAN.out
+            PAVIAN(KRAKEN.out.k2report)
+            ch_pavian_sankey = PAVIAN.out.sankey
         }
 
     emit:

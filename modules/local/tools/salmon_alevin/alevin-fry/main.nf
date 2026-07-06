@@ -19,6 +19,7 @@ process ALEVIN_FRY {
     tuple val(meta), path("${meta.id}_counts/quant.json"),              emit: af_quant_json
     tuple val(meta), path("${meta.id}_counts/alevin"),                  emit: af_mtx
     tuple val(meta), path("${meta.id}_counts/cell_meta.tsv"),           emit: af_cell_meta, optional: true
+    path "versions.yml",                                                emit: versions
 
     script:
     // If protocol is "bd_rhapsody", then cDNA = R2 and CB/UMI = R1
@@ -82,5 +83,11 @@ process ALEVIN_FRY {
         -t 16 \\
         -r cr-like-em \\
         --use-mtx
+
+    cat <<-END_VERSIONS > versions.yml
+    "${task.process}":
+        salmon: \$(salmon --version | sed 's/salmon //')
+        alevin-fry: \$(alevin-fry --version | sed 's/alevin-fry //')
+    END_VERSIONS
     """
 }

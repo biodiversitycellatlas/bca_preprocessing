@@ -23,6 +23,7 @@ process STARSOLO_ALIGN {
     tuple val(meta), path("*_Solo.out/GeneFull_Ex50pAS/CellReads.stats"), emit: cellreads_stats
     tuple val(meta), path("*_Solo.out/GeneFull_Ex50pAS/UMIperCellSorted.txt"), emit: umi_per_cell
     tuple val(meta), path("*_Aligned.sortedByCoord.out.bam"),   emit: bam_file, optional: true
+    path "versions.yml",                                        emit: versions
 
     script:
     // Retrieve settings from custom parameters if set, otherwise from conf/seqtech_parameters.config
@@ -124,5 +125,10 @@ process STARSOLO_ALIGN {
         --limitBAMsortRAM ${params.star_limitBAMsortRAM} \\
         --soloStrand ${params.star_soloStrand} \\
         ${star_extraargs}
+
+    cat <<-END_VERSIONS > versions.yml
+    "${task.process}":
+        star: \$(STAR --version)
+    END_VERSIONS
     """
 }

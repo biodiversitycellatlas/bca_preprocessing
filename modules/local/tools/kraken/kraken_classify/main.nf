@@ -11,7 +11,8 @@ process KRAKEN {
     tuple val(meta), path(filtered_fasta)
 
     output:
-    path("${meta.id}.k2report")
+    path("${meta.id}.k2report"), emit: k2report
+    path "versions.yml",         emit: versions
 
     script:
     """
@@ -28,5 +29,10 @@ process KRAKEN {
         --report ${meta.id}.k2report \\
         --output ${meta.id}.kraken \\
         ${filtered_fasta}
+
+    cat <<-END_VERSIONS > versions.yml
+    "${task.process}":
+        kraken2: \$(kraken2 --version | head -n1 | sed 's/Kraken version //')
+    END_VERSIONS
     """
 }

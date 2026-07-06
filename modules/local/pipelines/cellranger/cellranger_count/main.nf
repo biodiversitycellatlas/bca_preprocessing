@@ -11,7 +11,8 @@ process CR_PIPELINE {
     path(cr_reference_dir)
 
     output:
-    path("${meta.id}_count/outs")
+    path("${meta.id}_count/outs"), emit: outs
+    path "versions.yml",           emit: versions
 
     script:
     // Exit if running this module with -profile conda / -profile mamba    TODO: add condition that singularity is not available
@@ -31,5 +32,10 @@ process CR_PIPELINE {
         --sample=${meta.id} \\
         --chemistry=auto \\
         --create-bam true
+
+    cat <<-END_VERSIONS > versions.yml
+    "${task.process}":
+        cellranger: \$(cellranger --version 2>&1 | grep -oE '[0-9]+\\.[0-9]+\\.[0-9]+' | head -1)
+    END_VERSIONS
     """
 }

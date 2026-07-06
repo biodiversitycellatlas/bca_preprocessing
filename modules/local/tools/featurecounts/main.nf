@@ -12,7 +12,8 @@ process CALC_MT_RRNA {
     file(ref_gtf)
 
     output:
-    file("${meta.id}_mt_rrna_metrics.txt")
+    file("${meta.id}_mt_rrna_metrics.txt"), emit: mt_rrna_metrics
+    path "versions.yml",                    emit: versions
 
     script:
     """
@@ -28,5 +29,11 @@ process CALC_MT_RRNA {
         ${params.mt_contig}
 
     echo "Created file: ${meta.id}_mt_rrna_metrics.txt"
+
+    cat <<-END_VERSIONS > versions.yml
+    "${task.process}":
+        samtools: \$(samtools --version | sed '1!d; s/samtools //')
+        subread: \$(featureCounts -v 2>&1 | sed 's/featureCounts v//')
+    END_VERSIONS
     """
 }

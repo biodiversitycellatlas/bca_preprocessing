@@ -11,6 +11,7 @@ process PARSEBIO_PIPELINE_DEMUX {
 
     output:
     tuple val(meta), path("*group*_R1*"), path("*group*_R2*"), path(fastq_indices), path(input_file), emit: splitted_files
+    path "versions.yml", emit: versions
 
     script:
     // Retrieve kit specification for split-pipe from custom parameters if set, otherwise from conf/seqtech_parameters.config
@@ -33,5 +34,10 @@ process PARSEBIO_PIPELINE_DEMUX {
         --opath . \\
         --group ${meta.id} ${meta.rt} \\
         ${kit_specification}
+
+    cat <<-END_VERSIONS > versions.yml
+    "${task.process}":
+        python: \$(python3 --version | sed 's/Python //g')
+    END_VERSIONS
     """
 }

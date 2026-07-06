@@ -28,7 +28,7 @@ workflow sciRNAseq3_nogather_workflow {
         FASTP(ch_samplesheet)
 
     emit:
-        data_output     = FASTP.out
+        data_output     = FASTP.out.trimmed_files
         bc_whitelist    = SCIROCKET_DEMUX.out.bc_whitelist
 }
 

@@ -11,10 +11,16 @@ process FASTQC {
 
     output:
     path "*_fastqc.{zip,html}", emit: fastqc_results
+    path "versions.yml",        emit: versions
 
     script:
     """
     fastqc ${fastq_cDNA}
     fastqc ${fastq_BC_UMI}
+
+    cat <<-END_VERSIONS > versions.yml
+    "${task.process}":
+        fastqc: \$(fastqc --version | sed 's/FastQC v//')
+    END_VERSIONS
     """
 }

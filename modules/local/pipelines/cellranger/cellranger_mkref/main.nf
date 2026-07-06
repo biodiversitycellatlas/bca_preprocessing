@@ -6,7 +6,8 @@ process CR_PIPELINE_MKREF {
     container "quay.io/nf-core/cellranger:9.0.1"
 
     output:
-    path "*"
+    path "*",           emit: reference
+    path "versions.yml", emit: versions
 
     script:
     // Exit if running this module with -profile conda / -profile mamba  TODO: add condition that singularity is not available
@@ -23,5 +24,10 @@ process CR_PIPELINE_MKREF {
         --genome cellranger_ref \\
         --fasta=${params.ref_fasta} \\
         --genes=\$GTF_FILE
+
+    cat <<-END_VERSIONS > versions.yml
+    "${task.process}":
+        cellranger: \$(cellranger --version 2>&1 | grep -oE '[0-9]+\\.[0-9]+\\.[0-9]+' | head -1)
+    END_VERSIONS
     """
 }

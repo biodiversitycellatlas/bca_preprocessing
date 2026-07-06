@@ -11,6 +11,7 @@ process MTX_TO_H5AD {
 
     output:
     tuple val(meta), path("*.h5ad"), val(mapping_method), val(datatype), emit: h5ad
+    path "versions.yml", emit: versions
 
     script:
     """
@@ -43,5 +44,10 @@ process MTX_TO_H5AD {
 
     # Write compressed H5AD
     adata.write_h5ad("${meta.id}_${datatype}.h5ad", compression="gzip")
+
+    with open("versions.yml", "w") as f:
+        f.write(f'"${task.process}":\\n')
+        f.write(f'    python: {__import__("platform").python_version()}\\n')
+        f.write(f'    scanpy: {sc.__version__}\\n')
     """
 }

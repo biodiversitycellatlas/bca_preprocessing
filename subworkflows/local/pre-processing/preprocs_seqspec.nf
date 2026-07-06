@@ -22,7 +22,7 @@ workflow seqspec_workflow {
         FASTP(ch_samplesheet)
 
     emit:
-        data_output     = FASTP.out
+        data_output     = FASTP.out.trimmed_files
 }
 
 /*

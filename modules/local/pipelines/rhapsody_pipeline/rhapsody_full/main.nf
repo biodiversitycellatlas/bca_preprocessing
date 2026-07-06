@@ -11,6 +11,9 @@ process BDRHAP_PIPELINE {
     path input_yaml
     tuple val(meta), path(fastq_cDNA), path(fastq_BC_UMI), path(fastq_indices), path(input_file)
 
+    output:
+    path "versions.yml", emit: versions
+
     script:
     """
     echo "\n\n===============  BD Rhapsody pipeline  ==============="
@@ -22,5 +25,10 @@ process BDRHAP_PIPELINE {
         --singularity \\
         ${params.rhapsody_installation}/rhapsody_pipeline_2.2.1.cwl \\
         ${input_yaml}
+
+    cat <<-END_VERSIONS > versions.yml
+    "${task.process}":
+        cwltool: \$(cwltool --version 2>&1 | sed 's/^.*cwltool //')
+    END_VERSIONS
     """
 }

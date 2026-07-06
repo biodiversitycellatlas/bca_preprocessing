@@ -14,6 +14,7 @@ process CELLBENDER {
     path("cellbender_output_metrics.csv"),      emit: cb_metrics
     path("cellbender_output.h5"),               emit: cb_output_h5
     path("cellbender_output_filtered.h5"),      emit: cb_output_filtered_h5
+    path "versions.yml",                        emit: versions
 
     script:
     // Check if the workflow profile includes 'gpu' to determine whether to use GPU or CPU threads
@@ -34,5 +35,10 @@ process CELLBENDER {
         --expected-cells ${meta.expected_cells} \\
         --fpr 0.01 \\
         ${params.cellbender_extraargs ?: ''}
+
+    cat <<-END_VERSIONS > versions.yml
+    "${task.process}":
+        cellbender: \$(python3 -c "import cellbender; print(cellbender.__version__)")
+    END_VERSIONS
     """
 }

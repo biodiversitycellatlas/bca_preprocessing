@@ -30,7 +30,7 @@ workflow bd_rhapsody_workflow {
             BDRHAP_PIPELINE_MKREF()
 
             // Use .first() to treat the reference as a reusable Value Channel
-            BDRHAP_PIPELINE_YAML(ch_samplesheet, BDRHAP_PIPELINE_MKREF.out.first())
+            BDRHAP_PIPELINE_YAML(ch_samplesheet, BDRHAP_PIPELINE_MKREF.out.reference.first())
 
             // Join all 4 outputs from YAML generation
             BDRHAP_PIPELINE_YAML.out.run_name
@@ -57,7 +57,7 @@ workflow bd_rhapsody_workflow {
         }
 
     emit:
-        data_output = RM_VARBASES.out
+        data_output = RM_VARBASES.out.trimmed_files
         bc_whitelist    = params.bc_whitelist
 }
 

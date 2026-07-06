@@ -4,7 +4,8 @@ process BDRHAP_PIPELINE_MKREF {
     conda "${moduleDir}/environment.yml"
 
     output:
-    path("BD_Rhapsody_Reference_Files.tar.gz")
+    path("BD_Rhapsody_Reference_Files.tar.gz"), emit: reference
+    path "versions.yml",                        emit: versions
 
     script:
     """
@@ -36,5 +37,10 @@ process BDRHAP_PIPELINE_MKREF {
 
     # Create the tar.gz archive with the expected name and structure
     tar -czvf BD_Rhapsody_Reference_Files.tar.gz "\${ref_dir}"
+
+    cat <<-END_VERSIONS > versions.yml
+    "${task.process}":
+        star: \$(STAR --version)
+    END_VERSIONS
     """
 }

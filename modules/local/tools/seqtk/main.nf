@@ -8,7 +8,8 @@ process SUBSAMPLE_FASTQS {
     tuple val(meta), path(fastq_cDNA), path(fastq_BC_UMI), path(fastq_indices), path(input_file)
 
     output:
-    tuple val(meta), path("${meta.id}_subsampled_cDNA.fastq.gz"), path("${meta.id}_subsampled_BC_UMI.fastq.gz"), path("${meta.id}_subsampled_indices/"), path(input_file)
+    tuple val(meta), path("${meta.id}_subsampled_cDNA.fastq.gz"), path("${meta.id}_subsampled_BC_UMI.fastq.gz"), path("${meta.id}_subsampled_indices/"), path(input_file), emit: subsampled_files
+    path "versions.yml", emit: versions
 
     script:
     """
@@ -36,5 +37,10 @@ process SUBSAMPLE_FASTQS {
     else
         echo "No index FASTQs provided. Skipping index subsampling."
     fi
+
+    cat <<-END_VERSIONS > versions.yml
+    "${task.process}":
+        seqtk: \$(echo \$(seqtk 2>&1 | grep Version | sed 's/Version: //'))
+    END_VERSIONS
     """
 }

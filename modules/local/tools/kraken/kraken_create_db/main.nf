@@ -15,6 +15,7 @@ process KRAKEN_CREATE_DB {
 
     output:
     path 'kraken_db_path.txt', emit: db_path_file
+    path "versions.yml",       emit: versions
 
     script:
     def default_db_name = 'k2_pluspf_16gb'
@@ -32,5 +33,10 @@ process KRAKEN_CREATE_DB {
         echo "Using existing Kraken DB path: ${params.kraken_db_path}"
         echo "${params.kraken_db_path}" > kraken_db_path.txt
     fi
+
+    cat <<-END_VERSIONS > versions.yml
+    "${task.process}":
+        wget: \$(wget --version | head -n1 | sed 's/^GNU Wget //; s/ .*\$//')
+    END_VERSIONS
     """
 }

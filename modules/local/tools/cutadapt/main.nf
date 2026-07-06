@@ -10,7 +10,8 @@ process RM_VARBASES {
     tuple val(meta), path(fastq_cDNA), path(fastq_BC_UMI), path(fastq_indices), path(input_file)
 
     output:
-    tuple val(meta), path("noVB_${meta.id}_R2_001.fastq.gz"), path("noVB_${meta.id}_R1_001.fastq.gz"), path(fastq_indices), path(input_file)
+    tuple val(meta), path("noVB_${meta.id}_R2_001.fastq.gz"), path("noVB_${meta.id}_R1_001.fastq.gz"), path(fastq_indices), path(input_file), emit: trimmed_files
+    path "versions.yml", emit: versions
 
     script:
     """
@@ -20,5 +21,10 @@ process RM_VARBASES {
         --quality-cutoff 0 \\
         -o noVB_${meta.id}_R1_001.fastq.gz -p noVB_${meta.id}_R2_001.fastq.gz \\
         ${fastq_BC_UMI} ${fastq_cDNA}
+
+    cat <<-END_VERSIONS > versions.yml
+    "${task.process}":
+        cutadapt: \$(cutadapt --version)
+    END_VERSIONS
     """
 }

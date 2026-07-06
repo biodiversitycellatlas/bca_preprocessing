@@ -13,6 +13,7 @@ process SCIROCKET_SEQS_GATHER {
 
     output:
     tuple path('seqs_gather/whitelist_p7.txt'), path('seqs_gather/whitelist_p5.txt'), path('seqs_gather/whitelist_ligation.txt'), path('seqs_gather/whitelist_rt.txt'), emit: bc_whitelist
+    path "versions.yml", emit: versions
 
     script:
     """
@@ -30,5 +31,10 @@ process SCIROCKET_SEQS_GATHER {
     cat ${bc_whitelists_p7.join(' ')} | sort -u > seqs_gather/whitelist_p7.txt
     cat ${bc_whitelists_ligation.join(' ')} | sort -u > seqs_gather/whitelist_ligation.txt
     cat ${bc_whitelists_rt.join(' ')} | sort -u > seqs_gather/whitelist_rt.txt
+
+    cat <<-END_VERSIONS > versions.yml
+    "${task.process}":
+        bash: \$(bash --version | head -n1 | sed 's/^GNU bash, version //; s/ .*\$//')
+    END_VERSIONS
     """
 }

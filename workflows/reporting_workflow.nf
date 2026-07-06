@@ -147,7 +147,7 @@ workflow reporting_workflow {
 
     emit:
         dashboard_html  = GENERATE_DASHBOARD.out.html
-        multiqc_report  = MULTIQC.out
+        multiqc_report  = MULTIQC.out.report
 }
 
 

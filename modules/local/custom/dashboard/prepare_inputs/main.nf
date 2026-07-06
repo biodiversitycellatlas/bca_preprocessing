@@ -12,6 +12,7 @@ process PREPARE_DASHBOARD_INPUTS {
     path "*_meta_info.json"         , emit: af_meta_info, optional: true
     path "*_quant.json"            , emit: af_quant_json, optional: true
     path "*_cell_meta.tsv"         , emit: af_cell_meta, optional: true
+    path "versions.yml"            , emit: versions
 
     script:
     """
@@ -24,5 +25,10 @@ process PREPARE_DASHBOARD_INPUTS {
         if [[ "\$f" == *"quant.json"* ]]; then ln -s "\$f" "${meta.id}_quant.json"; fi
         if [[ "\$f" == *"cell_meta.tsv"* ]]; then ln -s "\$f" "${meta.id}_cell_meta.tsv"; fi
     done
+
+    cat <<-END_VERSIONS > versions.yml
+    "${task.process}":
+        bash: \$(bash --version | head -n1 | sed 's/^GNU bash, version //; s/ .*\$//')
+    END_VERSIONS
     """
 }
