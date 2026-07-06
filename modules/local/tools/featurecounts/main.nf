@@ -12,7 +12,7 @@ process CALC_MT_RRNA {
     file(ref_gtf)
 
     output:
-    file("${meta.id}_mt_rrna_metrics.txt"), emit: mt_rrna_metrics
+    path("${meta.id}_mt_rrna_metrics.txt"), emit: mt_rrna_metrics
     path "versions.yml",                    emit: versions
 
     script:

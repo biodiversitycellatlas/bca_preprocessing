@@ -37,7 +37,7 @@ workflow preprocessing_workflow {
             merged_samplesheet = ch_samplesheet
         } else {
             MERGE_FASTQS(ch_samplesheet)
-            merged_samplesheet = MERGE_FASTQS.out
+            merged_samplesheet = MERGE_FASTQS.out.merged_files
         }
 
         // Check for protocol and run appropriate pre-processing workflow
