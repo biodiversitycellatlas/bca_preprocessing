@@ -6,7 +6,8 @@ process MERGE_REF_FASTA {
     path add_fasta
 
     output:
-    path "ref.fasta"
+    path "ref.fasta",    emit: fasta
+    path "versions.yml", emit: versions
 
     script:
     def do_merge = add_fasta ? true : false
@@ -16,5 +17,10 @@ process MERGE_REF_FASTA {
     else
         cp ${base_fasta} ref.fasta
     fi
+
+    cat <<-END_VERSIONS > versions.yml
+    "${task.process}":
+        bash: \$(bash --version | head -n1 | sed 's/^GNU bash, version //; s/ .*\$//')
+    END_VERSIONS
     """
 }

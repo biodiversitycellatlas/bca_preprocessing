@@ -10,7 +10,8 @@ process GENE_EXT {
     path(bam_index)
 
     output:
-    path("geneext.gtf")
+    path("geneext.gtf"), emit: gtf
+    path "versions.yml", emit: versions
 
     script:
     def subsamplebam = params.geneext_subsamplebam ? "--subsamplebam ${params.geneext_subsamplebam}" : ""
@@ -31,5 +32,10 @@ process GENE_EXT {
         -t tmp_geneext \\
         -j 4 \\
         -force ${subsamplebam}
+
+    cat <<-END_VERSIONS > versions.yml
+    "${task.process}":
+        python: \$(python3 --version | sed 's/Python //g')
+    END_VERSIONS
     """
 }

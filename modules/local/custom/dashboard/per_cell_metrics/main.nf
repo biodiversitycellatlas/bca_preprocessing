@@ -14,6 +14,7 @@ process PERCELL_METRICS {
     output:
     path("*_metrics.json"), emit: percell_json
     path("*.png"),  emit: percell_imgs
+    path "versions.yml",    emit: versions
 
     script:
     def cfg_name = "GeneFull_Ex50pAS"
@@ -38,5 +39,10 @@ process PERCELL_METRICS {
         --gtf ${ref_gtf} \\
         --outdir . \\
         --min-reads \${starsolo_thres}
+
+    cat <<-END_VERSIONS > versions.yml
+    "${task.process}":
+        python: \$(python3 --version | sed 's/Python //g')
+    END_VERSIONS
     """
 }

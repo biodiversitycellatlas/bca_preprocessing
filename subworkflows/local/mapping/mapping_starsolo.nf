@@ -37,7 +37,7 @@ workflow mapping_starsolo_workflow {
             star_index_ch = Channel.value(file(params.star_index))
         } else {
             STARSOLO_INDEX(data_output, ref_gtf, ref_fasta)
-            star_index_ch = STARSOLO_INDEX.out.first()
+            star_index_ch = STARSOLO_INDEX.out.index.first()
         }
 
         // Confirm bc_whitelist is a safe value channel

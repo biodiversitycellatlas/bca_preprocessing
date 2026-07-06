@@ -8,7 +8,8 @@ process SCIROCKET_SPL_GATHER {
     path r2_list
 
     output:
-    tuple val("all"), path("spl_gather/all_R1.fastq.gz"), path("spl_gather/all_R2.fastq.gz")
+    tuple val("all"), path("spl_gather/all_R1.fastq.gz"), path("spl_gather/all_R2.fastq.gz"), emit: gathered_files
+    path "versions.yml", emit: versions
 
     script:
     """
@@ -21,5 +22,10 @@ process SCIROCKET_SPL_GATHER {
     # Combine sample-specific FASTQ files from all demultiplexed splits.
     cat ${r1_list.join(' ')} > spl_gather/all_R1.fastq.gz
     cat ${r2_list.join(' ')} > spl_gather/all_R2.fastq.gz
+
+    cat <<-END_VERSIONS > versions.yml
+    "${task.process}":
+        bash: \$(bash --version | head -n1 | sed 's/^GNU bash, version //; s/ .*\$//')
+    END_VERSIONS
     """
 }

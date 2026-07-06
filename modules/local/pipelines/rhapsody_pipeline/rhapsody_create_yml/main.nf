@@ -10,6 +10,7 @@ process BDRHAP_PIPELINE_YAML {
     path(bd_ref_path),                      emit: bd_ref_path
     path("rhapsody_input_${meta.id}.yml"),  emit: yaml_file
     tuple val(meta), path(fastq_cDNA), path(fastq_BC_UMI), path(fastq_indices), path(input_file), emit: samplesheet
+    path "versions.yml",                    emit: versions
 
     script:
     """
@@ -23,5 +24,10 @@ process BDRHAP_PIPELINE_YAML {
         --fastq_cDNA ${fastq_cDNA} \\
         --fastq_BC_UMI ${fastq_BC_UMI} \\
         --star_ref ${bd_ref_path}
+
+    cat <<-END_VERSIONS > versions.yml
+    "${task.process}":
+        python: \$(python3 --version | sed 's/Python //g')
+    END_VERSIONS
     """
 }

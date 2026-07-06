@@ -48,7 +48,7 @@ workflow parse_workflow {
             PARSEBIO_PIPELINE_MKREF()
 
             // Use .first() to reuse the reference output for all split samples
-            PARSEBIO_PIPELINE(demux_samplesheet, PARSEBIO_PIPELINE_MKREF.out.first())
+            PARSEBIO_PIPELINE(demux_samplesheet, PARSEBIO_PIPELINE_MKREF.out.reference.first())
         }
 
     emit:

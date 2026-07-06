@@ -11,6 +11,7 @@ process SAMTOOLS_MERGE {
     output:
     path "merged_genome.bam" ,      emit: merged_bam
     path "merged_genome.bam.bai" ,  emit: merged_bai
+    path "versions.yml",            emit: versions
 
     script:
     """
@@ -25,5 +26,10 @@ process SAMTOOLS_MERGE {
     fi
 
     samtools index -@ ${task.cpus} merged_genome.bam
+
+    cat <<-END_VERSIONS > versions.yml
+    "${task.process}":
+        samtools: \$(samtools --version | sed '1!d; s/samtools //')
+    END_VERSIONS
     """
 }

@@ -12,6 +12,7 @@ process SAMTOOLS_VIEW_MAPPED {
     tuple val(meta), path("${meta.id}_Aligned.filtered.sorted.bam"),     emit : filtered_mapped_bam
     tuple val(meta), path("${meta.id}_Aligned.filtered.sorted.bam.bai"), emit : filtered_mapped_bai
     tuple val(meta), path("mapreads.txt"),                               emit : mapreads
+    path "versions.yml",                                                 emit : versions
 
     script:
     """
@@ -25,5 +26,10 @@ process SAMTOOLS_VIEW_MAPPED {
 
     # Calculate mapped reads
     samtools view --threads ${task.cpus} -F 260 ${meta.id}_Aligned.filtered.sorted.bam | wc -l > mapreads.txt
+
+    cat <<-END_VERSIONS > versions.yml
+    "${task.process}":
+        samtools: \$(samtools --version | sed '1!d; s/samtools //')
+    END_VERSIONS
     """
 }

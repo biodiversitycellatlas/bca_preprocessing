@@ -9,6 +9,7 @@ process SAVE_RUN_CONFIG {
     output:
     path("run_config_${params.trace_report_suffix}.txt"), emit: run_config
     path("samplesheet_${params.trace_report_suffix}.csv"), emit: samplesheet
+    path "versions.yml", emit: versions
 
     script:
     """
@@ -21,5 +22,10 @@ process SAVE_RUN_CONFIG {
         .collect { k -> "$k = ${params[k]}" }
         .join('\n') }
     EOF
+
+    cat <<-END_VERSIONS > versions.yml
+    "${task.process}":
+        bash: \$(bash --version | head -n1 | sed 's/^GNU bash, version //; s/ .*\$//')
+    END_VERSIONS
     """
 }

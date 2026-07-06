@@ -11,6 +11,7 @@ process PARSEBIO_PIPELINE {
 
     output:
     path("*")
+    path "versions.yml", emit: versions
 
     script:
     def kitskip_arg   = task.ext.args ?: ''          // If ext.args is defined assign it to kitskip_arg
@@ -40,5 +41,10 @@ process PARSEBIO_PIPELINE {
         --output_dir . \\
         --parfile config_${params.protocol}_splitpipe.txt \\
         --no_keep_going
+
+    cat <<-END_VERSIONS > versions.yml
+    "${task.process}":
+        split-pipe: \$(split-pipe --version 2>&1 | sed -n '1p')
+    END_VERSIONS
     """
 }

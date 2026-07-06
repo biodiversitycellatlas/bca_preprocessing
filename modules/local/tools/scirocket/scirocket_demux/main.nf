@@ -21,6 +21,7 @@ process SCIROCKET_DEMUX {
     path("demux_reads/${meta.id}_whitelist_rt*"),           emit: bc_whitelists_rt
     tuple val(meta), path("demux_reads/${meta.id}_R2.fastq.gz"), path("demux_reads/${meta.id}_R1.fastq.gz"), path(fastq_indices), path(input_file), emit: demux_samplesheet
     tuple path("demux_reads/${meta.id}_whitelist_p7*"), path("demux_reads/${meta.id}_whitelist_p5*"), path("demux_reads/${meta.id}_whitelist_ligation*"), path("demux_reads/${meta.id}_whitelist_rt*"), emit: bc_whitelist
+    path "versions.yml", emit: versions
 
     script:
     // Get basename of the FASTQ files
@@ -43,5 +44,10 @@ process SCIROCKET_DEMUX {
          --barcodes ${params.bc_whitelist} \\
          --r1 ${fastq_BC_UMI} --r2 ${fastq_cDNA} \\
          --out demux_reads/
+
+    cat <<-END_VERSIONS > versions.yml
+    "${task.process}":
+        python: \$(python3 --version | sed 's/Python //g')
+    END_VERSIONS
     """
 }

@@ -10,6 +10,7 @@ process SALMON_SPLICI {
 
     output:
     path("splici_index/"), emit: splici_index_reference
+    path "versions.yml",   emit: versions
 
     script:
     """
@@ -32,5 +33,10 @@ process SALMON_SPLICI {
 
     # Define the reference fasta file created by the R script
     # ref_fasta=\$(ls ./splici_index_reference/*.fa)
+
+    cat <<-END_VERSIONS > versions.yml
+    "${task.process}":
+        r-base: \$(Rscript --version 2>&1 | sed 's/^.*version //; s/ .*\$//')
+    END_VERSIONS
     """
 }

@@ -33,7 +33,7 @@ workflow geneext_workflow {
         GENE_EXT(SAMTOOLS_MERGE.out.merged_bam, SAMTOOLS_MERGE.out.merged_bai)
 
     emit:
-        ref_gtf   = GENE_EXT.out
+        ref_gtf   = GENE_EXT.out.gtf
 }
 
 /*

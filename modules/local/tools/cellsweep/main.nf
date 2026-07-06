@@ -15,7 +15,7 @@ process CELLSWEEP {
     path("*_ambient_hat_histogram.png"),      emit: cs_ambient_hist_plot
     path("*_top_ambient_genes.csv"),          emit: cs_top_genes
     path("*_umap_comparison.png"),            emit: cs_umap_comparison_plot
-    path("*_doublet_summary.txt"),            emit: cs_doublet_summary, optional: true
+    path "versions.yml",                      emit: versions
 
     script:
     """
@@ -31,7 +31,11 @@ process CELLSWEEP {
         --cs_full_h5ad ${meta.id}_cs_full.h5ad \\
         --image_prefix ${meta.id}_ \\
         --expected_cells ${meta.expected_cells} \\
-        --no-remove-doublets \\
         --threads ${task.cpus}
+
+    cat <<-END_VERSIONS > versions.yml
+    "${task.process}":
+        python: \$(python3 --version | sed 's/Python //g')
+    END_VERSIONS
     """
 }

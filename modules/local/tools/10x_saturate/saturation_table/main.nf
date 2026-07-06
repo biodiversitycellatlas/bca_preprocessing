@@ -14,7 +14,8 @@ process SATURATION_TABLE {
     tuple val(meta), file(samtools_mapreads)
 
     output:
-    tuple val(meta), path("saturation_output.tsv")
+    tuple val(meta), path("saturation_output.tsv"), emit: saturation_table
+    path "versions.yml",                            emit: versions
 
     script:
     """
@@ -45,5 +46,10 @@ process SATURATION_TABLE {
         --temp \${temp_folder} \\
         --output saturation_output.tsv
     echo "Created saturation_output.tsv"
+
+    cat <<-END_VERSIONS > versions.yml
+    "${task.process}":
+        python: \$(python3 --version | sed 's/Python //g')
+    END_VERSIONS
     """
 }

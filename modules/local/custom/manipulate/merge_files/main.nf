@@ -8,7 +8,8 @@ process MERGE_FASTQS {
     tuple val(meta), path(fastq_cDNA_list), path(fastq_BC_UMI_list), path(fastq_indices), path(input_file)
 
     output:
-    tuple val(meta), path("${meta.id}_merged_cDNA.fastq.gz"), path("${meta.id}_merged_BC_UMI.fastq.gz"), path("${meta.id}_merged_I*.fastq.gz", arity: '0..2'), path(input_file)
+    tuple val(meta), path("${meta.id}_merged_cDNA.fastq.gz"), path("${meta.id}_merged_BC_UMI.fastq.gz"), path("${meta.id}_merged_I*.fastq.gz", arity: '0..2'), path(input_file), emit: merged_files
+    path "versions.yml", emit: versions
 
     script:
     """
@@ -60,5 +61,10 @@ process MERGE_FASTQS {
     fi
 
     echo "Merging completed for ${meta.id}"
+
+    cat <<-END_VERSIONS > versions.yml
+    "${task.process}":
+        pigz: \$(pigz --version 2>&1 | sed 's/pigz //')
+    END_VERSIONS
     """
 }

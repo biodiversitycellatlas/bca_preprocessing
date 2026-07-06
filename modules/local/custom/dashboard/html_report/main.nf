@@ -24,13 +24,9 @@ process GENERATE_DASHBOARD {
     path(cellsweep_plots_umap)
     path(cellsweep_top_genes)
 
-
     output:
     path "dashboard.html"  , emit: html
     path "versions.yml"    , emit: versions
-
-    when:
-    task.afterScript = 'echo "Dashboard generation complete"'
 
     script:
     def args = task.ext.args ?: ''

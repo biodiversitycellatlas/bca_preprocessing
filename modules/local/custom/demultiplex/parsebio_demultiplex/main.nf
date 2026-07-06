@@ -11,6 +11,7 @@ process PARSEBIO_CUSTOM_DEMUX {
 
     output:
     tuple val(meta), path("*group*_R1*"), path("*group*_R2*"), path(fastq_indices), path(input_file), emit: splitted_files
+    path "versions.yml", emit: versions
 
     script:
     """
@@ -30,5 +31,10 @@ process PARSEBIO_CUSTOM_DEMUX {
         --barcode_start 50 \\
         --barcode_end 58 \\
         --max_edit_dist 2
+
+    cat <<-END_VERSIONS > versions.yml
+    "${task.process}":
+        python: \$(python3 --version | sed 's/Python //g')
+    END_VERSIONS
     """
 }

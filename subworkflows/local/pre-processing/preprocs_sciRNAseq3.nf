@@ -51,7 +51,7 @@ workflow sciRNAseq3_workflow {
         def input_file_val = file(params.input)
 
         // Re-wrap the outputs into the expected format for FASTP
-        wrapped = SCIROCKET_SPL_GATHER.out
+        wrapped = SCIROCKET_SPL_GATHER.out.gathered_files
             .map { sampleId, r1_file, r2_file, fastq_indices ->
                 def meta = [
                     id                : sampleId,
@@ -73,7 +73,7 @@ workflow sciRNAseq3_workflow {
         FASTP(ch_wrapped)
 
     emit:
-        data_output     = FASTP.out
+        data_output     = FASTP.out.trimmed_files
         bc_whitelist    = SCIROCKET_SEQS_GATHER.out.bc_whitelist
 }
 

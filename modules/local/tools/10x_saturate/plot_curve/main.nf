@@ -14,6 +14,7 @@ process SATURATION_PLOT {
     path("${meta.id}_saturation.log"),                      emit: logs
     path("${meta.id}_saturation.png"),                      emit: img_saturation
     path("${meta.id}_saturation_residuals.png"),            emit: img_residuals
+    path "versions.yml",                                    emit: versions
 
     script:
     """
@@ -23,5 +24,10 @@ process SATURATION_PLOT {
         ${meta.id}_saturation.png \\
         --target ${params.saturation_target} \\
         > ${meta.id}_saturation.log 2>&1 || true
+
+    cat <<-END_VERSIONS > versions.yml
+    "${task.process}":
+        python: \$(python3 --version | sed 's/Python //g')
+    END_VERSIONS
     """
 }

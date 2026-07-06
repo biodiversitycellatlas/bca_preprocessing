@@ -59,7 +59,7 @@ workflow QC_mapping_workflow {
         def ref_gtf_ch
         if (params.ref_gtf_addfeature) {
             MERGE_REF_GTF(params.ref_gtf, Channel.fromPath(params.ref_gtf_addfeature))
-            ref_gtf_ch = MERGE_REF_GTF.out
+            ref_gtf_ch = MERGE_REF_GTF.out.gtf
         } else {
             ref_gtf_ch = Channel.value(file(params.ref_gtf))
         }
@@ -67,7 +67,7 @@ workflow QC_mapping_workflow {
         def ref_fasta_ch
         if (params.ref_fasta_addfeature) {
             MERGE_REF_FASTA(params.ref_fasta, Channel.fromPath(params.ref_fasta_addfeature))
-            ref_fasta_ch = MERGE_REF_FASTA.out
+            ref_fasta_ch = MERGE_REF_FASTA.out.fasta
         } else {
             ref_fasta_ch = Channel.value(file(params.ref_fasta))
         }
@@ -101,7 +101,7 @@ workflow QC_mapping_workflow {
                 ch_mapped_ss = ch_mapped_ss.mix(ch_star)
                 SUBSAMPLE_FASTQS(ch_star)
 
-                mapping_starsolo_workflow(SUBSAMPLE_FASTQS.out, bc_whitelist_safe, ref_gtf_ch, ref_fasta_ch, 'false')
+                mapping_starsolo_workflow(SUBSAMPLE_FASTQS.out.subsampled_files, bc_whitelist_safe, ref_gtf_ch, ref_fasta_ch, 'false')
 
             // Run STARsolo on the full dataset
             } else {
@@ -147,17 +147,17 @@ workflow QC_mapping_workflow {
                     def ref_gtf_geneext_ch
                     if (params.ref_gtf_addfeature) {
                         MERGE_REF_GTF_GENEEXT(geneext_workflow.out.ref_gtf, Channel.fromPath(params.ref_gtf_addfeature))
-                        ref_gtf_geneext_ch = MERGE_REF_GTF_GENEEXT.out
+                        ref_gtf_geneext_ch = MERGE_REF_GTF_GENEEXT.out.gtf
                     } else {
                         // Geneext always extends from the geneext output, no bypass possible here
                         MERGE_REF_GTF_GENEEXT(geneext_workflow.out.ref_gtf, Channel.value([]))
-                        ref_gtf_geneext_ch = MERGE_REF_GTF_GENEEXT.out
+                        ref_gtf_geneext_ch = MERGE_REF_GTF_GENEEXT.out.gtf
                     }
 
                     def ref_fasta_geneext_ch
                     if (params.ref_fasta_addfeature) {
                         MERGE_REF_FASTA_GENEEXT(params.ref_fasta, Channel.fromPath(params.ref_fasta_addfeature))
-                        ref_fasta_geneext_ch = MERGE_REF_FASTA_GENEEXT.out
+                        ref_fasta_geneext_ch = MERGE_REF_FASTA_GENEEXT.out.fasta
                     } else {
                         ref_fasta_geneext_ch = Channel.value(file(params.ref_fasta))
                     }

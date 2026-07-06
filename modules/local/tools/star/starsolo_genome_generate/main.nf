@@ -11,7 +11,8 @@ process STARSOLO_INDEX {
     container "oras://community.wave.seqera.io/library/htslib_samtools_star_gawk:f196f82abbbc8871"
 
     output:
-    path("*")
+    path("*"),          emit: index
+    path "versions.yml", emit: versions
 
     script:
     // Retrieve settings from custom parameters if set, otherwise from conf/seqtech_parameters.config
@@ -40,5 +41,10 @@ process STARSOLO_INDEX {
         --genomeSAsparseD ${star_genomeSAsparseD} \\
         --genomeSAindexNbases ${star_genomeSAindexNbases} \\
         --limitGenomeGenerateRAM ${params.star_limitGenomeGenerateRAM}
+
+    cat <<-END_VERSIONS > versions.yml
+    "${task.process}":
+        star: \$(STAR --version)
+    END_VERSIONS
     """
 }

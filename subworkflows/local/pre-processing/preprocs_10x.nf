@@ -29,12 +29,12 @@ workflow tenx_genomics_workflow {
             CR_PIPELINE_MKREF()
 
             // Use .first() to allow the reference index to be reused for all samples
-            CR_PIPELINE(ch_samplesheet, CR_PIPELINE_MKREF.out.first())
+            CR_PIPELINE(ch_samplesheet, CR_PIPELINE_MKREF.out.reference.first())
         }
 
     emit:
         data_output     = ch_samplesheet
-        bc_whitelist    = DOWNLOAD_DATA.out
+        bc_whitelist    = DOWNLOAD_DATA.out.whitelist
 }
 
 /*

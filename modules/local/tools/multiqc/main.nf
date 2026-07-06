@@ -11,12 +11,18 @@ process MULTIQC {
     path(multiqc_config)
 
     output:
-    path("*")
+    path("*"),          emit: report
+    path "versions.yml", emit: versions
 
     script:
     def config = multiqc_config ? "--config $multiqc_config" : ''
 
     """
     multiqc ${params.outdir} $config
+
+    cat <<-END_VERSIONS > versions.yml
+    "${task.process}":
+        multiqc: \$(multiqc --version | sed 's/multiqc, version //')
+    END_VERSIONS
     """
 }
