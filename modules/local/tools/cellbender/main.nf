@@ -1,10 +1,19 @@
 process CELLBENDER {
     publishDir "${params.outdir}/cellbender/${meta.id}", mode: 'copy'
     tag "${meta.id}"
-    label ( workflow.profile?.contains('gpu') ? 'process_gpu' : 'process_high' )
+    label 'process_high'
+    label 'process_gpu'
     debug true
 
-    container "us.gcr.io/broad-dsde-methods/cellbender:latest"
+    // Containers are the preferred way to run this module, and the only one that supports
+    // GPU acceleration -- the bioconda build ships CPU-only torch. Container is selected
+    // from task.ext.use_gpu, which conf/base.config sets on the process_gpu label: the
+    // Broad image has CUDA-enabled torch, the Wave image is a slimmer CPU-only build.
+    conda "${moduleDir}/environment.yml"
+    container "${ task.ext.use_gpu ? 'us.gcr.io/broad-dsde-methods/cellbender:0.3.2' :
+        workflow.containerEngine in ['singularity', 'apptainer'] && !task.ext.singularity_pull_docker_container ?
+        'https://community-cr-prod.seqera.io/docker/registry/v2/blobs/sha256/eb/ebcf140f995f79fcad5c17783622e000550ff6f171771f9fc4233484ee6f63cf/data' :
+        'community.wave.seqera.io/library/cellbender_webcolors:156d413fdfc16cdb' }"
 
     input:
     tuple val(meta), path(raw_h5ad)
@@ -17,17 +26,19 @@ process CELLBENDER {
     path "versions.yml",                        emit: versions
 
     script:
-    // Check if the workflow profile includes 'gpu' to determine whether to use GPU or CPU threads
+    // GPU acceleration is enabled by running with `-profile gpu` (see conf/base.config).
+    // --cpu-threads is always passed: it drives data loading, which stays on the CPU.
     def use_gpu = task.ext.use_gpu ?: false
-    def cuda_flag = use_gpu ? "--cuda" : "--cpu-threads ${task.cpus}"
+    def cuda_flag = use_gpu ? "--cuda" : ""
     """
     echo "\n\n===============  Ambient RNA removal  ==============="
     echo "Sample ID: ${meta}"
     echo "Input files: ${raw_h5ad}"
     echo "Number of expected cells: ${meta.expected_cells}"
-    echo "GPU Profile Active: ${use_gpu}"
+    echo "GPU acceleration: ${use_gpu ? 'enabled (--cuda)' : 'disabled (CPU only)'}"
 
-    cellbender remove-background \\
+    TMPDIR=. cellbender remove-background \\
+        --cpu-threads ${task.cpus} \\
         ${cuda_flag} \\
         --input ${raw_h5ad} \\
         --output cellbender_output.h5 \\

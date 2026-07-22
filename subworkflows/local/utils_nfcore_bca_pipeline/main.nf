@@ -44,7 +44,7 @@ workflow PIPELINE_INITIALISATION {
         version,
         true,
         outdir,
-        workflow.profile.tokenize(',').intersect(['conda', 'mamba']).size() >= 1
+        workflow.profile.tokenize(',').intersect(['conda', 'mamba', 'micromamba']).size() >= 1
     )
 
     //
@@ -62,6 +62,23 @@ workflow PIPELINE_INITIALISATION {
     UTILS_NFCORE_PIPELINE (
         nextflow_cli_args
     )
+
+    //
+    // Fail fast on GPU requests that cannot be satisfied
+    //
+    // CellBender is the only GPU-accelerated tool in the pipeline, only its containers carry CUDA-enabled PyTorch, the bioconda build is CPU-only. 
+    // Checked here so the run aborts at launch instead of after mapping has already completed.
+    //
+    def gpu_requested   = workflow.profile.tokenize(',').contains('gpu')
+    def cellbender_used = params.ambient_rna_remover == "cellbender" || params.perform_cellbender
+    if (gpu_requested && cellbender_used && !workflow.containerEngine) {
+        error(
+            "GPU acceleration was requested with '-profile gpu', but no container engine is enabled.\n" +
+            "CellBender only supports GPUs from its containers; the bundled Conda environment ships CPU-only PyTorch.\n" +
+            "Re-run with a container profile (e.g. '-profile docker,gpu' or '-profile singularity,gpu'),\n" +
+            "or drop '-profile gpu' to run CellBender on CPU."
+        )
+    }
 
     //
     // Create channel from input file provided through params.input

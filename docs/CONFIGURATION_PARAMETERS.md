@@ -97,7 +97,7 @@ Within each custom configuration file the following variables can be defined:
 |------------------------|-------------------|-------------|
 | `perform_cellbender`   | Optional          | Boolean flag to enable or disable removal of ambient RNA using CellBender. Default is `false`. |
 | `cellbender_extraargs` | Optional          | Provide extra arguments to the CellBender function as a string. Refer to the [CellBender manual](https://cellbender.readthedocs.io/en/latest/reference/index.html) for options. |
-
+| `gpu_cluster_options`  | Optional          | Scheduler flags used to request a GPU, applied only when running with `-profile gpu`. Defaults to the SLURM syntax `--partition=gpu --gres=gpu:1g.10gb:1`; set to `null` on schedulers that take no such flags, or override with your site's equivalent. |
 
 
 ## External Pipeline Variables
