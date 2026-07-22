@@ -30,6 +30,9 @@ workflow mapping_starsolo_workflow {
         // Initialize reporting channels
         def ch_starsolo_bam     = Channel.empty()
         def ch_filtered_mtx     = Channel.empty()
+        def ch_secondderiv_knee = Channel.empty()
+        def ch_secondderiv_stats = Channel.empty()
+        def ch_secondderiv_cutoff = Channel.empty()
 
         // Check if star index is provided, if not create it
         def star_index_ch
@@ -51,8 +54,18 @@ workflow mapping_starsolo_workflow {
         // Filters the raw matrices based on the cutoff determined by the second derivative method, if selected
         if (params.cellfilter_method == "second_derivative") {
             SECONDDERIV_CELLCALLING(STARSOLO_ALIGN.out.umi_per_cell)
-            FILTER_MATRICES(STARSOLO_ALIGN.out.genefull50_raw_dir, SECONDDERIV_CELLCALLING.out.cutoff)
-            ch_filtered_mtx = FILTER_MATRICES.out.filtered_matrix
+
+            // Join on meta so every sample is filtered on its own cutoff
+            def ch_filter_input = STARSOLO_ALIGN.out.genefull50_raw_dir
+                .join(SECONDDERIV_CELLCALLING.out.cutoff)
+                .join(STARSOLO_ALIGN.out.cellreads_stats)
+
+            FILTER_MATRICES(ch_filter_input)
+
+            ch_filtered_mtx           = FILTER_MATRICES.out.filtered_matrix
+            ch_secondderiv_stats      = FILTER_MATRICES.out.filter_stats
+            ch_secondderiv_knee       = SECONDDERIV_CELLCALLING.out.json_data
+            ch_secondderiv_cutoff     = SECONDDERIV_CELLCALLING.out.cutoff
         } else {
             ch_filtered_mtx = STARSOLO_ALIGN.out.genefull50_filtered_dir
         }
@@ -68,6 +81,9 @@ workflow mapping_starsolo_workflow {
         star_solodir                    = STARSOLO_ALIGN.out.star_solodir
         starsolo_genefull50_raw         = STARSOLO_ALIGN.out.genefull50_raw_dir
         starsolo_genefull50_filtered    = ch_filtered_mtx
+        secondderiv_knee                = ch_secondderiv_knee
+        secondderiv_stats               = ch_secondderiv_stats
+        secondderiv_cutoff              = ch_secondderiv_cutoff
         star_umipercell                 = STARSOLO_ALIGN.out.umi_per_cell
         star_log                        = STARSOLO_ALIGN.out.log_file
         star_final_log                  = STARSOLO_ALIGN.out.log_final_file

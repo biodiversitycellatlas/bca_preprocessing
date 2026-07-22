@@ -22,7 +22,7 @@ include { DOWNLOAD_WHITELIST            } from '../modules/local/custom/manipula
         Sequencing-specific pre-processing of the data:
         - Parse Bioscience: Demultiplexing using groups of wells and mapping using split-pipe
         - BD Rhapsody: Removing variable bases and mapping using BD rhapsody pipeline
-        - 10xv3, OAK seq & Ultima Genomics : Mapping using CellRanger
+        - 10x, OAK seq & Ultima Genomics : Mapping using CellRanger
         - Sci-RNA-seq3: Pre-processing based on the sci-rocket pipeline
 ~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~
 */

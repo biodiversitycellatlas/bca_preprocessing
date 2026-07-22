@@ -1,4 +1,5 @@
 process SECONDDERIV_CELLCALLING {
+    publishDir "${params.outdir}/mapping_STARsolo/${meta.id}/${meta.id}_Solo.out/GeneFull_Ex50pAS/filtered_secondderiv", mode: 'copy'
     label 'process_low'
     tag "${meta.id}"
 
@@ -9,7 +10,7 @@ process SECONDDERIV_CELLCALLING {
 
     output:
     tuple val(meta), path("${meta.id}_knee_data.json"),     emit: json_data
-    path("${meta.id}_cutoff.txt"),                          emit: cutoff
+    tuple val(meta), path("${meta.id}_cutoff.txt"),         emit: cutoff
 
     script:
     """

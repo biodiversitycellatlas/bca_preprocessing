@@ -179,6 +179,26 @@ def choose_gene_directory(solo_out: Path) -> Tuple[Path, str]:
     return solo_out / "Gene", "Gene"
 
 
+def load_secondderiv_stats(gene_dir: Path) -> Dict[str, object]:
+    """Load the statistics recomputed on the second-derivative filtered matrix.
+
+    Returns ``{}`` unless ``cellfilter_method = "second_derivative"`` was used, in
+    which case STARsolo's own ``filtered/`` directory is absent and these values
+    describe the cells that were actually retained.
+    """
+    matches = sorted((gene_dir / "filtered_secondderiv").glob("*secondderiv_statistics.json"))
+    if not matches:
+        return {}
+
+    try:
+        with matches[0].open() as fh:
+            data = json.load(fh)
+        return data if isinstance(data, dict) else {}
+    except Exception as e:  # noqa: BLE001
+        print(f"[WARNING] Could not read {matches[0]}: {e}")
+        return {}
+
+
 def load_summary_csv(csv_path: Path) -> pd.DataFrame:
     """Load STARsolo Summary.csv as a 2-column table with the first column as index."""
     if not csv_path.exists():
@@ -827,7 +847,14 @@ def process_star_samples(
         summary_df = load_summary_csv(gene_dir / "Summary.csv")
         row.update(extract_star_summary_fields(summary_df, cfg_name))
 
-        filt_barcodes = gene_dir / "filtered" / "barcodes.tsv"
+        # With the second-derivative method STARsolo's filtered/ is neither produced nor
+        # published, so the cell set comes from the matrix that FILTER_MATRICES wrote.
+        sd_stats = load_secondderiv_stats(gene_dir)
+        if sd_stats:
+            filt_barcodes = gene_dir / "filtered_secondderiv" / "filtered" / "barcodes.tsv"
+        else:
+            filt_barcodes = gene_dir / "filtered" / "barcodes.tsv"
+
         row["N cells"] = count_file_lines(filt_barcodes)
 
         logout = find_star_file(star_map_dir, "Log.out")
@@ -835,6 +862,25 @@ def process_star_samples(
             row["UMI cutoff used for cell calling"] = extract_umi_cutoff(
                 logout, cfg_name
             )
+
+        if sd_stats:
+            row["UMI cutoff used for cell calling"] = sd_stats.get(
+                "umi_threshold_applied", row.get("UMI cutoff used for cell calling")
+            )
+            for key, col_name in (
+                ("estimated_cells", "N cells"),
+                ("median_umis_per_cell", "Median UMI Counts per Cell"),
+                ("median_genes_per_cell", "Median Genes per Cell"),
+                ("total_genes_detected", "Total Genes Detected"),
+            ):
+                if sd_stats.get(key) is not None:
+                    row[col_name] = str(int(round(float(sd_stats[key]))))
+
+            # Reads per cell depends on the cell set, so it is recomputed as well
+            n_reads = row.get("N reads/sample")
+            n_cells = sd_stats.get("estimated_cells")
+            if n_reads and n_cells:
+                row["Mean Reads per Cell"] = str(int(float(n_reads) / int(n_cells)))
 
         read_stats = gene_dir / "CellReads.stats"
         creads = add_cellreads_metrics(read_stats, filt_barcodes)
