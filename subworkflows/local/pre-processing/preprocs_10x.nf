@@ -7,7 +7,6 @@
     IMPORT FUNCTIONS / MODULES / SUBWORKFLOWS
 ~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~
 */
-include { DOWNLOAD_DATA } from '../../../modules/local/custom/manipulate/download_files/main'
 include { CR_PIPELINE_MKREF } from '../../../modules/local/pipelines/cellranger/cellranger_mkref/main'
 include { CR_PIPELINE } from '../../../modules/local/pipelines/cellranger/cellranger_count/main'
 
@@ -21,9 +20,6 @@ workflow tenx_genomics_workflow {
         ch_samplesheet
 
     main:
-        // Download data from the specified path, in this case the barcode whitelist
-        DOWNLOAD_DATA()
-
         // Only run Cell Ranger pipeline if perform_cellranger is set to true
         if (params.perform_cellranger) {
             CR_PIPELINE_MKREF()
@@ -34,7 +30,6 @@ workflow tenx_genomics_workflow {
 
     emit:
         data_output     = ch_samplesheet
-        bc_whitelist    = DOWNLOAD_DATA.out.whitelist
 }
 
 /*

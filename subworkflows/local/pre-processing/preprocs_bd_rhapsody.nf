@@ -58,7 +58,6 @@ workflow bd_rhapsody_workflow {
 
     emit:
         data_output = RM_VARBASES.out.trimmed_files
-        bc_whitelist    = params.bc_whitelist
 }
 
 /*
