@@ -87,9 +87,7 @@ workflow QC_mapping_workflow {
         }
 
         // Quality Control
-        if (params.protocol != "scalebio") {
-            FASTQC(data_output)
-        }
+        FASTQC(data_output)
 
         // Mapping: starsolo, alevin, alevin_starsolo (both), or alevin_subsampled_starsolo
         if (params.mapping_software == "starsolo" || params.mapping_software == "both" || params.mapping_software == "alevin_subsampled_starsolo" || params.mapping_software == "alevin_starsolo") {

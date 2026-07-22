@@ -11,8 +11,6 @@ include { bd_rhapsody_workflow          } from '../subworkflows/local/pre-proces
 include { parse_workflow                } from '../subworkflows/local/pre-processing/preprocs_parse_biosciences'
 include { tenx_genomics_workflow        } from '../subworkflows/local/pre-processing/preprocs_10x'
 include { sciRNAseq3_nogather_workflow  } from '../subworkflows/local/pre-processing/preprocs_sciRNAseq3_nogather'
-// include { scalebio_workflow             } from '../subworkflows/local/pre-processing/preprocs_scalebio'
-// include { scalerna_extpipe_workflow     } from '../subworkflows/local/external_pipelines/scalerna'
 include { seqspec_workflow              } from '../subworkflows/local/pre-processing/preprocs_seqspec'
 
 include { MERGE_FASTQS                  } from '../modules/local/custom/manipulate/merge_files/main'
@@ -33,12 +31,8 @@ workflow preprocessing_workflow {
 
     main:
         // Merge fastq files of duplicate sample IDs
-        if (params.scalerna_inputFormat == "crams") {
-            merged_samplesheet = ch_samplesheet
-        } else {
-            MERGE_FASTQS(ch_samplesheet)
-            merged_samplesheet = MERGE_FASTQS.out.merged_files
-        }
+        MERGE_FASTQS(ch_samplesheet)
+        merged_samplesheet = MERGE_FASTQS.out.merged_files
 
         // Check for protocol and run appropriate pre-processing workflow
         if (params.protocol.startsWith('parse_biosciences')) {
@@ -60,15 +54,6 @@ workflow preprocessing_workflow {
             sciRNAseq3_nogather_workflow(merged_samplesheet)
             data_output_ch   = sciRNAseq3_nogather_workflow.out.data_output
             bc_whitelist_ch  = sciRNAseq3_nogather_workflow.out.bc_whitelist.map { tup -> tup*.toString().join(' ') }
-
-        // } else if (params.protocol == 'scalebio') {
-        //     scalebio_workflow(merged_samplesheet)
-        //     data_output_ch = scalebio_workflow.out.data_output
-        //     bc_whitelist_ch  = params.bc_whitelist
-
-            // scalerna_extpipe_workflow(merged_samplesheet)
-            // data_output_ch = scalerna_extpipe_workflow.out.data_output
-            // bc_whitelist_ch  = params.bc_whitelist
 
         } else if (params.seqspec_file && file(params.seqspec_file).exists() && params.protocol == 'seqspec') {
             seqspec_workflow(merged_samplesheet)

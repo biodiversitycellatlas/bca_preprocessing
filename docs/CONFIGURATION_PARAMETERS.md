@@ -108,6 +108,3 @@ Within each custom configuration file the following variables can be defined:
 | `rhapsody_installation` | Optional          | Path to the BD-Rhapsody pipeline installation folder. |
 | `splitpipe_installation`| Optional        | Path to the split-pipe installation folder. |
 | `splitpipe_conda_env`   | Required (if `splitpipe_installation` is provided)         | Path to the split-pipe conda environment created by following these [instructions](docs/INSTALLATION_EXTERNAL_PIPELINES.md), required if running the split-pipe pipeline. |
-| `scalerna_installation`  | Optional          | Path to the base of the ScaleRna pipeline installation folder. |
-| `scalerna_scalePlex`     | Required (if `scalerna_installation` is provided)  | Boolean flag if the data is a ScalePlex dataset. |
-| `scalerna_libStructure`  | Required (if `scalerna_installation` is provided) | Scale scRNA assay version, should be one of the following: "libV1.json", "libV1.1.json", or "libQuantumV1.0.json" |
