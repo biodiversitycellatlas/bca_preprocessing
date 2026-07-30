@@ -29,6 +29,17 @@ trap _term TERM
 export NXF_JVM_ARGS="-Xms2g -Xmx5g"
 
 
+#####################
+# Test the pipeline #
+#####################
+
+## NEXTFLOW TEST -- Dry-run: Tests channels
+# nextflow run main.nf \
+#     -preview \
+#     -profile crg,conda \
+#     -c tests/test_parsebio.config
+
+
 ####################
 # Run the pipeline #
 ####################

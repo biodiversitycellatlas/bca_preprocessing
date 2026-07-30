@@ -1,9 +1,9 @@
 nf_core_version: 3.3.2
 repository_type: pipeline
 lint:
-  nf_test_content: False
-  actions_nf_test: False
-  actions_awsfulltest: False
+  nf_test_content: False # skip nf-core test content
+  actions_nf_test: False # skip GitHub Action test check
+  actions_awsfulltest: False # skip AWS workflow test check
 
   files_unchanged:
     - docs/README.md
@@ -13,3 +13,4 @@ lint:
   nextflow_config:
     - manifest.name
     - manifest.homePage
+    - manifest.version

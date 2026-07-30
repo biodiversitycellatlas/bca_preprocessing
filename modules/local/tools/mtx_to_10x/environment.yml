@@ -1,0 +1,10 @@
+channels:
+  - conda-forge
+  - bioconda
+
+dependencies:
+  - python
+  - pip:
+      - numpy
+      - pandas
+      - scipy

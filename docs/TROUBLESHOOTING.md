@@ -1,6 +1,6 @@
 # Common Issues & Troubleshooting
 
-This page documents common issues encountered when running the Nextflow pipeline, along with their causes and fixes.
+This page describes common issues encountered when running the Nextflow pipeline, along with their causes and fixes.
 
 If you fix an issue, you can usually continue the pipeline using:
 
@@ -13,9 +13,15 @@ Always inspect `.nextflow.log` for additional debugging details.
 
 ---
 
-## Exit status 126 – Permission denied on script in `bin/`
+### **Table of Content**:
+- [Exit Statuses](#exit-statuses)
+- [STAR](#)
 
-### Error
+---
+
+## Exit Statuses
+
+### Exit status 126 – Permission denied on script in `bin/`
 
 The pipeline fails with an error similar to:
 
@@ -28,21 +34,9 @@ Command error:
   /path/to/bca_preprocessing/bin/salmon_create_splici_ref.R: Permission denied
 ```
 
-Execution stops while trying to run an R script located in the pipeline `bin/` directory.
-
-Inspecting the `bin/` directory shows:
-
-```
--rw-rw---- salmon_create_splici_ref.R
-```
-
----
-
-### Solution
-
 Exit status **126** indicates that a file exists but **cannot be executed**.
 
-Nextflow automatically prepends the pipeline’s `bin/` directory to the `PATH` and assumes that all scripts inside it are executable. In this case, the script `bin/salmon_create_splici_ref.R` is missing execute permissions
+Nextflow automatically prepends the pipeline’s `bin/` directory to the `PATH` and assumes that all scripts inside it are executable. In this case, the script `bin/salmon_create_splici_ref.R` is missing execute permissions.
 
 Make the scripts within the bin/ folder executable from the root of the pipeline repository:
 
@@ -50,15 +44,22 @@ Make the scripts within the bin/ folder executable from the root of the pipeline
 chmod -R +x bin/
 ```
 
-Verify the permissions:
 
-```bash
-ls -lah bin/
+## STAR
+
+### Not enough memory for BAM sorting
+
+Error:
+```
+Command error:
+
+  EXITING because of fatal ERROR: not enough memory for BAM sorting:
+  SOLUTION: re-run STAR with at least --limitBAMsortRAM 4240334524
+  Jun 18 13:25:42 ...... FATAL ERROR, exiting
 ```
 
-Expected output is similar to:
-
+*Solution*:
+Inside your custom configuration file, add or modify the following parameter:
 ```
--rwxrwx--- salmon_create_splici_ref.R
-...
+star_limitBAMsortRAM = 4240334524         // Based on the error
 ```
