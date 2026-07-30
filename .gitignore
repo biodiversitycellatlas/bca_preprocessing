@@ -6,7 +6,6 @@
 
 # Ignore all files in the following directories
 logs/*
-seperate_scripts/*
 conf/[0-9]*
 work/*
-*scale*
+tests/

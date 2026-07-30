@@ -118,7 +118,7 @@ This option is limited to the following sequencing technologies:
 | Sequencing technology | External pipeline | Requires manual installation |
 |-----------------------|-------------------|-------------------|
 | 10x Genomics | [10x Genomics Cell Ranger](https://github.com/10XGenomics/cellranger) | :x: |
-| OAKseq | [10x Genomics Cell Ranger](https://github.com/10XGenomics/cellranger) | :x: |
+| OAK-seq | [10x Genomics Cell Ranger](https://github.com/10XGenomics/cellranger) | :x: |
 | Ultima Genomics | [10x Genomics Cell Ranger](https://github.com/10XGenomics/cellranger) | :x: |
 | Parse Biosciences | [split-pipe](https://support.parsebiosciences.com/hc/en-us/articles/27066395947412-How-Do-I-Analyze-my-Parse-Biosciences-Data) | :heavy_check_mark: |
 | BD-Rhapsody | [BD Rhapsody™ Sequence Analysis Pipeline](https://www.bdbiosciences.com/en-us/products/software/rhapsody-sequence-analysis-pipeline) | :heavy_check_mark: |
