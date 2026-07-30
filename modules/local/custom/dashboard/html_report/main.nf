@@ -19,6 +19,8 @@ process GENERATE_DASHBOARD {
     path(residuals_imgs)
     path(knee_files)
     path(mt_rrna_metrics)
+    path(secondderiv_knee)
+    path(secondderiv_stats)
     path(per_cell_files)
     path(cellsweep_plots_contrib)
     path(cellsweep_plots_umap)
@@ -53,6 +55,8 @@ process GENERATE_DASHBOARD {
         --saturation_imgs ${saturation_imgs} \\
         --residuals_imgs ${residuals_imgs} \\
         --knee_files ${knee_files} \\
+        --secondderiv_knee ${secondderiv_knee} \\
+        --secondderiv_stats ${secondderiv_stats} \\
         --cellsweep_tables ${cellsweep_top_genes} \\
         --cellsweep_plots_contrib ${cellsweep_plots_contrib} \\
         --cellsweep_plots_umap ${cellsweep_plots_umap}

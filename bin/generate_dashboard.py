@@ -38,6 +38,9 @@ _ANALYTICAL_SUFFIXES: List[str] = [
 # STARsolo gene-model directories, in preference order.
 _SOLO_GENE_DIRS: List[str] = ["GeneFull_Ex50pAS", "Gene"]
 
+# Subdirectory of a gene-model directory holding the second-derivative outputs.
+_SECONDDERIV_DIR: str = "filtered_secondderiv"
+
 # Candidate locations for optional cell-filtering outputs (checked in order).
 _CELLSWEEP_ROOTS:  List[str] = ["cell_filtering/cellsweep", "cellsweep"]
 _CELLBENDER_ROOTS: List[str] = ["cell_filtering/cellbender", "cellbender"]
@@ -104,6 +107,8 @@ def parse_args() -> argparse.Namespace:
     parser.add_argument("--saturation_logs",nargs="*", help="saturation.log files")
     parser.add_argument("--mt_rrna_metrics",nargs="*", help="*_mt_rrna_metrics.txt files")
     parser.add_argument("--knee_files",      nargs="*", help="UMIperCellSorted.txt files")
+    parser.add_argument("--secondderiv_knee",  nargs="*", help="*_knee_data.json files from the second-derivative cell calling")
+    parser.add_argument("--secondderiv_stats", nargs="*", help="*_secondderiv_statistics.json files from the second-derivative matrix filtering")
 
     parser.add_argument("--cellsweep_tables",        nargs="*")
     parser.add_argument("--cellsweep_plots_contrib", nargs="*")
@@ -357,6 +362,24 @@ def _safe_read_json(path: Optional[str]) -> Dict[str, Any]:
         return {}
 
 
+def parse_secondderiv_knee(path: Optional[str], sample_id: str) -> Optional[Dict[str, Any]]:
+    """Read a ``*_knee_data.json`` produced by ``secondderiv_cellcalling.py``.
+
+    The file is keyed by sample ID at the top level; the sole payload is
+    returned when the key does not match the analytical ID exactly.
+    """
+    payload = _safe_read_json(path)
+    if not payload:
+        return None
+    if sample_id in payload:
+        entry = payload[sample_id]
+    elif len(payload) == 1:
+        entry = next(iter(payload.values()))
+    else:
+        return None
+    return entry if isinstance(entry, dict) else None
+
+
 def parse_cell_meta_tsv(path: Optional[str]) -> Dict[str, Any]:
     """Parse a per-cell TSV/CSV and compute per-column mean/median statistics."""
     if not path or not os.path.exists(path):
@@ -513,6 +536,16 @@ def _discover_starsolo_samples(
             ]:
                 # setdefault: first (preferred) hit wins
                 candidate = _probe(os.path.join(gene_path, fname))
+                if candidate:
+                    files.setdefault(key, candidate)
+
+            # Second-derivative cell calling (only present for that cellfilter_method)
+            sd_path = os.path.join(gene_path, _SECONDDERIV_DIR)
+            for key, fname in [
+                ("sd_knee",  f"{analytical_id}_knee_data.json"),
+                ("sd_stats", f"{analytical_id}_secondderiv_statistics.json"),
+            ]:
+                candidate = _probe(os.path.join(sd_path, fname))
                 if candidate:
                     files.setdefault(key, candidate)
 
@@ -728,6 +761,8 @@ def _build_file_map_from_cli(
     _map(args.sankey_files,            "sankey",        {"starsolo"})
     _map(args.per_cell_files,          "per_cell",      {"starsolo"})
     _map(args.knee_files,              "knee",          {"starsolo"})
+    _map(args.secondderiv_knee,        "sd_knee",       {"starsolo"})
+    _map(args.secondderiv_stats,       "sd_stats",      {"starsolo"})
 
     _map(args.af_meta_info,            "af_meta",       {"alevin"})
     _map(args.af_quant_json,           "af_quant",      {"alevin"})
@@ -845,6 +880,7 @@ def main() -> None:
     saturation_images:  Dict[str, Any]     = {}
     knee_data:          Dict[str, Any]     = {}
     cell_filtering_data: Dict[str, Any]   = {}
+    secondderiv_data:   Dict[str, Any]     = {}
 
     def get_val(source: Dict, key: str, default: Any = "N/A") -> Any:
         return source.get(key, default) if source else default
@@ -951,6 +987,39 @@ def main() -> None:
                              af_cell.get("genes__median",
                              af_meta.get("mean_genes_per_cell", "N/A")))
 
+        # ── Second-derivative cell calling ───────────────────────────────────
+        # When cellfilter_method = "second_derivative", STARsolo's own filtered matrix
+        # is neither produced nor published: every cell-level number below is recomputed
+        # by FILTER_MATRICES on the matrix that was actually filtered, so those values
+        # replace the ones read from STARsolo's Summary.csv.
+        sd_cutoff: Optional[int] = None
+        sd_stats = _safe_read_json(files.get("sd_stats"))
+        if sd_stats:
+            sd_cutoff     = sd_stats.get("umi_threshold_applied")
+            umi_threshold = sd_cutoff if sd_cutoff is not None else umi_threshold
+            n_cells       = sd_stats.get("estimated_cells", n_cells)
+            median_umis   = int(round(sd_stats["median_umis_per_cell"]))   if "median_umis_per_cell"  in sd_stats else median_umis
+            median_genes  = int(round(sd_stats["median_genes_per_cell"]))  if "median_genes_per_cell" in sd_stats else median_genes
+            total_genes   = sd_stats.get("total_genes_detected", total_genes)
+
+            # Reads per cell and noise both depend on the cell set, so recompute them
+            n_reads = safe_float(n_input_reads)
+            if n_reads and n_cells:
+                try:
+                    mean_reads = int(n_reads / int(n_cells))
+                except (ValueError, TypeError, ZeroDivisionError):
+                    pass
+
+            frac_in_cells_sd = safe_float(sd_stats.get("fraction_unique_reads_in_cells"))
+            if frac_in_cells_sd is not None:
+                noise_pct = f"{(1.0 - frac_in_cells_sd) * 100:.2f}%"
+
+        sd_knee = parse_secondderiv_knee(files.get("sd_knee"), s_id)
+        if sd_knee:
+            secondderiv_data[s_id] = sd_knee
+            if sd_cutoff is None:
+                sd_cutoff = sd_knee.get("threshold_umi")
+
         rrna_pct           = to_pct(get_val(mt_stats, "Percentage of rRNA reads (of uniquely mapped reads)"))
         mtdna_unique       = to_pct(get_val(mt_stats, "Percentage of mtDNA reads (of mapped reads)"))
         mtdna_multi_all    = to_pct(get_val(mt_stats, "Percentage of mtDNA in multimapped reads (all alignments)"))
@@ -1017,6 +1086,7 @@ def main() -> None:
                 "expected_cells": fmt(samplesheet_config.get(base_id, {}).get("expected_cells", "N/A")),
                 "num_cells":      fmt(n_cells),
                 "umi_threshold":  umi_threshold,
+                "secondderiv_cutoff": sd_cutoff,
             },
             "taxonomy_sankey": extract_sankey_data(files.get("sankey")),
         })
@@ -1060,6 +1130,7 @@ def main() -> None:
         "__PER_CELL_DATA_PLACEHOLDER__":     json.dumps(per_cell_data,         indent=2),
         "__SATURATION_IMAGES_PLACEHOLDER__": json.dumps(saturation_images,     indent=2),
         "__KNEE_DATA_PLACEHOLDER__":         json.dumps(knee_data,             indent=2),
+        "__SECONDDERIV_DATA_PLACEHOLDER__":  json.dumps(secondderiv_data,      indent=2),
         "__CELLFILTERING_DATA_PLACEHOLDER__": json.dumps(cell_filtering_data,  indent=2),
     }
 

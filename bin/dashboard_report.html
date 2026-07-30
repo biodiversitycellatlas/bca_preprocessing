@@ -669,6 +669,10 @@
   __KNEE_DATA_PLACEHOLDER__
   </script>
 
+    <script id="secondderiv-data" type="application/json">
+  __SECONDDERIV_DATA_PLACEHOLDER__
+  </script>
+
     <script id="saturation-images" type="application/json">
   __SATURATION_IMAGES_PLACEHOLDER__
   </script>
@@ -1042,6 +1046,13 @@
         function renderCellCalling(sample) {
             const c = sample.cell_calling;
 
+            // Only present when cellfilter_method = "second_derivative"; this is the
+            // cutoff the count matrices were actually filtered on.
+            const sdCutoff = secondDerivCutoff(sample);
+            const sdRow = sdCutoff == null
+                ? ""
+                : `<tr><td>UMI cutoff from 2nd derivative</td><td>${sdCutoff.toLocaleString()}</td></tr>`;
+
             document.getElementById("cellcalling").innerHTML = `
         <h3>Cell Calling</h3>
 
@@ -1054,6 +1065,7 @@
                   <tr><td>Expected Number of Cells</td><td>${c.expected_cells.toLocaleString()}</td></tr>
                   <tr><td>Number of Cells</td><td>${c.num_cells.toLocaleString()}</td></tr>
                   <tr><td>UMI cutoff for Cell Calling</td><td>${c.umi_threshold.toLocaleString()}</td></tr>
+                  ${sdRow}
                 </tbody>
               </table>
             </div>
@@ -1095,6 +1107,20 @@
             return knee ? knee[sampleId] : null;
         }
 
+        /* Pre-computed second-derivative cell calling, emitted by the pipeline when
+           cellfilter_method = "second_derivative". Null for every other method. */
+        function loadSecondDeriv(sampleId) {
+            const data = loadEmbeddedJSON("secondderiv-data");
+            return data ? (data[sampleId] || null) : null;
+        }
+
+        function secondDerivCutoff(sample) {
+            const c = sample.cell_calling || {};
+            if (c.secondderiv_cutoff != null) return c.secondderiv_cutoff;
+            const sd = loadSecondDeriv(sample.sample_id);
+            return sd && sd.threshold_umi != null ? sd.threshold_umi : null;
+        }
+
         function renderKneePlot(sample) {
             const sampleId = sample.sample_id;
             const c = sample.cell_calling;
@@ -1103,7 +1129,11 @@
             if (!yAll || yAll.length === 0) return;
 
             const xAll = Array.from({ length: yAll.length }, (_, i) => i + 1);
-            const cutoff = c.umi_threshold;
+
+            // Split on the threshold the matrices were filtered on
+            const sdCutoff = secondDerivCutoff(sample);
+            const usingSecondDeriv = sdCutoff != null;
+            const cutoff = usingSecondDeriv ? sdCutoff : c.umi_threshold;
 
             // Split by cutoff
             const xAbove = [];
@@ -1142,7 +1172,9 @@
                 }
             ], {
                 title: {
-                    text: "Barcode Rank Plot (STARsolo threshold)",
+                    text: usingSecondDeriv
+                        ? "Barcode Rank Plot (2nd derivative threshold)"
+                        : "Barcode Rank Plot (STARsolo threshold)",
                     font: { family: 'Arial, sans-serif', size: 16, color: '#1e1e1e' }
                 },
                 xaxis: {
@@ -1195,7 +1227,32 @@
 
         function renderSecondDerivative(sample) {
             const sampleId = sample.sample_id;
-            const c = sample.cell_calling;
+
+            // When the pipeline ran the second-derivative cell calling, show that curve:
+            // it is the one the count matrices were actually filtered on. Recomputing it
+            // in the browser would drift from the cutoff that was applied.
+            const sd = loadSecondDeriv(sampleId);
+            if (sd && Array.isArray(sd.logX) && sd.logX.length > 0) {
+                plotSecondDerivative({
+                    logX: sd.logX,
+                    logY: sd.logY,
+                    customdata: sd.customdata,
+                    derivX: sd.derivX,
+                    derivY: sd.derivY,
+                    cutX: sd.threshold_logX,
+                    cutY: sd.threshold_logY,
+                    cutUmis: sd.threshold_umi,
+                    note: sd.status === "ok" ? null : sd.message,
+                    applied: true
+                });
+                return;
+            }
+            if (sd) {
+                document.getElementById("kneeplot").innerHTML =
+                    `<p>${sd.message || "Second-derivative cell calling produced no curve."}</p>`;
+                return;
+            }
+
             const rawUmis = loadKneeUMIs(sampleId);
 
             if (!rawUmis || rawUmis.length === 0) {
@@ -1261,28 +1318,41 @@
                 }
             }
 
-            // --- RENDER Plotly ---
-            const derivX = logX.slice(1, -1);
+            plotSecondDerivative({
+                logX: logX,
+                logY: logY,
+                customdata: filtered.map((reads, i) => [ranks[i], reads]),
+                derivX: logX.slice(1, -1),
+                derivY: plotCurve,
+                cutX: logX[selectedIdx],
+                cutY: logY[selectedIdx],
+                cutUmis: filtered[selectedIdx],
+                note: null,
+                applied: false
+            });
+        }
 
-            // Threshold Data
-            const cutX = logX[selectedIdx];
-            const cutReads = filtered[selectedIdx];
+        /* Draws the cumulative-UMI curve with its second derivative and the cutoff.
+           `applied` marks the curve as the one the matrices were filtered on. */
+        function plotSecondDerivative(d) {
+            const cutX = d.cutX;
+            const cutReads = d.cutUmis;
 
             Plotly.purge("kneeplot");
 
             // Trace 1: Cumulative Reads
             const trace1 = {
-                x: logX, y: logY,
+                x: d.logX, y: d.logY,
                 name: 'log10(Cumulative Reads)',
                 type: 'scatter', mode: 'lines',
                 line: { color: '#2c3e50', width: 2.5 },
-                customdata: filtered.map((reads, i) => [ranks[i], reads]),
+                customdata: d.customdata,
                 hovertemplate: '<b>Rank:</b> %{customdata[0]:,}<br><b>UMI:</b> %{customdata[1]:,}<br><b>log(CumSum):</b> %{y:.3f}<extra></extra>'
             };
 
             // Trace 2: 2nd Derivative
             const trace2 = {
-                x: derivX, y: plotCurve,
+                x: d.derivX, y: d.derivY,
                 name: '2nd Derivative of log10(Cumulative Reads)',
                 type: 'scatter', mode: 'lines',
                 line: { color: '#e74c3c', width: 1.5 },
@@ -1291,9 +1361,41 @@
                 hovertemplate: '<b>2nd Deriv:</b> %{y:.3f}<extra></extra>'
             };
 
+            const annotations = [];
+            if (cutX != null) {
+                annotations.push({
+                    x: cutX,
+                    y: d.cutY,
+                    xref: 'x',
+                    yref: 'y',
+                    text: `UMI Threshold: ${(cutReads || 0).toLocaleString()}`,
+                    font: { color: '#2c3e50', size: 12 },
+                    showarrow: true,
+                    arrowhead: 2,
+                    arrowcolor: 'black',
+                    ax: 40,
+                    ay: -40,
+                    bgcolor: 'rgba(255, 255, 255, 0.9)',
+                    bordercolor: '#ccc',
+                    borderwidth: 1
+                });
+            }
+            if (d.note) {
+                annotations.push({
+                    xref: 'paper', yref: 'paper',
+                    x: 0, y: 1.02,
+                    text: d.note,
+                    showarrow: false,
+                    xanchor: 'left', yanchor: 'bottom',
+                    font: { color: '#b9770e', size: 11 }
+                });
+            }
+
             Plotly.newPlot('kneeplot', [trace1, trace2], {
                 title: {
-                    text: `Cell Calling using 2nd Derivative`,
+                    text: d.applied
+                        ? 'Cell Calling using 2nd Derivative (applied to matrices)'
+                        : 'Cell Calling using 2nd Derivative',
                     font: { family: 'Arial, sans-serif', size: 16, color: '#1e1e1e' },
                     y: 0.95
                 },
@@ -1323,28 +1425,13 @@
                 margin: { t: 80, r: 60, b: 60, l: 60 },
 
                 // Vertical Threshold Line
-                shapes: [{
+                shapes: cutX == null ? [] : [{
                     type: 'line', x0: cutX, x1: cutX, y0: 0, y1: 1,
                     xref: 'x', yref: 'paper',
                     line: { color: '#c0392b', width: 2, dash: 'dash' }
                 }],
 
-                annotations: [{
-                    x: cutX,
-                    y: logY[selectedIdx],
-                    xref: 'x',
-                    yref: 'y',
-                    text: `UMI Threshold: ${cutReads.toLocaleString()}`,
-                    font: { color: '#2c3e50', size: 12 },
-                    showarrow: true,
-                    arrowhead: 2,
-                    arrowcolor: 'black',
-                    ax: 40,
-                    ay: -40,
-                    bgcolor: 'rgba(255, 255, 255, 0.9)',
-                    bordercolor: '#ccc',
-                    borderwidth: 1
-                }]
+                annotations: annotations
             }, { responsive: true });
         }
 

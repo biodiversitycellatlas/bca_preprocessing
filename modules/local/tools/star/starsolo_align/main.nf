@@ -18,7 +18,7 @@ process STARSOLO_ALIGN {
     tuple val(meta), path("*_Log.out"),                         emit: log_file
     tuple val(meta), path("*_Solo.out"),                        emit: star_solodir
     tuple val(meta), path("*_Solo.out/GeneFull_Ex50pAS/raw"),   emit: genefull50_raw_dir
-    tuple val(meta), path("*_Solo.out/GeneFull_Ex50pAS/filtered"),      emit: genefull50_filtered_dir
+    tuple val(meta), path("*_Solo.out/GeneFull_Ex50pAS/filtered"),      emit: genefull50_filtered_dir, optional: true
     tuple val(meta), path("*_Solo.out/GeneFull_Ex50pAS/Summary.csv"),   emit: summary_csv
     tuple val(meta), path("*_Solo.out/GeneFull_Ex50pAS/CellReads.stats"), emit: cellreads_stats
     tuple val(meta), path("*_Solo.out/GeneFull_Ex50pAS/UMIperCellSorted.txt"), emit: umi_per_cell
@@ -63,6 +63,12 @@ process STARSOLO_ALIGN {
 
     // If star_generateBAM is false, do not output BAM (omit --outSAMtype)
     def outSAMtype_option = params.star_generateBAM ? '--outSAMtype BAM SortedByCoordinate' : '--outSAMtype None'
+
+    // With the second-derivative method the cells are called by FILTER_MATRICES on the
+    // raw matrix, so STARsolo's own filtered matrix is dropped to keep it out of the
+    // published results and out of every downstream calculation. STARsolo still runs its
+    // filtering, since Summary.csv is written from it.
+    def drop_star_filtered = params.cellfilter_method == "second_derivative"
 
     """
     echo "\n\n==============  MAPPING STARSOLO  ================"
@@ -125,6 +131,11 @@ process STARSOLO_ALIGN {
         --limitBAMsortRAM ${params.star_limitBAMsortRAM} \\
         --soloStrand ${params.star_soloStrand} \\
         ${star_extraargs}
+
+    if [[ "${drop_star_filtered}" == "true" ]]; then
+        echo "cellfilter_method=second_derivative: removing STARsolo's own filtered matrix"
+        rm -rf ${meta.id}_Solo.out/GeneFull_Ex50pAS/filtered
+    fi
 
     cat <<-END_VERSIONS > versions.yml
     "${task.process}":

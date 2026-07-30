@@ -14,6 +14,7 @@ include { sciRNAseq3_nogather_workflow  } from '../subworkflows/local/pre-proces
 include { seqspec_workflow              } from '../subworkflows/local/pre-processing/preprocs_seqspec'
 
 include { MERGE_FASTQS                  } from '../modules/local/custom/manipulate/merge_files/main'
+include { DOWNLOAD_WHITELIST            } from '../modules/local/custom/manipulate/download_whitelist/main'
 
 /*
 ~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~
@@ -31,28 +32,40 @@ workflow preprocessing_workflow {
 
     main:
         // Merge fastq files of duplicate sample IDs
-        if (params.scalerna_inputFormat == "crams") {
-            merged_samplesheet = ch_samplesheet
+        MERGE_FASTQS(ch_samplesheet)
+        merged_samplesheet = MERGE_FASTQS.out.merged_files
+
+        // Download it when provided as an URL(s), multiple URLs are separated by whitespace
+        def whitelist_param = params.bc_whitelist?.toString()?.trim()
+        def whitelist_is_url = whitelist_param &&
+            whitelist_param.tokenize().every { it ==~ /(?i)^(https?|ftp):\/\/.+/ }
+
+        def resolved_whitelist
+        if (whitelist_is_url) {
+            DOWNLOAD_WHITELIST(whitelist_param)
+
+            // Keep the whitespace-separated format
+            resolved_whitelist = DOWNLOAD_WHITELIST.out.whitelist
+                .map { files -> [files].flatten()*.toString().join(' ') }
         } else {
-            MERGE_FASTQS(ch_samplesheet)
-            merged_samplesheet = MERGE_FASTQS.out.merged_files
+            resolved_whitelist = params.bc_whitelist
         }
 
         // Check for protocol and run appropriate pre-processing workflow
         if (params.protocol.startsWith('parse_biosciences')) {
             parse_workflow(merged_samplesheet)
             data_output_ch = parse_workflow.out.data_output
-            bc_whitelist_ch  = parse_workflow.out.bc_whitelist
+            bc_whitelist_ch  = resolved_whitelist
 
         } else if (params.protocol == 'bd_rhapsody') {
             bd_rhapsody_workflow(merged_samplesheet)
             data_output_ch = bd_rhapsody_workflow.out.data_output
-            bc_whitelist_ch  =  bd_rhapsody_workflow.out.bc_whitelist
+            bc_whitelist_ch  = resolved_whitelist
 
         } else if (params.protocol.startsWith('10x') || params.protocol == 'oak_seq' || params.protocol == 'ultima_genomics') {
             tenx_genomics_workflow(merged_samplesheet)
             data_output_ch = tenx_genomics_workflow.out.data_output
-            bc_whitelist_ch  = tenx_genomics_workflow.out.bc_whitelist
+            bc_whitelist_ch  = resolved_whitelist
 
         } else if (params.protocol == 'sciRNAseq3') {
             sciRNAseq3_nogather_workflow(merged_samplesheet)
@@ -62,7 +75,7 @@ workflow preprocessing_workflow {
         } else if (params.seqspec_file && file(params.seqspec_file).exists() && params.protocol == 'seqspec') {
             seqspec_workflow(merged_samplesheet)
             data_output_ch = seqspec_workflow.out.data_output
-            bc_whitelist_ch  = params.bc_whitelist
+            bc_whitelist_ch  = resolved_whitelist
 
         } else {
             error """

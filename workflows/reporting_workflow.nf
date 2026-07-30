@@ -40,19 +40,28 @@ workflow reporting_workflow {
         residuals_imgs
         knee_files
         mt_rrna_metrics
+        secondderiv_knee
+        secondderiv_stats
+        secondderiv_cutoff
         cs_ambient_hist_plot
         cs_umap_comparison_plot
         cs_top_genes
 
     main:
-        // Join BAM, SoloDir, and Logs before per-cell metrics
+        // Join BAM, SoloDir, and Logs before per-cell metrics. The second-derivative
+        // cutoff is optional: when absent the module falls back to STARsolo's nUMImin.
         starsolo_bam
             .join(star_solodir)
             .join(star_logs)
-            .multiMap { meta, bam, solodir, logs ->
+            .join(secondderiv_cutoff, remainder: true)
+            // remainder keeps samples without a cutoff, but can also emit cutoff-only
+            // rows when there is no BAM; those are dropped here
+            .filter { row -> row.size() == 5 && row[1] != null }
+            .multiMap { meta, bam, solodir, logs, cutoff ->
                 bam_ch:     [meta, bam]
                 solodir_ch: [meta, solodir]
                 logs_ch:    [meta, logs]
+                cutoff_ch:  [meta, cutoff ?: []]
             }
             .set { ch_percell_inputs }
 
@@ -62,6 +71,7 @@ workflow reporting_workflow {
                 ch_percell_inputs.bam_ch,
                 ch_percell_inputs.solodir_ch,
                 ch_percell_inputs.logs_ch,
+                ch_percell_inputs.cutoff_ch,
                 ref_gtf.first()
             )
             percell_json = PERCELL_METRICS.out.percell_json
@@ -121,6 +131,8 @@ workflow reporting_workflow {
             residuals_imgs.collect().ifEmpty([]),
             PREPARE_DASHBOARD_INPUTS.out.knee_files.collect().ifEmpty([]),
             mt_rrna_metrics.collect().ifEmpty([]),
+            secondderiv_knee.map { it[1] }.collect().ifEmpty([]),
+            secondderiv_stats.map { it[1] }.collect().ifEmpty([]),
             percell_json.collect().ifEmpty([]),
             cs_ambient_hist_plot.collect().ifEmpty([]),
             cs_umap_comparison_plot.collect().ifEmpty([]),

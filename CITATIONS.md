@@ -110,10 +110,6 @@
 
   > Becton, Dickinson and Company (2023). BD Rhapsody™ Sequence Analysis Pipeline: performs analysis of single-cell multiomic sequence read (FASTQ) data.
 
-- [Scale Bio SeqSuite](https://github.com/ScaleBio/ScaleRna)
-
-  > ScaleBio (2023). ScaleBio Seq Suite: RNA Workflow.
-
 - [sci-rocket](https://github.com/lauren-saunders-lab/sci-rocket)
 
   > van Riet, J., Keegan, L. (2023). snakemake-scirocket: a Snakemake workflow which performs processing of sci-RNA-Seq3 data, including sample demultiplexing and downstream alignment and UMI-counting using STARSolo.

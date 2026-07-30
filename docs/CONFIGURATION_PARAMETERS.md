@@ -22,7 +22,7 @@ Within each custom configuration file the following variables can be defined:
 |------------------------|-------------------|-------------|
 | `input`                | __Required__      | Path to the samplesheet. |
 | `outdir`               | __Required__      | Path to the results/output directory; must exist before running. |
-| `bc_whitelist`         | __Required__      | Path or link to the barcode whitelist file(s). If it's a link, it will be automatically downloaded and unzipped if applicable.|
+| `bc_whitelist`         | __Required__      | Path or link to the barcode whitelist file(s), multiple ones separated by whitespace. If links are given, they are automatically downloaded (and unzipped if applicable) for any protocol.|
 | `protocol`              | __Required__     | Specifies the sequencing technology used (must be one of the following: `"oak_seq"`, `"10xv1"`, `"10xv2"`, `"10xv3"`, `"10xv4"`, `"parse_biosciences_WT_mini"` or `"parse_biosciences_WT"`,     `"bd_rhapsody"`, `"sciRNAseq3"` , `"ultima_genomics"` or `"seqspec"`). |
 | `ref_fasta`            | __Required__      | Path to the genome FASTA file used for mapping reads. |
 | `ref_gtf`              | __Required__      | Path to the GTF/GFF file formatted for STARsolo. |
@@ -101,6 +101,7 @@ Within each custom configuration file the following variables can be defined:
 | `doublet_consensus_method`  | Optional          | Method passed to Demuxafy's `Combine_Results.R --method` to combine the Scrublet and scDblFinder calls. Default is `"AnySinglet"` (a cell is only called a doublet if *all* tools agree -- i.e. an intersection of doublet calls). See the [Demuxafy combining-results docs](https://demultiplexing-doublet-detecting-docs.readthedocs.io/en/latest/CombineResults.html) for other options (`MajoritySinglet`, `AtLeastHalfSinglet`, `AnyDoublet`). |
 | `demuxafy_sif`              | Optional          | Path to a pre-installed Demuxafy singularity image (`Demuxafy.sif`). Demuxafy is only distributed as a prebuilt `.sif` (~7.5GB, see the [Demuxafy installation docs](https://demultiplexing-doublet-detecting-docs.readthedocs.io/en/latest/Installation.html)), not as a pullable Docker image. If unset, it is downloaded and md5-checked automatically the first time it's needed. Provide a shared/pre-installed path to skip re-downloading it on every fresh run. |
 
+| `gpu_cluster_options`  | Optional          | Scheduler flags used to request a GPU, applied only when running with `-profile gpu`. Defaults to the SLURM syntax `--partition=gpu --gres=gpu:1g.10gb:1`; set to `null` on schedulers that take no such flags, or override with your site's equivalent. |
 
 
 ## External Pipeline Variables
@@ -111,6 +112,3 @@ Within each custom configuration file the following variables can be defined:
 | `rhapsody_installation` | Optional          | Path to the BD-Rhapsody pipeline installation folder. |
 | `splitpipe_installation`| Optional        | Path to the split-pipe installation folder. |
 | `splitpipe_conda_env`   | Required (if `splitpipe_installation` is provided)         | Path to the split-pipe conda environment created by following these [instructions](docs/INSTALLATION_EXTERNAL_PIPELINES.md), required if running the split-pipe pipeline. |
-| `scalerna_installation`  | Optional          | Path to the base of the ScaleRna pipeline installation folder. |
-| `scalerna_scalePlex`     | Required (if `scalerna_installation` is provided)  | Boolean flag if the data is a ScalePlex dataset. |
-| `scalerna_libStructure`  | Required (if `scalerna_installation` is provided) | Scale scRNA assay version, should be one of the following: "libV1.json", "libV1.1.json", or "libQuantumV1.0.json" |

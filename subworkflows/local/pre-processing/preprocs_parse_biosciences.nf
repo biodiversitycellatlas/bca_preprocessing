@@ -53,7 +53,6 @@ workflow parse_workflow {
 
     emit:
         data_output     = demux_samplesheet
-        bc_whitelist    = params.bc_whitelist
 }
 
 /*

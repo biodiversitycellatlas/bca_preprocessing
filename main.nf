@@ -93,6 +93,9 @@ workflow BCA_PREPROCESSING {
                 QC_mapping_workflow.out.saturation_residual_imgs,
                 QC_mapping_workflow.out.star_umipercell,
                 QC_mapping_workflow.out.featurecount_txt,
+                QC_mapping_workflow.out.secondderiv_knee,
+                QC_mapping_workflow.out.secondderiv_stats,
+                QC_mapping_workflow.out.secondderiv_cutoff,
                 filtering_workflow.out.cs_ambient_hist_plot,
                 filtering_workflow.out.cs_umap_comparison_plot,
                 filtering_workflow.out.cs_top_genes
