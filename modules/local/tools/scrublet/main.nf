@@ -1,34 +1,30 @@
 process SCRUBLET {
     publishDir "${params.outdir}/doublet_filtering/${meta.id}/scrublet", mode: 'copy'
-    tag "${meta.id} | ${mapping_method}"
+    tag "${meta.id} | ${meta.mapping_method}"
     label 'process_medium'
 
     container { demuxafy_sif }
 
     input:
-    tuple val(meta), path(tenx_dir), val(mapping_method), val(datatype), path(filtered_barcodes)
+    tuple val(meta), path(tenx_dir)
     val demuxafy_sif
 
     output:
-    tuple val(meta), path("${meta.id}_scrublet_results.tsv"), val(mapping_method), val(datatype), emit: scrublet_results
-    path("${meta.id}_doublet_score_histogram.png"),                                              emit: scrublet_histogram, optional: true
-    path "versions.yml",                                                                          emit: versions
+    tuple val(meta), path("${meta.id}_scrublet_results.tsv"), emit: scrublet_results
+    path("${meta.id}_doublet_score_histogram.png"),           emit: scrublet_histogram, optional: true
+    path "versions.yml",                                      emit: versions
 
     script:
-    // STARsolo's raw output includes near-empty droplets that break Scrublet's automatic
-    // doublet-rate estimate; restrict doublet calling to real cells when a filtered list is given.
-    def filter_arg = filtered_barcodes.name != 'NO_FILE' ? "--filtered_barcodes ${filtered_barcodes}" : ""
     """
     echo "\n\n==================  Scrublet =================="
     echo "Meta: ${meta}"
     echo "10x dir: ${tenx_dir}"
-    echo "Filtered barcodes: ${filtered_barcodes}"
+    echo "Datatype: ${meta.datatype}"
 
     run_scrublet_doublet.py \\
         --counts_matrix ${tenx_dir} \\
         --outdir scrublet_out \\
-        --sample_id ${meta.id} \\
-        ${filter_arg}
+        --sample_id ${meta.id}
 
     mv scrublet_out/scrublet_results.tsv ${meta.id}_scrublet_results.tsv
     if [ -f scrublet_out/doublet_score_histogram.png ]; then

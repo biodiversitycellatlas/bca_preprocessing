@@ -1,8 +1,11 @@
 #!/usr/bin/env python3
 """
 Drops cells flagged as consensus doublets (Scrublet + scDblFinder agreement,
-combined via Demuxafy's Combine_Results.R) from a raw .h5ad file before it
-is passed downstream to CellSweep.
+combined via Demuxafy's Combine_Results.R) from an .h5ad file. Runs once on the
+raw matrix, whose output goes on to CellSweep, and once on the cell-called
+matrix, which is published in its own right. Opt-in: only runs when
+params.perform_doublet_filtering is set, otherwise the doublets are merely
+annotated by CellSweep.
 """
 
 import argparse
@@ -67,7 +70,7 @@ def plot_filtering_summary(combined, n_evaluated, n_doublets, image_prefix):
 
 def main():
     parser = argparse.ArgumentParser(description="Filter consensus doublets out of an h5ad file.")
-    parser.add_argument("--input_h5ad", type=str, required=True, help="Path to raw h5ad file")
+    parser.add_argument("--input_h5ad", type=str, required=True, help="Path to the h5ad file to filter")
     parser.add_argument("--combined_results", type=str, required=True,
                          help="Combine_Results.R '_w_combined_assignments.tsv' output")
     parser.add_argument("--method", type=str, required=True,
@@ -94,8 +97,9 @@ def main():
         combined.loc[combined[classification_col].str.lower() == "doublet", "Barcode"]
     )
 
-    # adata still holds the full raw/full matrix (incl. empty droplets); only the candidate
-    # cells in `combined` (e.g. STARsolo's filtered barcode list) were actually evaluated.
+    # On the raw matrix adata holds every barcode (incl. empty droplets) while only the
+    # cell-called ones in `combined` were evaluated; on the cell-called matrix the two sets
+    # coincide. Report both counts either way rather than assuming which matrix this is.
     total_cells = adata.n_obs
     n_evaluated = len(combined)
     is_doublet = adata.obs_names.isin(doublet_barcodes)
@@ -110,7 +114,7 @@ def main():
     adata_filtered.write_h5ad(args.output_h5ad)
 
     with open(args.summary_txt, "w") as f:
-        f.write(f"Total_Cells_In_Raw_Matrix\t{total_cells}\n")
+        f.write(f"Total_Cells_In_Input_Matrix\t{total_cells}\n")
         f.write(f"Cells_Evaluated_For_Doublets\t{n_evaluated}\n")
         f.write(f"Consensus_Doublets_Removed\t{n_doublets}\n")
         f.write(f"Doublet_Percentage\t{doublet_pct:.2f}%\n")

@@ -1,17 +1,17 @@
 process MTX_TO_H5AD {
-    publishDir "${params.outdir}/anndata/${meta.id}/${datatype}", mode: 'copy'
-    tag "${meta.id} | ${mapping_method} | ${datatype}"
+    publishDir "${params.outdir}/anndata/${meta.id}/${meta.datatype}", mode: 'copy'
+    tag "${meta.id} | ${meta.mapping_method} | ${meta.datatype}"
     label 'process_low'
 
     container 'oras://community.wave.seqera.io/library/scanpy:1.12--45f1dccaf83880df'
     conda "${moduleDir}/environment.yml"
 
     input:
-    tuple val(meta), path(mtx), path(barcodes), path(features), val(mapping_method), val(datatype)
+    tuple val(meta), path(mtx), path(barcodes), path(features)
 
     output:
-    tuple val(meta), path("*.h5ad"), val(mapping_method), val(datatype), emit: h5ad
-    path "versions.yml", emit: versions
+    tuple val(meta), path("*.h5ad"), emit: h5ad
+    path "versions.yml",             emit: versions
 
     script:
     """
@@ -43,7 +43,7 @@ process MTX_TO_H5AD {
     adata.obs['sample_id'] = "${meta.id}"
 
     # Write compressed H5AD
-    adata.write_h5ad("${meta.id}_${datatype}.h5ad", compression="gzip")
+    adata.write_h5ad("${meta.id}_${meta.datatype}.h5ad", compression="gzip")
 
     with open("versions.yml", "w") as f:
         f.write(f'"${task.process}":\\n')

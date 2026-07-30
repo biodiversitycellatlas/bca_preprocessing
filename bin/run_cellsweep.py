@@ -1,15 +1,20 @@
 #!/usr/bin/env python3
 """
 Handles empty droplet detection, automated cell typing via Leiden clustering,
-and ambient RNA denoising using the Cellsweep tool. Doublet detection and
-removal now happen upstream (Scrublet + scDblFinder consensus, see
-bin/filter_doublets.py), so the input h5ad here is already doublet-filtered.
+and ambient RNA denoising using the Cellsweep tool. Doublet detection happens
+upstream on the cell-called matrix (Scrublet + scDblFinder consensus); the calls
+are passed in here purely as an annotation to project onto the UMAP. They are
+only passed when those cells are still present: removing them instead is opt-in
+and handled upstream (see bin/filter_doublets.py), and in that case this script
+runs without --doublet_results.
 """
 
 import argparse
 import logging
 import sys
 
+import numpy as np
+import pandas as pd
 import scanpy as sc
 import matplotlib.pyplot as plt
 import seaborn as sns
@@ -24,6 +29,42 @@ logging.basicConfig(
     handlers=[logging.StreamHandler(sys.stdout)]
 )
 logger = logging.getLogger("CellSweep")
+
+
+DOUBLET_COL = "doublet_status"
+
+
+def read_doublet_barcodes(combined_results, method):
+    """
+    Barcodes called doublets by the upstream consensus (Demuxafy's Combine_Results.R
+    output for `method`, e.g. AnySinglet = the intersection of the per-tool calls).
+    """
+    combined = pd.read_csv(combined_results, sep="\t")
+
+    classification_col = f"{method}_DropletType"
+    if classification_col not in combined.columns:
+        raise ValueError(
+            f"Expected column '{classification_col}' not found in {combined_results}. "
+            f"Available columns: {list(combined.columns)}"
+        )
+
+    return set(combined.loc[combined[classification_col].str.lower() == "doublet", "Barcode"])
+
+
+def annotate_doublets(adata, doublet_barcodes):
+    """
+    Flag the consensus doublets in .obs. Doublets were called on the cell-called matrix,
+    so only a subset of this (raw) matrix's barcodes was ever evaluated; everything else
+    is left as 'singlet'. Applied again after denoising, since CellSweep hands back its
+    own AnnData object.
+    """
+    is_doublet = adata.obs_names.isin(doublet_barcodes)
+    adata.obs[DOUBLET_COL] = pd.Categorical(
+        np.where(is_doublet, "doublet", "singlet"),
+        categories=["singlet", "doublet"]
+    )
+    logger.info(f"Annotated {int(is_doublet.sum())} / {adata.n_obs} barcodes as consensus doublets")
+    return adata
 
 
 def detect_empty_droplets(adata, expected_cells, image_prefix):
@@ -116,7 +157,8 @@ def generate_noise_boxplot(adata_cs, image_prefix, label):
 
 def compare_umaps(adata, image_prefix):
     """
-    Manifold comparison (Raw vs. CellSweep-denoised counts).
+    Manifold comparison (Raw vs. CellSweep-denoised counts), plus a projection of the
+    consensus doublets onto the denoised embedding when they were annotated.
     """
     logger.info("Computing UMAPs for comparison...")
     cell_mask = (adata.obs['celltype'] != 'empty')
@@ -136,9 +178,26 @@ def compare_umaps(adata, image_prefix):
     sc.pp.neighbors(ad_plot)
     sc.tl.umap(ad_plot)
 
-    fig, (ax1, ax2) = plt.subplots(1, 2, figsize=(14, 6))
-    sc.pl.umap(ad_raw, color='celltype', title='Raw Counts', show=False, ax=ax1)
-    sc.pl.umap(ad_plot, color='celltype', title='Denoised Counts', show=False, ax=ax2)
+    has_doublets = DOUBLET_COL in ad_plot.obs
+    n_panels = 3 if has_doublets else 2
+    fig, axes = plt.subplots(1, n_panels, figsize=(7 * n_panels, 6))
+    sc.pl.umap(ad_raw, color='celltype', title='Raw Counts', show=False, ax=axes[0])
+    sc.pl.umap(ad_plot, color='celltype', title='Denoised Counts', show=False, ax=axes[1])
+
+    if has_doublets:
+        n_doublets = int((ad_plot.obs[DOUBLET_COL] == 'doublet').sum())
+        # `groups` greys out the singlets and draws the doublets on top of them, but needs
+        # a non-empty group -- fall back to a plain two-colour scatter when none are left
+        # (e.g. when they were already dropped by params.perform_doublet_filtering).
+        sc.pl.umap(
+            ad_plot,
+            color=DOUBLET_COL,
+            groups=['doublet'] if n_doublets > 0 else None,
+            palette={'singlet': 'lightgrey', 'doublet': '#d62728'},
+            title=f'Consensus doublets (n={n_doublets})',
+            show=False,
+            ax=axes[2]
+        )
 
     plt.tight_layout()
     plt.savefig(f"{image_prefix}umap_comparison.png", dpi=150)
@@ -156,12 +215,28 @@ def main():
     parser.add_argument("--min-genes", type=int, default=10, help="Minimum number of genes")
     parser.add_argument("--max-mt-percent", type=int, default=25, help="Maximum percentage of MT content, scale 0 to 100.")
     parser.add_argument("--threads", type=int, default=1, help="Threads for CellSweep")
+    parser.add_argument("--doublet_results", type=str, default=None,
+                        help="Optional Combine_Results.R '_w_combined_assignments.tsv' output; "
+                             "its consensus doublets are annotated and projected onto the UMAP")
+    parser.add_argument("--doublet_method", type=str, default=None,
+                        help="Consensus method name used in Combine_Results.R (e.g. AnySinglet). "
+                             "Required with --doublet_results")
     args = parser.parse_args()
+
+    if args.doublet_results and not args.doublet_method:
+        parser.error("--doublet_method is required when --doublet_results is given")
 
     # 1. Load Data
     logger.info(f"Loading data from {args.input_h5ad}")
     adata = sc.read_h5ad(args.input_h5ad)
     adata.var_names_make_unique()
+
+    # 1b. Annotate (do not remove) the consensus doublets called upstream
+    doublet_barcodes = None
+    if args.doublet_results:
+        logger.info(f"Loading consensus doublet calls from {args.doublet_results}")
+        doublet_barcodes = read_doublet_barcodes(args.doublet_results, args.doublet_method)
+        adata = annotate_doublets(adata, doublet_barcodes)
 
     # 2. Identify Empty Droplets
     adata = detect_empty_droplets(adata, args.expected_cells, args.image_prefix)
@@ -180,6 +255,9 @@ def main():
         threads=args.threads
     )
     generate_noise_boxplot(adata_cs, args.image_prefix, 'before')
+
+    if doublet_barcodes is not None:
+        adata_cs = annotate_doublets(adata_cs, doublet_barcodes)
 
     # 5. Filter and Save
     generate_visualizations(adata_cs, args.image_prefix)
