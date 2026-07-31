@@ -66,19 +66,16 @@ workflow reporting_workflow {
             }
             .set { ch_percell_inputs }
 
-        // Only create per-cell plots if params.mt_contig is set by user
-        if (params.mt_contig != "chrM M MT") {
-            PERCELL_METRICS(
-                ch_percell_inputs.bam_ch,
-                ch_percell_inputs.solodir_ch,
-                ch_percell_inputs.logs_ch,
-                ch_percell_inputs.cutoff_ch,
-                ref_gtf.first()
-            )
-            percell_json = PERCELL_METRICS.out.percell_json
-        } else {
-            percell_json = Channel.empty()
-        }
+        // Run per-cell metrics on starsolo outputs. 
+        // The second-derivative cutoff is optional: when absent the module falls back to STARsolo's nUMImin.
+        PERCELL_METRICS(
+            ch_percell_inputs.bam_ch,
+            ch_percell_inputs.solodir_ch,
+            ch_percell_inputs.logs_ch,
+            ch_percell_inputs.cutoff_ch,
+            ref_gtf.first()
+        )
+        percell_json = PERCELL_METRICS.out.percell_json
 
         // Build anchor from whichever mapping software was run
         def ch_anchor = star_summaries.mix(af_meta_info)

@@ -20,6 +20,10 @@ process PERCELL_METRICS {
     script:
     def cfg_name = "GeneFull_Ex50pAS"
     def cutoff_file = secondderiv_cutoff ?: ''
+    def mt_contigs = (params.mt_contig ?: '').toString().trim()
+    if (!mt_contigs) {
+        error "PERCELL_METRICS requires params.mt_contig to name at least one mitochondrial contig"
+    }
     """
     # The second-derivative cutoff is the one the matrices were filtered on, so it takes
     # precedence over STARsolo's nUMImin whenever that method produced a cutoff file.
@@ -46,7 +50,7 @@ process PERCELL_METRICS {
     per-cell_images.py \\
         --solo-output ${star_solodir} \\
         --bam ${star_bam} \\
-        --mt-contig ${params.mt_contig} \\
+        --mt-contig ${mt_contigs} \\
         --gtf ${ref_gtf} \\
         --outdir . \\
         --min-reads \${cell_thres}

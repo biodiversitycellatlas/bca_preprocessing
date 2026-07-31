@@ -61,7 +61,7 @@ Within each custom configuration file the following variables can be defined:
 | Variable               | Required/Optional | Description |
 |------------------------|-------------------|-------------|
 | `perform_featurecounts`  | Optional        | Boolean flag to enable or disable calculation of mtDNA & rRNA percentages. Default is `false`. |
-| `mt_contig`            | Optional          | Name of the mitochondrial contig in the reference annotation, used to calculate mtDNA content. Default set to `"chrM M MT"`. |
+| `mt_contig`            | Optional          | Name(s) of the mitochondrial contig(s) in the reference annotation, used to calculate mtDNA content. Multiple contigs can be given separated by whitespace, in which case reads on any of them count as mitochondrial. Default set to `"chrM M MT"`. |
 | `grep_rrna`            | Optional          | String used to grep ribosomal RNA (rRNA) reads from annotations. Default set to `"rRNA"`|
 
 

@@ -29,8 +29,12 @@ def parse_args():
         help="Path to STARsolo output directory (e.g. /.../Sample_Solo.out)"
     )
     parser.add_argument(
-        "-m", "--mt-contig", required=True,
-        help="Name of the mitochondrial contig (e.g. OW052000.1)"
+        "-m", "--mt-contig", required=True, nargs="+", metavar="CONTIG",
+        help=(
+            "Name(s) of the mitochondrial contig(s), whitespace separated "
+            "(e.g. OW052000.1, or 'chrM M MT'). Reads on any of them count "
+            "towards the mitochondrial fraction."
+        )
     )
     parser.add_argument(
         "-g", "--gtf", required=True,
@@ -166,17 +170,32 @@ def read_barcodes(barcodes_path):
 
 
 def scan_bam(
-    bam_path, cb_list, mt_contig, rrna_intervals
+    bam_path, cb_list, mt_contigs, rrna_intervals
 ):
     """
     Scan BAM file to count total, mitochondrial, and rRNA reads per barcode.
+    A read counts as mitochondrial when it maps to any of mt_contigs.
     Returns three dicts: total_counts, mt_counts, rrna_counts.
     """
     total = defaultdict(int)
     mt = defaultdict(int)
     rrna = defaultdict(int)
 
+    mt_set = set(mt_contigs)
+
     with pysam.AlignmentFile(bam_path, "rb") as bam:
+        # The default contig names are a guess covering common assemblies, so
+        # report which ones actually exist rather than silently reporting 0%
+        present = mt_set.intersection(bam.references)
+        if present:
+            print(f"Mitochondrial contigs found in BAM: {' '.join(sorted(present))}")
+        else:
+            print(
+                f"WARNING: none of the requested mitochondrial contigs "
+                f"({' '.join(sorted(mt_set))}) are present in {bam_path}; "
+                "mtDNA percentages will be 0"
+            )
+
         for read in bam.fetch(until_eof=True):
             if read.is_unmapped:
                 continue
@@ -185,7 +204,7 @@ def scan_bam(
             except KeyError:
                 continue
             total[cb] += 1
-            if read.reference_name == mt_contig:
+            if read.reference_name in mt_set:
                 mt[cb] += 1
             chrom = read.reference_name
             if chrom in rrna_intervals:
