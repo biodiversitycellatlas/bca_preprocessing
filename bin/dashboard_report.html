@@ -922,6 +922,19 @@
          **********************************************************************/
         function renderMapping(sample) {
             const m = sample.mapping;
+            const isAlevin = sample.source === "alevin";
+
+            // Labels depend on the mapper:
+            //  - alevin-fry reports salmon's mapped fragments (multimappers
+            //    included, resolved by cr-like-em), not a uniquely-mapped count.
+            //  - alevin-fry's gene count comes from the reference/matrix width,
+            //    so it is the reference size, not the number of genes detected.
+            const mappedCountLabel = isAlevin
+                ? "Number of Mapped Reads" : "Number of Uniquely mapped reads";
+            const mappedPctLabel = isAlevin
+                ? "% Mapped Reads" : "% uniquely mapped reads";
+            const totalGenesLabel = isAlevin
+                ? "Total Genes in Reference" : "Total Genes Detected";
 
             // Define the fields and labels for each card dynamically
             const cards = [
@@ -933,8 +946,8 @@
                         { label: "Number of Reads / Sample", value: m.n_reads_sample },
                         { label: "Q30 Bases in CB+UMI", value: m.pct_r1_q30 },
                         { label: "Q30 Bases in RNA read", value: m.pct_r2_q30 },
-                        { label: "Number of Uniquely mapped reads", value: m.n_uniquely_mapped },
-                        { label: "% uniquely mapped reads", value: m.pct_uniquely_mapped },
+                        { label: mappedCountLabel, value: m.n_uniquely_mapped },
+                        { label: mappedPctLabel, value: m.pct_uniquely_mapped },
                         { label: "% multi-mapped reads", value: m.pct_multi_mapped },
                         { label: "% multi-mapped reads: too many", value: m.pct_multi_too_many },
                         { label: "% unmapped: too short", value: m.pct_unmapped_short },
@@ -965,7 +978,7 @@
                         { label: "Mean Reads per Cell", value: m.mean_reads_per_cell },
                         { label: "Median UMI Counts per Cell", value: m.median_umis },
                         { label: "Median Genes per Cell", value: m.median_genes },
-                        { label: "Total Genes Detected", value: m.total_genes }
+                        { label: totalGenesLabel, value: m.total_genes }
                     ]
                 }
             ];

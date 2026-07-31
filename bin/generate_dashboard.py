@@ -48,6 +48,9 @@ _CELLBENDER_ROOTS: List[str] = ["cell_filtering/cellbender", "cellbender"]
 # Candidate locations for Kraken sankey HTML files.
 _SANKEY_ROOTS: List[str] = ["kraken", "taxonomy"]
 
+# Suffixes alevin-fry appends to the spliced / unspliced / ambiguous column blocks of a USA-mode count matrix.
+_USA_SUFFIX_RE = re.compile(r"-[SUA]$")
+
 
 # ---------------------------------------------------------------------------
 # Argument parsing
@@ -98,6 +101,7 @@ def parse_args() -> argparse.Namespace:
     parser.add_argument("--af_meta_info",  nargs="*", help="meta_info.json files")
     parser.add_argument("--af_quant_json", nargs="*", help="quant.json files")
     parser.add_argument("--af_cell_meta",  nargs="*", help="cell_meta.tsv files")
+    parser.add_argument("--af_mat_cols",   nargs="*", help="quants_mat_cols.txt files (authoritative gene count)")
 
     # ── Pipeline mode: visualisation file lists ──────────────────────────────
     parser.add_argument("--sankey_files",    nargs="*", help="*_kraken.sankey.html files")
@@ -304,23 +308,47 @@ def parse_mt_rrna_metrics(path: Optional[str]) -> Dict[str, str]:
 def parse_starsolo_intronic(path: Optional[str]) -> Any:
     """Compute intronic fraction from a STARsolo ``CellReads.stats`` file.
 
+    STARsolo records the region flags (``exonic``, ``intronic``, ``exonicAS``,
+    ``intronicAS``, ``mito``) only for reads with a unique genomic alignment, so
+    ``genomeU`` is the denominator; ``genomeM`` reads can never appear in the
+    numerator and would deflate the fraction.  The ``CBnotInPasslist`` summary
+    row aggregates reads whose barcode was not in the passlist and is skipped.
+
+    Columns are resolved by header name rather than position, since the column
+    set varies between STAR versions (some emit ``cbPerfectU`` / ``cbMMuniqueU``
+    / ``cbMMmultipleU`` after ``featureM``).
+
+    The fraction is computed over all barcodes, not only the called cells, so it
+    is a library-level rate.
+
     Returns the fraction as a ``float``, or ``"N/A"`` when unavailable.
     """
     if not path or not os.path.exists(path):
         return "N/A"
     try:
-        mapped_reads = 0
-        intronic_sum = 0
         with open(path, "r") as fh:
-            next(fh)  # skip header
+            header = fh.readline().rstrip("\n").split("\t")
+            idx = {name: i for i, name in enumerate(header)}
+            if "intronic" not in idx or "genomeU" not in idx:
+                sys.stderr.write(
+                    f"Warning: 'intronic'/'genomeU' columns not found in {path}\n"
+                )
+                return "N/A"
+
+            i_intronic, i_genome_u = idx["intronic"], idx["genomeU"]
+            needed = max(i_intronic, i_genome_u)
+
+            intronic_sum = 0
+            genome_unique = 0
             for line in fh:
-                parts = line.strip().split()
-                if len(parts) < 6:
+                parts = line.rstrip("\n").split("\t")
+                if len(parts) <= needed or parts[0] == "CBnotInPasslist":
                     continue
-                intronic_sum += int(parts[4]) + int(parts[5])
-                mapped_reads += int(parts[2]) + int(parts[3]) + int(parts[4]) + int(parts[5])
-        if mapped_reads > 0:
-            return intronic_sum / mapped_reads
+                intronic_sum += int(parts[i_intronic])
+                genome_unique += int(parts[i_genome_u])
+
+        if genome_unique > 0:
+            return intronic_sum / genome_unique
     except Exception:
         pass
     return "N/A"
@@ -348,6 +376,46 @@ def extract_umi_cutoff(log_out_path: Optional[str], cfg_name: str = "GeneFull_Ex
     except Exception:
         pass
     return 0
+
+
+def count_alevin_genes(quant: Dict[str, Any], cols_path: Optional[str]) -> Any:
+    """Number of distinct genes in an alevin-fry reference.
+
+    ``quant.json``'s ``num_genes`` counts *matrix columns*.  In USA mode -- which
+    this pipeline always runs, since ``alevin-fry quant`` is given a 3-column
+    ``t2g_3col.tsv`` -- the matrix carries three blocks per gene (spliced,
+    unspliced, ambiguous), so that value is three times the gene count.
+
+    ``quants_mat_cols.txt`` names those columns and is authoritative, so it is
+    preferred when available.  The USA collapse is applied only when stripping
+    the ``-S``/``-U``/``-A`` suffixes yields exactly one third as many distinct
+    names, so a non-USA reference -- or a gene legitimately ending in ``-S`` --
+    is never mis-collapsed.  ``quant.json`` is the fallback.
+
+    Note this is the size of the reference, not the number of genes with
+    non-zero counts; the dashboard labels it accordingly.
+    """
+    if cols_path and os.path.exists(cols_path):
+        try:
+            with open(cols_path, "r") as fh:
+                names = [line.strip() for line in fh if line.strip()]
+            if names:
+                if len(names) % 3 == 0:
+                    stripped = {_USA_SUFFIX_RE.sub("", n) for n in names}
+                    if len(stripped) == len(names) // 3:
+                        return len(stripped)
+                return len(set(names))
+        except Exception:
+            sys.stderr.write(f"Warning: could not read {cols_path}\n")
+
+    n_cols = quant.get("num_genes", quant.get("num_targets"))
+    try:
+        n_cols = int(n_cols)
+    except (TypeError, ValueError):
+        return "N/A"
+    if quant.get("usa_mode") and n_cols % 3 == 0:
+        return n_cols // 3
+    return n_cols
 
 
 def _safe_read_json(path: Optional[str]) -> Dict[str, Any]:
@@ -638,6 +706,13 @@ def _discover_alevinfry_samples(
         if meta:
             files["af_meta"] = meta
 
+        # quants_mat_cols.txt  →  af_cols (authoritative gene count)
+        cols = _probe(os.path.join(
+            sample_path, f"{analytical_id}_counts", "alevin", "quants_mat_cols.txt"
+        ))
+        if cols:
+            files["af_cols"] = cols
+
         # Per-cell metrics JSON (same location as STARsolo)
         pc = _probe(os.path.join(
             result_dir, "summary_results", "per-cell_metrics",
@@ -767,6 +842,7 @@ def _build_file_map_from_cli(
     _map(args.af_meta_info,            "af_meta",       {"alevin"})
     _map(args.af_quant_json,           "af_quant",      {"alevin"})
     _map(args.af_cell_meta,            "af_cell",       {"alevin"})
+    _map(args.af_mat_cols,             "af_cols",       {"alevin"})
 
     # Cell-filtering outputs are shared (either tool can emit them)
     _map(args.cellsweep_tables,        "cs_table")
@@ -868,8 +944,12 @@ def main() -> None:
     }
 
     # ── Per-sample processing (identical for both modes) ─────────────────────
+    # The overview mixes mappers in one table, so a single header cannot carry a
+    # per-row definition: "% Mapped Reads" is uniquely-mapped for STARsolo and
+    # all mapped fragments for alevin-fry. The Mapper column makes which one
+    # applies explicit for every row.
     global_cols = [
-        "Sample", "% Uniquely Mapped Reads", "N cells", "Saturation",
+        "Sample", "Mapper", "% Mapped Reads", "N cells", "Saturation",
         "Reads Needed for Target Saturation", "Noise (% UMIs non-cell barcodes)",
         "Median Transcripts Per Cell", "% Intronic Reads", "% rRNA in Unique reads",
         "% mtDNA in Unique reads", "% mtDNA in multimappers all pos",
@@ -960,14 +1040,17 @@ def main() -> None:
                 except (ValueError, TypeError):
                     pass
 
+            # salmon's num_mapped counts mapped *fragments*, including
+            # multimappers (resolved downstream by cr-like-em) -- it is not
+            # STARsolo's uniquely-mapped count. The dashboard labels these
+            # fields per mapper so the two are not read as the same quantity.
             n_input_reads = total_reads
             n_unique      = mapped_reads
             pct_unique    = to_pct(mapping_rate)
             n_cells       = af_quant.get("num_quantified_cells",
                               af_quant.get("num_cells",
                               af_meta.get("final_num_cbs", "N/A")))
-            total_genes   = af_quant.get("num_genes",
-                              af_quant.get("num_targets", "N/A"))
+            total_genes   = count_alevin_genes(af_quant, files.get("af_cols"))
 
             mean_reads = "N/A"
             if total_reads != "N/A" and n_cells != "N/A":
@@ -1026,7 +1109,8 @@ def main() -> None:
         mtdna_multi_primary = to_pct(get_val(mt_stats, "Percentage of mtDNA in multimapped reads (primary alignment)"))
 
         global_rows.append([
-            s_id, pct_unique, fmt(n_cells), saturation, reads_07_sat_val, noise_pct,
+            s_id, "STARsolo" if using_star else "alevin-fry",
+            pct_unique, fmt(n_cells), saturation, reads_07_sat_val, noise_pct,
             fmt(median_umis), intronic_pct, rrna_pct, mtdna_unique, mtdna_multi_all,
         ])
 

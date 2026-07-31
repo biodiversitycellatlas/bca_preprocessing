@@ -35,6 +35,7 @@ workflow reporting_workflow {
         af_meta_info
         af_quant_json
         af_cell_meta
+        af_mtx
         sankey_files
         saturation_imgs
         residuals_imgs
@@ -82,13 +83,19 @@ workflow reporting_workflow {
         // Build anchor from whichever mapping software was run
         def ch_anchor = star_summaries.mix(af_meta_info)
 
+        // quant.json's num_genes counts USA matrix columns (3 per gene)
+        def ch_af_mat_cols = af_mtx.map { meta, dir ->
+            [ meta, file("${dir}/quants_mat_cols.txt") ]
+        }
+
         // Join channels that need renaming by meta ID
         ch_to_rename = ch_anchor
-            .join(cell_stats,    remainder: true)
-            .join(knee_files,    remainder: true)
-            .join(af_meta_info,  remainder: true)
-            .join(af_quant_json, remainder: true)
-            .join(af_cell_meta,  remainder: true)
+            .join(cell_stats,     remainder: true)
+            .join(knee_files,     remainder: true)
+            .join(af_meta_info,   remainder: true)
+            .join(af_quant_json,  remainder: true)
+            .join(af_cell_meta,   remainder: true)
+            .join(ch_af_mat_cols, remainder: true)
             .map { row ->
                 def meta        = row[0]
                 def input_files = row.drop(1).findAll { item ->
@@ -126,6 +133,7 @@ workflow reporting_workflow {
             PREPARE_DASHBOARD_INPUTS.out.af_meta_info.collect().ifEmpty([]),
             PREPARE_DASHBOARD_INPUTS.out.af_quant_json.collect().ifEmpty([]),
             PREPARE_DASHBOARD_INPUTS.out.af_cell_meta.collect().ifEmpty([]),
+            PREPARE_DASHBOARD_INPUTS.out.af_mat_cols.collect().ifEmpty([]),
             sankey_files.collect().ifEmpty([]),
             saturation_imgs.collect().ifEmpty([]),
             residuals_imgs.collect().ifEmpty([]),

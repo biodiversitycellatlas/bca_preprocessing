@@ -14,6 +14,7 @@ process GENERATE_DASHBOARD {
     path(af_meta_info)
     path(af_quant_json)
     path(af_cell_meta)
+    path(af_mat_cols)
     path(sankey_files)
     path(saturation_imgs)
     path(residuals_imgs)
@@ -50,6 +51,7 @@ process GENERATE_DASHBOARD {
         --af_meta_info ${af_meta_info} \\
         --af_quant_json ${af_quant_json} \\
         --af_cell_meta ${af_cell_meta} \\
+        --af_mat_cols ${af_mat_cols} \\
         --sankey_files ${sankey_files} \\
         --per_cell_files ${per_cell_files} \\
         --saturation_imgs ${saturation_imgs} \\

@@ -12,6 +12,7 @@ process PREPARE_DASHBOARD_INPUTS {
     path "*_meta_info.json"         , emit: af_meta_info, optional: true
     path "*_quant.json"            , emit: af_quant_json, optional: true
     path "*_cell_meta.tsv"         , emit: af_cell_meta, optional: true
+    path "*_quants_mat_cols.txt"   , emit: af_mat_cols, optional: true
     path "versions.yml"            , emit: versions
 
     script:
@@ -24,6 +25,7 @@ process PREPARE_DASHBOARD_INPUTS {
         if [[ "\$f" == *"meta_info.json"* ]]; then ln -s "\$f" "${meta.id}_meta_info.json"; fi
         if [[ "\$f" == *"quant.json"* ]]; then ln -s "\$f" "${meta.id}_quant.json"; fi
         if [[ "\$f" == *"cell_meta.tsv"* ]]; then ln -s "\$f" "${meta.id}_cell_meta.tsv"; fi
+        if [[ "\$f" == *"quants_mat_cols.txt"* ]]; then ln -s "\$f" "${meta.id}_quants_mat_cols.txt"; fi
     done
 
     cat <<-END_VERSIONS > versions.yml

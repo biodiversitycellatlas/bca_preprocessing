@@ -295,6 +295,12 @@ def add_cellreads_metrics(read_stats: Path, barcodes: Path) -> Dict[str, str]:
     """
     Compute CellReads-derived percentages as strings with '%' suffix.
 
+    Percentages are computed over the called cells only (the barcodes in
+    *barcodes*), against ``genomeU`` as the denominator. Note that ``mito``
+    overlaps ``exonic``/``intronic`` -- it is a chromosome-level flag, not a
+    separate region category -- so it is reported alongside them rather than
+    summed into a total.
+
     Returns keys like:
         - pct_noise
         - pct_exonic_reads
@@ -321,7 +327,13 @@ def add_cellreads_metrics(read_stats: Path, barcodes: Path) -> Dict[str, str]:
 
         filtered_df = stats_df.loc[stats_df.index.intersection(filtered_cbs)]
         summed = filtered_df.sum(numeric_only=True)
-        genome_total = summed.get("genomeU", 0) + summed.get("genomeM", 0) or None
+
+        # STARsolo records the region flags (exonic / intronic / exonicAS /
+        # intronicAS / mito) only for reads with a unique genomic alignment, so
+        # genomeU is the denominator. Including genomeM would add multimapped
+        # reads that can never appear in any numerator, deflating every
+        # percentage and inflating the intergenic residual below.
+        genome_total = summed.get("genomeU", 0) or None
 
         out: Dict[str, str] = {}
 
@@ -428,7 +440,13 @@ def parse_scirocket_run(js_path: Path) -> List[Dict[str, object]]:
         exonic_as = stats.get("total_exonicAS_reads", 0)
         intronic_as = stats.get("total_intronicAS_reads", 0)
 
-        total_genome = exonic + intronic + intergenic + mito + exonic_as + intronic_as
+        # exonic / intronic / intergenic / exonicAS / intronicAS are mutually
+        # exclusive region categories that partition the uniquely-mapped genomic
+        # reads, so together they are the denominator. mito is a chromosome-level
+        # flag that overlaps them -- a mitochondrial read is also exonic or
+        # intronic -- so including it would count those reads twice and deflate
+        # every percentage. It is reported against the same denominator instead.
+        total_genome = exonic + intronic + intergenic + exonic_as + intronic_as
 
         if total_genome > 0:
             row["% exonic reads"] = convert_to_pct(exonic / total_genome)
@@ -446,6 +464,11 @@ def parse_scirocket_run(js_path: Path) -> List[Dict[str, object]]:
 # ---------------------------------------------------------------------------
 # alevin-fry helpers
 # ---------------------------------------------------------------------------
+
+# Suffixes alevin-fry appends to the spliced / unspliced / ambiguous column
+# blocks of a USA-mode count matrix.
+_USA_SUFFIX_RE = re.compile(r"-[SUA]$")
+
 
 def pick_column(df: pd.DataFrame, candidates: List[str]) -> Optional[pd.Series]:
     """Return the first existing column from candidates in df, or None."""
@@ -488,11 +511,53 @@ def parse_salmon_meta(meta_path: Path) -> Dict[str, Optional[int]]:
     return result
 
 
-def parse_alevin_quant(quant_path: Path) -> Dict[str, Optional[int]]:
+def count_alevin_genes(
+    quant: Mapping[str, object], cols_path: Optional[Path]
+) -> Optional[int]:
+    """Number of distinct genes in an alevin-fry reference.
+
+    ``quant.json``'s ``num_genes`` counts *matrix columns*. In USA mode -- which
+    this pipeline always runs, since ``alevin-fry quant`` is given a 3-column
+    ``t2g_3col.tsv`` -- the matrix carries three blocks per gene (spliced,
+    unspliced, ambiguous), so that value is three times the gene count.
+
+    ``quants_mat_cols.txt`` names those columns and is authoritative, so it is
+    preferred when available. The USA collapse is applied only when stripping
+    the ``-S``/``-U``/``-A`` suffixes yields exactly one third as many distinct
+    names, so a non-USA reference -- or a gene legitimately ending in ``-S`` --
+    is never mis-collapsed. ``quant.json`` is the fallback.
+
+    This is the size of the reference, not the number of genes with non-zero
+    counts, and is reported under "Total Genes in Reference" accordingly.
+    """
+    if cols_path and cols_path.exists():
+        try:
+            names = [ln.strip() for ln in cols_path.read_text().splitlines() if ln.strip()]
+            if names:
+                if len(names) % 3 == 0:
+                    stripped = {_USA_SUFFIX_RE.sub("", n) for n in names}
+                    if len(stripped) == len(names) // 3:
+                        return len(stripped)
+                return len(set(names))
+        except Exception as e:  # noqa: BLE001
+            print(f"[WARNING] Could not read {cols_path}: {e}")
+
+    raw = quant.get("num_genes", quant.get("num_targets"))
+    n_cols = clean_int(raw)
+    if n_cols is None:
+        return None
+    if quant.get("usa_mode") and n_cols % 3 == 0:
+        return n_cols // 3
+    return n_cols
+
+
+def parse_alevin_quant(
+    quant_path: Path, cols_path: Optional[Path] = None
+) -> Dict[str, Optional[int]]:
     """
     Parse alevin-fry quant.json and return:
         - n_cells: num_quantified_cells
-        - num_genes: num_genes
+        - num_genes: distinct genes in the reference (USA blocks collapsed)
     """
     summary: Dict[str, Optional[int]] = {
         "n_cells": None,
@@ -507,8 +572,7 @@ def parse_alevin_quant(quant_path: Path) -> Dict[str, Optional[int]]:
         data = json.loads(quant_path.read_text())
         if "num_quantified_cells" in data:
             summary["n_cells"] = int(data["num_quantified_cells"])
-        if "num_genes" in data:
-            summary["num_genes"] = int(data["num_genes"])
+        summary["num_genes"] = count_alevin_genes(data, cols_path)
     except Exception as e:  # noqa: BLE001
         print(f"[WARNING] Failed to parse alevin-fry quant.json at {quant_path}: {e}")
 
@@ -572,21 +636,26 @@ def parse_alevinfry_sample(sample_root: Path) -> Dict[str, object]:
 
     Uses:
       - <sample_id>_run/aux_info/meta_info.json   : total & mapped reads
-      - <sample_id>_counts/quant.json             : N cells, Total Genes Detected
+      - <sample_id>_counts/quant.json             : N cells
+      - <sample_id>_counts/alevin/quants_mat_cols.txt : Total Genes in Reference
       - cell_meta.tsv                             : per-cell summaries
     """
     sample_name = sample_root.name
+    # alevin-fry has no uniquely-mapped or genes-detected equivalent, so it fills
+    # the "mapped"/"in Reference" columns instead of the STARsolo ones. A single
+    # TSV header cannot vary per row, so the distinction is carried by separate
+    # columns rather than by renaming.
     row: Dict[str, object] = {
         "Sample": sample_name,
         "Software": "alevin-fry",
         "N reads/sample": None,
-        "N uniquely mapped reads": None,
-        "% uniquely mapped reads": None,
+        "N mapped reads": None,
+        "% mapped reads": None,
         "N cells": None,
         "Mean Reads per Cell": None,
         "Median UMI Counts per Cell": None,
         "Median Genes per Cell": None,
-        "Total Genes Detected": None,
+        "Total Genes in Reference": None,
     }
 
     # Identify *_run and *_counts directories
@@ -619,14 +688,18 @@ def parse_alevinfry_sample(sample_root: Path) -> Dict[str, object]:
 
     if total_reads is not None:
         row["N reads/sample"] = total_reads
+
+    # salmon's num_mapped counts mapped fragments, multimappers included (they
+    # are resolved downstream by cr-like-em), so this is not comparable to
+    # STARsolo's uniquely-mapped count and does not go in that column.
     if mapped_reads is not None:
-        row["N uniquely mapped reads"] = mapped_reads
+        row["N mapped reads"] = mapped_reads
 
-    uniq_frac = safe_fraction(mapped_reads, total_reads)
-    if uniq_frac is not None:
-        row["% uniquely mapped reads"] = convert_to_pct(uniq_frac)
+    mapped_frac = safe_fraction(mapped_reads, total_reads)
+    if mapped_frac is not None:
+        row["% mapped reads"] = convert_to_pct(mapped_frac)
 
-    # ---- quant.json in *_counts : N cells, Total Genes Detected ----
+    # ---- quant.json in *_counts : N cells, Total Genes in Reference ----
     quant_candidates: List[Path] = []
     if counts_dir is not None:
         quant_candidates.extend(
@@ -638,12 +711,25 @@ def parse_alevinfry_sample(sample_root: Path) -> Dict[str, object]:
     quant_candidates.append(sample_root / "quant.json")
     quant_path = first_existing(quant_candidates)
 
-    quant_summary = parse_alevin_quant(quant_path) if quant_path else {}
+    # quants_mat_cols.txt is the authoritative gene count; quant.json's
+    # num_genes counts USA matrix columns (3 per gene).
+    cols_candidates: List[Path] = []
+    if counts_dir is not None:
+        cols_candidates.extend(
+            [
+                counts_dir / "alevin" / "quants_mat_cols.txt",
+                counts_dir / "quants_mat_cols.txt",
+            ]
+        )
+    cols_candidates.append(sample_root / "quants_mat_cols.txt")
+    cols_path = first_existing(cols_candidates)
+
+    quant_summary = parse_alevin_quant(quant_path, cols_path) if quant_path else {}
 
     if quant_summary.get("n_cells") is not None:
         row["N cells"] = quant_summary["n_cells"]
     if quant_summary.get("num_genes") is not None:
-        row["Total Genes Detected"] = quant_summary["num_genes"]
+        row["Total Genes in Reference"] = quant_summary["num_genes"]
 
     # ---- cell_meta.tsv : per-cell summaries (mean / medians) ----
     cell_meta_candidates: List[Path] = []
@@ -914,6 +1000,9 @@ TSV_FIELDS: List[str] = [
     "Q30 Bases in RNA read",
     "N uniquely mapped reads",
     "% uniquely mapped reads",
+    # alevin-fry cannot report uniquely-mapped reads; it fills these instead.
+    "N mapped reads",
+    "% mapped reads",
     "% multi-mapped reads",
     "% multi-mapped reads: too many",
     "% unmapped: too short",
@@ -935,6 +1024,8 @@ TSV_FIELDS: List[str] = [
     "Median UMI Counts per Cell",
     "Median Genes per Cell",
     "Total Genes Detected",
+    # alevin-fry reports its reference size, not genes with non-zero counts.
+    "Total Genes in Reference",
 ]
 
 
@@ -942,6 +1033,16 @@ def write_tsv_file(path: Path, rows_iter: Iterable[Mapping[str, object]]) -> Non
     """Write records to a TSV with canonical column order and blank NA cells."""
     df = pd.DataFrame(rows_iter)
     df = df.reindex(columns=TSV_FIELDS)
+
+    # Count columns that only some mappers populate (e.g. uniquely-mapped vs
+    # mapped reads) carry NaNs, which pandas upcasts to float -- rendering
+    # counts as "91000.0". Restore integer rendering where every value is whole.
+    for col in df.columns:
+        if pd.api.types.is_float_dtype(df[col]):
+            values = df[col].dropna()
+            if not values.empty and (values % 1 == 0).all():
+                df[col] = df[col].astype("Int64")
+
     df.to_csv(path, sep="\t", index=False, na_rep="")
 
 

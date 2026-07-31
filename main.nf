@@ -88,6 +88,7 @@ workflow BCA_PREPROCESSING {
                 QC_mapping_workflow.out.af_meta_info,
                 QC_mapping_workflow.out.af_quant_json,
                 QC_mapping_workflow.out.af_cell_meta,
+                QC_mapping_workflow.out.af_mtx,
                 QC_mapping_workflow.out.pavian_sankey,
                 QC_mapping_workflow.out.saturation_imgs,
                 QC_mapping_workflow.out.saturation_residual_imgs,
