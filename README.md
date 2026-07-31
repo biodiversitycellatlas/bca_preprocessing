@@ -193,6 +193,20 @@ To modify the behaviour of certain processes or enable external pipelines, addit
 - [ ] Edited ([`conf/custom_parameters.config`](conf/custom_parameters.config)) or created a new custom configuration file
 - [ ] Conda & Nextflow available in base environment
 
+
+### Verifying your setup
+
+Before committing to a full run, you can check that the software the pipeline
+depends on is actually available on your systema:
+
+```
+# Run all available checks
+bash tests/run_tests.sh
+```
+
+See [`tests/README.md`](tests/README.md) for the full set of options.
+
+
 ### Running the Pipeline
 
 > [!WARNING]

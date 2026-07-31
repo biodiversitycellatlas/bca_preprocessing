@@ -33,11 +33,15 @@ export NXF_JVM_ARGS="-Xms2g -Xmx5g"
 # Test the pipeline #
 #####################
 
-## NEXTFLOW TEST -- Dry-run: Tests channels
+## Run the pipeline in preview mode to check that all processes can be launched and that your configuration setup is valid.
 # nextflow run main.nf \
 #     -preview \
 #     -profile crg,conda \
 #     -c tests/test_parsebio.config
+
+## TEST SUITE -- Checks conda environments and container images (no data needed)
+## Run `bash tests/run_tests.sh --list` for the available checks.
+# bash tests/run_tests.sh
 
 
 ####################
