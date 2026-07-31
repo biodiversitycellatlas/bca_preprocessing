@@ -10,6 +10,7 @@ process PERCELL_METRICS {
     tuple val(meta), path(star_solodir)
     tuple val(meta), path(star_log)
     tuple val(meta), path(secondderiv_cutoff)
+    tuple val(meta), path(filtered_matrix_dir)
     path (ref_gtf)
 
     output:
@@ -20,6 +21,7 @@ process PERCELL_METRICS {
     script:
     def cfg_name = "GeneFull_Ex50pAS"
     def cutoff_file = secondderiv_cutoff ?: ''
+    def cell_barcodes = filtered_matrix_dir ? "${filtered_matrix_dir}/barcodes.tsv" : ''
     def mt_contigs = (params.mt_contig ?: '').toString().trim()
     if (!mt_contigs) {
         error "PERCELL_METRICS requires params.mt_contig to name at least one mitochondrial contig"
@@ -47,13 +49,22 @@ process PERCELL_METRICS {
         cell_thres=0
     fi
 
+    # The barcode list is exact; the threshold is only a fallback, since it compares an UMI cutoff against per-barcode read counts
+    cell_bc_arg=""
+    if [ -s "${cell_barcodes}" ]; then
+        cell_bc_arg="--cell-barcodes ${cell_barcodes}"
+    else
+        echo "No filtered barcodes.tsv staged; splitting cells on \$cell_thres reads"
+    fi
+
     per-cell_images.py \\
         --solo-output ${star_solodir} \\
         --bam ${star_bam} \\
         --mt-contig ${mt_contigs} \\
         --gtf ${ref_gtf} \\
         --outdir . \\
-        --min-reads \${cell_thres}
+        --min-reads \${cell_thres} \\
+        \${cell_bc_arg}
 
     cat <<-END_VERSIONS > versions.yml
     "${task.process}":

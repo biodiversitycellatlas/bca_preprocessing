@@ -8,4 +8,3 @@
 logs/*
 conf/[0-9]*
 work/*
-tests/

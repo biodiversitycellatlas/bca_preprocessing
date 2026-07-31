@@ -30,12 +30,14 @@ workflow reporting_workflow {
         star_full_logs
         starsolo_bam
         star_solodir
+        star_filtered_mtx
         saturation_logs
         cell_stats
         af_meta_info
         af_quant_json
         af_cell_meta
         af_mtx
+        af_umipercell
         sankey_files
         saturation_imgs
         residuals_imgs
@@ -49,30 +51,33 @@ workflow reporting_workflow {
         cs_top_genes
 
     main:
-        // Join BAM, SoloDir, and Logs before per-cell metrics. The second-derivative
-        // cutoff is optional: when absent the module falls back to STARsolo's nUMImin.
+        // Join BAM, SoloDir, and Logs before per-cell metrics. The cutoff and the
+        // filtered matrix are both optional: the module prefers the filtered matrix's
+        // barcodes, falls back to the cutoff, and then to STARsolo's nUMImin.
         starsolo_bam
             .join(star_solodir)
             .join(star_logs)
             .join(secondderiv_cutoff, remainder: true)
-            // remainder keeps samples without a cutoff, but can also emit cutoff-only
-            // rows when there is no BAM; those are dropped here
-            .filter { row -> row.size() == 5 && row[1] != null }
-            .multiMap { meta, bam, solodir, logs, cutoff ->
-                bam_ch:     [meta, bam]
-                solodir_ch: [meta, solodir]
-                logs_ch:    [meta, logs]
-                cutoff_ch:  [meta, cutoff ?: []]
+            .join(star_filtered_mtx, remainder: true)
+            // remainder keeps samples without those inputs, but can also emit rows for
+            // samples that have them and no BAM; those are dropped here
+            .filter { row -> row.size() == 6 && row[1] != null }
+            .multiMap { meta, bam, solodir, logs, cutoff, filtered ->
+                bam_ch:      [meta, bam]
+                solodir_ch:  [meta, solodir]
+                logs_ch:     [meta, logs]
+                cutoff_ch:   [meta, cutoff ?: []]
+                filtered_ch: [meta, filtered ?: []]
             }
             .set { ch_percell_inputs }
 
-        // Run per-cell metrics on starsolo outputs. 
-        // The second-derivative cutoff is optional: when absent the module falls back to STARsolo's nUMImin.
+        // Run per-cell metrics on starsolo outputs.
         PERCELL_METRICS(
             ch_percell_inputs.bam_ch,
             ch_percell_inputs.solodir_ch,
             ch_percell_inputs.logs_ch,
             ch_percell_inputs.cutoff_ch,
+            ch_percell_inputs.filtered_ch,
             ref_gtf.first()
         )
         percell_json = PERCELL_METRICS.out.percell_json
@@ -93,6 +98,7 @@ workflow reporting_workflow {
             .join(af_quant_json,  remainder: true)
             .join(af_cell_meta,   remainder: true)
             .join(ch_af_mat_cols, remainder: true)
+            .join(af_umipercell,  remainder: true)
             .map { row ->
                 def meta        = row[0]
                 def input_files = row.drop(1).findAll { item ->

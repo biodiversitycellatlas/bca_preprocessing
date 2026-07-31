@@ -30,6 +30,7 @@ workflow bam_inspection_workflow {
         ref_gtf
         summary_csv
         log_final_file
+        secondderiv_stats
 
     main:
         // Initialize reporting channels
@@ -51,12 +52,15 @@ workflow bam_inspection_workflow {
                 .join(log_final_file)
                 .join(SAMTOOLS_VIEW_MAPPED.out.filtered_mapped_bai)
                 .join(SAMTOOLS_VIEW_MAPPED.out.mapreads)
-                .multiMap { meta, bam, summary, log_final, bai, mapreads ->
+                .join(secondderiv_stats, remainder: true)
+                .filter { row -> row.size() == 7 && row[1] != null }
+                .multiMap { meta, bam, summary, log_final, bai, mapreads, sd_stats ->
                     bam_ch:         [meta, bam]
                     summary_ch:     [meta, summary]
                     log_final_ch:   [meta, log_final]
                     bai_ch:         [meta, bai]
                     reads_ch:       [meta, mapreads]
+                    sd_stats_ch:    [meta, sd_stats ?: []]
                 }
                 .set { ch_saturation_inputs }
 
@@ -65,7 +69,8 @@ workflow bam_inspection_workflow {
                 ch_saturation_inputs.summary_ch,
                 ch_saturation_inputs.log_final_ch,
                 ch_saturation_inputs.bai_ch,
-                ch_saturation_inputs.reads_ch
+                ch_saturation_inputs.reads_ch,
+                ch_saturation_inputs.sd_stats_ch
             )
 
             SATURATION_PLOT(SATURATION_TABLE.out.saturation_table)
@@ -94,6 +99,7 @@ workflow bam_inspection_workflow {
 
         // Inspecting unmapped reads using Kraken2
         if (params.perform_kraken) {
+            
             // Extract unmapped reads
             SAMTOOLS_VIEW_UNMAPPED(bam_file)
 

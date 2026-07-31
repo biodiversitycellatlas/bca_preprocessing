@@ -49,10 +49,19 @@ def parse_args():
         help="Path to the output directory"
     )
     parser.add_argument(
-        "-t", "--min-reads", type=int, required=True,
+        "-t", "--min-reads", type=int, default=0,
         help=(
-            "Minimum total reads to call a cell (STARsolo "
-            "cell/non-cell threshold)"
+            "Minimum total reads to call a cell. Only used as a fallback when "
+            "--cell-barcodes is not given"
+        )
+    )
+    parser.add_argument(
+        "-c", "--cell-barcodes", required=False,
+        help=(
+            "Path to the barcodes.tsv of the filtered count matrix. When given, "
+            "cells are split on membership of that set instead of on --min-reads, "
+            "which makes the plots agree with the matrix that was actually "
+            "filtered"
         )
     )
     parser.add_argument(
@@ -60,6 +69,29 @@ def parse_args():
         help="Path to an optional text file containing rRNA gene names/IDs (one per row)"
     )
     return parser.parse_args()
+
+
+def load_cell_barcodes(path):
+    """Read the called-cell barcodes from a filtered matrix's ``barcodes.tsv``.
+
+    Returns a set of barcodes, or ``None`` when no usable file was given, in
+    which case the caller falls back to the read threshold.
+    """
+    if not path or not os.path.exists(path):
+        return None
+
+    try:
+        df = pd.read_csv(path, sep="\t", header=None)
+    except pd.errors.EmptyDataError:
+        # A cell filter that kept nothing would have failed upstream, so an empty
+        # file means the list is unusable rather than that there are no cells
+        print(f"Warning: {path} is empty; falling back to the read threshold")
+        return None
+
+    if df.empty:
+        return None
+
+    return set(df.iloc[:, 0].astype(str))
 
 
 def load_rrna_intervals(gtf_path, whitelist_path=None):
@@ -240,6 +272,9 @@ def save_metrics(df, out_dir, prefix):
     """
     Save DataFrame as CSV and JSON for interactive dashboards.
     JSON is saved in column-oriented format (dict of lists) for efficiency.
+
+    ``IsCell`` travels with the metrics so the dashboard splits its interactive
+    plots on the same cell set as the static PNGs.
     """
     csv_path = os.path.join(out_dir, f"{prefix}_metrics.csv")
     json_path = os.path.join(out_dir, f"{prefix}_metrics.json")
@@ -266,10 +301,11 @@ def save_metrics(df, out_dir, prefix):
 
 
 def plot_comparisons(
-    df, out_dir, prefix, min_reads
+    df, out_dir, prefix, cell_label, noncell_label
 ):
     """
-    Generate and save scatter plots for predefined metric pairs.
+    Generate and save scatter plots for predefined metric pairs, split on the
+    ``IsCell`` column.
     """
     axis_labels = {
         "IntronicPercent": "Intronic Reads (%)",
@@ -285,7 +321,7 @@ def plot_comparisons(
         ("MTPercent", "TotalReads", "Percentage Mitochondrial Reads Per Cell vs Cell Size"),
         ("rRNAPercent", "TotalReads", "Percentage rRNA Reads Per Cell vs Cell Size"),
     ]
-    low_mask = df["TotalReads"] < min_reads
+    low_mask = ~df["IsCell"].astype(bool)
 
     for x, y, title in comparisons:
         fig, ax = plt.subplots()
@@ -293,13 +329,13 @@ def plot_comparisons(
             df.loc[low_mask, x],
             df.loc[low_mask, y],
             s=5, color="#b6b5b5",
-            label=f"< {min_reads} reads"
+            label=noncell_label
         )
         ax.scatter(
             df.loc[~low_mask, x],
             df.loc[~low_mask, y],
             s=5, color="steelblue",
-            label=f"≥ {min_reads} reads"
+            label=cell_label
         )
         ax.set_xlabel(axis_labels[x])
         ax.set_ylabel(axis_labels[y])
@@ -337,6 +373,25 @@ def main():
     mt_pct = compute_percentages(total_cnt, mt_cnt)
     rrna_pct = compute_percentages(total_cnt, rrna_cnt)
 
+    # Called cells come from the filtered matrix when available. The threshold
+    # fallback compares a UMI cutoff against per-barcode read counts, so it only
+    # approximates the cell set; the barcode list is the same one the matrix was
+    # filtered on and needs no such assumption.
+    cell_barcodes = load_cell_barcodes(args.cell_barcodes)
+    if cell_barcodes is not None:
+        is_cell = np.array([str(bc) in cell_barcodes for bc in barcodes])
+        cell_label = f"Called cell (n={int(is_cell.sum())})"
+        noncell_label = "Not called"
+        print(
+            f"Splitting on {len(cell_barcodes)} barcodes from {args.cell_barcodes}; "
+            f"{int(is_cell.sum())} of {len(barcodes)} matched"
+        )
+    else:
+        is_cell = total_cnt >= args.min_reads
+        cell_label = f"≥ {args.min_reads} reads"
+        noncell_label = f"< {args.min_reads} reads"
+        print(f"No cell barcode list given; splitting on {args.min_reads} reads")
+
     # Build DataFrame
     df = pd.DataFrame({
         "Cell": barcodes,
@@ -344,11 +399,12 @@ def main():
         "MTPercent": mt_pct,
         "rRNAPercent": rrna_pct,
         "TotalReads": total_cnt,
+        "IsCell": is_cell.astype(int),
     })
 
     # Save metrics and plots
     save_metrics(df, args.outdir, prefix)
-    plot_comparisons(df, args.outdir, prefix, args.min_reads)
+    plot_comparisons(df, args.outdir, prefix, cell_label, noncell_label)
 
 
 if __name__ == "__main__":

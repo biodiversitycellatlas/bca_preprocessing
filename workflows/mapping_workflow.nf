@@ -55,6 +55,8 @@ workflow QC_mapping_workflow {
         def ch_alevin_quant_json            = Channel.empty()
         def ch_alevin_cell_meta             = Channel.empty()
         def ch_alevin_mtx                   = Channel.empty()
+        def ch_alevin_filtered_mtx          = Channel.empty()
+        def ch_alevin_umipercell            = Channel.empty()
         def ch_featurecounts                = Channel.empty()
         def ch_pavian_sankey                = Channel.empty()
 
@@ -130,7 +132,8 @@ workflow QC_mapping_workflow {
 
             // Run BAM inspection workflow on standard STARsolo output
             if (params.star_generateBAM) {
-                bam_inspection_workflow(ch_starsolo_bam, ref_gtf_ch, ch_star_summaries, ch_star_final_log)
+                bam_inspection_workflow(ch_starsolo_bam, ref_gtf_ch, ch_star_summaries, ch_star_final_log,
+                                            mapping_starsolo_workflow.out.secondderiv_stats)
 
                 ch_sat_imgs              =  bam_inspection_workflow.out.saturation_imgs
                 ch_sat_res_imgs          =  bam_inspection_workflow.out.saturation_residual_imgs
@@ -191,7 +194,8 @@ workflow QC_mapping_workflow {
                         bam_inspection_geneext_workflow(mapping_starsolo_geneext_workflow.out.starsolo_bam,
                                                     ref_gtf_geneext_ch,
                                                     mapping_starsolo_geneext_workflow.out.star_summaries,
-                                                    mapping_starsolo_geneext_workflow.out.star_final_log)
+                                                    mapping_starsolo_geneext_workflow.out.star_final_log,
+                                                    mapping_starsolo_geneext_workflow.out.secondderiv_stats)
 
                         ch_sat_imgs                     = ch_sat_imgs.mix(bam_inspection_geneext_workflow.out.saturation_imgs)
                         ch_sat_res_imgs                 = ch_sat_res_imgs.mix(bam_inspection_geneext_workflow.out.saturation_residual_imgs)
@@ -213,6 +217,13 @@ workflow QC_mapping_workflow {
             ch_alevin_quant_json = mapping_alevin_workflow.out.af_quant_json
             ch_alevin_cell_meta = mapping_alevin_workflow.out.af_cell_meta
             ch_alevin_mtx       = mapping_alevin_workflow.out.af_mtx
+            ch_alevin_filtered_mtx = mapping_alevin_workflow.out.af_filtered_mtx
+            ch_alevin_umipercell = mapping_alevin_workflow.out.af_umipercell
+
+            // Both mappers emit the same second-derivative artefacts, so the reporting channels carry them together
+            ch_secondderiv_knee   = ch_secondderiv_knee.mix(mapping_alevin_workflow.out.secondderiv_knee)
+            ch_secondderiv_stats  = ch_secondderiv_stats.mix(mapping_alevin_workflow.out.secondderiv_stats)
+            ch_secondderiv_cutoff = ch_secondderiv_cutoff.mix(mapping_alevin_workflow.out.secondderiv_cutoff)
         }
 
     emit:
@@ -238,6 +249,8 @@ workflow QC_mapping_workflow {
         af_quant_json                = ch_alevin_quant_json
         af_cell_meta                 = ch_alevin_cell_meta
         af_mtx                       = ch_alevin_mtx
+        af_filtered_mtx              = ch_alevin_filtered_mtx
+        af_umipercell                = ch_alevin_umipercell
         featurecount_txt             = ch_featurecounts
         pavian_sankey                = ch_pavian_sankey
 }

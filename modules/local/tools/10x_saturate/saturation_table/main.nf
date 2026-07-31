@@ -12,12 +12,15 @@ process SATURATION_TABLE {
     tuple val(meta), file(star_log_final_file)
     tuple val(meta), file(samtools_bai)
     tuple val(meta), file(samtools_mapreads)
+    tuple val(meta), file(secondderiv_stats)
 
     output:
     tuple val(meta), path("saturation_output.tsv"), emit: saturation_table
     path "versions.yml",                            emit: versions
 
     script:
+    // Present only for cellfilter_method = "second_derivative"
+    def sd_stats_file = secondderiv_stats ?: ''
     """
     echo "\n\n==================  SATURATION TABLE =================="
     echo "BAM file: ${bam_file}"
@@ -33,6 +36,19 @@ process SATURATION_TABLE {
 
     n_cells=\$( cat ${star_summary_file} | grep 'Estimated Number of Cells' | sed 's/,/ /g' | awk '{print \$NF}' )
     n_reads=\$( cat ${star_log_final_file} | grep 'Number of input reads' | awk '{print \$NF}' )
+
+    # The saturation curve is fitted per cell, so it has to use the cell set the
+    # matrices were filtered on. With cellfilter_method = "second_derivative" that is
+    # the count recomputed by FILTER_MATRICES, not STARsolo's own Summary.csv estimate.
+    if [ -s "${sd_stats_file}" ]; then
+        sd_cells=\$(python3 -c "import json; print(json.load(open('${sd_stats_file}')).get('estimated_cells', ''))")
+        if [ -n "\${sd_cells}" ]; then
+            echo "Second-derivative cell count: \${sd_cells} (STARsolo estimated \${n_cells})"
+            n_cells=\${sd_cells}
+        else
+            echo "[WARNING] no estimated_cells in ${sd_stats_file}; keeping STARsolo's estimate"
+        fi
+    fi
 
     map_rate=\$( echo "scale=4; \${MAPREADS}/\${n_reads}" | bc )
     temp_folder="_tmp"

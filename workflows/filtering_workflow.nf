@@ -18,6 +18,7 @@ include { COMBINE_DOUBLET_RESULTS } from '../modules/local/tools/doublet_combine
 include { DOUBLET_FILTER as DOUBLET_FILTER_RAW         } from '../modules/local/tools/doublet_filter/main'
 include { DOUBLET_FILTER as DOUBLET_FILTER_CELL_CALLED } from '../modules/local/tools/doublet_filter/main'
 include { DOWNLOAD_DEMUXAFY_SIF   } from '../modules/local/tools/demuxafy_sif/main'
+include { COLLAPSE_ALEVIN_USA     } from '../modules/local/custom/manipulate/collapse_alevin_usa/main'
 
 
 /*
@@ -31,6 +32,7 @@ workflow filtering_workflow {
         ch_starsolo_genefull50_raw
         ch_starsolo_genefull50_filtered
         af_mtx
+        af_filtered_mtx
 
     main:
         // Initialize reporting channels
@@ -53,16 +55,31 @@ workflow filtering_workflow {
               file("${dir}/matrix.mtx"), file("${dir}/barcodes.tsv"), file("${dir}/features.tsv") ]
         }
 
-        def ch_alevin_fry = af_mtx.map { meta, dir ->
-            [ meta + [mapping_method: 'alevin-fry', datatype: 'full'],
-              file("${dir}/quants_mat.mtx"), file("${dir}/quants_mat_cols.txt"), file("${dir}/quants_mat_rows.txt") ]
+        // Alevin-fry's matrices are summed to one column per gene
+        def ch_alevin_dirs = af_mtx
+            .map { meta, dir -> [ meta + [mapping_method: 'alevin-fry', datatype: 'full'], dir ] }
+            .mix(
+                af_filtered_mtx.map { meta, dir ->
+                    [ meta + [mapping_method: 'alevin-fry', datatype: 'filtered'], dir ]
+                }
+            )
+
+        COLLAPSE_ALEVIN_USA(ch_alevin_dirs)
+
+        // Fix alevin-fry's output into the same triplet format as STARsolo's, so the two mappers can be treated the same downstream
+        def ch_alevin_fry = COLLAPSE_ALEVIN_USA.out.matrix.map { meta, dir ->
+            [ meta,
+              file("${dir}/quants_mat.mtx"), file("${dir}/quants_mat_rows.txt"), file("${dir}/quants_mat_cols.txt") ]
         }
 
         def ch_all_matrices = ch_starsolo_raw.mix(ch_starsolo_filtered, ch_alevin_fry)
 
+        // Check the cell filtering method
+        def alevin_full_is_cell_called = params.cellfilter_method != "second_derivative"
+
         // Doublets are called on the cell-called matrices only
         def ch_cell_called_matrices = ch_all_matrices.filter { meta, _mtx, _barcodes, _features ->
-            meta.datatype in ['filtered', 'full']
+            meta.datatype == 'filtered' || (meta.datatype == 'full' && alevin_full_is_cell_called)
         }
 
         MTX_TO_H5AD(ch_all_matrices)

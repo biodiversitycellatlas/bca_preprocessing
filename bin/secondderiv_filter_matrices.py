@@ -19,12 +19,10 @@ import pandas as pd
 import scipy.io as sio
 
 
-# Column of CellReads.stats holding the number of unique-gene reads per barcode,
-# in preference order.
+# Column of CellReads.stats holding the number of unique-gene reads per barcode, in preference order.
 _UNIQUE_READ_COLUMNS = ["countedU", "featureU"]
 
-# Column of CellReads.stats holding the number of deduplicated (unique) UMIs per
-# barcode, used as the numerator of sequencing saturation.
+# Column of CellReads.stats holding the number of deduplicated (unique) UMIs per barcode.
 _UNIQUE_UMI_COLUMN = "nUMIunique"
 
 
@@ -83,8 +81,7 @@ def read_level_stats(cellreads_path: Optional[str], cell_barcodes: Set[str]) -> 
 
     # Sequencing saturation is the duplication rate of the reads counted into the
     # matrix, so it is a property of the cell set: 1 - unique UMIs / counted reads
-    # over the retained cells. This mirrors how STARsolo derives the value in
-    # Summary.csv for its own cells.
+    # over the retained cells. 
     if _UNIQUE_UMI_COLUMN in stats.columns and reads_in_cells > 0:
         umis_in_cells = float(in_cells[_UNIQUE_UMI_COLUMN].sum())
         out["sequencing_saturation"] = 1.0 - (umis_in_cells / reads_in_cells)

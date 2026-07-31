@@ -70,6 +70,16 @@
                     "type": "string",
                     "default": "starsolo"
                 },
+                "cellfilter_method": {
+                    "type": "string",
+                    "default": "second_derivative",
+                    "enum": ["star_solocellfilter", "second_derivative"]
+                },
+                "alevin_usa_counts": {
+                    "type": "string",
+                    "default": "SUA",
+                    "enum": ["SUA", "SA", "S"]
+                },
                 "star_index": {
                     "type": "string"
                 },

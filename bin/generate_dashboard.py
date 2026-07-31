@@ -713,9 +713,7 @@ def _discover_alevinfry_samples(
         if cols:
             files["af_cols"] = cols
 
-        # Second-derivative cell calling (only present for that cellfilter_method).
-        # alevin-fry has no UMIperCellSorted.txt of its own, so the knee curve is the
-        # one the cell calling derived from the count matrix.
+        # Second-derivative cell calling
         sd_path = os.path.join(
             sample_path, f"{analytical_id}_counts", "alevin", _SECONDDERIV_DIR
         )
@@ -840,6 +838,7 @@ def _build_file_map_from_cli(
                 file_map[sid][key] = path
                 break
 
+    # STARsolo-specific outputs
     _map(args.star_logs,               "star_log",      {"starsolo"})
     _map(args.star_summaries,          "star_summary",  {"starsolo"})
     _map(args.star_full_logs,          "star_full_log", {"starsolo"})
@@ -851,20 +850,18 @@ def _build_file_map_from_cli(
     _map(args.sankey_files,            "sankey",        {"starsolo"})
     _map(args.per_cell_files,          "per_cell",      {"starsolo"})
 
-    # Both mappers produce a knee curve and second-derivative outputs: STARsolo writes
-    # UMIperCellSorted.txt itself, and for alevin-fry the cell calling derives it from
-    # the count matrix. Analytical IDs carry the mapper suffix, so basename matching
-    # keeps the two apart without a source filter.
+    # Shared outputs by both mappers
     _map(args.knee_files,              "knee")
     _map(args.secondderiv_knee,        "sd_knee")
     _map(args.secondderiv_stats,       "sd_stats")
 
+    # Alevin-specific output
     _map(args.af_meta_info,            "af_meta",       {"alevin"})
     _map(args.af_quant_json,           "af_quant",      {"alevin"})
     _map(args.af_cell_meta,            "af_cell",       {"alevin"})
     _map(args.af_mat_cols,             "af_cols",       {"alevin"})
 
-    # Cell-filtering outputs are shared (either tool can emit them)
+    # Cell-filtering outputs (shared by both mappers)
     _map(args.cellsweep_tables,        "cs_table")
     _map(args.cellsweep_plots_contrib, "cs_plot_contrib")
     _map(args.cellsweep_plots_umap,    "cs_plot_umap")

@@ -927,13 +927,16 @@
             // Labels depend on the mapper:
             //  - alevin-fry reports salmon's mapped fragments (multimappers
             //    included, resolved by cr-like-em), not a uniquely-mapped count.
-            //  - alevin-fry's gene count comes from the reference/matrix width,
-            //    so it is the reference size, not the number of genes detected.
+            //  - alevin-fry's gene count comes from the reference/matrix width, so it is
+            //    the reference size and not the number of genes detected -- unless the
+            //    cells were re-called, which counts them on the retained cells. The
+            //    generator states which of the two the value is.
             const mappedCountLabel = isAlevin
                 ? "Number of Mapped Reads" : "Number of Uniquely mapped reads";
             const mappedPctLabel = isAlevin
                 ? "% Mapped Reads" : "% uniquely mapped reads";
-            const totalGenesLabel = isAlevin
+            const totalGenesScope = m.total_genes_scope || (isAlevin ? "reference" : "detected");
+            const totalGenesLabel = totalGenesScope === "reference"
                 ? "Total Genes in Reference" : "Total Genes Detected";
 
             // Define the fields and labels for each card dynamically
@@ -1550,11 +1553,17 @@
                 }
             ];
 
+            /* IsCell marks membership of the cell set the count matrix was filtered on,
+               so it is exact. The threshold is only a fallback: it compares a UMI cutoff
+               against per-barcode read counts, which merely approximates that set. */
+            const hasIsCell = Object.prototype.hasOwnProperty.call(rawData, "IsCell");
+            const isCell = d => hasIsCell ? Boolean(d.IsCell) : d.TotalReads > threshold;
+
             combos.forEach(c => {
                 Plotly.purge(c.id);
 
-                const below = perCellData.filter(d => d.TotalReads <= threshold);
-                const above = perCellData.filter(d => d.TotalReads > threshold);
+                const below = perCellData.filter(d => !isCell(d));
+                const above = perCellData.filter(d => isCell(d));
 
                 const traceBelow = {
                     x: below.map(d => d[c.x]), // Keeps using the data key

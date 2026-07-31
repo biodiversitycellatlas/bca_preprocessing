@@ -71,7 +71,7 @@ workflow BCA_PREPROCESSING {
         if (params.run_method == "standard") {
 
             // Filtering raw matrices of ambient RNA
-            filtering_workflow(QC_mapping_workflow.out.starsolo_genefull50_raw, QC_mapping_workflow.out.starsolo_genefull50_filtered, QC_mapping_workflow.out.af_mtx)
+            filtering_workflow(QC_mapping_workflow.out.starsolo_genefull50_raw, QC_mapping_workflow.out.starsolo_genefull50_filtered, QC_mapping_workflow.out.af_mtx, QC_mapping_workflow.out.af_filtered_mtx)
 
             reporting_workflow(
                 QC_mapping_workflow.out.mapped_samplesheet,
@@ -83,12 +83,14 @@ workflow BCA_PREPROCESSING {
                 QC_mapping_workflow.out.star_log,
                 QC_mapping_workflow.out.starsolo_bam,
                 QC_mapping_workflow.out.star_solodir,
+                QC_mapping_workflow.out.starsolo_genefull50_filtered,
                 QC_mapping_workflow.out.saturation_logs,
                 QC_mapping_workflow.out.star_cellreads,
                 QC_mapping_workflow.out.af_meta_info,
                 QC_mapping_workflow.out.af_quant_json,
                 QC_mapping_workflow.out.af_cell_meta,
                 QC_mapping_workflow.out.af_mtx,
+                QC_mapping_workflow.out.af_umipercell,
                 QC_mapping_workflow.out.pavian_sankey,
                 QC_mapping_workflow.out.saturation_imgs,
                 QC_mapping_workflow.out.saturation_residual_imgs,

@@ -775,7 +775,7 @@ def parse_alevinfry_sample(sample_root: Path) -> Dict[str, object]:
     if cell_summary.get("median_genes_per_cell") is not None:
         row["Median Genes per Cell"] = cell_summary["median_genes_per_cell"]
 
-    # ---- filtered_secondderiv : cells re-called after alevin-fry's own knee ----
+    # ---- filtered_secondderiv : cells re-called ----
     # With cellfilter_method = "second_derivative" the quantified matrix was filtered
     # again, so quant.json and cell_meta.tsv above describe a superset of the cells that
     # were kept. Everything derived from the cell set is recomputed on the retained one.
@@ -793,8 +793,7 @@ def parse_alevinfry_sample(sample_root: Path) -> Dict[str, object]:
             if sd_stats.get(key) is not None:
                 row[col_name] = int(round(float(sd_stats[key])))
 
-        # Genes with non-zero counts in the retained cells, unlike the reference-width
-        # count that quant.json yields, so it goes in the STARsolo-style column
+        # Genes with non-zero counts in the retained cells
         if sd_stats.get("total_genes_detected") is not None:
             row["Total Genes Detected"] = int(sd_stats["total_genes_detected"])
 
