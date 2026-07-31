@@ -23,6 +23,10 @@ import scipy.io as sio
 # in preference order.
 _UNIQUE_READ_COLUMNS = ["countedU", "featureU"]
 
+# Column of CellReads.stats holding the number of deduplicated (unique) UMIs per
+# barcode, used as the numerator of sequencing saturation.
+_UNIQUE_UMI_COLUMN = "nUMIunique"
+
 
 def parse_args() -> argparse.Namespace:
     """Parse command-line arguments."""
@@ -38,10 +42,11 @@ def parse_args() -> argparse.Namespace:
 def read_level_stats(cellreads_path: Optional[str], cell_barcodes: Set[str]) -> Dict[str, float]:
     """Recompute read-level statistics for *cell_barcodes* from ``CellReads.stats``.
 
-    Returns a dict with ``fraction_unique_reads_in_cells`` and
-    ``reads_in_cells``, or ``{}`` when the statistics cannot be derived.
-    STARsolo reports the same fraction in ``Summary.csv``, but against its own
-    cell set; recomputing it here keeps it consistent with the filtered matrix.
+    Returns a dict with ``fraction_unique_reads_in_cells``, ``reads_in_cells``
+    and ``sequencing_saturation``, or ``{}`` when the statistics cannot be
+    derived.  STARsolo reports all three in ``Summary.csv``, but against its own
+    cell set; recomputing them here keeps them consistent with the filtered
+    matrix.
     """
     if not cellreads_path or not os.path.exists(cellreads_path):
         return {}
@@ -75,6 +80,14 @@ def read_level_stats(cellreads_path: Optional[str], cell_barcodes: Set[str]) -> 
 
     if "cbMatch" in stats.columns:
         out["reads_in_cells"] = int(in_cells["cbMatch"].sum())
+
+    # Sequencing saturation is the duplication rate of the reads counted into the
+    # matrix, so it is a property of the cell set: 1 - unique UMIs / counted reads
+    # over the retained cells. This mirrors how STARsolo derives the value in
+    # Summary.csv for its own cells.
+    if _UNIQUE_UMI_COLUMN in stats.columns and reads_in_cells > 0:
+        umis_in_cells = float(in_cells[_UNIQUE_UMI_COLUMN].sum())
+        out["sequencing_saturation"] = 1.0 - (umis_in_cells / reads_in_cells)
 
     return out
 

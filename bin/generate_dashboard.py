@@ -713,6 +713,21 @@ def _discover_alevinfry_samples(
         if cols:
             files["af_cols"] = cols
 
+        # Second-derivative cell calling (only present for that cellfilter_method).
+        # alevin-fry has no UMIperCellSorted.txt of its own, so the knee curve is the
+        # one the cell calling derived from the count matrix.
+        sd_path = os.path.join(
+            sample_path, f"{analytical_id}_counts", "alevin", _SECONDDERIV_DIR
+        )
+        for key, fname in [
+            ("knee",     f"{analytical_id}_alevin_UMIperCellSorted.txt"),
+            ("sd_knee",  f"{analytical_id}_knee_data.json"),
+            ("sd_stats", f"{analytical_id}_secondderiv_statistics.json"),
+        ]:
+            candidate = _probe(os.path.join(sd_path, fname))
+            if candidate:
+                files[key] = candidate
+
         # Per-cell metrics JSON (same location as STARsolo)
         pc = _probe(os.path.join(
             result_dir, "summary_results", "per-cell_metrics",
@@ -835,9 +850,14 @@ def _build_file_map_from_cli(
     _map(args.residuals_imgs,          "res_img",       {"starsolo"})
     _map(args.sankey_files,            "sankey",        {"starsolo"})
     _map(args.per_cell_files,          "per_cell",      {"starsolo"})
-    _map(args.knee_files,              "knee",          {"starsolo"})
-    _map(args.secondderiv_knee,        "sd_knee",       {"starsolo"})
-    _map(args.secondderiv_stats,       "sd_stats",      {"starsolo"})
+
+    # Both mappers produce a knee curve and second-derivative outputs: STARsolo writes
+    # UMIperCellSorted.txt itself, and for alevin-fry the cell calling derives it from
+    # the count matrix. Analytical IDs carry the mapper suffix, so basename matching
+    # keeps the two apart without a source filter.
+    _map(args.knee_files,              "knee")
+    _map(args.secondderiv_knee,        "sd_knee")
+    _map(args.secondderiv_stats,       "sd_stats")
 
     _map(args.af_meta_info,            "af_meta",       {"alevin"})
     _map(args.af_quant_json,           "af_quant",      {"alevin"})
@@ -1071,11 +1091,17 @@ def main() -> None:
                              af_meta.get("mean_genes_per_cell", "N/A")))
 
         # ── Second-derivative cell calling ───────────────────────────────────
-        # When cellfilter_method = "second_derivative", STARsolo's own filtered matrix
-        # is neither produced nor published: every cell-level number below is recomputed
-        # by FILTER_MATRICES on the matrix that was actually filtered, so those values
-        # replace the ones read from STARsolo's Summary.csv.
+        # When cellfilter_method = "second_derivative", the cells are re-called on the
+        # raw matrix: STARsolo's own filtered matrix is neither produced nor published,
+        # and alevin-fry's quantified matrix is filtered again after its knee. Every
+        # cell-level number below is recomputed on the matrix that was actually
+        # filtered, so those values replace the ones the mapper reported for its own
+        # cell set (STARsolo's Summary.csv, alevin-fry's quant.json / cell_meta.tsv).
         sd_cutoff: Optional[int] = None
+        # alevin-fry's own gene count is the matrix width, i.e. the reference size;
+        # re-calling cells yields a genes-detected count instead, which the dashboard
+        # has to label differently.
+        total_genes_scope = "reference" if using_alevin else "detected"
         sd_stats = _safe_read_json(files.get("sd_stats"))
         if sd_stats:
             sd_cutoff     = sd_stats.get("umi_threshold_applied")
@@ -1083,7 +1109,9 @@ def main() -> None:
             n_cells       = sd_stats.get("estimated_cells", n_cells)
             median_umis   = int(round(sd_stats["median_umis_per_cell"]))   if "median_umis_per_cell"  in sd_stats else median_umis
             median_genes  = int(round(sd_stats["median_genes_per_cell"]))  if "median_genes_per_cell" in sd_stats else median_genes
-            total_genes   = sd_stats.get("total_genes_detected", total_genes)
+            if "total_genes_detected" in sd_stats:
+                total_genes       = sd_stats["total_genes_detected"]
+                total_genes_scope = "detected"
 
             # Reads per cell and noise both depend on the cell set, so recompute them
             n_reads = safe_float(n_input_reads)
@@ -1096,6 +1124,12 @@ def main() -> None:
             frac_in_cells_sd = safe_float(sd_stats.get("fraction_unique_reads_in_cells"))
             if frac_in_cells_sd is not None:
                 noise_pct = f"{(1.0 - frac_in_cells_sd) * 100:.2f}%"
+
+            # Saturation is the duplication rate of the reads counted into the cells,
+            # so it too describes the cell set rather than the library
+            saturation_sd = safe_float(sd_stats.get("sequencing_saturation"))
+            if saturation_sd is not None:
+                saturation = to_pct(saturation_sd)
 
         sd_knee = parse_secondderiv_knee(files.get("sd_knee"), s_id)
         if sd_knee:
@@ -1165,6 +1199,7 @@ def main() -> None:
                 "median_umis":          fmt(median_umis),
                 "median_genes":         fmt(median_genes),
                 "total_genes":          fmt(total_genes),
+                "total_genes_scope":    total_genes_scope,
             },
             "cell_calling": {
                 "expected_cells": fmt(samplesheet_config.get(base_id, {}).get("expected_cells", "N/A")),

@@ -179,14 +179,17 @@ def choose_gene_directory(solo_out: Path) -> Tuple[Path, str]:
     return solo_out / "Gene", "Gene"
 
 
-def load_secondderiv_stats(gene_dir: Path) -> Dict[str, object]:
+def load_secondderiv_stats(matrix_dir: Path) -> Dict[str, object]:
     """Load the statistics recomputed on the second-derivative filtered matrix.
 
+    *matrix_dir* is the directory holding ``filtered_secondderiv``: a STARsolo
+    gene-model directory, or alevin-fry's ``alevin`` quant directory.
+
     Returns ``{}`` unless ``cellfilter_method = "second_derivative"`` was used, in
-    which case STARsolo's own ``filtered/`` directory is absent and these values
-    describe the cells that were actually retained.
+    which case the mapper's own cell set was replaced and these values describe
+    the cells that were actually retained.
     """
-    matches = sorted((gene_dir / "filtered_secondderiv").glob("*secondderiv_statistics.json"))
+    matches = sorted((matrix_dir / "filtered_secondderiv").glob("*secondderiv_statistics.json"))
     if not matches:
         return {}
 
@@ -772,6 +775,33 @@ def parse_alevinfry_sample(sample_root: Path) -> Dict[str, object]:
     if cell_summary.get("median_genes_per_cell") is not None:
         row["Median Genes per Cell"] = cell_summary["median_genes_per_cell"]
 
+    # ---- filtered_secondderiv : cells re-called after alevin-fry's own knee ----
+    # With cellfilter_method = "second_derivative" the quantified matrix was filtered
+    # again, so quant.json and cell_meta.tsv above describe a superset of the cells that
+    # were kept. Everything derived from the cell set is recomputed on the retained one.
+    alevin_dir = counts_dir / "alevin" if counts_dir is not None else None
+    sd_stats = load_secondderiv_stats(alevin_dir) if alevin_dir is not None else {}
+    if sd_stats:
+        if sd_stats.get("umi_threshold_applied") is not None:
+            row["UMI cutoff used for cell calling"] = int(sd_stats["umi_threshold_applied"])
+
+        for key, col_name in (
+            ("estimated_cells", "N cells"),
+            ("median_umis_per_cell", "Median UMI Counts per Cell"),
+            ("median_genes_per_cell", "Median Genes per Cell"),
+        ):
+            if sd_stats.get(key) is not None:
+                row[col_name] = int(round(float(sd_stats[key])))
+
+        # Genes with non-zero counts in the retained cells, unlike the reference-width
+        # count that quant.json yields, so it goes in the STARsolo-style column
+        if sd_stats.get("total_genes_detected") is not None:
+            row["Total Genes Detected"] = int(sd_stats["total_genes_detected"])
+
+        n_cells = sd_stats.get("estimated_cells")
+        if total_reads and n_cells:
+            row["Mean Reads per Cell"] = int(float(total_reads) / int(n_cells))
+
     return row
 
 
@@ -967,6 +997,11 @@ def process_star_samples(
             n_cells = sd_stats.get("estimated_cells")
             if n_reads and n_cells:
                 row["Mean Reads per Cell"] = str(int(float(n_reads) / int(n_cells)))
+
+            # Saturation is the duplication rate of the reads counted into the cells,
+            # so Summary.csv's value describes STARsolo's cell set, not this one
+            if sd_stats.get("sequencing_saturation") is not None:
+                row["Saturation"] = convert_to_pct(float(sd_stats["sequencing_saturation"]))
 
         read_stats = gene_dir / "CellReads.stats"
         creads = add_cellreads_metrics(read_stats, filt_barcodes)
