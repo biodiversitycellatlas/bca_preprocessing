@@ -13,7 +13,7 @@ process DOWNLOAD_DEMUXAFY_SIF {
     """
     echo "\n\n==================  DOWNLOAD DEMUXAFY SIF =================="
 
-    if [ -z "${params.demuxafy_sif}" ]; then
+    if [ -z "${params.demuxafy_sif}" ] || [ "${params.demuxafy_sif}" = "null" ]; then
         echo "No demuxafy_sif provided. Downloading Demuxafy.sif (~7.5GB, this can take 15-30 min)..."
         wget -q -O Demuxafy.sif '${sif_url}'
         wget -q -O Demuxafy.sif.md5 '${md5_url}'
