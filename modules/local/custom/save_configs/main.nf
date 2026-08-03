@@ -21,11 +21,11 @@ process SAVE_RUN_CONFIG {
     ${ params.keySet().sort()
         .collect { k -> "$k = ${params[k]}" }
         .join('\n') }
-    EOF
+EOF
 
     cat <<-END_VERSIONS > versions.yml
     "${task.process}":
         bash: \$(bash --version | head -n1 | sed 's/^GNU bash, version //; s/ .*\$//')
-    END_VERSIONS
+END_VERSIONS
     """
 }
