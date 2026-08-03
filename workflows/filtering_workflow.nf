@@ -100,9 +100,8 @@ workflow filtering_workflow {
             if (params.perform_doublet_detection) {
                 // Resolve the Demuxafy .sif image once per run: reuse params.demuxafy_sif if provided, otherwise download it
                 DOWNLOAD_DEMUXAFY_SIF()
-                def ch_demuxafy_sif = DOWNLOAD_DEMUXAFY_SIF.out.sif_path_file
+                ch_demuxafy_sif = DOWNLOAD_DEMUXAFY_SIF.out.sif_path_file
                     .map { it.text.trim() }
-                    .first()
 
                 MTX_TO_10X(ch_cell_called_matrices)
 

@@ -4,6 +4,7 @@ process DOWNLOAD_DEMUXAFY_SIF {
     label 'process_low'
 
     output:
+    path 'Demuxafy.sif', emit: sif_file
     path 'demuxafy_sif_path.txt', emit: sif_path_file
 
     script:
@@ -24,10 +25,13 @@ process DOWNLOAD_DEMUXAFY_SIF {
             exit 1
         fi
 
-        echo "\$(pwd)/Demuxafy.sif" > demuxafy_sif_path.txt
+        # Output the absolute path to the published location
+        echo "${params.outdir}/containers/demuxafy/Demuxafy.sif" > demuxafy_sif_path.txt
     else
         echo "Using existing Demuxafy.sif: ${params.demuxafy_sif}"
         echo "${params.demuxafy_sif}" > demuxafy_sif_path.txt
+        # If params.demuxafy_sif is provided, copy it to the work directory
+        cp "${params.demuxafy_sif}" Demuxafy.sif
     fi
     """
 }
