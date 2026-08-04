@@ -2,7 +2,7 @@ process PAVIAN {
     publishDir "${params.outdir}/kraken", mode: 'copy'
     label 'process_single'
 
-    conda "${projectDir}/work/envs/pavian"
+    conda "${moduleDir}/environment.yml"
 
     input:
     path(kraken_out)
