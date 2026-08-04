@@ -23,7 +23,7 @@ process SCDBLFINDER {
     # scDblFinder.R doesn't create its own output directory before writing into it.
     mkdir -p scdblfinder_out
 
-    scDblFinder.R -o scdblfinder_out -t ${tenx_dir} ""
+    scDblFinder.R -o scdblfinder_out -t ${tenx_dir}
 
     mv scdblfinder_out/scDblFinder_doublets_singlets.tsv ${meta.id}_scDblFinder_results.tsv
     if [ -f scdblfinder_out/scDblFinder_doublet_summary.tsv ]; then
