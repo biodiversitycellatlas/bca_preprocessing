@@ -140,9 +140,9 @@ In the table below, the available variables are summarized:
 | Variable | Required/Optional | Description |
 | -------------- | ----------------- | ----------------------------------------------------------------------------------------------------------------------------------------------------------------------- |
 | sample | **Required** | Must be unique unless you want the FASTQ files to be merged after demultiplexing. |
-| fastq_cDNA | **Required** | Path to the FASTQ file containing cDNA |
-| fastq_CB_UMI | **Required** | Path to the FASTQ file containing the cell barcode & UMI |
-| fastq_indices | Optional | Path to the FASTQ index file(s), to provide both I1 and I2, use an asterisk to the path like /path/name_I\* |
+| fastq_cDNA | **Required** | Path to the FASTQ file containing cDNA. Uncompressed (`.fastq`/`.fq`) and gzipped (`.fastq.gz`/`.fq.gz`) files are both accepted, and may be mixed within a sample. |
+| fastq_CB_UMI | **Required** | Path to the FASTQ file containing the cell barcode & UMI. Uncompressed and gzipped files are both accepted. |
+| fastq_indices | Optional | Path to the FASTQ index file(s), to provide both I1 and I2, use an asterisk to the path like /path/name_I\*. Uncompressed and gzipped files are both accepted. |
 | expected_cells | **Required** | Number of expected cells |
 | p5 | Optional | Only required for sci-RNA-seq3 |
 | p7 | Optional | Only required for sci-RNA-seq3 |

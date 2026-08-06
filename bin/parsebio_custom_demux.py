@@ -48,6 +48,12 @@ def parse_well_range(rng_str):
 
     return wells
 
+def open_fastq(path: str):
+    """Open a FASTQ for reading as text, gzipped or not (detected from the magic bytes)."""
+    with open(path, "rb") as probe:
+        is_gzipped = probe.read(2) == b"\x1f\x8b"
+    return gzip.open(path, "rt") if is_gzipped else open(path, "rt")
+
 def deduce_fq2(fq1: str) -> str:
     """Replace last 'R1' with 'R2' to infer R2 filename."""
     parts = fq1.split("R1")
@@ -122,7 +128,7 @@ def best_matches_all(bc: str, wl_seqs: Iterable[str], max_ed: int = 2) -> Tuple[
 
 def fastq_pairs(fq1: str, fq2: str):
     """Yield paired FASTQ records as (r1_lines, r2_lines) 4-tuples; stops at EOF."""
-    with gzip.open(fq1, "rt") as f1, gzip.open(fq2, "rt") as f2:
+    with open_fastq(fq1) as f1, open_fastq(fq2) as f2:
         while True:
             r1 = [f1.readline() for _ in range(4)]
             r2 = [f2.readline() for _ in range(4)]
@@ -198,8 +204,8 @@ def main():
     """Parse args, run splitter, print stats and output paths."""
     ap = argparse.ArgumentParser(description="Split FASTQs by group with edit-distance barcode matching (≤2).")
     ap.add_argument("--sample_id", required=True, help="Sample ID used in output filenames.")
-    ap.add_argument("--fq1", required=True, help="Input R1 FASTQ.GZ.")
-    ap.add_argument("--fq2", help="Input R2 FASTQ.GZ; inferred from R1 if omitted.")
+    ap.add_argument("--fq1", required=True, help="Input R1 FASTQ, plain or gzipped.")
+    ap.add_argument("--fq2", help="Input R2 FASTQ, plain or gzipped; inferred from R1 if omitted.")
     ap.add_argument("--whitelist", required=True, help="CSV (bci,sequence,uid,well,stype).")
     ap.add_argument("--group", nargs=2, metavar=("SAMPLE", "WELLS"),
                     help="Sample name and well range (same row), e.g., MYRUN A1-A6.")
