@@ -25,7 +25,7 @@ process DOWNLOAD_DEMUXAFY_SIF {
             exit 1
         fi
 
-        # Output the absolute path to the published location
+        # Record where the image ends up, so it can be passed to --demuxafy_sif on a later run.
         echo "${params.outdir}/containers/demuxafy/Demuxafy.sif" > demuxafy_sif_path.txt
     else
         echo "Using existing Demuxafy.sif: ${params.demuxafy_sif}"

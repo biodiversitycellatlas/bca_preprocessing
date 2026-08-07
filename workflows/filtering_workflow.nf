@@ -98,10 +98,13 @@ workflow filtering_workflow {
         } else if (params.ambient_rna_remover == "cellsweep") {
 
             if (params.perform_doublet_detection) {
+                
                 // Resolve the Demuxafy .sif image once per run: reuse params.demuxafy_sif if provided, otherwise download it
                 DOWNLOAD_DEMUXAFY_SIF()
-                ch_demuxafy_sif = DOWNLOAD_DEMUXAFY_SIF.out.sif_path_file
-                    .map { it.text.trim() }
+
+                // Mount the .sif straight from the task work directory
+                ch_demuxafy_sif = DOWNLOAD_DEMUXAFY_SIF.out.sif_file
+                    .map { it.toRealPath().toString() }
 
                 MTX_TO_10X(ch_cell_called_matrices)
 
