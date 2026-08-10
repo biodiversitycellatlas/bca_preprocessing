@@ -1245,8 +1245,7 @@
             const sampleId = sample.sample_id;
 
             // When the pipeline ran the second-derivative cell calling, show that curve:
-            // it is the one the count matrices were actually filtered on. Recomputing it
-            // in the browser would drift from the cutoff that was applied.
+            // it is the one the count matrices were actually filtered on.
             const sd = loadSecondDeriv(sampleId);
             if (sd && Array.isArray(sd.logX) && sd.logX.length > 0) {
                 plotSecondDerivative({
@@ -1276,74 +1275,96 @@
                 return;
             }
 
-            // --- CONSTANTS ---
-            const UMI_MIN_THRESHOLD = 10;   // Minimum reads
-            const SMOOTHING_WINDOW = 200;   // Window size for moving average
-            const TRIM_EDGE = 15;           // Edge trimming for minima detection
+            // Same defaults as bin/secondderiv_cellcalling.py
+            const MIN_UMIS = 100;           
+            const MIN_POINTS = 10;
+            const GRID_POINTS = 2000;       
+            const SMOOTH_FRACTION = 0.02;  
+            const SEARCH_LO_FACTOR = 0.1;   
+            const SEARCH_HI_FACTOR = 10.0; 
 
-            // --- DATA PREPARATION ---
-            // Sort descending
-            const sorted = [...rawUmis].sort((a, b) => b - a);
+            const filtered = [...rawUmis].sort((a, b) => b - a).filter(v => v >= MIN_UMIS);
+            const n = filtered.length;
 
-            // Apply initial UMI filter
-            const filtered = sorted.filter(v => v >= UMI_MIN_THRESHOLD);
-
-            if (filtered.length < (TRIM_EDGE * 2)) {
-                document.getElementById("kneeplot").innerHTML = "<p>Not enough data points > 10 UMIs</p>";
+            if (n < MIN_POINTS) {
+                document.getElementById("kneeplot").innerHTML =
+                    `<p>Too few barcodes above ${MIN_UMIS} UMIs for reliable cutoff detection (${n} found).</p>`;
                 return;
             }
 
-            // Prepare math arrays
             const ranks = filtered.map((_, i) => i + 1);
-            let cumSum = [];
-            let curr = 0;
-            for (let val of filtered) { curr += val; cumSum.push(curr); }
-
             const logX = ranks.map(r => Math.log10(r));
-            const logY = cumSum.map(c => Math.log10(c));
+            const logY = [];
+            let running = 0;
+            for (const val of filtered) { running += val; logY.push(Math.log10(running)); }
 
-            // --- DERIVATIVE CALCULATIONS ---
-            // 1st Derivative
-            let d1 = [];
-            for (let i = 0; i < logX.length - 1; i++) {
-                d1.push((logY[i + 1] - logY[i]) / (logX[i + 1] - logX[i]));
+            const nGrid = Math.max(50, Math.min(GRID_POINTS, n));
+            const smoothWindow = Math.max(3, Math.floor(nGrid * SMOOTH_FRACTION) | 1);
+
+            // Resample onto a grid uniform in log10(rank) before differentiating. Indexed
+            // by rank, the spacing of log10(rank) collapses as ~1/rank towards the tail, so
+            // differentiating against it amplifies the integer quantisation of the UMI
+            // counts in proportion to rank and buries the knee under tail noise.
+            const gridX = [], gridYRaw = [];
+            const step = (logX[n - 1] - logX[0]) / (nGrid - 1);
+            let lo = 0;
+            for (let i = 0; i < nGrid; i++) {
+                const x = i === nGrid - 1 ? logX[n - 1] : logX[0] + i * step;
+                while (lo < n - 2 && logX[lo + 1] < x) lo++;
+                const span = logX[lo + 1] - logX[lo];
+                const t = span > 0 ? (x - logX[lo]) / span : 0;
+                gridX.push(x);
+                gridYRaw.push(logY[lo] + t * (logY[lo + 1] - logY[lo]));
+            }
+            const gridY = movingAverage(gridYRaw, smoothWindow);
+
+            const d2 = gradient(gradient(gridY, gridX), gridX);
+            const gridRanks = gridX.map(v => Math.pow(10, v));
+
+            // Bound the search to a window around the expected cell count: the cumulative
+            // curve of a sample with a deep ambient tail keeps bending well past the real
+            // cells, so an unbounded search settles out in the empty droplets.
+            const expectedCells = parseInt(
+                String((sample.cell_calling && sample.cell_calling.expected_cells) || "")
+                    .replace(/[^0-9]/g, ""), 10);
+            const haveExpected = Number.isFinite(expectedCells) && expectedCells > 0;
+
+            const trimmed = [];
+            for (let i = smoothWindow; i < d2.length - smoothWindow; i++) trimmed.push(i);
+
+            let searchable = [];
+            if (haveExpected) {
+                searchable = trimmed.filter(i =>
+                    gridRanks[i] >= expectedCells * SEARCH_LO_FACTOR &&
+                    gridRanks[i] <= expectedCells * SEARCH_HI_FACTOR);
+            }
+            const bounded = searchable.length > 0;
+            if (!bounded) {
+                searchable = trimmed.length ? trimmed : d2.map((_, i) => i);
             }
 
-            // 2nd Derivative
-            let d2 = [];
-            for (let i = 0; i < d1.length - 1; i++) {
-                d2.push((d1[i + 1] - d1[i]) / (logX[i + 1] - logX[i]));
+            let selectedIdx = searchable[0];
+            for (const i of searchable) {
+                if (d2[i] < d2[selectedIdx]) selectedIdx = i;
             }
 
-            // Smoothing (Python: np.convolve(data, ones/window, mode='same'))
-            const smoothed2nd = movingAverage(d2, SMOOTHING_WINDOW);
-
-            // --- MINIMA DETECTION ---
-            const maxVal = Math.max(...smoothed2nd);
-            const plotCurve = smoothed2nd.map(v => v - maxVal);
-
-            let selectedIdx = 0;
-
-            // Search_area = smoothed_2nd[trim_edge:-trim_edge]
-            let minVal = Infinity;
-            // Search within the trimmed bounds
-            for (let i = TRIM_EDGE; i < smoothed2nd.length - TRIM_EDGE; i++) {
-                if (smoothed2nd[i] < minVal) {
-                    minVal = smoothed2nd[i];
-                    selectedIdx = i;
-                }
-            }
+            // Back from the grid to an actual barcode rank, then to the UMI count there.
+            const cutoffRank = Math.min(Math.max(Math.round(gridRanks[selectedIdx]), 1), n);
+            const maxD2 = Math.max(...d2);
 
             plotSecondDerivative({
                 logX: logX,
                 logY: logY,
                 customdata: filtered.map((reads, i) => [ranks[i], reads]),
-                derivX: logX.slice(1, -1),
-                derivY: plotCurve,
-                cutX: logX[selectedIdx],
-                cutY: logY[selectedIdx],
-                cutUmis: filtered[selectedIdx],
-                note: null,
+                derivX: gridX,
+                derivY: d2.map(v => v - maxD2),
+                cutX: logX[cutoffRank - 1],
+                cutY: logY[cutoffRank - 1],
+                cutUmis: filtered[cutoffRank - 1],
+                note: bounded ? null
+                    : "No expected cell count for this sample, so the knee was searched for "
+                      + "across the whole curve; on a deep ambient tail that can pick a cutoff "
+                      + "far from the real cells.",
                 applied: false
             });
         }
@@ -1451,22 +1472,38 @@
             }, { responsive: true });
         }
 
+        /* Centred moving average with the end points replicated into the window, matching
+           moving_average() in bin/secondderiv_cellcalling.py. Shrinking the window at the
+           edges instead would weight them differently from the Python side and shift the
+           knee the two are supposed to agree on. */
         function movingAverage(data, size) {
-            let res = [];
-            const halfWindow = Math.floor(size / 2);
-
+            if (size < 3) return [...data];
+            const pad = Math.floor(size / 2);
+            const res = [];
             for (let i = 0; i < data.length; i++) {
-                // Define window bounds ensuring we stay within array limits
-                let start = Math.max(0, i - halfWindow);
-                let end = Math.min(data.length, i + halfWindow + 1);
-
                 let sum = 0;
-                for (let j = start; j < end; j++) {
+                for (let k = -pad; k <= pad; k++) {
+                    const j = Math.min(Math.max(i + k, 0), data.length - 1);
                     sum += data[j];
                 }
-                res.push(sum / (end - start));
+                res.push(sum / (pad * 2 + 1));
             }
             return res;
+        }
+
+        /* First derivative by central differences, matching np.gradient on the uniform
+           log10(rank) grid the curve is resampled onto (for uniform spacing np.gradient's
+           general formula reduces to exactly this). */
+        function gradient(y, x) {
+            const len = y.length;
+            const h = x[1] - x[0];
+            const out = new Array(len);
+            out[0] = (y[1] - y[0]) / h;
+            out[len - 1] = (y[len - 1] - y[len - 2]) / h;
+            for (let i = 1; i < len - 1; i++) {
+                out[i] = (y[i + 1] - y[i - 1]) / (2 * h);
+            }
+            return out;
         }
 
         /**********************************************************************

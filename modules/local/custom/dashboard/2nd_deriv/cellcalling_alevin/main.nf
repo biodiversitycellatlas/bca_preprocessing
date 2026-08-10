@@ -15,6 +15,7 @@ process SECONDDERIV_CELLCALLING_ALEVIN {
 
     script:
     def usa_counts = params.alevin_usa_counts ?: 'SUA'
+    def expected_cells_arg = meta.expected_cells ? "-e ${meta.expected_cells}" : ""
     """
     secondderiv_alevin.py umis \\
         -d ${alevin_mtx_dir} \\
@@ -25,6 +26,7 @@ process SECONDDERIV_CELLCALLING_ALEVIN {
         -i ${meta.id}_alevin_UMIperCellSorted.txt \\
         -s ${meta.id} \\
         -o ${meta.id}_knee_data.json \\
-        -c ${meta.id}_cutoff.txt
+        -c ${meta.id}_cutoff.txt \\
+        ${expected_cells_arg}
     """
 }

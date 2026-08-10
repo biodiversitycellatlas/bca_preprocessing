@@ -24,6 +24,7 @@ logging.basicConfig(
 logger = logging.getLogger("RunScrublet")
 
 FALLBACK_PERCENTILE = 90
+BOOTSTRAP_THRESHOLD = 1.0
 BARCODE_COL = "Barcode"
 CLASS_COL = "scrublet_DropletType"
 SCORE_COL = "scrublet_Scores"
@@ -100,7 +101,21 @@ def main():
 
     outdir = Path(args.outdir)
     outdir.mkdir(parents=True, exist_ok=True)
-    run_scrublet(args.counts_matrix, outdir, filtered_barcodes=args.filtered_barcodes)
+
+    try:
+        run_scrublet(args.counts_matrix, outdir, filtered_barcodes=args.filtered_barcodes)
+    except subprocess.CalledProcessError:
+        # When Scrublet finds no bimodal split it warns and returns without setting
+        # threshold_, which crashes Scrublet.py's unconditional plot_histogram() before
+        # it writes any results. Re-run with an explicit threshold so the scores get
+        # written; that leaves 0% doublets, which the fallback below then re-thresholds.
+        logger.warning(
+            f"[{args.sample_id}] Scrublet.py failed, most likely because its automatic "
+            f"threshold detection found no bimodal split. Re-running with a bootstrap "
+            f"threshold of {BOOTSTRAP_THRESHOLD} to recover the doublet scores."
+        )
+        run_scrublet(args.counts_matrix, outdir, threshold=BOOTSTRAP_THRESHOLD,
+                     filtered_barcodes=args.filtered_barcodes)
 
     results_path = outdir / "scrublet_results.tsv"
     restrict_to_filtered_barcodes(results_path, args.filtered_barcodes)

@@ -13,11 +13,13 @@ process SECONDDERIV_CELLCALLING {
     tuple val(meta), path("${meta.id}_cutoff.txt"),         emit: cutoff
 
     script:
+    def expected_cells_arg = meta.expected_cells ? "-e ${meta.expected_cells}" : ""
     """
     secondderiv_cellcalling.py \\
         -i ${umiPerCell_sorted} \\
         -s ${meta.id} \\
         -o ${meta.id}_knee_data.json \\
-        -c ${meta.id}_cutoff.txt
+        -c ${meta.id}_cutoff.txt \\
+        ${expected_cells_arg}
     """
 }
