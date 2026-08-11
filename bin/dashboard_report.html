@@ -689,18 +689,26 @@
         /**********************************************************************
          * JSON LOADING
          **********************************************************************/
-        function loadEmbeddedJSON(id) {
-            const el = document.getElementById(id);
-            if (!el) return null;
+        /* Parsed blocks are cached: the per-cell and knee payloads are the two
+           largest ones in the document, and these are re-read on every tab and
+           sample switch. */
+        const _jsonCache = new Map();
 
-            try {
-                const txt = el.textContent.trim();
-                if (!txt || txt.startsWith("__")) return null;
-                return JSON.parse(txt);
-            } catch (e) {
-                console.error("Invalid JSON in", id, e);
-                return null;
+        function loadEmbeddedJSON(id) {
+            if (_jsonCache.has(id)) return _jsonCache.get(id);
+
+            let parsed = null;
+            const el = document.getElementById(id);
+            if (el) {
+                try {
+                    const txt = el.textContent.trim();
+                    if (txt && !txt.startsWith("__")) parsed = JSON.parse(txt);
+                } catch (e) {
+                    console.error("Invalid JSON in", id, e);
+                }
             }
+            _jsonCache.set(id, parsed);
+            return parsed;
         }
 
         /**********************************************************************
@@ -1120,9 +1128,29 @@
             renderKneePlot(sample);
         }
 
-        function loadKneeUMIs(sampleId) {
-            const knee = loadEmbeddedJSON("knee-data");
-            return knee ? knee[sampleId] : null;
+        /* The barcode-rank curve, thinned uniformly in log10(rank) by
+           build_knee_payload() in bin/generate_dashboard.py. Every retained point
+           carries its true rank and the cumulative UMI total up to it, so both
+           the rank plot and the second-derivative fallback below are exact at the
+           points they draw. `n_barcodes` / `n_above_min` are the untruncated
+           counts. Reports written before the payload gained its shape embedded a
+           bare array of UMI counts. */
+        function loadKnee(sampleId) {
+            const all = loadEmbeddedJSON("knee-data");
+            const entry = all ? all[sampleId] : null;
+            if (!entry) return null;
+            if (Array.isArray(entry)) {
+                const sorted = [...entry].sort((a, b) => b - a);
+                return {
+                    ranks: sorted.map((_, i) => i + 1),
+                    umis: sorted,
+                    cum: null,
+                    n_barcodes: sorted.length,
+                    n_above_min: null,
+                    min_umis: null
+                };
+            }
+            return entry;
         }
 
         /* Pre-computed second-derivative cell calling, emitted by the pipeline when
@@ -1142,11 +1170,12 @@
         function renderKneePlot(sample) {
             const sampleId = sample.sample_id;
             const c = sample.cell_calling;
-            const yAll = loadKneeUMIs(sampleId);
+            const knee = loadKnee(sampleId);
 
-            if (!yAll || yAll.length === 0) return;
+            if (!knee || !knee.umis || knee.umis.length === 0) return;
 
-            const xAll = Array.from({ length: yAll.length }, (_, i) => i + 1);
+            const yAll = knee.umis;
+            const xAll = knee.ranks;
 
             // Split on the threshold the matrices were filtered on
             const sdCutoff = secondDerivCutoff(sample);
@@ -1270,37 +1299,55 @@
                 return;
             }
 
-            const rawUmis = loadKneeUMIs(sampleId);
+            const knee = loadKnee(sampleId);
 
-            if (!rawUmis || rawUmis.length === 0) {
+            if (!knee || !knee.umis || knee.umis.length === 0) {
                 document.getElementById("kneeplot").innerHTML = "<p>No data available</p>";
                 return;
             }
 
             // Same defaults as bin/secondderiv_cellcalling.py
-            const MIN_UMIS = 100;           
+            const MIN_UMIS = 100;
             const MIN_POINTS = 10;
-            const GRID_POINTS = 2000;       
-            const SMOOTH_FRACTION = 0.02;  
-            const SEARCH_LO_FACTOR = 0.1;   
-            const SEARCH_HI_FACTOR = 10.0; 
+            const GRID_POINTS = 2000;
+            const SMOOTH_FRACTION = 0.02;
+            const SEARCH_LO_FACTOR = 0.1;
+            const SEARCH_HI_FACTOR = 10.0;
 
-            const filtered = [...rawUmis].sort((a, b) => b - a).filter(v => v >= MIN_UMIS);
-            const n = filtered.length;
+            /* The curve is thinned, so its retained points are a subset of the
+               barcodes above the UMI floor. `nBarcodes` is how many there really
+               are, which is what sizes the grid and bounds the cutoff rank;
+               `ranks` / `logY` are exact at the points that were kept, because
+               each carries its own rank and cumulative UMI total. */
+            const minUmis = knee.min_umis != null ? knee.min_umis : MIN_UMIS;
+            const kept = [];
+            for (let i = 0; i < knee.umis.length; i++) {
+                if (knee.umis[i] >= minUmis) kept.push(i);
+            }
+            const nBarcodes = knee.n_above_min != null ? knee.n_above_min : kept.length;
 
-            if (n < MIN_POINTS) {
+            if (nBarcodes < MIN_POINTS || kept.length < 2) {
                 document.getElementById("kneeplot").innerHTML =
-                    `<p>Too few barcodes above ${MIN_UMIS} UMIs for reliable cutoff detection (${n} found).</p>`;
+                    `<p>Too few barcodes above ${minUmis} UMIs for reliable cutoff detection (${nBarcodes} found).</p>`;
                 return;
             }
 
-            const ranks = filtered.map((_, i) => i + 1);
+            const ranks = kept.map(i => knee.ranks[i]);
+            const umisKept = kept.map(i => knee.umis[i]);
             const logX = ranks.map(r => Math.log10(r));
+            /* Cumulative totals come from the generator when it has them; the
+               legacy bare-array payload carries the whole curve, so summing the
+               retained values there is the same thing. */
             const logY = [];
-            let running = 0;
-            for (const val of filtered) { running += val; logY.push(Math.log10(running)); }
+            if (knee.cum) {
+                for (const i of kept) logY.push(Math.log10(knee.cum[i]));
+            } else {
+                let running = 0;
+                for (const v of umisKept) { running += v; logY.push(Math.log10(running)); }
+            }
+            const n = ranks.length;
 
-            const nGrid = Math.max(50, Math.min(GRID_POINTS, n));
+            const nGrid = Math.max(50, Math.min(GRID_POINTS, nBarcodes));
             const smoothWindow = Math.max(3, Math.floor(nGrid * SMOOTH_FRACTION) | 1);
 
             // Resample onto a grid uniform in log10(rank) before differentiating. Indexed
@@ -1351,18 +1398,23 @@
             }
 
             // Back from the grid to an actual barcode rank, then to the UMI count there.
-            const cutoffRank = Math.min(Math.max(Math.round(gridRanks[selectedIdx]), 1), n);
+            const cutoffRank = Math.min(Math.max(Math.round(gridRanks[selectedIdx]), 1), nBarcodes);
+            // ...and from that rank to the retained point at or below it. Ranks up
+            // to the head of the curve are all kept, so this is the exact barcode
+            // whenever the cutoff falls among the called cells.
+            let cutIdx = 0;
+            while (cutIdx < n - 1 && ranks[cutIdx + 1] <= cutoffRank) cutIdx++;
             const maxD2 = Math.max(...d2);
 
             plotSecondDerivative({
                 logX: logX,
                 logY: logY,
-                customdata: filtered.map((reads, i) => [ranks[i], reads]),
+                customdata: ranks.map((r, i) => [r, umisKept[i]]),
                 derivX: gridX,
                 derivY: d2.map(v => v - maxD2),
-                cutX: logX[cutoffRank - 1],
-                cutY: logY[cutoffRank - 1],
-                cutUmis: filtered[cutoffRank - 1],
+                cutX: logX[cutIdx],
+                cutY: logY[cutIdx],
+                cutUmis: umisKept[cutIdx],
                 note: bounded ? null
                     : "No expected cell count for this sample, so the knee was searched for "
                       + "across the whole curve; on a deep ambient tail that can pick a cutoff "
@@ -1598,6 +1650,16 @@
             const hasIsCell = Object.prototype.hasOwnProperty.call(rawData, "IsCell");
             const isCell = d => hasIsCell ? Boolean(d.IsCell) : d.TotalReads > threshold;
 
+            /* Every called cell is plotted; the non-cell cloud is thinned by a
+               fixed stride when it runs into the hundreds of thousands, since
+               beyond that the markers only overplot each other. The legend says
+               so rather than silently showing a subset. */
+            const sampling = sample.per_cell_sampling;
+            const thinned = sampling && sampling.noncells_shown < sampling.noncells_total;
+            const nonCellName = thinned
+                ? `Non-Cell (${sampling.noncells_shown.toLocaleString()} of ${sampling.noncells_total.toLocaleString()} shown)`
+                : "Non-Cell";
+
             combos.forEach(c => {
                 Plotly.purge(c.id);
 
@@ -1609,7 +1671,7 @@
                     y: below.map(d => d[c.y]),
                     mode: "markers",
                     type: "scattergl",
-                    name: "Non-Cell",
+                    name: nonCellName,
                     marker: { color: "lightgrey", size: 4, opacity: 0.6 }
                 };
 

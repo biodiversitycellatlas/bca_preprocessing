@@ -37,6 +37,8 @@ process GENERATE_DASHBOARD {
     # Execute the python dashboard generator
     generate_dashboard.py \\
         --project "bca_preprocessing" \\
+        --version "${workflow.manifest.version}" \\
+        --commit "${workflow.commitId ?: 'N/A'}" \\
         --samplesheet ${samplesheet} \\
         --template ${projectDir}/bin/dashboard_report.html \\
         --run_config ${run_config} \\

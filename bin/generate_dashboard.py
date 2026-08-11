@@ -18,6 +18,7 @@ import csv
 import datetime
 import glob
 import json
+import math
 import os
 import re
 import sys
@@ -50,6 +51,35 @@ _SANKEY_ROOTS: List[str] = ["kraken", "taxonomy"]
 
 # Suffixes alevin-fry appends to the spliced / unspliced / ambiguous column blocks of a USA-mode count matrix.
 _USA_SUFFIX_RE = re.compile(r"-[SUA]$")
+
+# ── Payload budgets ──────────────────────────────────────────────────────────
+# The report embeds every curve it draws as JSON inside the HTML, so its size is
+# driven by the number of *barcodes*, not the number of samples: a deeply
+# sequenced library has millions of barcodes with at least one UMI, and writing
+# one JSON number per barcode per series runs into hundreds of MB.  The budgets
+# below cap each series at the point where adding more data stops changing the
+# picture -- the barcode-rank and cumulative curves are drawn on log axes, where
+# a curve thinned uniformly in log10(rank) is indistinguishable from the full
+# one, and the per-cell scatters saturate their pixels long before the full
+# ambient cloud is drawn.  Every number that the dashboard *reports* (cell
+# counts, medians, thresholds) is computed upstream on the complete data and is
+# unaffected by this thinning.
+_KNEE_MAX_POINTS: int = 3000        # barcode-rank curve, drawn on log-log axes
+_KNEE_HEAD_RANKS: int = 500         # leading ranks kept untouched (the called cells)
+_SD_MAX_POINTS:   int = 3000        # second-derivative cumulative-UMI curve
+_PERCELL_MAX_NONCELLS: int = 50000  # grey background cloud of the per-cell scatters
+
+# Minimum UMIs per barcode considered by the second-derivative cell calling;
+# must match MIN_UMIS in bin/secondderiv_cellcalling.py.
+_SD_MIN_UMIS: int = 100
+
+# Per-cell metric columns the report actually plots.  ``Cell`` (the barcode
+# string) is dropped from the embedded copy -- nothing reads it, and it is the
+# single widest column.  The published *_metrics.csv / *_metrics.json keep it.
+_PERCELL_COLUMNS: List[str] = [
+    "IntronicPercent", "MTPercent", "rRNAPercent", "TotalReads", "IsCell",
+]
+_PERCELL_PCT_COLUMNS: List[str] = ["IntronicPercent", "MTPercent", "rRNAPercent"]
 
 
 # ---------------------------------------------------------------------------
@@ -416,6 +446,242 @@ def count_alevin_genes(quant: Dict[str, Any], cols_path: Optional[str]) -> Any:
     if quant.get("usa_mode") and n_cols % 3 == 0:
         return n_cols // 3
     return n_cols
+
+
+def manifest_version() -> Optional[str]:
+    """Read ``manifest.version`` from the pipeline's ``nextflow.config``.
+
+    Pipeline mode gets the version from Nextflow itself (``--version``); this is
+    the standalone-mode fallback, and keeps the two in step without a second
+    place to bump.  ``nextflow.config`` sits one level above ``bin/``, where this
+    script lives.  Returns ``None`` when it cannot be read.
+    """
+    config_path = os.path.join(
+        os.path.dirname(os.path.dirname(os.path.abspath(__file__))), "nextflow.config"
+    )
+    try:
+        with open(config_path, "r") as fh:
+            content = fh.read()
+    except Exception:
+        return None
+    match = re.search(
+        r"manifest\s*\{.*?\bversion\s*=\s*['\"]([^'\"]+)['\"]",
+        content, re.DOTALL,
+    )
+    return match.group(1) if match else None
+
+
+# ---------------------------------------------------------------------------
+# Curve thinning
+# ---------------------------------------------------------------------------
+
+def _log_spaced_indices(n: int, max_points: int, head: int = 0) -> List[int]:
+    """Indices into a length-*n* sequence, thinned uniformly in ``log10(rank)``.
+
+    The first *head* indices and the final index are always kept; the remaining
+    budget is spread evenly in log10 of the rank, which is the axis these curves
+    are drawn against.  The result is sorted and free of duplicates, so it may be
+    shorter than *max_points*.
+
+    Returns every index when the sequence already fits within the budget.
+    """
+    if n <= 0:
+        return []
+    if n <= max_points:
+        return list(range(n))
+
+    head = max(0, min(head, n))
+    keep = set(range(head))
+    keep.add(n - 1)
+
+    budget = max(max_points - len(keep), 2)
+    lo = math.log10(max(head, 1))
+    hi = math.log10(n)
+    for i in range(budget):
+        rank = 10.0 ** (lo + (hi - lo) * i / (budget - 1))
+        keep.add(min(max(int(round(rank)) - 1, 0), n - 1))
+    return sorted(keep)
+
+
+def build_knee_payload(path: Optional[str]) -> Optional[Dict[str, Any]]:
+    """Read a ``UMIperCellSorted.txt`` into a thinned, plot-ready barcode-rank curve.
+
+    The file holds one UMI count per barcode, which for a deeply sequenced sample
+    is millions of lines.  Only ``_KNEE_MAX_POINTS`` of them are embedded, chosen
+    by :func:`_log_spaced_indices`, and each retained point carries its true rank
+    plus the cumulative UMI total up to that rank.  Carrying the exact rank and
+    cumulative sum is what makes the thinning safe: the report reconstructs both
+    the barcode-rank plot and the client-side second-derivative curve from these
+    points without ever needing the ones in between.
+
+    Returns ``None`` when the file is missing or holds no counts.  The payload:
+
+    ``ranks`` / ``umis`` / ``cum``
+        Parallel arrays over the retained barcodes (1-based rank, UMI count,
+        cumulative UMIs up to and including that rank).
+    ``n_barcodes``
+        Total barcodes in the file, before thinning.
+    ``n_above_min``
+        Barcodes with at least ``min_umis`` UMIs -- the length of the curve the
+        second-derivative cell calling operates on.
+    ``min_umis``
+        The floor that count was taken at.
+    """
+    if not path or not os.path.exists(path):
+        return None
+    try:
+        with open(path, "r") as fh:
+            umis = [int(s) for s in (line.strip() for line in fh) if s.isdigit()]
+    except Exception:
+        return None
+    if not umis:
+        return None
+
+    # The file is emitted sorted, but the rank axis only means anything if it is
+    umis.sort(reverse=True)
+    n = len(umis)
+    n_above_min = sum(1 for v in umis if v >= _SD_MIN_UMIS)
+
+    keep = set(_log_spaced_indices(n, _KNEE_MAX_POINTS, _KNEE_HEAD_RANKS))
+    # The last barcode above the floor bounds the second-derivative curve, so the
+    # client reaches the same end point as if it had the untruncated data
+    if n_above_min:
+        keep.add(n_above_min - 1)
+
+    ranks: List[int] = []
+    values: List[int] = []
+    cum: List[int] = []
+    running = 0
+    for i, val in enumerate(umis):
+        running += val
+        if i in keep:
+            ranks.append(i + 1)
+            values.append(val)
+            cum.append(running)
+
+    return {
+        "ranks":       ranks,
+        "umis":        values,
+        "cum":         cum,
+        "n_barcodes":  n,
+        "n_above_min": n_above_min,
+        "min_umis":    _SD_MIN_UMIS,
+    }
+
+
+def thin_secondderiv_curve(entry: Dict[str, Any]) -> Dict[str, Any]:
+    """Thin the cumulative-UMI curve of a ``*_knee_data.json`` payload.
+
+    ``logX`` / ``logY`` / ``customdata`` carry one point per barcode above the
+    UMI floor; the derivative arrays are already resampled onto a fixed grid by
+    ``secondderiv_cellcalling.py`` and are left alone.  Points are picked in
+    log10(rank), the curve's own x axis, and the floats are rounded to 6 decimals
+    -- far below one screen pixel on a plot spanning a handful of log units.
+    """
+    log_x = entry.get("logX")
+    if not isinstance(log_x, list) or not log_x:
+        return entry
+
+    log_y      = entry.get("logY") or []
+    customdata = entry.get("customdata") or []
+    idx = _log_spaced_indices(len(log_x), _SD_MAX_POINTS, _KNEE_HEAD_RANKS)
+
+    thinned = dict(entry)
+    thinned["logX"] = [round(log_x[i], 6) for i in idx]
+    if len(log_y) == len(log_x):
+        thinned["logY"] = [round(log_y[i], 6) for i in idx]
+    if len(customdata) == len(log_x):
+        thinned["customdata"] = [customdata[i] for i in idx]
+    if isinstance(entry.get("derivX"), list):
+        thinned["derivX"] = [round(v, 6) for v in entry["derivX"]]
+    if isinstance(entry.get("derivY"), list):
+        thinned["derivY"] = [round(v, 6) for v in entry["derivY"]]
+    return thinned
+
+
+def build_per_cell_payload(
+    path: Optional[str],
+    umi_threshold: Any,
+) -> Tuple[Optional[Dict[str, List]], Optional[Dict[str, int]]]:
+    """Load a per-cell metrics JSON and cut it down to what the scatters plot.
+
+    The file is column-oriented with one entry per barcode carrying at least one
+    read -- millions of them on a deeply sequenced sample, and by far the largest
+    contributor to the report's size.  Two reductions are applied:
+
+    * the ``Cell`` barcode strings are dropped, since no plot reads them;
+    * every called cell is kept, while the non-cell background cloud is thinned
+      by a fixed stride down to ``_PERCELL_MAX_NONCELLS`` points.
+
+    The six scatters draw the non-cells as 4px translucent markers, so past a few
+    tens of thousands they overplot into a solid shape whose outline and density
+    gradient a uniform stride preserves exactly.  Barcodes appear in whitelist
+    order, which is unrelated to any metric, so the stride is an unbiased sample.
+
+    Cells are identified by ``IsCell`` -- membership of the filtered matrix --
+    falling back to ``TotalReads > umi_threshold``, matching what the report does.
+
+    Returns ``(columns, sampling)``, where *sampling* records the non-cell counts
+    before and after thinning so the plot legends can say what is shown, or
+    ``(None, None)`` when nothing usable was read.
+    """
+    if not path or not os.path.exists(path):
+        return None, None
+    try:
+        with open(path, "r") as fh:
+            raw = json.load(fh)
+    except Exception:
+        return None, None
+    if not isinstance(raw, dict) or not raw:
+        return None, None
+
+    columns = {k: v for k, v in raw.items()
+               if k in _PERCELL_COLUMNS and isinstance(v, list)}
+    if not columns:
+        return None, None
+    n_rows = min(len(v) for v in columns.values())
+    if n_rows == 0:
+        return None, None
+
+    is_cell_col = columns.get("IsCell")
+    total_col   = columns.get("TotalReads")
+    threshold   = safe_float(umi_threshold)
+    if is_cell_col is not None:
+        cell_flags = [bool(v) for v in is_cell_col[:n_rows]]
+    elif total_col is not None and threshold is not None:
+        cell_flags = [(safe_float(v) or 0.0) > threshold for v in total_col[:n_rows]]
+    else:
+        cell_flags = [True] * n_rows
+
+    n_noncells = sum(1 for flag in cell_flags if not flag)
+    stride = 1
+    if n_noncells > _PERCELL_MAX_NONCELLS:
+        stride = math.ceil(n_noncells / _PERCELL_MAX_NONCELLS)
+
+    keep: List[int] = []
+    seen_noncells = 0
+    for i, flag in enumerate(cell_flags):
+        if flag:
+            keep.append(i)
+        else:
+            if seen_noncells % stride == 0:
+                keep.append(i)
+            seen_noncells += 1
+
+    out: Dict[str, List] = {}
+    for name, values in columns.items():
+        if name in _PERCELL_PCT_COLUMNS:
+            out[name] = [round(v, 3) if isinstance(v, float) else v
+                         for v in (values[i] for i in keep)]
+        else:
+            out[name] = [values[i] for i in keep]
+
+    sampling = {
+        "noncells_total":  n_noncells,
+        "noncells_shown":  len(keep) - (n_rows - n_noncells),
+        "cells_shown":     n_rows - n_noncells,
+    }
+    return out, sampling
 
 
 def _safe_read_json(path: Optional[str]) -> Dict[str, Any]:
@@ -906,7 +1172,7 @@ def main() -> None:
             )
 
         raw_run_config = parse_run_config(run_config_path)
-        version = args.version or pipeline_meta.get("version") or "unknown"
+        version = args.version or pipeline_meta.get("version") or manifest_version() or "unknown"
         commit  = args.commit  or pipeline_meta.get("commit")  or "unknown"
 
         samplesheet_config: Dict[str, Any] = {}
@@ -923,7 +1189,7 @@ def main() -> None:
 
     else:  # pipeline mode
         raw_run_config = parse_run_config(args.run_config)
-        version = args.version or "unknown"
+        version = args.version or manifest_version() or "unknown"
         commit  = args.commit  or "unknown"
 
         samplesheet_config = {}
@@ -1131,7 +1397,7 @@ def main() -> None:
 
         sd_knee = parse_secondderiv_knee(files.get("sd_knee"), s_id)
         if sd_knee:
-            secondderiv_data[s_id] = sd_knee
+            secondderiv_data[s_id] = thin_secondderiv_curve(sd_knee)
             if sd_cutoff is None:
                 sd_cutoff = sd_knee.get("threshold_umi")
 
@@ -1173,6 +1439,13 @@ def main() -> None:
         if base_id in samplesheet_config:
             combined_config.update(samplesheet_config[base_id])
 
+        # ── Per-cell metrics ─────────────────────────────────────────────────
+        per_cell_cols, per_cell_sampling = build_per_cell_payload(
+            files.get("per_cell"), umi_threshold
+        )
+        if per_cell_cols:
+            per_cell_data[s_id] = per_cell_cols
+
         samples_json_list.append({
             "sample_id": s_id,
             "config":    combined_config,
@@ -1211,26 +1484,13 @@ def main() -> None:
                 "secondderiv_cutoff": sd_cutoff,
             },
             "taxonomy_sankey": extract_sankey_data(files.get("sankey")),
+            "per_cell_sampling": per_cell_sampling,
         })
 
-        # ── Per-cell JSON ────────────────────────────────────────────────────
-        if files.get("per_cell"):
-            try:
-                with open(files["per_cell"], "r") as fh:
-                    per_cell_data[s_id] = json.load(fh)
-            except Exception:
-                pass
-
         # ── Knee data ────────────────────────────────────────────────────────
-        knee_data[s_id] = []
-        if files.get("knee"):
-            try:
-                with open(files["knee"], "r") as fh:
-                    knee_data[s_id] = [
-                        int(line.strip()) for line in fh if line.strip().isdigit()
-                    ]
-            except Exception:
-                pass
+        knee_payload = build_knee_payload(files.get("knee"))
+        if knee_payload:
+            knee_data[s_id] = knee_payload
 
         # ── Saturation images ────────────────────────────────────────────────
         saturation_images[s_id] = {}
@@ -1243,17 +1503,24 @@ def main() -> None:
     with open(args.template, "r") as fh:
         html_content = fh.read()
 
+    # The payloads are parsed by the report, never read by a human, so they are
+    # serialised without indentation: pretty-printing puts every element of the
+    # per-cell and knee arrays on its own padded line, which roughly doubles the
+    # size of the largest blocks for no benefit.
+    def _dump(obj: Any) -> str:
+        return json.dumps(obj, separators=(",", ":"))
+
     replacements = {
-        "__RUN_METADATA_PLACEHOLDER__":      json.dumps(report_metadata,      indent=2),
-        "__GLOBAL_DATA_PLACEHOLDER__":       json.dumps(
-            {"overview": {"columns": global_cols, "rows": global_rows}}, indent=2
+        "__RUN_METADATA_PLACEHOLDER__":      _dump(report_metadata),
+        "__GLOBAL_DATA_PLACEHOLDER__":       _dump(
+            {"overview": {"columns": global_cols, "rows": global_rows}}
         ),
-        "__SAMPLES_DATA_PLACEHOLDER__":      json.dumps({"samples": samples_json_list}, indent=2),
-        "__PER_CELL_DATA_PLACEHOLDER__":     json.dumps(per_cell_data,         indent=2),
-        "__SATURATION_IMAGES_PLACEHOLDER__": json.dumps(saturation_images,     indent=2),
-        "__KNEE_DATA_PLACEHOLDER__":         json.dumps(knee_data,             indent=2),
-        "__SECONDDERIV_DATA_PLACEHOLDER__":  json.dumps(secondderiv_data,      indent=2),
-        "__CELLFILTERING_DATA_PLACEHOLDER__": json.dumps(cell_filtering_data,  indent=2),
+        "__SAMPLES_DATA_PLACEHOLDER__":      _dump({"samples": samples_json_list}),
+        "__PER_CELL_DATA_PLACEHOLDER__":     _dump(per_cell_data),
+        "__SATURATION_IMAGES_PLACEHOLDER__": _dump(saturation_images),
+        "__KNEE_DATA_PLACEHOLDER__":         _dump(knee_data),
+        "__SECONDDERIV_DATA_PLACEHOLDER__":  _dump(secondderiv_data),
+        "__CELLFILTERING_DATA_PLACEHOLDER__": _dump(cell_filtering_data),
     }
 
     for placeholder, json_str in replacements.items():
