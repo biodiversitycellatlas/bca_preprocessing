@@ -969,7 +969,8 @@ def main() -> None:
         "Sample", "Mapper", "% Mapped Reads", "N cells", "Saturation",
         "Reads Needed for Target Saturation", "Noise (% UMIs non-cell barcodes)",
         "Median Transcripts Per Cell", "% Intronic Reads", "% rRNA in Unique reads",
-        "% mtDNA in Unique reads", "% mtDNA in multimappers all pos",
+        "% rRNA in multimappers all pos", "% mtDNA in Unique reads",
+        "% mtDNA in multimappers all pos",
     ]
     global_rows:        List[List]         = []
     samples_json_list:  List[Dict]         = []
@@ -1135,6 +1136,8 @@ def main() -> None:
                 sd_cutoff = sd_knee.get("threshold_umi")
 
         rrna_pct           = to_pct(get_val(mt_stats, "Percentage of rRNA reads (of uniquely mapped reads)"))
+        rrna_multi_all     = to_pct(get_val(mt_stats, "Percentage of rRNA in multimapped reads (all alignments)"))
+        rrna_multi_primary = to_pct(get_val(mt_stats, "Percentage of rRNA in multimapped reads (primary alignment)"))
         mtdna_unique       = to_pct(get_val(mt_stats, "Percentage of mtDNA reads (of mapped reads)"))
         mtdna_multi_all    = to_pct(get_val(mt_stats, "Percentage of mtDNA in multimapped reads (all alignments)"))
         mtdna_multi_primary = to_pct(get_val(mt_stats, "Percentage of mtDNA in multimapped reads (primary alignment)"))
@@ -1142,7 +1145,8 @@ def main() -> None:
         global_rows.append([
             s_id, "STARsolo" if using_star else "alevin-fry",
             pct_unique, fmt(n_cells), saturation, reads_07_sat_val, noise_pct,
-            fmt(median_umis), intronic_pct, rrna_pct, mtdna_unique, mtdna_multi_all,
+            fmt(median_umis), intronic_pct, rrna_pct, rrna_multi_all,
+            mtdna_unique, mtdna_multi_all,
         ])
 
         # ── Cell filtering ───────────────────────────────────────────────────
@@ -1186,6 +1190,8 @@ def main() -> None:
                 "noise_pct":            noise_pct,
                 "intronic_pct":         intronic_pct,
                 "rrna_pct":             rrna_pct,
+                "rrna_multi_all_pct":     rrna_multi_all,
+                "rrna_multi_primary_pct": rrna_multi_primary,
                 "mtdna_unique_pct":     mtdna_unique,
                 "mtdna_multi_all_pct":  mtdna_multi_all,
                 "mtdna_multi_primary_pct": mtdna_multi_primary,
