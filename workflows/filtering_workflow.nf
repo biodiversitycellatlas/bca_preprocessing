@@ -112,7 +112,9 @@ workflow filtering_workflow {
                 SCRUBLET(MTX_TO_10X.out.tenx_dir, ch_demuxafy_sif)
                 SCDBLFINDER(MTX_TO_10X.out.tenx_dir, ch_demuxafy_sif)
 
-                // Both tools ran on the same matrix, so they share a meta and join on it directly
+                // Both tools ran on the same matrix, so they share a meta and join on it
+                // directly. Either can bow out on a matrix it cannot model, in which case
+                // there is no pair to reach a consensus on and the sample drops out here.
                 COMBINE_DOUBLET_RESULTS(
                     SCRUBLET.out.scrublet_results.join(SCDBLFINDER.out.scdblfinder_results),
                     ch_demuxafy_sif
@@ -122,14 +124,29 @@ workflow filtering_workflow {
                 def ch_doublets_by_sample = COMBINE_DOUBLET_RESULTS.out.combined_results
                     .map { meta, doublets -> [meta.subMap(['id', 'mapping_method']), doublets] }
 
+                // remainder carries the samples that lost a caller through with no calls
+                // attached, rather than dropping them from the run altogether; it can also
+                // emit calls whose matrix is absent, which are discarded here
                 def ch_raw_h5ad_with_doublets = ch_raw_h5ad
                     .map { meta, h5ad -> [meta.subMap(['id', 'mapping_method']), meta, h5ad] }
-                    .join(ch_doublets_by_sample)
-                    .map { _key, meta, h5ad, doublets -> [meta, h5ad, doublets] }
+                    .join(ch_doublets_by_sample, remainder: true)
+                    .filter { row -> row[1] != null }
+                    .map { _key, meta, h5ad, doublets -> [meta, h5ad, doublets ?: []] }
+
+                def ch_doublets_called = ch_raw_h5ad_with_doublets
+                    .filter { _meta, _h5ad, doublets -> doublets }
+
+                def ch_doublets_missing = ch_raw_h5ad_with_doublets
+                    .filter { _meta, _h5ad, doublets -> !doublets }
+                    .view { meta, _h5ad, _doublets ->
+                        "[WARNING] No doublet calls for ${meta.id} (${meta.mapping_method}): a caller " +
+                        "could not run on this matrix, which usually means too few cells were called. " +
+                        "The sample continues without doublet annotation."
+                    }
 
                 // Filter both raw and cell-called matrices for doublets
                 if (params.perform_doublet_filtering) {
-                    DOUBLET_FILTER_RAW(ch_raw_h5ad_with_doublets)
+                    DOUBLET_FILTER_RAW(ch_doublets_called)
                     DOUBLET_FILTER_CELL_CALLED(
                         MTX_TO_H5AD.out.h5ad
                             .filter { meta, _h5ad -> meta.datatype == 'filtered' }
@@ -138,8 +155,11 @@ workflow filtering_workflow {
 
                     // The flagged cells are gone from the matrix, so there is nothing left for
                     // CellSweep to annotate or project; each DOUBLET_FILTER run reports what it
-                    // removed in its own summary plot instead.
-                    ch_cellsweep_input = DOUBLET_FILTER_RAW.out.h5ad.map { meta, h5ad -> [meta, h5ad, []] }
+                    // removed in its own summary plot instead. Samples with no calls have
+                    // nothing to remove and go on unchanged.
+                    ch_cellsweep_input = DOUBLET_FILTER_RAW.out.h5ad
+                        .map { meta, h5ad -> [meta, h5ad, []] }
+                        .mix(ch_doublets_missing)
 
                     ch_doublet_filter_summary = DOUBLET_FILTER_RAW.out.summary
                         .mix(DOUBLET_FILTER_CELL_CALLED.out.summary)
@@ -147,8 +167,10 @@ workflow filtering_workflow {
                         .mix(DOUBLET_FILTER_CELL_CALLED.out.filtering_summary_plot)
 
                 } else {
-                    // The calls travel alongside the matrix for CellSweep to annotate and project
-                    ch_cellsweep_input = ch_raw_h5ad_with_doublets
+                    // The calls travel alongside the matrix for CellSweep to annotate and
+                    // project; where they are missing it receives an empty list, exactly as
+                    // it does when doublet detection is switched off entirely
+                    ch_cellsweep_input = ch_doublets_called.mix(ch_doublets_missing)
                 }
 
                 ch_scrublet_histogram = SCRUBLET.out.scrublet_histogram

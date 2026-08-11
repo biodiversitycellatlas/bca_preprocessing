@@ -81,16 +81,28 @@ def detect_inflection_point(
     expected_cells: Optional[int],
     lo_factor: float,
     hi_factor: float,
-) -> Tuple[int, bool]:
+) -> Tuple[int, bool, Optional[int]]:
     """
     Index of the most negative second-derivative point, i.e. the sharpest downward
     bend of the cumulative curve.
 
-    Returns ``(index, bounded)``, where *bounded* records whether the search was
-    restricted to a rank window around *expected_cells*.  Without that window the
-    global minimum is not reliably the knee: on a sample with a deep ambient tail
-    the cumulative curve keeps bending well past the real cells, and the search
-    walks out into the tail and returns a cutoff that retains every barcode.
+    Returns ``(index, bounded, effective_expected)``.  *bounded* records whether the
+    search was restricted to a rank window around the expected cell count.  Without
+    that window the global minimum is not reliably the knee: on a sample with a deep
+    ambient tail the cumulative curve keeps bending well past the real cells, and the
+    search walks out into the tail and returns a cutoff that retains every barcode.
+
+    *effective_expected* is the cell count the window was actually built from:
+    *expected_cells* capped to the number of barcodes on the curve, since no more
+    cells can be called than there are barcodes.  The cap is what keeps the window
+    on the curve.  Without it, an *expected_cells* more than ``1/lo_factor`` times
+    the barcode count puts the whole window past the end of the curve, the window is
+    dropped, and the search falls back to the entire curve -- where the sharpest bend
+    is the one at rank ~1, at which the cumulative sum climbs from a single barcode.
+    That returns a handful of cells, and, worse, does so *non-monotonically*: raising
+    ``expected_cells`` would lower the retained cell count off a cliff.  The edge trim
+    is no defence there, being counted in grid points: the grid is uniform in
+    log10(rank), so trimming its first points removes only a sliver of rank space.
     """
     searchable = np.ones(len(second_deriv), dtype=bool)
     if len(second_deriv) > (trim_edge * 2):
@@ -98,11 +110,13 @@ def detect_inflection_point(
         searchable[-trim_edge:] = False
 
     bounded = False
+    effective_expected = None
     if expected_cells and expected_cells > 0:
+        effective_expected = int(min(expected_cells, round(float(ranks[-1]))))
         window = (
             searchable
-            & (ranks >= expected_cells * lo_factor)
-            & (ranks <= expected_cells * hi_factor)
+            & (ranks >= effective_expected * lo_factor)
+            & (ranks <= effective_expected * hi_factor)
         )
         if window.any():
             searchable, bounded = window, True
@@ -110,7 +124,7 @@ def detect_inflection_point(
     if not searchable.any():
         searchable = np.ones(len(second_deriv), dtype=bool)
 
-    return int(np.argmin(np.where(searchable, second_deriv, np.inf))), bounded
+    return int(np.argmin(np.where(searchable, second_deriv, np.inf))), bounded, effective_expected
 
 
 def write_fallback(sample_id: str, out_json: str, out_cutoff: str, reason: str, cutoff: int = 0) -> None:
@@ -197,13 +211,16 @@ def main() -> None:
 
         grid_ranks = 10.0 ** grid_x
 
+        bounded = False
+        capped = False
+        effective_expected = None
+
         if args.manual_cutoff is not None:
             # No search: the threshold is given, and the only thing to locate is the
             # rank it falls at, so the report can mark it on the same curve.
             final_cutoff = int(args.manual_cutoff)
             kept = int(np.count_nonzero(umis >= final_cutoff))
             cutoff_rank = int(np.clip(kept, 1, n))
-            bounded = False
 
             if kept == 0:
                 status = "warning"
@@ -228,7 +245,7 @@ def main() -> None:
                     f"search was skipped and {kept} barcodes are retained."
                 )
         else:
-            idx, bounded = detect_inflection_point(
+            idx, bounded, effective_expected = detect_inflection_point(
                 d2, grid_ranks, smooth_window, args.expected_cells,
                 SEARCH_LO_FACTOR, SEARCH_HI_FACTOR,
             )
@@ -237,13 +254,28 @@ def main() -> None:
             cutoff_rank = int(np.clip(round(grid_ranks[idx]), 1, n))
             final_cutoff = int(umis[cutoff_rank - 1])
 
+            capped = (
+                args.expected_cells
+                and effective_expected is not None
+                and effective_expected < args.expected_cells
+            )
+
             status = "ok" if n >= args.min_points else "warning"
             message = (
                 "Cutoff calculated successfully."
                 if status == "ok"
                 else f"Cutoff calculated on small dataset ({n} points above {args.min_umis} UMIs); interpret cautiously."
             )
-            if not bounded and args.expected_cells:
+            if capped:
+                status = "warning"
+                message = (
+                    f"Only {n} barcodes are above {args.min_umis} UMIs, far fewer than the "
+                    f"{args.expected_cells} expected cells, so the knee was searched for "
+                    f"within {SEARCH_LO_FACTOR:g}-{SEARCH_HI_FACTOR:g}x those {n} barcodes "
+                    "instead. This sample has nowhere near as many cells as expected; treat "
+                    "the cutoff, and the sample, with suspicion."
+                )
+            elif not bounded and args.expected_cells:
                 status = "warning"
                 message = (
                     f"No knee found within {SEARCH_LO_FACTOR:g}-{SEARCH_HI_FACTOR:g}x the "
@@ -278,11 +310,13 @@ def main() -> None:
         with open(args.out_cutoff, "w") as f:
             f.write(str(final_cutoff))
 
-        how = (
-            "manual cutoff"
-            if args.manual_cutoff is not None
-            else f"expected_cells={args.expected_cells}, search {'bounded' if bounded else 'unbounded'}"
-        )
+        if args.manual_cutoff is not None:
+            how = "manual cutoff"
+        else:
+            expected_note = f"expected_cells={args.expected_cells}"
+            if capped:
+                expected_note += f" capped to the {effective_expected} barcodes on the curve"
+            how = f"{expected_note}, search {'bounded' if bounded else 'unbounded'}"
         print(
             f"Processed {args.sample_id} -> UMI Cutoff: {final_cutoff} "
             f"(rank {cutoff_rank} of {n} barcodes above {args.min_umis} UMIs; {how})",
