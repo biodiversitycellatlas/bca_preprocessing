@@ -26,7 +26,7 @@ process CALC_MT_RRNA {
         ${bam_file} \\
         ${meta.id}_mt_rrna_metrics.txt \\
         ${ref_gtf} \\
-        ${params.mt_contig}
+        "${params.mt_contig}"
 
     echo "Created file: ${meta.id}_mt_rrna_metrics.txt"
 

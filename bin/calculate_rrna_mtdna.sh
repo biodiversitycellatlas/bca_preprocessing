@@ -6,7 +6,12 @@
 bam_file=$1
 outfile=$2
 ref_gtf=$3
-mt_contig=$4
+shift 3
+# Every remaining argument is a mitochondrial contig name. They arrive either as
+# one quoted argument ("chrM M MT") or as separate words, depending on how the
+# caller interpolates params.mt_contig, so both forms are flattened into one
+# list here. Reading only $4 silently dropped all but the first name.
+read -r -a mt_contigs <<< "$*"
 
 # Multimappers are the reads with NH > 1. The digits have to be anchored: the
 # plain pattern "NH:i:1" also matches "NH:i:10", so every read with 10 or more
@@ -24,22 +29,48 @@ NH_MULTI='NH:i:([2-9]|[0-9][0-9]+)([[:space:]]|$)'
 # the biotype only on transcript or exon rows. Probing for the combination
 # keeps this working across all of them -- when the attribute is absent
 # featureCounts aborts, and the rRNA numbers silently read as 0%.
-feature_type=""
-biotype_attr=""
-for ftype in gene transcript exon; do
-    for attr in gene_biotype gene_type transcript_biotype transcript_type; do
-        if awk -F'\t' -v t="$ftype" -v a="$attr" '
-                $0 ~ /^#/       { next }
-                NF < 9          { next }
-                $3 == t && index($9, a " \"") > 0 { found = 1; exit }
-                END             { exit !found }
-            ' "${ref_gtf}"; then
-            feature_type="${ftype}"
-            biotype_attr="${attr}"
-            break 2
-        fi
-    done
-done
+#
+# The pair annotating the MOST rows wins, rather than the first one occurring
+# anywhere. References here are routinely concatenations of ref_gtf and
+# ref_gtf_addfeature, and the two halves need not spell the biotype the same
+# way: a handful of hand-written spike-in lines using gene_biotype must not
+# outvote an entire GENCODE annotation using gene_type, or featureCounts skips
+# every gene of the base annotation and the rRNA counts collapse to N/A. Ties
+# keep the original order of preference.
+read -r feature_type biotype_attr biotype_rows feature_rows <<< "$(awk -F'\t' '
+    BEGIN {
+        nf = split("gene transcript exon", ftypes, " ")
+        na = split("gene_biotype gene_type transcript_biotype transcript_type", attrs, " ")
+    }
+    /^#/   { next }
+    NF < 9 { next }
+    {
+        for (i = 1; i <= nf; i++) {
+            if ($3 != ftypes[i]) continue
+            rows[ftypes[i]]++
+            for (j = 1; j <= na; j++)
+                if (index($9, attrs[j] " \"") > 0) count[ftypes[i] SUBSEP attrs[j]]++
+        }
+    }
+    END {
+        best_f = ""; best_a = ""; max = 0
+        for (i = 1; i <= nf; i++)
+            for (j = 1; j <= na; j++) {
+                c = count[ftypes[i] SUBSEP attrs[j]]
+                if (c > max) { max = c; best_f = ftypes[i]; best_a = attrs[j] }
+            }
+        if (max > 0) print best_f, best_a, max, rows[best_f]
+    }
+' "${ref_gtf}")"
+
+# Partial coverage means part of the annotation uses a different convention and
+# is invisible to featureCounts under the attribute chosen above. No single
+# attribute can cover such a reference, so this is reported rather than fixed.
+if [ -n "${biotype_attr}" ] && [ "${biotype_rows:-0}" -lt "${feature_rows:-0}" ]; then
+    echo "WARNING: ${biotype_attr} annotates only ${biotype_rows} of ${feature_rows} ${feature_type} rows in ${ref_gtf}" >&2
+    echo "WARNING: rows spelling the biotype differently are not counted -- typical when" >&2
+    echo "WARNING: ref_gtf and ref_gtf_addfeature follow different GTF conventions" >&2
+fi
 
 # ------------------------------------------------------------------
 # Extract rRNA biotype labels from GTF
@@ -109,6 +140,22 @@ count_biotypes() {
         || echo "WARNING: featureCounts failed for ${bam}" >&2
 }
 
+# Count the mapped alignments whose reference name is one of the mitochondrial
+# contigs. The comparison is on the RNAME column and on the whole name: a grep
+# over the entire SAM line also matches the contig name inside read names
+# (Illumina flowcell IDs such as HMTVFDSX3 contain "MT"), inside CIGAR strings
+# ("90M" contains "M"), and inside longer contig names such as chrM_alt, which
+# inflates the count -- to 100% of reads in the worst case.
+count_mt() {
+    local bam=$1
+    samtools view -F 4 "${bam}" \
+        | awk -F'\t' -v names="${mt_contigs[*]}" '
+            BEGIN { n = split(names, want, " "); for (i = 1; i <= n; i++) keep[want[i]] = 1 }
+            ($3 in keep)  { hits++ }
+            END           { print hits + 0 }
+        '
+}
+
 # ------------------------------------------------------------------
 # Create output file and general information
 # ------------------------------------------------------------------
@@ -117,7 +164,25 @@ echo -e "GTF file,${ref_gtf}" >> $outfile
 echo -e "Biotype attribute used,${biotype_attr:-none}" >> $outfile
 echo -e "Feature type used,${feature_type:-none}" >> $outfile
 echo -e "rRNA biotypes detected,${rrna_biotypes}" >> $outfile
-echo -e "MT Contig,${mt_contig}" >> $outfile
+echo -e "MT Contig,${mt_contigs[*]}" >> $outfile
+
+# A contig name that is not in the BAM header can only ever yield 0 reads, which
+# is indistinguishable from a genuinely mitochondria-free library. Name the ones
+# that do not exist instead of reporting a plausible-looking 0%.
+if [ "${#mt_contigs[@]}" -eq 0 ]; then
+    echo "WARNING: no mitochondrial contig given; all mtDNA metrics will be 0" >&2
+else
+    sq_names=$(samtools view -H "${bam_file}" \
+        | awk -F'\t' '/^@SQ/ { for (i = 2; i <= NF; i++) if ($i ~ /^SN:/) print substr($i, 4) }')
+    missing=""
+    for contig in "${mt_contigs[@]}"; do
+        echo "${sq_names}" | grep -qxF "${contig}" || missing="${missing} ${contig}"
+    done
+    if [ -n "${missing}" ]; then
+        echo "WARNING: mitochondrial contig(s) absent from the BAM header:${missing}" >&2
+        echo "WARNING: check mt_contig against the reference used for mapping" >&2
+    fi
+fi
 
 # Total number of mapped reads (excluding unmapped reads)
 mapped=$(samtools view -F 4 $bam_file | wc -l)
@@ -173,8 +238,9 @@ echo -e "Percentage of rRNA in multimapped reads (all alignments),$(frac "$rrna_
 # ------------------------------------------------------------------
 # Calculate mtDNA metrics
 # ------------------------------------------------------------------
-# Number of reads mapping to mtDNA contig
-mt=$(samtools view $bam_file | grep ${mt_contig} | wc -l)
+# Number of reads mapping to mtDNA contig. Unmapped records are excluded here as
+# they are from the denominator: --outSAMunmapped Within keeps them in the BAM.
+mt=$(count_mt "$bam_file")
 echo -e "Number of reads mapping to mtDNA contig,$mt" >> $outfile
 
 # Percentage of mtDNA reads among all mapped reads
@@ -183,7 +249,7 @@ echo -e "Percentage of mtDNA reads (of mapped reads),$(frac "$mt" "$mapped")" >>
 # Multimapped reads (primary alignment)
 echo -e "Total multimapped reads (primary alignment),$total_mmpa" >> $outfile
 
-mt_multi1=$(samtools view multimapped_primealign.bam | grep ${mt_contig} | wc -l)
+mt_multi1=$(count_mt multimapped_primealign.bam)
 echo -e "mtDNA counts in Multimapped reads (primary alignment),$mt_multi1" >> $outfile
 
 # Percentage of mtDNA reads among multimapped reads (primary alignment)
@@ -192,7 +258,7 @@ echo -e "Percentage of mtDNA in multimapped reads (primary alignment),$(frac "$m
 # Multimapped reads (all alignments)
 echo -e "Total multimapped reads (all alignments),$total_mmaa" >> $outfile
 
-mt_multi2=$(samtools view multimapped_allalign.bam | grep ${mt_contig} | wc -l)
+mt_multi2=$(count_mt multimapped_allalign.bam)
 echo -e "mtDNA counts in Multimapped reads (all alignments),$mt_multi2" >> $outfile
 
 # Percentage of mtDNA reads among multimapped reads (all alignments)
