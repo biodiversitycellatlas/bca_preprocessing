@@ -74,8 +74,9 @@ workflow filtering_workflow {
 
         def ch_all_matrices = ch_starsolo_raw.mix(ch_starsolo_filtered, ch_alevin_fry)
 
-        // Check the cell filtering method
-        def alevin_full_is_cell_called = params.cellfilter_method != "second_derivative"
+        // Check the cell filtering method: unless this pipeline re-calls cells, alevin-fry's
+        // full matrix is already the mapper's own cell call
+        def alevin_full_is_cell_called = !(params.cellfilter_method in ["second_derivative", "manual_cutoff"])
 
         // Doublets are called on the cell-called matrices only
         def ch_cell_called_matrices = ch_all_matrices.filter { meta, _mtx, _barcodes, _features ->

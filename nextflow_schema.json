@@ -50,7 +50,13 @@
                 },
                 "run_method": {
                     "type": "string",
-                    "default": "standard"
+                    "default": "standard",
+                    "enum": ["standard", "geneext_only", "external_pipeline_only", "post_mapping"]
+                },
+                "previous_outdir": {
+                    "type": "string",
+                    "format": "directory-path",
+                    "description": "Results directory the 'post_mapping' run method reads the published mapping results back from. Defaults to 'outdir'."
                 },
                 "seqspec_file": {
                     "type": "string"
@@ -73,7 +79,7 @@
                 "cellfilter_method": {
                     "type": "string",
                     "default": "second_derivative",
-                    "enum": ["star_solocellfilter", "second_derivative"]
+                    "enum": ["star_solocellfilter", "second_derivative", "manual_cutoff"]
                 },
                 "alevin_usa_counts": {
                     "type": "string",

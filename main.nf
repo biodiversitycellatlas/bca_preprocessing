@@ -24,6 +24,7 @@ nextflow run -profile <institution_config>,conda -c /path/to/custom_config
 */
 include { preprocessing_workflow    } from './workflows/preprocessing_workflow'
 include { QC_mapping_workflow       } from './workflows/mapping_workflow'
+include { post_mapping_workflow     } from './workflows/post_mapping_workflow'
 include { filtering_workflow        } from './workflows/filtering_workflow'
 include { reporting_workflow        } from './workflows/reporting_workflow'
 
@@ -44,6 +45,11 @@ include { MULTIQC                   } from './modules/local/tools/multiqc/main'
         local installation is given). The pre-processed files are then used
         for mapping and quality control, and once all outputs are finished,
         the pipeline triggers MultiQC and the filtering workflow.
+
+        With run_method = "post_mapping" the first two stages are skipped
+        entirely: a previous run's published mapping results are read back in
+        and everything after mapping is redone on them, which is how the cells
+        can be re-called without paying for mapping again.
 ~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~
 */
 workflow BCA_PREPROCESSING {
@@ -54,51 +60,72 @@ workflow BCA_PREPROCESSING {
     main:
         // Initialize reporting channels
         def multiqc_report_ch   = Channel.empty()
+        def preprocs_output_ch  = Channel.empty()
+
+        // The mapping results the downstream workflows run on, either freshly mapped or
+        // read back from a previous run; both branches emit the same channel names
+        def mapping_out         = null
+        def run_downstream      = false
 
         // Save run configurations
         SAVE_RUN_CONFIG(samplesheet.first())
 
-        // Pre-processing workflow
-        preprocessing_workflow(samplesheet)
+        // "post_mapping" resumes a previous run from the point mapping ended, so neither
+        // pre-processing nor mapping is repeated
+        if (params.run_method == "post_mapping") {
 
-        // Runs mapping for "standard", "geneext_only"
-        if ( params.run_method != "external_pipeline_only" ) {
-            // Mapping using STARsolo, Alevin, and/or comparison to commercial pipelines
-            QC_mapping_workflow(preprocessing_workflow.out.data_output, preprocessing_workflow.out.bc_whitelist)
+            post_mapping_workflow(samplesheet)
+            mapping_out    = post_mapping_workflow.out
+            run_downstream = true
+
+        } else {
+
+            // Pre-processing workflow
+            preprocessing_workflow(samplesheet)
+            preprocs_output_ch = preprocessing_workflow.out.data_output
+
+            // Runs mapping for "standard", "geneext_only"
+            if ( params.run_method != "external_pipeline_only" ) {
+                // Mapping using STARsolo, Alevin, and/or comparison to commercial pipelines
+                QC_mapping_workflow(preprocessing_workflow.out.data_output, preprocessing_workflow.out.bc_whitelist)
+                mapping_out = QC_mapping_workflow.out
+
+                // Continue with filtering and MultiQC only with "standard" run_method
+                run_downstream = (params.run_method == "standard")
+            }
         }
 
-        // Continue with filtering and MultiQC only with "standard" run_method
-        if (params.run_method == "standard") {
+        if (run_downstream) {
 
             // Filtering raw matrices of ambient RNA
-            filtering_workflow(QC_mapping_workflow.out.starsolo_genefull50_raw, QC_mapping_workflow.out.starsolo_genefull50_filtered, QC_mapping_workflow.out.af_mtx, QC_mapping_workflow.out.af_filtered_mtx)
+            filtering_workflow(mapping_out.starsolo_genefull50_raw, mapping_out.starsolo_genefull50_filtered, mapping_out.af_mtx, mapping_out.af_filtered_mtx)
 
             reporting_workflow(
-                QC_mapping_workflow.out.mapped_samplesheet,
+                mapping_out.mapped_samplesheet,
                 SAVE_RUN_CONFIG.out.samplesheet,
-                QC_mapping_workflow.out.ref_gtf,
+                mapping_out.ref_gtf,
                 SAVE_RUN_CONFIG.out.run_config,
-                QC_mapping_workflow.out.star_final_log,
-                QC_mapping_workflow.out.star_summaries,
-                QC_mapping_workflow.out.star_log,
-                QC_mapping_workflow.out.starsolo_bam,
-                QC_mapping_workflow.out.star_solodir,
-                QC_mapping_workflow.out.starsolo_genefull50_filtered,
-                QC_mapping_workflow.out.saturation_logs,
-                QC_mapping_workflow.out.star_cellreads,
-                QC_mapping_workflow.out.af_meta_info,
-                QC_mapping_workflow.out.af_quant_json,
-                QC_mapping_workflow.out.af_cell_meta,
-                QC_mapping_workflow.out.af_mtx,
-                QC_mapping_workflow.out.af_umipercell,
-                QC_mapping_workflow.out.pavian_sankey,
-                QC_mapping_workflow.out.saturation_imgs,
-                QC_mapping_workflow.out.saturation_residual_imgs,
-                QC_mapping_workflow.out.star_umipercell,
-                QC_mapping_workflow.out.featurecount_txt,
-                QC_mapping_workflow.out.secondderiv_knee,
-                QC_mapping_workflow.out.secondderiv_stats,
-                QC_mapping_workflow.out.secondderiv_cutoff,
+                mapping_out.star_final_log,
+                mapping_out.star_summaries,
+                mapping_out.star_log,
+                mapping_out.starsolo_bam,
+                mapping_out.star_solodir,
+                mapping_out.starsolo_genefull50_filtered,
+                mapping_out.saturation_logs,
+                mapping_out.star_cellreads,
+                mapping_out.af_meta_info,
+                mapping_out.af_quant_json,
+                mapping_out.af_cell_meta,
+                mapping_out.af_mtx,
+                mapping_out.af_umipercell,
+                mapping_out.pavian_sankey,
+                mapping_out.saturation_imgs,
+                mapping_out.saturation_residual_imgs,
+                mapping_out.star_umipercell,
+                mapping_out.featurecount_txt,
+                mapping_out.secondderiv_knee,
+                mapping_out.secondderiv_stats,
+                mapping_out.secondderiv_cutoff,
                 filtering_workflow.out.cs_ambient_hist_plot,
                 filtering_workflow.out.cs_umap_comparison_plot,
                 filtering_workflow.out.cs_top_genes
@@ -108,7 +135,7 @@ workflow BCA_PREPROCESSING {
         }
 
     emit:
-        preprocs_output         = preprocessing_workflow.out.data_output
+        preprocs_output         = preprocs_output_ch
         multiqc_report          = multiqc_report_ch
 }
 

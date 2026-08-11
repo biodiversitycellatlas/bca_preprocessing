@@ -12,6 +12,10 @@ findable on real data:
 * the minimum is searched for within a rank window around the expected cell
   count, because the cumulative curve of a sample with a deep ambient tail keeps
   bending well past the real cells and an unbounded search settles out there.
+
+With ``--manual-cutoff`` the search is skipped and the given UMI threshold is
+written out instead.  The curve and its derivatives are still exported, so the
+report keeps plotting the same panels with the chosen threshold marked on them.
 """
 
 import argparse
@@ -148,6 +152,10 @@ def parse_args() -> argparse.Namespace:
                         help="Expected number of cells. The knee is searched for between "
                              f"{SEARCH_LO_FACTOR:g}x and {SEARCH_HI_FACTOR:g}x this value; "
                              "without it the search runs unbounded and can walk into the ambient tail.")
+    parser.add_argument("-m", "--manual-cutoff", type=int, default=None,
+                        help="Skip the second-derivative search and write this UMI cutoff instead. "
+                             "The curve and its derivatives are still exported, with the threshold "
+                             "marked at the given value.")
     parser.add_argument("--grid-points", type=int, default=GRID_POINTS, help="Points on the uniform log10(rank) grid the curve is resampled onto.")
     parser.add_argument("--smooth", type=float, default=SMOOTH_FRACTION, help="Moving-average window, as a fraction of the grid.")
     parser.add_argument("--min-umis", type=int, default=100, help="Minimum UMI threshold used to retain entries before analysis.")
@@ -171,7 +179,10 @@ def main() -> None:
         if n < 10:
             msg = f"Too few points above {args.min_umis} UMIs for reliable cutoff detection ({n} found)."
             print(f"Warning: {msg}", file=sys.stderr)
-            write_fallback(args.sample_id, args.out_json, args.out_cutoff, msg, cutoff=args.fallback_cutoff)
+            # A manually chosen cutoff stands even when the curve is too short to
+            # analyse; there is nothing to detect, only a threshold to apply.
+            fallback = args.fallback_cutoff if args.manual_cutoff is None else args.manual_cutoff
+            write_fallback(args.sample_id, args.out_json, args.out_cutoff, msg, cutoff=fallback)
             return
 
         n_grid = max(50, min(args.grid_points, n))
@@ -185,34 +196,66 @@ def main() -> None:
         _, d2 = calculate_derivatives(grid_x, grid_y)
 
         grid_ranks = 10.0 ** grid_x
-        idx, bounded = detect_inflection_point(
-            d2, grid_ranks, smooth_window, args.expected_cells,
-            SEARCH_LO_FACTOR, SEARCH_HI_FACTOR,
-        )
 
-        # Back from the grid to an actual barcode rank, then to the UMI count there.
-        cutoff_rank = int(np.clip(round(grid_ranks[idx]), 1, n))
-        final_cutoff = int(umis[cutoff_rank - 1])
+        if args.manual_cutoff is not None:
+            # No search: the threshold is given, and the only thing to locate is the
+            # rank it falls at, so the report can mark it on the same curve.
+            final_cutoff = int(args.manual_cutoff)
+            kept = int(np.count_nonzero(umis >= final_cutoff))
+            cutoff_rank = int(np.clip(kept, 1, n))
+            bounded = False
 
-        status = "ok" if n >= args.min_points else "warning"
-        message = (
-            "Cutoff calculated successfully."
-            if status == "ok"
-            else f"Cutoff calculated on small dataset ({n} points above {args.min_umis} UMIs); interpret cautiously."
-        )
-        if not bounded and args.expected_cells:
-            status = "warning"
-            message = (
-                f"No knee found within {SEARCH_LO_FACTOR:g}-{SEARCH_HI_FACTOR:g}x the "
-                f"{args.expected_cells} expected cells; searched the whole curve instead."
+            if kept == 0:
+                status = "warning"
+                message = (
+                    f"Manual cutoff of {final_cutoff} UMIs is above every barcode in this "
+                    f"sample (highest is {int(umis[0])}); no cells would be retained."
+                )
+            elif final_cutoff < args.min_umis:
+                # The plotted curve stops at min_umis, so a lower threshold falls past its
+                # end and the marker is clamped there; the cutoff itself is still applied
+                # to every barcode in the matrix.
+                status = "warning"
+                message = (
+                    f"Manual cutoff of {final_cutoff} UMIs is below the {args.min_umis} UMIs "
+                    "this curve is plotted down to, so the marker is clamped to its tail; "
+                    "the cutoff is still applied to every barcode."
+                )
+            else:
+                status = "ok"
+                message = (
+                    f"Manual cutoff of {final_cutoff} UMIs applied; the second-derivative "
+                    f"search was skipped and {kept} barcodes are retained."
+                )
+        else:
+            idx, bounded = detect_inflection_point(
+                d2, grid_ranks, smooth_window, args.expected_cells,
+                SEARCH_LO_FACTOR, SEARCH_HI_FACTOR,
             )
-        elif not args.expected_cells:
-            status = "warning"
+
+            # Back from the grid to an actual barcode rank, then to the UMI count there.
+            cutoff_rank = int(np.clip(round(grid_ranks[idx]), 1, n))
+            final_cutoff = int(umis[cutoff_rank - 1])
+
+            status = "ok" if n >= args.min_points else "warning"
             message = (
-                "No expected cell count given, so the knee was searched for across the "
-                "whole curve; on a sample with a deep ambient tail that can select a "
-                "cutoff far below the real cells."
+                "Cutoff calculated successfully."
+                if status == "ok"
+                else f"Cutoff calculated on small dataset ({n} points above {args.min_umis} UMIs); interpret cautiously."
             )
+            if not bounded and args.expected_cells:
+                status = "warning"
+                message = (
+                    f"No knee found within {SEARCH_LO_FACTOR:g}-{SEARCH_HI_FACTOR:g}x the "
+                    f"{args.expected_cells} expected cells; searched the whole curve instead."
+                )
+            elif not args.expected_cells:
+                status = "warning"
+                message = (
+                    "No expected cell count given, so the knee was searched for across the "
+                    "whole curve; on a sample with a deep ambient tail that can select a "
+                    "cutoff far below the real cells."
+                )
 
         export_data = {
             args.sample_id: {
@@ -235,10 +278,14 @@ def main() -> None:
         with open(args.out_cutoff, "w") as f:
             f.write(str(final_cutoff))
 
+        how = (
+            "manual cutoff"
+            if args.manual_cutoff is not None
+            else f"expected_cells={args.expected_cells}, search {'bounded' if bounded else 'unbounded'}"
+        )
         print(
             f"Processed {args.sample_id} -> UMI Cutoff: {final_cutoff} "
-            f"(rank {cutoff_rank} of {n} barcodes above {args.min_umis} UMIs; "
-            f"expected_cells={args.expected_cells}, search {'bounded' if bounded else 'unbounded'})",
+            f"(rank {cutoff_rank} of {n} barcodes above {args.min_umis} UMIs; {how})",
             file=sys.stderr,
         )
 

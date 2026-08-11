@@ -64,11 +64,11 @@ process STARSOLO_ALIGN {
     // If star_generateBAM is false, do not output BAM (omit --outSAMtype)
     def outSAMtype_option = params.star_generateBAM ? '--outSAMtype BAM SortedByCoordinate' : '--outSAMtype None'
 
-    // With the second-derivative method the cells are called by FILTER_MATRICES on the
+    // Whenever this pipeline re-calls cells, they are called by FILTER_MATRICES on the
     // raw matrix, so STARsolo's own filtered matrix is dropped to keep it out of the
     // published results and out of every downstream calculation. STARsolo still runs its
     // filtering, since Summary.csv is written from it.
-    def drop_star_filtered = params.cellfilter_method == "second_derivative"
+    def drop_star_filtered = params.cellfilter_method in ["second_derivative", "manual_cutoff"]
 
     """
     echo "\n\n==============  MAPPING STARSOLO  ================"
@@ -133,7 +133,7 @@ process STARSOLO_ALIGN {
         ${star_extraargs}
 
     if [[ "${drop_star_filtered}" == "true" ]]; then
-        echo "cellfilter_method=second_derivative: removing STARsolo's own filtered matrix"
+        echo "cellfilter_method=${params.cellfilter_method}: removing STARsolo's own filtered matrix"
         rm -rf ${meta.id}_Solo.out/GeneFull_Ex50pAS/filtered
     fi
 

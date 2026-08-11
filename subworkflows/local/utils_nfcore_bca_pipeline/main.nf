@@ -104,9 +104,76 @@ workflow PIPELINE_INITIALISATION {
     }
 
     //
+    // Fail fast on an unknown run method or cell-calling method
+    //
+    def valid_run_methods = ["standard", "geneext_only", "external_pipeline_only", "post_mapping"]
+    if (!(params.run_method in valid_run_methods)) {
+        error("Unknown 'run_method' = '${params.run_method}'. Use one of: ${valid_run_methods.join(', ')}.")
+    }
+
+    def valid_cellfilter_methods = ["star_solocellfilter", "second_derivative", "manual_cutoff"]
+    if (!(params.cellfilter_method in valid_cellfilter_methods)) {
+        error("Unknown 'cellfilter_method' = '${params.cellfilter_method}'. Use one of: ${valid_cellfilter_methods.join(', ')}.")
+    }
+
+    //
     // Create channel from input file provided through params.input
     //
     def samples_file = file(params.input)
+
+    //
+    // Fail fast on a 'post_mapping' run with nothing to pick up
+    //
+    // The mode reads a previous run's published mapping results back in rather than
+    // mapping again, so those results have to be there before anything is scheduled.
+    //
+    if (params.run_method == "post_mapping") {
+        def prev_dir = file(params.previous_outdir ?: params.outdir)
+        if (!prev_dir.exists()) {
+            error(
+                "'run_method' = 'post_mapping' reads a previous run's mapping results from\n" +
+                "${prev_dir}, which does not exist. Set 'previous_outdir' to that run's results directory."
+            )
+        }
+        if (!file("${prev_dir}/mapping_STARsolo").exists() && !file("${prev_dir}/mapping_alevin").exists()) {
+            error(
+                "'run_method' = 'post_mapping' found neither 'mapping_STARsolo/' nor 'mapping_alevin/'\n" +
+                "under ${prev_dir}, so there are no mapping results to pick up.\n" +
+                "Set 'previous_outdir' to the results directory of the run to continue from."
+            )
+        }
+    }
+
+    //
+    // Fail fast on manual cutoffs that are not actually given
+    //
+    // The cutoff is per sample and has no sensible default, so a missing one would
+    // silently fall back to the second-derivative call it was meant to replace.
+    //
+    def samplesheet_rows = samples_file.splitCsv(header: true, sep: ',')
+
+    // An empty column is not a cutoff, so it is not worth warning about
+    def has_cutoffs = samplesheet_rows.any { row -> row.manual_cutoff?.toString()?.trim() }
+
+    if (params.cellfilter_method == "manual_cutoff") {
+        def without_cutoff = samplesheet_rows
+            .findAll { row -> !(row.manual_cutoff?.toString()?.trim()) }
+            .collect { row -> row.sample }
+            .unique()
+
+        if (without_cutoff) {
+            error(
+                "'cellfilter_method' = 'manual_cutoff' needs a 'manual_cutoff' column in the samplesheet\n" +
+                "giving the UMI threshold for every sample, but it is missing for: ${without_cutoff.join(', ')}."
+            )
+        }
+    } else if (has_cutoffs) {
+        log.warn(
+            "The samplesheet gives a 'manual_cutoff' for one or more samples, but 'cellfilter_method' is " +
+            "'${params.cellfilter_method}'. Those cutoffs will be ignored; set " +
+            "'cellfilter_method' to 'manual_cutoff' to apply them."
+        )
+    }
 
     Channel
     .fromPath(params.input)
@@ -116,6 +183,7 @@ workflow PIPELINE_INITIALISATION {
         def meta = [
             id             : row.sample,
             expected_cells : row.expected_cells ? row.expected_cells.toInteger() : null,
+            manual_cutoff  : row.manual_cutoff ? row.manual_cutoff.toInteger() : null,
             p5             : row.p5 ? row.p5 : '',
             p7             : row.p7 ? row.p7 : '',
             rt             : row.rt ? row.rt : '',
