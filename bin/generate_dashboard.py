@@ -487,6 +487,25 @@ def manifest_version() -> Optional[str]:
     return match.group(1) if match else None
 
 
+def _meta_field(raw: Dict[str, Any], *keys: str) -> str:
+    """First usable string among *keys* of a ``params_*.json`` dump.
+
+    ``nextflow.config`` declares ``params.version = false`` to back Nextflow's
+    own ``--version`` flag, and ``dumpParametersToJSON`` writes that boolean out
+    as-is.  Passing it through ``str()`` is what made the report header read
+    "vFalse", so booleans -- and their stringified spellings -- are skipped here
+    and the caller falls back to ``manifest.version``.
+    """
+    for key in keys:
+        value = raw.get(key)
+        if value is None or isinstance(value, bool):
+            continue
+        text = str(value).strip()
+        if text and text.lower() not in {"true", "false", "null", "none"}:
+            return text
+    return ""
+
+
 # ---------------------------------------------------------------------------
 # Curve thinning
 # ---------------------------------------------------------------------------
@@ -1094,8 +1113,8 @@ def discover_result_dir(
     pipeline_meta: Dict[str, str] = {}
     if latest_params:
         raw = _safe_read_json(latest_params)
-        pipeline_meta["version"] = str(raw.get("pipeline_version", raw.get("version", "")))
-        pipeline_meta["commit"]  = str(raw.get("git_commit",       raw.get("commit",  "")))
+        pipeline_meta["version"] = _meta_field(raw, "pipeline_version", "version")
+        pipeline_meta["commit"]  = _meta_field(raw, "git_commit",      "commit")
 
     # ── Sample discovery ─────────────────────────────────────────────────────
     _discover_starsolo_samples(result_dir, active_samples, file_map)
@@ -1263,7 +1282,10 @@ def main() -> None:
     # The overview mixes mappers in one table, so a single header cannot carry a
     # per-row definition: "% Mapped Reads" is uniquely-mapped for STARsolo and
     # all mapped fragments for alevin-fry. The Mapper column makes which one
-    # applies explicit for every row.
+    # applies explicit for every row. When every row turns out to be STARsolo the
+    # column has only one meaning, and the header is sharpened to say so after
+    # the loop below, once the mappers are known.
+    _MAPPED_COL = 2
     global_cols = [
         "Sample", "Mapper", "% Mapped Reads", "N cells", "Saturation",
         "Reads Needed for Target Saturation", "Noise (% UMIs non-cell barcodes)",
@@ -1278,6 +1300,7 @@ def main() -> None:
     knee_data:          Dict[str, Any]     = {}
     cell_filtering_data: Dict[str, Any]   = {}
     secondderiv_data:   Dict[str, Any]     = {}
+    mappers_seen:       set                = set()
 
     def get_val(source: Dict, key: str, default: Any = "N/A") -> Any:
         return source.get(key, default) if source else default
@@ -1293,6 +1316,7 @@ def main() -> None:
         using_star  = source == "starsolo" if source != "auto" \
                       else bool(files.get("star_log") and files.get("star_summary"))
         using_alevin = not using_star
+        mappers_seen.add("starsolo" if using_star else "alevin")
 
         mt_stats          = parse_mt_rrna_metrics(files.get("mt_rrna"))
         reads_07_sat_val  = parse_saturation_log(files.get("sat_log")) if using_star else "N/A"
@@ -1306,6 +1330,12 @@ def main() -> None:
                 if os.path.exists(guessed):
                     full_log = guessed
             umi_threshold = extract_umi_cutoff(full_log)
+
+        # STARsolo's own nUMImin, kept aside because umi_threshold is replaced by
+        # the second-derivative cutoff below whenever the matrices were re-filtered
+        # on one. The report shows both, so the two cell calls stay comparable.
+        # 0 means the value was not in Log.out, which is nothing to report.
+        starsolo_cutoff: Optional[int] = umi_threshold if using_star and umi_threshold else None
 
         if using_star:
             star_stats = parse_star_log(files.get("star_log"))
@@ -1515,6 +1545,7 @@ def main() -> None:
                 "num_cells":      fmt(n_cells),
                 "umi_threshold":  umi_threshold,
                 "secondderiv_cutoff": sd_cutoff,
+                "starsolo_cutoff":    starsolo_cutoff,
             },
             "taxonomy_sankey": extract_sankey_data(files.get("sankey")),
             "per_cell_sampling": per_cell_sampling,
@@ -1531,6 +1562,11 @@ def main() -> None:
             saturation_images[s_id]["saturation"] = encode_image(files["sat_img"])
         if files.get("res_img"):
             saturation_images[s_id]["residuals"]  = encode_image(files["res_img"])
+
+    # Every row came from STARsolo, so the mapped-reads column carries a single
+    # definition and the header can name it. A mixed run keeps the generic wording.
+    if global_rows and mappers_seen == {"starsolo"}:
+        global_cols[_MAPPED_COL] = "% Uniquely Mapped Reads"
 
     # ── Inject into HTML template ────────────────────────────────────────────
     with open(args.template, "r") as fh:

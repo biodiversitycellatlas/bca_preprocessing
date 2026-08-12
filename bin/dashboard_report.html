@@ -1079,6 +1079,14 @@
                 ? ""
                 : `<tr><td>UMI cutoff from 2nd derivative</td><td>${sdCutoff.toLocaleString()}</td></tr>`;
 
+            // STARsolo's own nUMImin, read out of Log.out. Shown alongside the
+            // second-derivative cutoff so the two cell calls can be compared; the
+            // matrices were filtered on the latter whenever both are present.
+            const starCutoff = c.starsolo_cutoff;
+            const starRow = starCutoff == null
+                ? ""
+                : `<tr><td>UMI cutoff from STARsolo</td><td>${starCutoff.toLocaleString()}</td></tr>`;
+
             document.getElementById("cellcalling").innerHTML = `
         <h3>Cell Calling</h3>
 
@@ -1092,6 +1100,7 @@
                   <tr><td>Number of Cells</td><td>${c.num_cells.toLocaleString()}</td></tr>
                   <tr><td>UMI cutoff for Cell Calling</td><td>${c.umi_threshold.toLocaleString()}</td></tr>
                   ${sdRow}
+                  ${starRow}
                 </tbody>
               </table>
             </div>
