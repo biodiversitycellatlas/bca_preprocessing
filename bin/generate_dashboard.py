@@ -207,20 +207,36 @@ def fmt(val: Any) -> str:
 # ---------------------------------------------------------------------------
 
 def extract_sankey_data(html_path: Optional[str]) -> Optional[dict]:
-    """Extract the htmlwidgets JSON payload from a sankey HTML file."""
+    """Extract the htmlwidgets JSON payload from a sankey HTML file.
+
+    The widget ID is whatever htmlwidgets generated -- older versions emit a hex
+    digest, newer ones an arbitrary alphanumeric string -- and the attribute
+    order varies between renderers, so the payload is located by its
+    ``data-for="htmlwidget-…"`` marker rather than by an exact tag spelling.
+    """
     if not html_path or not os.path.exists(html_path):
         return None
     try:
         with open(html_path, "r") as fh:
             content = fh.read()
         match = re.search(
-            r'<script type="application/json" data-for="htmlwidget-[a-f0-9]+">(.*?)</script>',
+            r'<script[^>]*\bdata-for="htmlwidget-[^"]+"[^>]*>(.*?)</script>',
             content, re.DOTALL,
         )
+        if not match:
+            # Attribute order is not fixed: type may follow data-for instead.
+            match = re.search(
+                r'<script[^>]*\btype="application/json"[^>]*>(.*?)</script>',
+                content, re.DOTALL,
+            )
         if match:
             return json.loads(match.group(1)).get("x")
-    except Exception:
-        pass
+        sys.stderr.write(
+            f"Warning: no htmlwidgets payload found in {html_path}; "
+            "the taxonomy tab will be empty for this sample\n"
+        )
+    except Exception as exc:
+        sys.stderr.write(f"Warning: could not read sankey {html_path}: {exc}\n")
     return None
 
 
@@ -784,6 +800,25 @@ def _probe(path: str) -> Optional[str]:
     return path if os.path.exists(path) else None
 
 
+def _find_sankey(directory: str, analytical_id: str) -> Optional[str]:
+    """Return this sample's Kraken sankey HTML from *directory*, or ``None``.
+
+    PAVIAN names its output after the Kraken report it is handed -- here
+    ``<id>.k2report`` -- and the exact spelling varies with the Pavian version
+    (``<id>.sankey.html``, ``<id>.k2report.sankey.html``, ...), so the file is
+    matched by sample ID rather than by one hard-coded name.  The remainder of
+    the name has to start with a separator, otherwise sample ``S1`` would claim
+    ``S10``'s report.
+    """
+    for path in sorted(glob.glob(os.path.join(directory, "*.sankey.html"))):
+        name = os.path.basename(path)
+        if not name.startswith(analytical_id):
+            continue
+        if name[len(analytical_id):][:1] in ("_", ".", "-"):
+            return path
+    return None
+
+
 def _discover_cell_filtering(
     result_dir: str,
     analytical_id: str,
@@ -911,9 +946,7 @@ def _discover_starsolo_samples(
 
         # Kraken sankey (optional; scanned across common directory names)
         for sankey_root in _SANKEY_ROOTS:
-            candidate = _probe(os.path.join(
-                result_dir, sankey_root, f"{analytical_id}_kraken.sankey.html"
-            ))
+            candidate = _find_sankey(os.path.join(result_dir, sankey_root), analytical_id)
             if candidate:
                 files["sankey"] = candidate
                 break

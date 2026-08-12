@@ -3,6 +3,17 @@
 # ------------------------------------------------------------------
 # Define Variables
 # ------------------------------------------------------------------
+# Optional leading flags, before the positional arguments.
+rrna_gtf=""
+while [ $# -gt 0 ]; do
+    case "$1" in
+        --rrna-gtf) rrna_gtf="$2"; shift 2 ;;
+        --)         shift; break ;;
+        -*)         echo "ERROR: unknown option $1" >&2; exit 2 ;;
+        *)          break ;;
+    esac
+done
+
 bam_file=$1
 outfile=$2
 ref_gtf=$3
@@ -90,30 +101,106 @@ fi
 if [ -z "${rrna_biotypes}" ]; then
     echo "WARNING: no rRNA biotype found in ${ref_gtf}" >&2
     echo "WARNING: biotype attribute detected: '${biotype_attr:-none}', feature type: '${feature_type:-none}'" >&2
-    echo "WARNING: all rRNA metrics will be reported as N/A" >&2
+fi
+
+# ------------------------------------------------------------------
+# Reference sequences present in the BAM
+# ------------------------------------------------------------------
+# Needed twice below: to size the added rRNA contigs, and to check that the
+# mitochondrial names actually exist in the reference used for mapping.
+sq_info=$(samtools view -H "${bam_file}" \
+    | awk -F'\t' '/^@SQ/ {
+        name = ""; len = ""
+        for (i = 2; i <= NF; i++) {
+            if ($i ~ /^SN:/) name = substr($i, 4)
+            if ($i ~ /^LN:/) len  = substr($i, 4)
+        }
+        if (name != "") print name "\t" len
+    }')
+
+# ------------------------------------------------------------------
+# Assemble the rRNA regions to count over
+# ------------------------------------------------------------------
+# featureCounts is handed one meta-feature, "rRNA", built from two sources:
+#
+#   1. every feature of the main annotation whose biotype names rRNA, under any
+#      of the known spellings rather than only the one chosen above -- a
+#      concatenated reference may legitimately use both;
+#   2. the whole of every contig introduced by ref_gtf_addfeature, when one was
+#      given. Those files are the added rRNA reference (ref_fasta_addfeature
+#      carries the sequences), so every read aligning there is an rRNA read,
+#      whether or not the added GTF spells out a biotype at all -- it commonly
+#      does not, which is why counting by biotype alone reported none of them.
+#
+# Regions overlapping inside a single meta-feature are merged by featureCounts,
+# so a read is still counted once when both sources cover it.
+rrna_saf="rrna_regions.saf"
+printf 'GeneID\tChr\tStart\tEnd\tStrand\n' > "${rrna_saf}"
+
+if [ -n "${feature_type}" ]; then
+    awk -F'\t' -v ftype="${feature_type}" '
+        /^#/        { next }
+        NF < 9      { next }
+        $3 != ftype { next }
+        {
+            s = $9
+            while (match(s, /(gene_biotype|gene_type|transcript_biotype|transcript_type) "[^"]*"/)) {
+                if (tolower(substr(s, RSTART, RLENGTH)) ~ /rrna/) {
+                    print "rRNA\t" $1 "\t" $4 "\t" $5 "\t" ($7 == "-" ? "-" : "+")
+                    break
+                }
+                s = substr(s, RSTART + RLENGTH)
+            }
+        }
+    ' "${ref_gtf}" >> "${rrna_saf}"
+fi
+
+added_present=""
+added_missing=""
+if [ -n "${rrna_gtf}" ]; then
+    if [ ! -s "${rrna_gtf}" ]; then
+        echo "WARNING: added rRNA annotation is empty or unreadable: ${rrna_gtf}" >&2
+    else
+        for contig in $(awk -F'\t' '!/^#/ && NF >= 9 { print $1 }' "${rrna_gtf}" | sort -u); do
+            len=$(printf '%s\n' "${sq_info}" | awk -F'\t' -v c="${contig}" '$1 == c { print $2; exit }')
+            if [ -n "${len}" ]; then
+                printf 'rRNA\t%s\t1\t%s\t+\n' "${contig}" "${len}" >> "${rrna_saf}"
+                added_present="${added_present} ${contig}"
+            else
+                added_missing="${added_missing} ${contig}"
+            fi
+        done
+        if [ -n "${added_missing}" ]; then
+            echo "WARNING: contig(s) of the added rRNA reference are absent from the BAM header:${added_missing}" >&2
+            echo "WARNING: the reads were mapped against a reference built without ref_fasta_addfeature" >&2
+        fi
+    fi
+fi
+
+rrna_regions=$(( $(wc -l < "${rrna_saf}") - 1 ))
+if [ "${rrna_regions}" -eq 0 ]; then
+    echo "WARNING: no rRNA regions to count: no rRNA biotype in ${ref_gtf} and no usable" >&2
+    echo "WARNING: ref_gtf_addfeature contigs; all rRNA metrics will be reported as N/A" >&2
 fi
 
 # ------------------------------------------------------------------
 # Helpers
 # ------------------------------------------------------------------
-# Sum the counts of every rRNA biotype row in a featureCounts table. Rows are
-# matched on the exact biotype so "rRNA" does not also pick up the separate
-# "rRNA_pseudogene" row, which would double-count it. Returns N/A -- never 0 --
-# when featureCounts produced no table, so a failed run is distinguishable from
-# an annotation that genuinely holds no rRNA reads.
+# Read the rRNA row out of a featureCounts table. All rRNA regions share one
+# meta-feature, so there is a single row to read. Returns N/A -- never 0 -- when
+# there was nothing to count or featureCounts produced no table, so a failed run
+# stays distinguishable from a library that genuinely holds no rRNA reads.
 sum_rrna() {
     local table=$1
-    if [ -z "${rrna_biotypes}" ] || [ ! -s "${table}" ]; then
+    if [ "${rrna_regions}" -eq 0 ] || [ ! -s "${table}" ]; then
         echo "N/A"
         return
     fi
-    awk -v pat="${rrna_biotypes}" '
-        BEGIN { n = split(pat, want, "|"); for (i = 1; i <= n; i++) keep[want[i]] = 1 }
-        /^#/            { next }
-        $1 == "Geneid"  { next }
-                        { rows++ }
-        ($1 in keep)    { sum += $NF }
-        END             { if (rows) print sum + 0; else print "N/A" }
+    awk '
+        /^#/           { next }
+        $1 == "Geneid" { next }
+        $1 == "rRNA"   { sum += $NF; found = 1 }
+        END            { if (found) print sum + 0; else print "N/A" }
     ' "${table}"
 }
 
@@ -127,16 +214,16 @@ frac() {
     fi
 }
 
-# Run featureCounts, tolerating failure: the caller turns a missing table into
-# N/A rather than aborting the mtDNA metrics, which are computed independently.
-count_biotypes() {
+# Run featureCounts over the assembled rRNA regions, tolerating failure: the
+# caller turns a missing table into N/A rather than aborting the mtDNA metrics,
+# which are computed independently.
+count_rrna() {
     local out=$1 bam=$2
     shift 2
-    if [ -z "${biotype_attr}" ]; then
+    if [ "${rrna_regions}" -eq 0 ]; then
         return
     fi
-    featureCounts -t "${feature_type}" -g "${biotype_attr}" \
-        -a "${ref_gtf}" -o "${out}" "$@" "${bam}" \
+    featureCounts -F SAF -a "${rrna_saf}" -o "${out}" "$@" "${bam}" \
         || echo "WARNING: featureCounts failed for ${bam}" >&2
 }
 
@@ -164,6 +251,8 @@ echo -e "GTF file,${ref_gtf}" >> $outfile
 echo -e "Biotype attribute used,${biotype_attr:-none}" >> $outfile
 echo -e "Feature type used,${feature_type:-none}" >> $outfile
 echo -e "rRNA biotypes detected,${rrna_biotypes}" >> $outfile
+echo -e "rRNA reference contigs (added),${added_present# }" >> $outfile
+echo -e "rRNA regions counted,${rrna_regions}" >> $outfile
 echo -e "MT Contig,${mt_contigs[*]}" >> $outfile
 
 # A contig name that is not in the BAM header can only ever yield 0 reads, which
@@ -172,11 +261,9 @@ echo -e "MT Contig,${mt_contigs[*]}" >> $outfile
 if [ "${#mt_contigs[@]}" -eq 0 ]; then
     echo "WARNING: no mitochondrial contig given; all mtDNA metrics will be 0" >&2
 else
-    sq_names=$(samtools view -H "${bam_file}" \
-        | awk -F'\t' '/^@SQ/ { for (i = 2; i <= NF; i++) if ($i ~ /^SN:/) print substr($i, 4) }')
     missing=""
     for contig in "${mt_contigs[@]}"; do
-        echo "${sq_names}" | grep -qxF "${contig}" || missing="${missing} ${contig}"
+        printf '%s\n' "${sq_info}" | cut -f1 | grep -qxF "${contig}" || missing="${missing} ${contig}"
     done
     if [ -n "${missing}" ]; then
         echo "WARNING: mitochondrial contig(s) absent from the BAM header:${missing}" >&2
@@ -212,7 +299,7 @@ total_mmaa=$(samtools view -c multimapped_allalign.bam)
 
 # Uniquely mapped -- featureCounts discards NH > 1 reads by default, so this
 # run over the full BAM already restricts itself to the unique alignments.
-count_biotypes feat_counts_rRNA.txt "$bam_file"
+count_rrna feat_counts_rRNA.txt "$bam_file"
 rrna=$(sum_rrna feat_counts_rRNA.txt)
 echo -e "Number of ribosomal RNA reads in uniquely mapped reads,$rrna" >> $outfile
 echo -e "Percentage of rRNA reads (of uniquely mapped reads),$(frac "$rrna" "$uniquely_mapped")" >> $outfile
@@ -222,7 +309,7 @@ echo -e "Percentage of rRNA reads (of uniquely mapped reads),$(frac "$rrna" "$un
 # and the counts come out as a flat 0.
 echo -e "Total multimapped reads (primary alignment),$total_mmpa" >> $outfile
 
-count_biotypes feat_counts_rRNA_mmpa.txt multimapped_primealign.bam -M --primary
+count_rrna feat_counts_rRNA_mmpa.txt multimapped_primealign.bam -M --primary
 rrna_mmpa=$(sum_rrna feat_counts_rRNA_mmpa.txt)
 echo -e "rRNA counts in Multimapped reads (primary alignment),$rrna_mmpa" >> $outfile
 echo -e "Percentage of rRNA in multimapped reads (primary alignment),$(frac "$rrna_mmpa" "$total_mmpa")" >> $outfile
@@ -230,7 +317,7 @@ echo -e "Percentage of rRNA in multimapped reads (primary alignment),$(frac "$rr
 # Multimapped all alignments
 echo -e "Total multimapped reads (all alignments),$total_mmaa" >> $outfile
 
-count_biotypes feat_counts_rRNA_mmaa.txt multimapped_allalign.bam -M
+count_rrna feat_counts_rRNA_mmaa.txt multimapped_allalign.bam -M
 rrna_mmaa=$(sum_rrna feat_counts_rRNA_mmaa.txt)
 echo -e "rRNA counts in Multimapped reads (all alignments),$rrna_mmaa" >> $outfile
 echo -e "Percentage of rRNA in multimapped reads (all alignments),$(frac "$rrna_mmaa" "$total_mmaa")" >> $outfile

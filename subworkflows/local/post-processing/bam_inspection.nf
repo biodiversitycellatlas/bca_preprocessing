@@ -92,8 +92,16 @@ workflow bam_inspection_workflow {
                 }
                 .set { ch_fc_inputs }
 
+            // The added features are the rRNA reference, so CALC_MT_RRNA counts the
+            // reads on their contigs as rRNA. Read from params rather than taken as a
+            // subworkflow input, since ref_gtf already arrives merged with this file
+            // and the module needs the two apart to tell the added contigs from the rest.
+            def ch_rrna_gtf = params.ref_gtf_addfeature
+                ? Channel.value(file(params.ref_gtf_addfeature))
+                : Channel.value([])
+
             // Run featureCounts to calculate mtDNA and rRNA percentages and capture output
-            CALC_MT_RRNA(ch_fc_inputs.bam_ch, ch_fc_inputs.bai_ch, ref_gtf.first())
+            CALC_MT_RRNA(ch_fc_inputs.bam_ch, ch_fc_inputs.bai_ch, ref_gtf.first(), ch_rrna_gtf)
             ch_featurecounts = CALC_MT_RRNA.out.mt_rrna_metrics
         }
 

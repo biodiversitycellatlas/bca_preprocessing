@@ -10,19 +10,23 @@ process CALC_MT_RRNA {
     tuple val(meta), path(bam_file)
     file(bam_index)
     file(ref_gtf)
+    file(rrna_gtf)
 
     output:
     path("${meta.id}_mt_rrna_metrics.txt"), emit: mt_rrna_metrics
     path "versions.yml",                    emit: versions
 
     script:
+    def rrna_arg = rrna_gtf ? "--rrna-gtf ${rrna_gtf} " : ""
     """
     echo "\n\n==================  CALCULATION rRNA & mtDNA =================="
-    echo "Sample ID: ${meta}"
+    echo "Sample ID: ${meta.id}"
     echo "BAM file: ${bam_file}"
     echo "GTF: ${ref_gtf}"
+    echo "Added rRNA reference: ${rrna_gtf ?: 'none'}"
 
     calculate_rrna_mtdna.sh \\
+        ${rrna_arg}\\
         ${bam_file} \\
         ${meta.id}_mt_rrna_metrics.txt \\
         ${ref_gtf} \\
