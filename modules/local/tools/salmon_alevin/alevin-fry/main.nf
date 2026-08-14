@@ -22,11 +22,17 @@ process ALEVIN_FRY {
     path "versions.yml",                                                emit: versions
 
     script:
-    // If protocol is "bd_rhapsody", then cDNA = R2 and CB/UMI = R1
+    // If protocol is a "bd_rhapsody" variant, then cDNA = R2 and CB/UMI = R1
     // Else by default cDNA = R1 and CB/UMI = R2
-    if (params.protocol.toLowerCase().contains("bd_rhapsody")) {
+    if (params.protocol.toLowerCase().contains("bd_rhapsody_enhancedbeads")) {
+        // Positions after RM_VARBASES removed the variable bases
         bc_geom = "1[0-8,13-21,26-34]"
         umi_geom = "1[35-42]"
+        read_geom = "2[1-end]"
+
+    } else if (params.protocol.toLowerCase().contains("bd_rhapsody_v1")) {
+        bc_geom = "1[0-8,21-29,43-51]"
+        umi_geom = "1[52-59]"
         read_geom = "2[1-end]"
 
     } else if (params.protocol.toLowerCase().contains("parse_biosciences")) {

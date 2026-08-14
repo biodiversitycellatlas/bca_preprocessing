@@ -52,17 +52,17 @@ workflow preprocessing_workflow {
         }
 
         // Check for protocol and run appropriate pre-processing workflow
-        if (params.protocol.startsWith('parse_biosciences')) {
+        if (params.protocol in ['parse_biosciences_WT_mini', 'parse_biosciences_WT']) {
             parse_workflow(merged_samplesheet)
             data_output_ch = parse_workflow.out.data_output
             bc_whitelist_ch  = resolved_whitelist
 
-        } else if (params.protocol == 'bd_rhapsody') {
+        } else if (params.protocol in ['bd_rhapsody_v1', 'bd_rhapsody_enhancedbeads']) {
             bd_rhapsody_workflow(merged_samplesheet)
             data_output_ch = bd_rhapsody_workflow.out.data_output
             bc_whitelist_ch  = resolved_whitelist
 
-        } else if (params.protocol.startsWith('10x') || params.protocol == 'oak_seq' || params.protocol == 'ultima_genomics') {
+        } else if (params.protocol in ['10xv1', '10xv2', '10xv3', '10xv4', 'oak_seq', 'ultima_genomics']) {
             tenx_genomics_workflow(merged_samplesheet)
             data_output_ch = tenx_genomics_workflow.out.data_output
             bc_whitelist_ch  = resolved_whitelist
@@ -82,7 +82,8 @@ workflow preprocessing_workflow {
             Invalid sequencing technology specified. Use one of the following parameters for 'protocol':
             - 'parse_biosciences_WT_mini'
             - 'parse_biosciences_WT'
-            - 'bd_rhapsody'
+            - 'bd_rhapsody_v1'
+            - 'bd_rhapsody_enhancedbeads'
             - '10xv1'
             - '10xv2'
             - '10xv3'

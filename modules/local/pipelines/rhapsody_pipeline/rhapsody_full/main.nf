@@ -1,4 +1,5 @@
 process BDRHAP_PIPELINE {
+    tag "${meta.id}"
     publishDir "${params.outdir}/BDrhapsody_pipeline/", mode: 'copy'
     label 'process_high'
 
@@ -6,15 +7,13 @@ process BDRHAP_PIPELINE {
     container "oras://community.wave.seqera.io/library/cwltool_python:d7b534cc8e4f1511"
 
     input:
-    val run_name
-    path bd_ref_path
-    path input_yaml
-    tuple val(meta), path(fastq_cDNA), path(fastq_BC_UMI), path(fastq_indices), path(input_file)
+    tuple val(meta), path(bd_ref_path), path(input_yaml), path(fastq_cDNA), path(fastq_BC_UMI), path(fastq_indices), path(input_file)
 
     output:
     path "versions.yml", emit: versions
 
     script:
+    def run_name = meta.id
     """
     echo "\n\n===============  BD Rhapsody pipeline  ==============="
     echo "Run name: ${run_name}"
