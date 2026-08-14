@@ -59,6 +59,17 @@ Within each custom configuration file the following variables can be defined:
 | `star_clipAdapterType` | Optional         | Type of adapter clipping. See [protocol-specific defaults](../conf/seqtech_parameters.config) set in the seqtech_paramaters.config file. |
 
 
+## Alevin-fry Variables
+
+The geometries use salmon's custom geometry syntax, `"<read>[<ranges>]"`, with 1-based inclusive ranges that are concatenated in the order they are listed. Read `1` is the CB/UMI FASTQ and read `2` the cDNA FASTQ, regardless of which of R1/R2 carries the cDNA for the protocol.
+
+| Variable               | Required/Optional | Description |
+|------------------------|-------------------|-------------|
+| `alevin_bc_geometry`   | Optional          | Position(s) of the cell barcode, e.g. `"1[1-16]"` or `"1[1-9,14-22,27-35]"`. See [protocol-specific defaults](../conf/seqtech_parameters.config) set in the seqtech_paramaters.config file. |
+| `alevin_umi_geometry`  | Optional          | Position of the UMI, e.g. `"1[17-28]"`. See [protocol-specific defaults](../conf/seqtech_parameters.config) set in the seqtech_paramaters.config file. |
+| `alevin_read_geometry` | Optional          | Position of the biological sequence, `"2[1-end]"` for every protocol. See [protocol-specific defaults](../conf/seqtech_parameters.config) set in the seqtech_paramaters.config file. |
+
+
 ## FeatureCounts Variables
 
 | Variable               | Required/Optional | Description |

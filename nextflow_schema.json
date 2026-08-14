@@ -134,6 +134,15 @@
                 },
                 "star_soloUMIdedup": {
                     "type": "string"
+                },
+                "alevin_bc_geometry": {
+                    "type": "string"
+                },
+                "alevin_umi_geometry": {
+                    "type": "string"
+                },
+                "alevin_read_geometry": {
+                    "type": "string"
                 }
             }
         },

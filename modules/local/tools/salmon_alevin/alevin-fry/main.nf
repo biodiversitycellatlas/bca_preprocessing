@@ -22,28 +22,13 @@ process ALEVIN_FRY {
     path "versions.yml",                                                emit: versions
 
     script:
-    // If protocol is a "bd_rhapsody" variant, then cDNA = R2 and CB/UMI = R1
-    // Else by default cDNA = R1 and CB/UMI = R2
-    if (params.protocol.toLowerCase().contains("bd_rhapsody_enhancedbeads")) {
-        // Positions after RM_VARBASES removed the variable bases
-        bc_geom = "1[0-8,13-21,26-34]"
-        umi_geom = "1[35-42]"
-        read_geom = "2[1-end]"
+    // Retrieve settings from custom parameters if set, otherwise from conf/seqtech_parameters.config
+    def bc_geom = params.alevin_bc_geometry ?: params.seqtech_parameters[params.protocol].alevin_bc_geometry
+    def umi_geom = params.alevin_umi_geometry ?: params.seqtech_parameters[params.protocol].alevin_umi_geometry
+    def read_geom = params.alevin_read_geometry ?: params.seqtech_parameters[params.protocol].alevin_read_geometry
 
-    } else if (params.protocol.toLowerCase().contains("bd_rhapsody_v1")) {
-        bc_geom = "1[0-8,21-29,43-51]"
-        umi_geom = "1[52-59]"
-        read_geom = "2[1-end]"
-
-    } else if (params.protocol.toLowerCase().contains("parse_biosciences")) {
-        bc_geom = "1[51-58,31-38,11-18]"
-        umi_geom = "1[1-10]"
-        read_geom = "2[1-end]"
-
-    } else {
-        bc_geom = "1[1-16]"
-        umi_geom = "1[17-28]"
-        read_geom = "2[1-end]"
+    if (!bc_geom || !umi_geom || !read_geom) {
+        error "No alevin geometry defined for protocol '${params.protocol}'. Set 'alevin_bc_geometry', 'alevin_umi_geometry' and 'alevin_read_geometry' in the configuration file."
     }
     """
     echo "\n\n==================  ALEVIN-FRY =================="
@@ -53,6 +38,7 @@ process ALEVIN_FRY {
     echo "Reference ref_gtf: ${params.ref_gtf}"
     echo "cDNA read: ${fastq_cDNA}"
     echo "CB/UMI read: ${fastq_BC_UMI}"
+    echo "Geometry (bc / umi / read): ${bc_geom} / ${umi_geom} / ${read_geom}"
 
 
     echo "\n\n-------------  Salmon Alevin -------------------"
@@ -62,9 +48,9 @@ process ALEVIN_FRY {
         -1 ${fastq_BC_UMI} \\
         -2 ${fastq_cDNA} \\
         -p 32 \\
-        --bc-geometry ${bc_geom} \\
-        --umi-geo ${umi_geom} \\
-        --read-geo ${read_geom} \\
+        --bc-geometry "${bc_geom}" \\
+        --umi-geo "${umi_geom}" \\
+        --read-geo "${read_geom}" \\
         -o ./${meta.id}_run \\
         --justAlign
 
