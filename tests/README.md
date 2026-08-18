@@ -23,10 +23,14 @@ tests/
 ├── checks/                     # one file per check, discovered automatically
 │   ├── conda_envs.sh
 │   ├── containers.sh
-│   └── nextflow_versions.sh
+│   ├── nextflow_versions.sh
+│   └── resource_efficiency.sh
+├── fixtures/
+│   └── execution_trace_formats.txt  # hand-written trace covering awkward formats
 └── lib/
     ├── common.sh               # logging, result recording, summary
-    └── extract_containers.awk  # pulls image refs out of module definitions
+    ├── extract_containers.awk  # pulls image refs out of module definitions
+    └── make_trace_fixture.py   # generates synthetic runs with a known exponent
 ```
 
 Logs land in `tests/.logs/<timestamp>/`, one file per test case. Those, along
@@ -155,6 +159,53 @@ Notes:
 - Each version runs in its own directory under `tests/.logs/`, so `.nextflow.log`
   and `work/` never land in the repository. They are removed afterwards unless
   `--keep` is given.
+
+## `resource_efficiency`
+
+Validates [`bin/resource_efficiency.py`](../bin/resource_efficiency.py), which turns
+execution traces into scheduled-resource recommendations. A parsing error there does
+not raise an exception — it produces a plausible-looking number that is wrong, and the
+next run gets sized from it. So the check asserts on the numbers rather than on the
+exit status.
+
+There is no real trace to check against on a development machine, so it builds two
+kinds of input:
+
+- `tests/fixtures/execution_trace_formats.txt`, written by hand, covering the awkward
+  things Nextflow emits: `1.2 GB` and `512 MB`, `2h 3m 4s` and `250ms` and `1d 2h`,
+  `540.5%` (over 100, because `%cpu` is summed across cores), `-` for unmeasured
+  fields, a `CACHED` row of nothing but dashes, a task killed with exit 137 followed
+  by its successful retry, an aliased process name, an unlabelled process and a
+  process no module declares.
+- `tests/lib/make_trace_fixture.py`, which generates whole runs whose memory follows a
+  **known** power law, so the recovered scaling exponent can be compared against the
+  one that was asked for. Deterministic under `--seed`.
+
+```bash
+bash tests/run_tests.sh resource_efficiency
+
+# Use a specific interpreter, and embed a different exponent
+bash tests/run_tests.sh resource_efficiency -- \
+    --python "$(command -v python3)" --exponent 1.0 --tolerance 0.2
+
+# Keep the generated fixtures to look at them
+bash tests/run_tests.sh resource_efficiency -- --keep
+```
+
+Notes:
+
+- Needs only a `python3`; the tool's analysis path is standard library only and the
+  check runs it with `--no-plots`. It skips cleanly if no interpreter is found.
+- `label_coverage` asserts that every process under `modules/` maps to a known tier
+  and that the four aliased inclusions resolve. This is the case that fails when a new
+  module is added with a label the mapper cannot see.
+- `base_config` asserts that each tier in `conf/base.config` parses to a real
+  cpus/memory/time triple — it catches the parser silently returning `None` after a
+  formatting change to that file.
+- `coverage_guard` asserts that a tier only partly exercised by the runs is never
+  *lowered*, since the members that did not run would be under-provisioned.
+- `emitted_config` runs `nextflow config` over the generated file and skips, rather
+  than fails, when Nextflow is not installed.
 
 ## Adding a check
 

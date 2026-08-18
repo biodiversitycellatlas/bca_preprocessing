@@ -15,7 +15,6 @@ Always inspect `.nextflow.log` for additional debugging details.
 
 ### **Table of Content**:
 - [Exit Statuses](#exit-statuses)
-- [STAR](#)
 
 ---
 
@@ -42,24 +41,4 @@ Make the scripts within the bin/ folder executable from the root of the pipeline
 
 ```bash
 chmod -R +x bin/
-```
-
-
-## STAR
-
-### Not enough memory for BAM sorting
-
-Error:
-```
-Command error:
-
-  EXITING because of fatal ERROR: not enough memory for BAM sorting:
-  SOLUTION: re-run STAR with at least --limitBAMsortRAM 4240334524
-  Jun 18 13:25:42 ...... FATAL ERROR, exiting
-```
-
-*Solution*:
-Inside your custom configuration file, add or modify the following parameter:
-```
-star_limitBAMsortRAM = 4240334524         // Based on the error
 ```

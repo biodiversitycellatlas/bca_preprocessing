@@ -12,4 +12,7 @@ The biodiversitycellatlas/bca_preprocessing documentation is split into the foll
 - [Output](output.md)
   - An overview of the various files & results produced by the pipeline and how to interpret them.
 
+- [Resource Tuning](RESOURCE_TUNING.md)
+  - How to see what the cluster actually used per process, and how to adjust the scheduled resources for the next run.
+
 - [Troubleshooting](TROUBLESHOOTING.md)

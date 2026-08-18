@@ -229,7 +229,7 @@ Below is an overview of the possible directory structure:
 ```
 output_directory/
 ├── demultiplex/            # Demultiplexed FASTQ files
-├── pipeline_info/          # Run execution details (configs, logs, samplesheet)
+├── pipeline_info/          # Run execution details (configs, samplesheet, execution trace/report/timeline)
 ├── fastqc/                 # Quality control reports for raw FASTQ files
 ├── mapping_STARsolo/       # STARsolo count matrices and stats
 ├── mapping_alevin/         # (Optional) Alevin-fry count matrices and AlevinQC

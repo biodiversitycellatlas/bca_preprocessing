@@ -57,6 +57,8 @@ Within each custom configuration file the following variables can be defined:
 | `star_soloMultiMappers` | Optional        | Counting method for reads mapping to multiple genes. See [protocol-specific defaults](../conf/seqtech_parameters.config) set in the seqtech_paramaters.config file. |
 | `star_soloUMIdedup` | Optional         | Type of UMI deduplication algorithm. See [protocol-specific defaults](../conf/seqtech_parameters.config) set in the seqtech_paramaters.config file. |
 | `star_clipAdapterType` | Optional         | Type of adapter clipping. See [protocol-specific defaults](../conf/seqtech_parameters.config) set in the seqtech_paramaters.config file. |
+| `star_limitBAMsortRAM` | Optional         | STAR's own ceiling on the BAM sort buffer, in bytes. Default `0`, which makes the pipeline derive it from `task.memory` minus the resident genome index. Set a number only to pin it, e.g. to the figure a STAR error asks for. Note this is *not* the scheduler allocation — see [Resource Tuning](RESOURCE_TUNING.md#tool-internal-memory-ceilings). |
+| `star_limitGenomeGenerateRAM` | Optional  | STAR's own ceiling for index construction, in bytes. Default `null`, which derives it from `task.memory`. A pinned value neither grows with a larger resource tier nor shrinks with a smaller one. |
 
 
 ## Alevin-fry Variables

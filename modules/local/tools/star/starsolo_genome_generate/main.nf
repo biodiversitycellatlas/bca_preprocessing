@@ -19,11 +19,17 @@ process STARSOLO_INDEX {
     def star_genomeSAindexNbases = params.star_genomeSAindexNbases ?: params.seqtech_parameters[params.protocol].star_genomeSAindexNbases
     def star_genomeSAsparseD = params.star_genomeSAsparseD ?: params.seqtech_parameters[params.protocol].star_genomeSAsparseD
 
+    // Derive it from task.memory * 0.85, and allow for a user override via params.star_limitGenomeGenerateRAM. 
+    // The 0.85 factor is a safety margin to avoid hitting the cgroup limit.
+    def genomegen_ram = params.star_limitGenomeGenerateRAM
+        ?: (long) ((task.memory ? task.memory.toBytes() : 32000000000L) * 0.85)
+
     """
     echo "\n\n==================  GENOME INDEX STARSOLO =================="
     echo "Creating star index using GTF file: ${ref_gtf}"
     echo "--genomeSAindexNbases = ${star_genomeSAindexNbases}"
     echo "--genomeSAsparseD = ${star_genomeSAsparseD}"
+    echo "--limitGenomeGenerateRAM = ${genomegen_ram} (allocation: ${task.memory})"
 
     # Calculate SJDB overhang using the first read from the first fastq file
     sjdb_overhang=\$(zcat ${fastq_cDNA} | awk 'NR==2 {print length(\$0)-1; exit}' || echo "")
@@ -35,7 +41,7 @@ process STARSOLO_INDEX {
         --sjdbOverhang "\${sjdb_overhang}" \\
         --genomeSAsparseD ${star_genomeSAsparseD} \\
         --genomeSAindexNbases ${star_genomeSAindexNbases} \\
-        --limitGenomeGenerateRAM ${params.star_limitGenomeGenerateRAM}
+        --limitGenomeGenerateRAM ${genomegen_ram}
 
     cat <<-END_VERSIONS > versions.yml
     "${task.process}":
