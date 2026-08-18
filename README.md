@@ -130,12 +130,7 @@ This option is limited to the following sequencing technologies:
 
 The samplesheet should be a comma-seperated file, specifying the names and locations of the files and details necessary for pipeline execution. Depending on the chosen sequencing technique the order of the FASTQ files is altered, R1 might contain the cDNA while in other cases this might contain the Cell barcode & UMI's, check the available documentation or do a manual inspection.
 
-When analysing sci-RNA-seq3 data, it is necessary to also provide the index to the p5, p7 and rt's for each sample to analyse this data successfully. These indexes are defined in the sci-RNA-seq3 barcode whitelist file, where you can match the sequences to the corresponding barcode, which is used in the samplesheet. It is also important to note that for sci-RNA-seq3 data, the p5 + p7 should be present in the headers of the FASTQ files, see [this bcl2fastq script](assets/bcl2fastq2.sh).
-
-In the case of Parse Biosciences data, the rt column should be filled with the group-well definitions, where:
-
-> Wells are specified in blocks, ranges, or individually like this:<br/> >&nbsp;&nbsp;&nbsp;&nbsp;'A1:C6' specifies a block as [top-left]:[bottom-right]; A1-A6, B1-B6, C1-C6.<br/> >&nbsp;&nbsp;&nbsp;&nbsp;'A1-B6' specifies a range as [start]-[end]; A1-A12, B1-6.<br/> >&nbsp;&nbsp;&nbsp;&nbsp;'C4' specifies a single well.<br/>
-> Multiple selections are joined by commas (no space), e.g. 'A1-A6,B1:D3,C4'
+Some protocols need more than the FASTQ paths: sci-RNA-seq3 needs the `p5`, `p7` and `rt` columns filled in, Parse Biosciences needs the group-well definition in `rt`, and Parse Biosciences and MARS-seq put the cDNA in read 1 rather than read 2. These per-protocol requirements, together with the read layouts and the pre-processing steps they trigger, are described in [Protocol-specific steps & whitelists](docs/PROTOCOLS_AND_WHITELISTS.md).
 
 In the table below, the available variables are summarized:
 | Variable | Required/Optional | Description |
@@ -160,8 +155,6 @@ To illustrate how the samplesheet would be filled across the different sequencin
 | oak_seq_example           | R2         | R1           |               | expected_cells |     |     |            |
 | ultima_genomics_example   | R2         | R1           |               | expected_cells |     |     |            |
 | marsseq_example           | R1         | R2           |               | expected_cells |     |     |            |
-
-For MARS-seq, read 1 goes in the `fastq_cDNA` column even though it is not pure cDNA: it carries the batch barcode, the mapping region and two blocks of ignore bases. The pre-processing subworkflow rebuilds both reads before mapping, stripping the ignore bases from read 1 and moving its batch barcode to the front of the cell barcode and UMI of read 2. See [MARS-seq](docs/PROTOCOLS_AND_WHITELISTS.md#mars-seq) for the read layouts.
 
 ### 2. Edit (or create) a custom configuration file
 
