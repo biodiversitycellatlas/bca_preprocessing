@@ -11,6 +11,7 @@ include { bd_rhapsody_workflow          } from '../subworkflows/local/pre-proces
 include { parse_workflow                } from '../subworkflows/local/pre-processing/preprocs_parse_biosciences'
 include { tenx_genomics_workflow        } from '../subworkflows/local/pre-processing/preprocs_10x'
 include { sciRNAseq3_nogather_workflow  } from '../subworkflows/local/pre-processing/preprocs_sciRNAseq3_nogather'
+include { marsseq_workflow              } from '../subworkflows/local/pre-processing/preprocs_marsseq'
 include { seqspec_workflow              } from '../subworkflows/local/pre-processing/preprocs_seqspec'
 
 include { MERGE_FASTQS                  } from '../modules/local/custom/manipulate/merge_files/main'
@@ -24,6 +25,7 @@ include { DOWNLOAD_WHITELIST            } from '../modules/local/custom/manipula
         - BD Rhapsody: Removing variable bases and mapping using BD rhapsody pipeline
         - 10x, OAK seq & Ultima Genomics : Mapping using CellRanger
         - Sci-RNA-seq3: Pre-processing based on the sci-rocket pipeline
+        - MARS-seq: Rebuilding the reads so the batch barcode joins the cell barcode and UMI
 ~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~
 */
 workflow preprocessing_workflow {
@@ -72,6 +74,13 @@ workflow preprocessing_workflow {
             data_output_ch   = sciRNAseq3_nogather_workflow.out.data_output
             bc_whitelist_ch  = sciRNAseq3_nogather_workflow.out.bc_whitelist.map { tup -> tup*.toString().join(' ') }
 
+        } else if (params.protocol in ['marsseq_v1', 'marsseq_v2']) {
+            marsseq_workflow(merged_samplesheet)
+            data_output_ch = marsseq_workflow.out.data_output
+
+            // MARS-seq has no barcode whitelist; an empty value makes STARsolo use '--soloCBwhitelist None'
+            bc_whitelist_ch  = resolved_whitelist ?: ""
+
         } else if (params.seqspec_file && file(params.seqspec_file).exists() && params.protocol == 'seqspec') {
             seqspec_workflow(merged_samplesheet)
             data_output_ch = seqspec_workflow.out.data_output
@@ -91,6 +100,8 @@ workflow preprocessing_workflow {
             - 'oak_seq'
             - 'ultima_genomics'
             - 'sciRNAseq3'
+            - 'marsseq_v1'
+            - 'marsseq_v2'
             Or use 'seqspec' to specify a non-supported sequencing technique.
             """
         }

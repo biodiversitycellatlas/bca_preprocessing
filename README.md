@@ -36,6 +36,7 @@ This nextflow pipeline is designed to pre-process single-cell and single-nucleus
 - OAK-seq
 - Ultima Genomics
 - sci-RNA-seq3
+- MARS-seq (v1 and v2)
 - and others, when providing a [seqspec](https://github.com/pachterlab/seqspec) file
 
 Depending on the chosen sequencing technique, it handles the processing of the FASTQ files accordingly. Whenever possible, we compared our results to a commercial pre-processing pipeline for that sequencing technique. For example, comparing our Parse Biosciences results to the official split-pipe pipeline from Parse Biosciences. While we cannot provide this commercial software directly, you can install it yourself (e.g. by following [these instructions](docs/INSTALLATION_EXTERNAL_PIPELINES.md)), and provide a path where the installation is located in the configuration file. This way, it will be executed alongside of the BCA pre-processing pipeline.
@@ -158,6 +159,9 @@ To illustrate how the samplesheet would be filled across the different sequencin
 | 10xv3_example             | R2         | R1           |               | expected_cells |     |     |            |
 | oak_seq_example           | R2         | R1           |               | expected_cells |     |     |            |
 | ultima_genomics_example   | R2         | R1           |               | expected_cells |     |     |            |
+| marsseq_example           | R1         | R2           |               | expected_cells |     |     |            |
+
+For MARS-seq, read 1 goes in the `fastq_cDNA` column even though it is not pure cDNA: it carries the batch barcode, the mapping region and two blocks of ignore bases. The pre-processing subworkflow rebuilds both reads before mapping, stripping the ignore bases from read 1 and moving its batch barcode to the front of the cell barcode and UMI of read 2. See [MARS-seq](docs/PROTOCOLS_AND_WHITELISTS.md#mars-seq) for the read layouts.
 
 ### 2. Edit (or create) a custom configuration file
 
@@ -171,8 +175,8 @@ Within each custom configuration file the following variables can be defined:
 | ------------------------ | ----------------- | ------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------ |
 | `input`                  | **Required**      | Path to the samplesheet.                                                                                                                                                                                                                                           |
 | `outdir`                 | **Required**      | Path to the results/output directory; must exist before running.                                                                                                                                                                                                   |
-| `protocol`               | **Required**      | Specifies the sequencing technology used (must be one of the following: `"oak_seq"`, `"10xv1"`, `"10xv2"`, `"10xv3"`, `"10xv4"`, `"parse_biosciences_WT_mini"` or `"parse_biosciences_WT"`, `"bd_rhapsody_v1"`, `"bd_rhapsody_enhancedbeads"`, `"sciRNAseq3"` , `"ultima_genomics"` or `"seqspec"`). |
-| `bc_whitelist`           | **Required**      | Path or link to the barcode whitelist file(s), multiple ones separated by whitespace. If links are given, they are automatically downloaded (and unzipped if applicable) for any protocol.                                                                         |
+| `protocol`               | **Required**      | Specifies the sequencing technology used (must be one of the following: `"oak_seq"`, `"10xv1"`, `"10xv2"`, `"10xv3"`, `"10xv4"`, `"parse_biosciences_WT_mini"` or `"parse_biosciences_WT"`, `"bd_rhapsody_v1"`, `"bd_rhapsody_enhancedbeads"`, `"sciRNAseq3"` , `"ultima_genomics"`, `"marsseq_v1"`, `"marsseq_v2"` or `"seqspec"`). |
+| `bc_whitelist`           | **Required**      | Path or link to the barcode whitelist file(s), multiple ones separated by whitespace. If links are given, they are automatically downloaded (and unzipped if applicable) for any protocol. Not used by `"marsseq_v1"`/`"marsseq_v2"`, which run without a whitelist. |
 | `ref_fasta`              | **Required**      | Path to the genome FASTA file used for mapping reads.                                                                                                                                                                                                              |
 | `ref_gtf`                | **Required**      | Path to the GTF/GFF file formatted for STARsolo.                                                                                                                                                                                                                   |
 | `run_method`             | Optional          | Method of running the pre-processing pipeline, demonstrated in the [pipeline diagram](img/Preprocs_Pipeline.png), one of `"standard"`, `"geneext_only"`, `"external_pipeline_only"` or `"post_mapping"`. Default is set to `"standard"`. `"post_mapping"` redoes everything after mapping on a finished run; re-calling cells with a different `expected_cells` or a manual cutoff, without mapping again; see [Re-running after mapping](docs/CONFIGURATION_PARAMETERS.md#re-running-after-mapping). |

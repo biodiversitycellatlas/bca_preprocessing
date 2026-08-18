@@ -81,6 +81,10 @@ workflow QC_mapping_workflow {
         def bc_whitelist_safe = bc_whitelist
             .ifEmpty("")
 
+        // Alevin takes the whitelist as a path input, which cannot be an empty string, so protocols running without a whitelist (e.g. MARS-seq) stage nothing instead
+        def bc_whitelist_alevin = bc_whitelist_safe
+            .map { wl -> wl?.toString()?.trim() ? wl : [] }
+
         // Suffix application: uses index access to avoid fixed-arity destructuring
         def apply_suffix = { ch, suffix ->
             ch.map { row ->
@@ -210,7 +214,7 @@ workflow QC_mapping_workflow {
         if (params.mapping_software == "alevin" || params.mapping_software == "both" || params.mapping_software == "alevin_subsampled_starsolo" || params.mapping_software == "alevin_starsolo") {
             def ch_alevin = apply_suffix(data_output, "_alevinfry")
             ch_mapped_ss = ch_mapped_ss.mix(ch_alevin)
-            mapping_alevin_workflow(ch_alevin, bc_whitelist)
+            mapping_alevin_workflow(ch_alevin, bc_whitelist_alevin)
 
             ch_mapping_files    = ch_mapping_files.mix(mapping_alevin_workflow.out.mapping_files)
             ch_alevin_meta_info = mapping_alevin_workflow.out.af_meta_info
