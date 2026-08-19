@@ -2,6 +2,12 @@ process SATURATION_TABLE {
     publishDir "${params.outdir}/saturation/${meta.id}", mode: 'copy'
     tag "${meta.id}"
     label 'process_medium'
+    label 'error_retry'
+
+    // Memory tracks the size of the filtered BAM being read, overrides process_medium's flat assignments.
+    // Coefficients live in params.dynamic_memory; remove the entry to fall back to the plain label.
+    memory { BcaResources.scaledMemory(
+        params.dynamic_memory?.SATURATION_TABLE, [bam_file], task.attempt, 36) }
 
     conda "${moduleDir}/environment.yml"
     container "oras://community.wave.seqera.io/library/pysam_samtools_bc_python_pruned:82a1e27e868113f0"

@@ -81,7 +81,7 @@ A label like `process_low` gives every step the same memory, and it has to be bi
 enough for the largest dataset you will ever run. On everything smaller, most of that
 is reserved and left idle.
 
-For four steps we noticed that memory tracks the size of their input, so
+For five steps we noticed that memory tracks the size of their input, so
 they scale with it instead of using a fixed amount of resources:
 
 | Step | Dependent on | Scale |
@@ -90,6 +90,7 @@ they scale with it instead of using a fixed amount of resources:
 | `STARSOLO_INDEX` | Reference genome size |  ~4 GB small, ~34 GB large |
 | `MTX_TO_H5AD` | Matrix size | ~3 GB small, up to 48 GB |
 | `MTX_TO_10X` | Matrix size | ~3 GB small, up to 48 GB |
+| `SATURATION_TABLE` | Filtered BAM size | ~13 GB small, up to 128 GB |
 
 The numbers live in `dynamic_memory` in [`nextflow.config`](../nextflow.config), and you can refresh them
 based on your own runs:
