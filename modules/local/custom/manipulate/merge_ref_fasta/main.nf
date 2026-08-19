@@ -1,5 +1,6 @@
 process MERGE_REF_FASTA {
     publishDir "${params.outdir}/genome", mode: 'copy'
+    label 'process_single'
 
     input:
     path base_fasta

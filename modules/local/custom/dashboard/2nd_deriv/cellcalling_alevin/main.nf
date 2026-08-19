@@ -1,6 +1,6 @@
 process SECONDDERIV_CELLCALLING_ALEVIN {
     publishDir "${params.outdir}/mapping_alevin/${meta.id}/${meta.id}_counts/alevin/filtered_secondderiv", mode: 'copy'
-    label 'process_low'
+    label 'process_single'
     tag "${meta.id}"
 
     conda "${moduleDir}/environment.yml"

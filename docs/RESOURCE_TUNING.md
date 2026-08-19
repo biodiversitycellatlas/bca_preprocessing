@@ -9,6 +9,7 @@ ready-to-use config that fixes over- or under-sized requests for your next run.
 - [Quick start](#quick-start)
 - [Reading the report](#reading-the-report)
 - [Applying the recommendations](#applying-the-recommendations)
+- [Dynamic memory](#dynamic-memory)
 - [Tips](#tips)
 
 ---
@@ -73,6 +74,33 @@ nextflow run
     -c conf/resources_tuned.config
     ...
 ```
+
+## Dynamic memory
+
+A label like `process_low` gives every step the same memory, and it has to be big
+enough for the largest dataset you will ever run. On everything smaller, most of that
+is reserved and left idle.
+
+For four steps we noticed that memory tracks the size of their input, so
+they scale with it instead of using a fixed amount of resources:
+
+| Step | Dependent on | Scale |
+| --- | --- | --- |
+| `STARSOLO_ALIGN` | FASTQ size | ~5 GB small, ~160 GB very large |
+| `STARSOLO_INDEX` | Reference genome size |  ~4 GB small, ~34 GB large |
+| `MTX_TO_H5AD` | Matrix size | ~3 GB small, up to 48 GB |
+| `MTX_TO_10X` | Matrix size | ~3 GB small, up to 48 GB |
+
+The numbers live in `dynamic_memory` in [`nextflow.config`](../nextflow.config), and you can refresh them
+based on your own runs:
+
+```bash
+bin/resource_efficiency.py --results /path/to/outdir --dynamic
+```
+
+That writes a `resources_dynamic_*.config` you can pass with `-c`, or copy into
+`nextflow.config`.
+
 
 ## Tips
 

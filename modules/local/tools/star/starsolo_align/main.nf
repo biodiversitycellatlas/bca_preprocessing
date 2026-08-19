@@ -4,6 +4,12 @@ process STARSOLO_ALIGN {
     tag "${meta.id}"
     label 'process_high_memory'
 
+    // Memory tracks the size of the FASTQs being read, overrides process_high_memory's flat assignments. 
+    // Coefficients live in params.dynamic_memory; remove the entry to fall back to the plain label.
+    memory { BcaResources.scaledMemory(
+        params.dynamic_memory?.STARSOLO_ALIGN,
+        [fastq_cDNA, fastq_BC_UMI], task.attempt, 128, genome_index_files) }
+
     conda "${moduleDir}/environment.yml"
     container "oras://community.wave.seqera.io/library/htslib_samtools_seqspec_star_pruned:cef769c7e3b03dd0"
 
@@ -71,17 +77,13 @@ process STARSOLO_ALIGN {
 
     // Whenever this pipeline re-calls cells, they are called by FILTER_MATRICES on the
     // raw matrix, so STARsolo's own filtered matrix is dropped to keep it out of the
-    // published results and out of every downstream calculation. STARsolo still runs its
-    // filtering, since Summary.csv is written from it.
+    // published results and out of every downstream calculation. 
+    // STARsolo still runs its filtering, since Summary.csv is written from it.
     def drop_star_filtered = params.cellfilter_method in ["second_derivative", "manual_cutoff"]
 
-    // Left at 0, STAR sets it to the genome index size, which is unrelated to the memory the job was given.
-    // Computed in the shell below rather than here, because the correct budget is
-    // the allocation minus the genome index, which stays resident during sorting,
-    // and only the staged index can be measured. params.star_limitBAMsortRAM
-    // overrides whenever it is set to something non-zero.
-    def bamsort_bytes = (params.star_limitBAMsortRAM ?: 0) as long
-    def task_memory_bytes = task.memory ? task.memory.toBytes() : 0
+    // Calculated in BcaResources.bamSortRam(), which returns a note and the byte count.
+    // params.star_limitBAMsortRAM overrides whenever it is set to something non-zero.
+    def bamsort = BcaResources.bamSortRam(params.star_limitBAMsortRAM, task.memory, genome_index_files)
 
     """
     echo "\n\n==============  MAPPING STARSOLO  ================"
@@ -91,7 +93,7 @@ process STARSOLO_ALIGN {
     echo "Genome index directory: ${genome_index_files}"
     echo "Barcode whitelist: ${safe_bc_whitelist}"
     echo "Expected cells: ${meta.expected_cells}"
-    echo "star_limitBAMsortRAM (param): ${params.star_limitBAMsortRAM}"
+    echo "limitBAMsortRAM: ${bamsort.note}"
     echo "star_solocellfilter: ${star_solocellfilter}"
     echo "star_soloTypestring: ${star_soloTypestring}"
     echo "star_generateBAM: ${params.star_generateBAM}"
@@ -119,45 +121,6 @@ process STARSOLO_ALIGN {
 
     echo "SOLO_CELL_FILTER_ARGS: \${SOLO_CELL_FILTER_ARGS}"
 
-    # Resolve the BAM sort budget. STAR holds the genome index in RAM for the whole
-    # run, so the sort buffer has to fit in what is left of the allocation after it,
-    # less a slack allowance for STAR's alignment buffers and the solo structures.
-    BAMSORT_RAM=${bamsort_bytes}
-    if [[ "\${BAMSORT_RAM}" -le 0 ]]; then
-        alloc_bytes=${task_memory_bytes}
-        if [[ "\${alloc_bytes}" -le 0 ]]; then
-            # No memory directive to work from; fall back to STAR's own behaviour.
-            BAMSORT_RAM=0
-        else
-            index_bytes=\$(du -scb -L ${genome_index_files} 2>/dev/null | tail -1 | cut -f1)
-            case "\${index_bytes}" in
-                ''|*[!0-9]*) index_bytes=0 ;;
-            esac
-            slack_bytes=\$(( 4 * 1024 * 1024 * 1024 ))
-
-            if [[ "\${index_bytes}" -eq 0 ]]; then
-                # du told us nothing, so the index size is unknown. Guessing high
-                # here would get the job OOM-killed; take a conservative fraction
-                # of the allocation instead.
-                BAMSORT_RAM=\$(( alloc_bytes * 60 / 100 ))
-                echo "limitBAMsortRAM derived: index size unknown, using 60% of \${alloc_bytes} = \${BAMSORT_RAM}"
-            else
-                BAMSORT_RAM=\$(( alloc_bytes - index_bytes - slack_bytes ))
-                echo "limitBAMsortRAM derived: allocation \${alloc_bytes} - index \${index_bytes} - slack \${slack_bytes} = \${BAMSORT_RAM}"
-            fi
-
-            # A genome index larger than the allocation leaves nothing to sort in.
-            # Ask for a modest buffer rather than a negative one, and let STAR
-            # report the real shortfall -- its error names the exact figure needed.
-            if [[ "\${BAMSORT_RAM}" -lt \$(( 1024 * 1024 * 1024 )) ]]; then
-                BAMSORT_RAM=\$(( 1024 * 1024 * 1024 ))
-                echo "limitBAMsortRAM floored at 1 GB: the genome index leaves no room in this allocation"
-            fi
-        fi
-    else
-        echo "limitBAMsortRAM from params.star_limitBAMsortRAM: \${BAMSORT_RAM}"
-    fi
-
     # Mapping step and generating count matrix using STAR
     STAR \\
         --runThreadN ${task.cpus} \\
@@ -180,7 +143,7 @@ process STARSOLO_ALIGN {
         ${outSAMtype_option} \\
         --outFileNamePrefix ${meta.id}_ \\
         --genomeChrSetMitochondrial ${params.mt_contig} \\
-        --limitBAMsortRAM \${BAMSORT_RAM} \\
+        --limitBAMsortRAM ${bamsort.bytes} \\
         --soloStrand ${params.star_soloStrand} \\
         ${star_extraargs}
 

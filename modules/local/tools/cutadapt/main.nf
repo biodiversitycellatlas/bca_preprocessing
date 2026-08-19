@@ -1,6 +1,6 @@
 process RM_VARBASES {
     tag "${meta.id}"
-    label 'process_medium'
+    label 'process_low'
 
 
     conda "${moduleDir}/environment.yml"

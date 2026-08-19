@@ -196,6 +196,65 @@ assert_json "trace_formats.missing_values" "$FMT_JSON" \
     "'-' yields None without losing the row"
 
 # --------------------------------------------------------------------------
+# Case: default_fields
+#
+# A trace written with Nextflow's *default* trace.fields carries no cpus/memory/
+# time, and no `process` or `tag` column either. Without a denominator every
+# efficiency is blank and both overview charts come out empty, so the tool
+# substitutes the declared conf/base.config values. It also has to pair the run
+# config by nearest timestamp, since a resumed run writes a new trace suffix while
+# SAVE_RUN_CONFIG stays cached under the old one.
+# --------------------------------------------------------------------------
+
+DEF_DIR="$WORKDIR/default_fields"
+mkdir -p "$DEF_DIR/pipeline_info"
+{
+    printf 'task_id\thash\tnative_id\tname\tstatus\texit\tsubmit\tduration\trealtime\t%%cpu\tpeak_rss\tpeak_vmem\trchar\twchar\n'
+    printf '1\ta1/01\t4001\tSTARSOLO_ALIGN (s1)\tCOMPLETED\t0\t2026-08-01 10:00:00.000\t2h 5m\t2h\t1240.5%%\t96.2 GB\t100 GB\t40 GB\t12 GB\n'
+    printf '2\ta1/02\t4002\tSTARSOLO_ALIGN (s2)\tCOMPLETED\t0\t2026-08-01 10:00:00.000\t1h 5m\t1h\t1100.0%%\t48.1 GB\t52 GB\t20 GB\t6 GB\n'
+    printf '3\ta1/03\t4003\tFASTQC (s1)\tCOMPLETED\t0\t2026-08-01 10:00:00.000\t10m\t9m\t185.0%%\t2.4 GB\t3 GB\t20 GB\t2 GB\n'
+} >"$DEF_DIR/pipeline_info/execution_trace_2026-08-01_10-00-00.txt"
+# Deliberately an *earlier* suffix than the trace, as a -resume leaves behind.
+printf 'protocol = 10xv3\nmapping_software = starsolo\n' \
+    >"$DEF_DIR/pipeline_info/run_config_2026-08-01_09-55-00.txt"
+printf 'sample,fastq_cDNA,fastq_BC_UMI,expected_cells\ns1,/d/a.fq.gz,/d/b.fq.gz,5000\ns2,/d/c.fq.gz,/d/d.fq.gz,5000\n' \
+    >"$DEF_DIR/pipeline_info/samplesheet_2026-08-01_09-55-00.csv"
+
+DEF_JSON="$WORKDIR/default_fields.json"
+if run_logged "$BCA_TEST_LOGDIR/resource_efficiency_defaults.log" \
+        "$PYTHON" "$TOOL" --results "$DEF_DIR" --no-plots --min-tasks 1 \
+        --output "$WORKDIR/default_report" --json "$DEF_JSON"; then
+    # The run config carries a different timestamp, so exact-suffix pairing fails
+    # and the nearest-earlier fallback has to find it.
+    assert_json "default_fields.pairing" "$DEF_JSON" \
+        "(d['runs'][0]['protocol'] == '10xv3'
+          and d['runs'][0]['mapping_software'] == 'starsolo'
+          and d['runs'][0]['n_samples'] == 2,
+          f\"protocol={d['runs'][0]['protocol']} \"
+          f\"mapper={d['runs'][0]['mapping_software']} \"
+          f\"samples={d['runs'][0]['n_samples']}\")" \
+        "run config paired by nearest timestamp"
+
+    # Efficiency must be computable from the substituted tier values, or the
+    # overview charts render empty.
+    assert_json "default_fields.backfill" "$DEF_JSON" \
+        "(procs['STARSOLO_ALIGN']['current_memory'] == 128 * 1024**3
+          and procs['STARSOLO_ALIGN']['memory_efficiency'] is not None
+          and procs['FASTQC']['current_memory'] == 12 * 1024**3,
+          f\"STARSOLO_ALIGN req={procs['STARSOLO_ALIGN']['current_memory']} \"
+          f\"eff={procs['STARSOLO_ALIGN']['memory_efficiency']}\")" \
+        "requests substituted from base.config tiers"
+
+    # The substitution must be declared, not passed off as measured.
+    assert_json "default_fields.reported" "$DEF_JSON" \
+        "(set(['cpus', 'memory', 'time']).issubset(set(d['missing_fields'])),
+          str(d['missing_fields']))" \
+        "missing fields still reported to the reader"
+else
+    record FAIL "default_fields" "see resource_efficiency_defaults.log"
+fi
+
+# --------------------------------------------------------------------------
 # Case: label_coverage and base_config
 #
 # Guards against a new module whose label the mapper cannot see, and against the

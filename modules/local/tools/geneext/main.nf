@@ -1,6 +1,6 @@
 process GENE_EXT {
     publishDir "${params.outdir}/gene_ext", mode: 'copy'
-    label 'process_high'
+    label 'process_long'
 
     // conda "${projectDir}/submodules/GeneExt/environment.yaml"
     conda "${moduleDir}/environment.yml"

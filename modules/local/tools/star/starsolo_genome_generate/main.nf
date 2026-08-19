@@ -1,6 +1,11 @@
 process STARSOLO_INDEX {
     publishDir "${params.outdir}/genome/star_index_${ref_gtf.simpleName}_${meta.id}", mode: 'copy'
-    label 'process_high_memory'
+    label 'process_high'
+
+    // Memory tracks the size of the reference being indexed, overrides process_high's flat assignments. 
+    // Coefficients live in params.dynamic_memory; remove the entry to fall back to the plain label.
+    memory { BcaResources.scaledMemory(
+        params.dynamic_memory?.STARSOLO_INDEX, [ref_fasta, ref_gtf], task.attempt, 64) }
 
     conda "${moduleDir}/environment.yml"
     container "oras://community.wave.seqera.io/library/htslib_samtools_star_gawk:f196f82abbbc8871"
@@ -20,7 +25,6 @@ process STARSOLO_INDEX {
     def star_genomeSAsparseD = params.star_genomeSAsparseD ?: params.seqtech_parameters[params.protocol].star_genomeSAsparseD
 
     // Derive it from task.memory * 0.85, and allow for a user override via params.star_limitGenomeGenerateRAM. 
-    // The 0.85 factor is a safety margin to avoid hitting the cgroup limit.
     def genomegen_ram = params.star_limitGenomeGenerateRAM
         ?: (long) ((task.memory ? task.memory.toBytes() : 32000000000L) * 0.85)
 

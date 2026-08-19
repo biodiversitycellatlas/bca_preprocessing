@@ -738,6 +738,49 @@ def _read_samplesheet(path: str) -> List[Dict[str, str]]:
         return []
 
 
+def _pair_by_suffix(pipeline_info: str, prefix: str, extension: str,
+                    run_key: str) -> Optional[str]:
+    """Find the ``<prefix><suffix><extension>`` file belonging to *run_key*.
+
+    An exact suffix match is preferred, but it cannot be relied on. ``-resume``
+    re-evaluates ``params.trace_report_suffix``, so the resumed run writes a new
+    ``execution_trace_<newkey>.txt`` while ``SAVE_RUN_CONFIG`` is cached and never
+    republishes -- leaving the run config under the *original* timestamp. Falling
+    back to the nearest earlier suffix recovers the file that was actually current
+    when the trace was written; without it a resumed run reports no samples and no
+    protocol at all.
+
+    Parameters
+    ----------
+    pipeline_info:
+        The run's ``pipeline_info/`` directory.
+    prefix, extension:
+        Filename parts around the timestamp, e.g. ``run_config_`` and ``.txt``.
+    run_key:
+        The trace's timestamp suffix.
+
+    Returns
+    -------
+    Best-matching path, or ``None`` when no candidate exists.
+    """
+    exact = os.path.join(pipeline_info, f"{prefix}{run_key}{extension}")
+    if os.path.exists(exact):
+        return exact
+
+    candidates: List[Tuple[str, str]] = []
+    for path in glob.glob(os.path.join(pipeline_info, f"{prefix}*{extension}")):
+        name = os.path.basename(path)
+        suffix = name[len(prefix):-len(extension)] if extension else name[len(prefix):]
+        candidates.append((suffix, path))
+    if not candidates:
+        return None
+
+    # The suffix is 'YYYY-MM-DD_HH-MM-SS', so lexicographic order is chronological.
+    candidates.sort()
+    earlier = [path for suffix, path in candidates if suffix <= run_key]
+    return earlier[-1] if earlier else candidates[0][1]
+
+
 def _pair_params_json(pipeline_info: str, run_key: str) -> Dict[str, Any]:
     """Find the ``params_*.json`` belonging to *run_key*.
 
@@ -806,13 +849,13 @@ def discover_runs(results_dirs: Sequence[str], results_root: Optional[str]) -> L
                 continue
             run = RunContext(key, trace_path, results_dir)
 
-            run_config = os.path.join(pipeline_info, f"run_config_{key}.txt")
-            if os.path.exists(run_config):
+            run_config = _pair_by_suffix(pipeline_info, "run_config_", ".txt", key)
+            if run_config:
                 run.run_config_path = run_config
                 run.params = dict(_read_run_config(run_config))
 
-            samplesheet = os.path.join(pipeline_info, f"samplesheet_{key}.csv")
-            if os.path.exists(samplesheet):
+            samplesheet = _pair_by_suffix(pipeline_info, "samplesheet_", ".csv", key)
+            if samplesheet:
                 run.samplesheet_path = samplesheet
                 run.samples = _read_samplesheet(samplesheet)
 
@@ -1058,6 +1101,12 @@ class ProcessStats:
         return max(values) if values else None
 
     @property
+    def min_peak_rss(self) -> Optional[float]:
+        """Smallest peak observed, which is the floor a dynamic request may fall to."""
+        values = [task.peak_rss for task in self.tasks if task.peak_rss is not None]
+        return min(values) if values else None
+
+    @property
     def p95_realtime(self) -> Optional[float]:
         return percentile([task.realtime for task in self.tasks
                            if task.realtime is not None], 95)
@@ -1131,6 +1180,49 @@ class ProcessStats:
             if value is not None and value > 0:
                 points.append((task.rchar, value, task.run_key))
         return points
+
+
+def backfill_requests(tasks: Sequence[TaskRecord],
+                      tiers: Dict[str, TierSpec]) -> List[str]:
+    """Fill missing requested resources from the tier each task's label declares.
+
+    Nextflow's *default* ``trace.fields`` records only what a task used -- no
+    ``cpus``, ``memory`` or ``time``. Any trace written before this pipeline set an
+    explicit field list, or with a bare ``-with-trace``, therefore has no
+    denominator, and every efficiency figure would be blank.
+
+    The declared value from ``conf/base.config`` is a good stand-in: no module in
+    this pipeline overrides its label, so the tier value *is* what was requested on
+    the first attempt. It is an approximation only in that it cannot see
+    ``task.attempt`` escalation or clamping by the site profile, so it is recorded
+    as inferred and reported as such rather than passed off as measured.
+
+    Parameters
+    ----------
+    tasks:
+        Task records to fill in place.
+    tiers:
+        Declared values, from :func:`parse_base_config`.
+
+    Returns
+    -------
+    Names of the fields that were backfilled for at least one task.
+    """
+    filled: set = set()
+    for task in tasks:
+        spec = tiers.get(task.tier or DEFAULT_TIER) or tiers.get(DEFAULT_TIER)
+        if spec is None:
+            continue
+        if task.req_cpus is None and spec.cpus:
+            task.req_cpus = spec.cpus
+            filled.add("cpus")
+        if task.req_memory is None and spec.memory:
+            task.req_memory = spec.memory
+            filled.add("memory")
+        if task.req_time is None and spec.time:
+            task.req_time = spec.time
+            filled.add("time")
+    return sorted(filled)
 
 
 def aggregate(all_tasks: Sequence[TaskRecord],
@@ -1663,6 +1755,109 @@ def render_config(plans: Dict[str, TierPlan],
 
 
 # ---------------------------------------------------------------------------
+# Dynamic (input-size dependent) directives
+# ---------------------------------------------------------------------------
+
+def render_dynamic(ordered: Sequence[ProcessStats],
+                   tiers: Dict[str, TierSpec],
+                   args: argparse.Namespace) -> str:
+    """Render a ``params.dynamic_memory`` block sizing processes from their input.
+
+    A flat tier has to cover the largest dataset it will ever see, so on everything
+    smaller the difference is reserved and left idle. Where usage provably tracks
+    input volume, ``lib/BcaResources.groovy`` scales the request with it instead.
+
+    The fit gives ``memory = 10**intercept * bytes**exponent``. That is re-expressed
+    here as an anchor -- "at ``ref_gb`` of input the process needed ``mem_gb``" --
+    because an anchor is something a reader can sanity-check against their own data,
+    where a raw coefficient is not. ``ref_gb`` is the geometric mean of the observed
+    input sizes, which is the centre of the fitted range and so the point the fit is
+    most confident about.
+
+    Only a process whose fit passed every quality gate gets an entry; the rest keep
+    a flat request, which is what the evidence supports.
+    """
+    stamp = datetime.datetime.now().strftime("%Y-%m-%d %H:%M:%S")
+    lines: List[str] = [
+        "/*",
+        "~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~",
+        "    Input-size dependent memory -- GENERATED FILE, DO NOT EDIT BY HAND",
+        "~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~",
+        f"    Generated by bin/resource_efficiency.py on {stamp}",
+        "",
+        "    Replaces the `dynamic_memory` map in nextflow.config. A process only",
+        "    honours its entry if its module calls BcaResources.scaledMemory(); the",
+        "    entries below for processes that do not are inert until one does.",
+        "",
+        "    Reading: at `ref_gb` of input the process needed `mem_gb`, and memory",
+        "    grows as size**`exponent` from there, clamped to [floor_gb, cap_gb].",
+        "",
+        "    Apply with:  nextflow run ... -c <this file>",
+        "----------------------------------------------------------------------------------------",
+        "*/",
+        "",
+        "params {",
+        "    dynamic_memory = [",
+    ]
+
+    emitted = 0
+    for stats in ordered:
+        fit = stats.fits.get("memory")
+        if fit is None or not fit.trusted or not stats.rec_memory:
+            continue
+
+        sizes = [task.rchar for task in stats.tasks if task.rchar and task.rchar > 0]
+        if not sizes:
+            continue
+        emitted += 1
+
+        # Anchor at the geometric mean of the observed sizes: on log axes that is
+        # the centre of the fitted range, so it is where the fit is best supported.
+        log_mean = sum(math.log10(size) for size in sizes) / len(sizes)
+        ref_bytes = 10 ** log_mean
+        anchor_bytes = (10 ** (fit.intercept + fit.slope * log_mean)) * args.safety_memory
+
+        ref_gb = max(0.001, ref_bytes / 1024 ** 3)
+        mem_gb = max(1, int(math.ceil(anchor_bytes / 1024 ** 3)))
+
+        # The floor is the *smallest* peak ever observed, not a fraction of the
+        # largest: a floor near the maximum would hand every small input the flat
+        # request back and undo the point of sizing dynamically.
+        floor_gb = max(1, int(math.ceil(
+            (stats.min_peak_rss or 0.0) * args.safety_memory / 1024 ** 3)))
+
+        # The cap has to clear both the largest prediction and the declared tier --
+        # a process already close to exhausting its tier needs room above it, or the
+        # cap simply reinstates the failure the scaling was meant to avoid.
+        predicted_hi = (10 ** (fit.intercept + fit.slope * math.log10(max(sizes)))) \
+            * args.safety_memory
+        tier = tiers.get(stats.tier)
+        tier_gb = (tier.memory / 1024 ** 3) if tier and tier.memory else 0
+        cap_gb = max(1, int(math.ceil(max(predicted_hi * 2 / 1024 ** 3, tier_gb))))
+
+        note = ""
+        if fit.slope < 0.15:
+            note = "  // exponent near zero: barely scales, a flat request is nearly as good"
+
+        lines += [
+            f"        // {stats.name}: {stats.n_tasks} task(s), {stats.n_runs} run(s); "
+            f"exponent {fit.slope:.2f}, r2 {fit.r2:.2f}.",
+            f"        //   observed input {fmt_bytes(min(sizes))} to {fmt_bytes(max(sizes))}; "
+            f"peak memory {fmt_bytes(stats.max_peak_rss)}; flat would be "
+            f"{fmt_bytes(stats.rec_memory)}.{note}",
+            f"        {stats.name}: [ exponent: {fit.slope:.2f}, ref_gb: {ref_gb:.3g}, "
+            f"mem_gb: {mem_gb}, floor_gb: {floor_gb}, cap_gb: {cap_gb} ],",
+        ]
+
+    if not emitted:
+        lines.append("        // Nothing qualified: no process had a scaling fit that passed")
+        lines.append("        // every quality gate, so sizing from input would be guesswork.")
+
+    lines += ["    ]", "}", ""]
+    return "\n".join(lines)
+
+
+# ---------------------------------------------------------------------------
 # Text report
 # ---------------------------------------------------------------------------
 
@@ -1704,7 +1899,7 @@ def write_tsv(path: str, ordered: Sequence[ProcessStats]) -> None:
         "cpu_hours", "req_cpus", "req_memory_bytes", "req_time_seconds",
         "max_peak_rss_bytes", "p95_realtime_seconds", "p90_cpu_cores",
         "memory_efficiency", "cpu_efficiency", "time_efficiency",
-        "memory_exponent", "memory_fit_r2", "memory_fit_trusted",
+        "memory_exponent", "memory_fit_intercept", "memory_fit_r2", "memory_fit_trusted",
         "rec_cpus", "rec_memory_bytes", "rec_time_seconds", "basis",
         "forced_by_failure", "clamped",
     ]
@@ -1719,8 +1914,8 @@ def write_tsv(path: str, ordered: Sequence[ProcessStats]) -> None:
                 stats.current_cpus, stats.current_memory, stats.current_time,
                 stats.max_peak_rss, stats.p95_realtime, stats.p90_cpu_cores,
                 stats.memory_efficiency, stats.cpu_efficiency, stats.time_efficiency,
-                fit.slope if fit else "", fit.r2 if fit else "",
-                fit.trusted if fit else "",
+                fit.slope if fit else "", fit.intercept if fit else "",
+                fit.r2 if fit else "", fit.trusted if fit else "",
                 stats.rec_cpus, stats.rec_memory, stats.rec_time, stats.basis,
                 stats.forced_by_failure, ",".join(stats.clamped),
             ])
@@ -1836,7 +2031,15 @@ def make_plots(ordered: Sequence[ProcessStats],
     # Not capped by --max-panels: that limits the expensive per-process figures,
     # while this single chart is the one place every process stays visible.
     ranked = [stats for stats in ordered if stats.n_tasks]
-    if ranked:
+    # Efficiency needs a requested value to divide by. When the trace recorded none
+    # and no tier could be substituted, fall back to absolute usage: "STARSOLO_ALIGN
+    # peaked at 96 GB" is still worth knowing, and an empty chart is not.
+    have_efficiency = any(stats.memory_efficiency is not None
+                          or stats.cpu_efficiency is not None for stats in ranked)
+    labels = [f"{stats.name}{' *' if (stats.n_retries or stats.forced_by_failure) else ''}"
+              for stats in ranked]
+
+    if ranked and have_efficiency:
         height = max(3.0, 0.32 * len(ranked) + 2.0)
         fig, axis = plt.subplots(figsize=(11, height))
         positions = range(len(ranked))
@@ -1846,10 +2049,6 @@ def make_plots(ordered: Sequence[ProcessStats],
                   label="memory (max peak_rss / request)", color="#4C72B0")
         axis.barh([p - 0.2 for p in positions], cpu_eff, height=0.4,
                   label="cpu (mean cores used / request)", color="#DD8452")
-        labels = []
-        for stats in ranked:
-            mark = " *" if (stats.n_retries or stats.forced_by_failure) else ""
-            labels.append(f"{stats.name}{mark}")
         axis.set_yticks(list(positions))
         axis.set_yticklabels(labels, fontsize=8)
         axis.axvline(100, color="grey", linestyle="--", linewidth=1)
@@ -1863,6 +2062,32 @@ def make_plots(ordered: Sequence[ProcessStats],
         plt.close(fig)
         figures["overview_efficiency"] = path
 
+    elif ranked:
+        # Absolute mode. Memory and cores need separate axes -- GB and core counts
+        # share no scale, and putting them on one would make both unreadable.
+        height = max(3.0, 0.32 * len(ranked) + 2.0)
+        fig, axes = plt.subplots(1, 2, figsize=(13, height), sharey=True)
+        positions = list(range(len(ranked)))
+        axes[0].barh(positions, [(stats.max_peak_rss or 0) / 1024 ** 3 for stats in ranked],
+                     height=0.6, color="#4C72B0")
+        axes[0].set_xlabel("peak memory used (GB)")
+        axes[0].set_yticks(positions)
+        axes[0].set_yticklabels(labels, fontsize=8)
+        axes[1].barh(positions, [stats.p90_cpu_cores or 0 for stats in ranked],
+                     height=0.6, color="#DD8452")
+        axes[1].set_xlabel("cores actually used (p90)")
+        for axis in axes:
+            axis.invert_yaxis()
+            axis.grid(True, axis="x", alpha=0.15)
+        fig.suptitle("Resource usage by process  (* = had a retry or a kill)\n"
+                     "no requested values in this trace, so absolute usage is shown",
+                     fontsize=11)
+        fig.tight_layout(rect=(0, 0, 1, 0.93))
+        path = os.path.join(figures_dir, "overview_efficiency.png")
+        fig.savefig(path, dpi=110)
+        plt.close(fig)
+        figures["overview_efficiency"] = path
+
     # ── Overview B: label roll-up ───────────────────────────────────────────
     tier_members: Dict[str, List[ProcessStats]] = {}
     for stats in ordered:
@@ -1871,28 +2096,44 @@ def make_plots(ordered: Sequence[ProcessStats],
         fig, axis = plt.subplots(figsize=(11, max(3.0, 0.8 * len(tier_members) + 1.5)))
         tier_names = [label for label in list(RESOURCE_LABELS) + [DEFAULT_TIER]
                       if label in tier_members]
+        drawn = 0
         for row, label in enumerate(tier_names):
             for stats in tier_members[label]:
                 for task in stats.tasks:
-                    efficiency = task.memory_efficiency()
-                    if efficiency is None:
+                    # As with overview A, fall back to absolute peak_rss when there
+                    # is no request to express it as a fraction of.
+                    value = (task.memory_efficiency() * 100 if have_efficiency
+                             and task.memory_efficiency() is not None
+                             else (task.peak_rss / 1024 ** 3
+                                   if task.peak_rss is not None else None))
+                    if value is None:
                         continue
-                    axis.plot(efficiency * 100, row + (hash(stats.name) % 100 - 50) / 400.0,
+                    drawn += 1
+                    axis.plot(value, row + (hash(stats.name) % 100 - 50) / 400.0,
                               "o", markersize=3, alpha=0.45,
                               color=run_colour.get(task.run_key, "#333333"))
         axis.set_yticks(range(len(tier_names)))
         axis.set_yticklabels(tier_names, fontsize=9)
-        axis.axvline(100, color="crimson", linestyle="--", linewidth=1,
-                     label="request (100%)")
-        axis.set_xlabel("memory used as % of request, one point per task")
+        if have_efficiency:
+            axis.axvline(100, color="crimson", linestyle="--", linewidth=1,
+                         label="request (100%)")
+            axis.set_xlabel("memory used as % of request, one point per task")
+            axis.legend(loc="lower right", fontsize=8)
+        else:
+            axis.set_xlabel("peak memory used (GB), one point per task")
         axis.set_title("Per-tier spread: which processes drive each shared label")
-        axis.legend(loc="lower right", fontsize=8)
         axis.invert_yaxis()
         fig.tight_layout()
-        path = os.path.join(figures_dir, "overview_tiers.png")
-        fig.savefig(path, dpi=110)
+        if drawn:
+            path = os.path.join(figures_dir, "overview_tiers.png")
+            fig.savefig(path, dpi=110)
+            figures["overview_tiers"] = path
+        else:
+            # No memory was recorded at all; an axis with nothing on it tells the
+            # reader less than its absence does.
+            sys.stderr.write("Warning: no peak_rss values in the trace, "
+                             "skipping the per-tier figure.\n")
         plt.close(fig)
-        figures["overview_tiers"] = path
 
     # ── Per-process scatter panels ──────────────────────────────────────────
     panels = [stats for stats in ordered if stats.n_tasks >= 2][:args.max_panels]
@@ -2014,7 +2255,8 @@ def render_html(ordered: Sequence[ProcessStats],
                 config_text: str,
                 unmapped: Sequence[str],
                 parse_results: Sequence[TraceParseResult],
-                cap_findings: Sequence[CapFinding]) -> str:
+                cap_findings: Sequence[CapFinding],
+                inferred: Sequence[str]) -> str:
     """Build the single self-contained HTML report.
 
     Written directly rather than through ``bin/dashboard_report.html``: that
@@ -2060,10 +2302,24 @@ def render_html(ordered: Sequence[ProcessStats],
 
     missing = sorted({field for result in parse_results for field in result.missing_fields})
     if missing:
-        parts.append(
-            f"<div class='note'><strong>Missing trace fields:</strong> "
-            f"{_html_escape(', '.join(missing))}. Metrics depending on them are blank. "
-            f"Check the <code>trace.fields</code> list in <code>nextflow.config</code>.</div>")
+        detail = (
+            f"<strong>This trace was written with Nextflow's default field set</strong>, "
+            f"which records only what a task <em>used</em> &mdash; it is missing "
+            f"<code>{_html_escape(', '.join(missing))}</code>. Most likely the run "
+            f"predates the <code>trace.fields</code> list now in "
+            f"<code>nextflow.config</code>, or was launched with a bare "
+            f"<code>-with-trace</code>.")
+        if inferred:
+            detail += (
+                f" The <strong>declared <code>conf/base.config</code> values were "
+                f"substituted</strong> for {_html_escape(', '.join(inferred))} so the "
+                f"efficiencies below can still be shown. That substitution cannot see "
+                f"retry escalation or clamping by the site profile, so treat these "
+                f"percentages as close estimates rather than measurements. Re-run the "
+                f"pipeline to record the real requests.")
+        else:
+            detail += " Metrics depending on them are blank."
+        parts.append(f"<div class='note'>{detail}</div>")
 
     if unmapped:
         parts.append(
@@ -2222,6 +2478,12 @@ def parse_args(argv: Optional[List[str]] = None) -> argparse.Namespace:
     parser.add_argument("--apply", action="store_true",
                         help="Write the tuned config to <pipeline-dir>/conf/resources_tuned.config, "
                              "where submit_nextflow.sh picks it up on the next run.")
+    parser.add_argument("--dynamic", action="store_true",
+                        help="Also write input-size dependent `memory` directives for the "
+                             "processes whose usage provably tracks their input, as "
+                             "paste-ready snippets for the module files. A flat request "
+                             "has to cover the largest dataset; a closure over the input "
+                             "size does not.")
     parser.add_argument("--no-plots", action="store_true",
                         help="Skip the figures and the HTML report. Needs no matplotlib.")
     parser.add_argument("--max-panels", type=int, default=40, metavar="N",
@@ -2321,6 +2583,23 @@ def main() -> None:
         sys.stderr.write(f"Warning: no label found for {len(unmapped)} process(es): "
                          f"{', '.join(sorted(unmapped))}\n")
 
+    # ── Backfill requested resources the trace did not record ───────────────
+    # Without a denominator every efficiency figure, and both overview charts,
+    # would be blank. The declared tier value is a sound stand-in here because no
+    # module in this pipeline overrides its label.
+    inferred = backfill_requests(list(all_tasks) + list(all_failures), tiers)
+    if inferred:
+        print(f"\nNote: this trace does not record {', '.join(inferred)}. "
+              f"Those are Nextflow's\n"
+              f"      defaults being used rather than the field list in "
+              f"nextflow.config -- most likely\n"
+              f"      the run predates it, or used a bare `-with-trace`. The declared "
+              f"conf/base.config\n"
+              f"      values were substituted so efficiencies can still be shown; they "
+              f"do not account\n"
+              f"      for retry escalation or clamping by the site profile. Re-run to "
+              f"record them properly.")
+
     # ── Aggregate and recommend ─────────────────────────────────────────────
     stats_by_name = aggregate(all_tasks, all_failures)
     for stats in stats_by_name.values():
@@ -2354,6 +2633,12 @@ def main() -> None:
     with open(config_path, "w", encoding="utf-8") as handle:
         handle.write(config_text)
 
+    dynamic_path: Optional[str] = None
+    if args.dynamic:
+        dynamic_path = os.path.join(args.output, f"resources_dynamic_{stamp}.config")
+        with open(dynamic_path, "w", encoding="utf-8") as handle:
+            handle.write(render_dynamic(ordered, tiers, args))
+
     figures: Dict[str, str] = {}
     html_path: Optional[str] = None
     if not args.no_plots:
@@ -2361,7 +2646,8 @@ def main() -> None:
         html_path = os.path.join(args.output, f"resource_efficiency_{stamp}.html")
         with open(html_path, "w", encoding="utf-8") as handle:
             handle.write(render_html(ordered, runs, figures, config_text,
-                                     sorted(unmapped), parse_results, cap_findings))
+                                     sorted(unmapped), parse_results, cap_findings,
+                                     inferred))
 
     if args.json:
         with open(args.json, "w", encoding="utf-8") as handle:
@@ -2384,6 +2670,8 @@ def main() -> None:
     print(f"Report directory : {args.output}")
     print(f"  per-process TSV: {tsv_path}")
     print(f"  tuned config   : {config_path}")
+    if dynamic_path:
+        print(f"  dynamic sizing : {dynamic_path}")
     if html_path:
         print(f"  HTML report    : {html_path}")
         print(f"  figures        : {len(figures)} PNG(s) under {args.output}/figures")

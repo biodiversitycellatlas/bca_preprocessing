@@ -3,6 +3,11 @@ process MTX_TO_10X {
     tag "${meta.id} | ${meta.mapping_method}"
     label 'process_low'
 
+    // Memory tracks the size of the matrix being read, overrides process_low's flat assignments. 
+    // Coefficients live in params.dynamic_memory; remove the entry to fall back to the plain label.
+    memory { BcaResources.scaledMemory(
+        params.dynamic_memory?.MTX_TO_10X, [mtx, barcodes, features], task.attempt, 12) }
+
     conda "${moduleDir}/environment.yml"
 
     input:

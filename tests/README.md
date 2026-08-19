@@ -23,6 +23,7 @@ tests/
 ├── checks/                     # one file per check, discovered automatically
 │   ├── conda_envs.sh
 │   ├── containers.sh
+│   ├── dynamic_resources.sh
 │   ├── nextflow_versions.sh
 │   └── resource_efficiency.sh
 ├── fixtures/
@@ -196,6 +197,12 @@ Notes:
 
 - Needs only a `python3`; the tool's analysis path is standard library only and the
   check runs it with `--no-plots`. It skips cleanly if no interpreter is found.
+- `default_fields` covers a trace written with Nextflow's *default* `trace.fields`,
+  which records no `cpus`/`memory`/`time`. Without a denominator every efficiency is
+  blank and both overview charts come out empty, so the tool substitutes the declared
+  `conf/base.config` values; this case asserts it does, and that it still tells the
+  reader the values were inferred. It also covers pairing the run config by nearest
+  timestamp, which is what a `-resume` leaves behind.
 - `label_coverage` asserts that every process under `modules/` maps to a known tier
   and that the four aliased inclusions resolve. This is the case that fails when a new
   module is added with a label the mapper cannot see.
@@ -206,6 +213,44 @@ Notes:
   *lowered*, since the members that did not run would be under-provisioned.
 - `emitted_config` runs `nextflow config` over the generated file and skips, rather
   than fails, when Nextflow is not installed.
+
+## `dynamic_resources`
+
+Unit-tests [`lib/BcaResources.groovy`](../lib/BcaResources.groovy), which turns the
+size of a process's input into its memory request, and an allocation into STAR's
+`--limitBAMsortRAM`. That code decides what tasks ask the scheduler for, and a
+mistake in it does not throw — it produces a plausible number that is too small, and
+the task is killed part-way through a long run.
+
+The cases pin the properties that have to hold regardless of the coefficients: a
+process with no entry in `params.dynamic_memory` gets *exactly* its label value, a
+malformed or absent entry falls back rather than throwing (Nextflow's config returns
+an empty `ConfigObject` for a missing key, not `null`, which is easy to get wrong), a
+large resident reference raises the floor so a small input can never be handed less
+memory than the reference alone needs, and `task.attempt` still escalates. It also
+asserts that every entry actually shipped in `nextflow.config` is complete, since an
+entry missing `ref_gb` or `mem_gb` silently does nothing.
+
+Two cases work on a `TaskPath`, which is what an input really is once it reaches a
+process: a path named after the staged file, whose file system provider is not the
+one that owns it, so every `java.nio.file.Files` call on it throws. Measured
+carelessly through one of those, *every* input reads as 0 bytes and every request
+falls back to its label without a word in the log — so the cases construct one and
+assert the size comes back the same as for the path it stands for.
+
+The `bamsort_*` cases cover the STAR sort budget: the allocation less the resident
+genome index and STAR's own working memory, a pinned `params.star_limitBAMsortRAM`
+used verbatim, and the two degenerate cases — no allocation to derive from, and an
+index too large for the allocation to hold.
+
+```bash
+bash tests/run_tests.sh dynamic_resources
+bash tests/run_tests.sh dynamic_resources -- --java /path/to/java --jar /path/to/nextflow-one.jar
+```
+
+Groovy comes from the Nextflow fat jar that Nextflow caches under
+`$NXF_HOME/framework/`, so no extra toolchain is needed — but the check skips
+cleanly when neither a JDK nor a cached jar is present.
 
 ## Adding a check
 
