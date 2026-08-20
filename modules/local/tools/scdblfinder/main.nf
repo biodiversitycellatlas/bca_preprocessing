@@ -1,7 +1,7 @@
 process SCDBLFINDER {
     publishDir "${params.outdir}/doublet_filtering/${meta.id}/scdblfinder", mode: 'copy'
     tag "${meta.id} | ${meta.mapping_method}"
-    label 'process_low'
+    label 'process_single_mem2'
 
     // scDblFinder cannot model every matrix: its kNN step needs more cells than a poor
     // library retains. The sample then continues without doublet annotation instead of

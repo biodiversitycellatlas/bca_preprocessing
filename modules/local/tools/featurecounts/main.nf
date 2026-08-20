@@ -1,7 +1,7 @@
 process CALC_MT_RRNA {
     publishDir "${params.outdir}/rRNA_mtDNA", mode: 'copy'
     tag "${meta.id}"
-    label 'process_low'
+    label 'process_single_long2'
 
     conda "${moduleDir}/environment.yml"
     container "oras://community.wave.seqera.io/library/samtools_subread:f5fd17c543add0fd"

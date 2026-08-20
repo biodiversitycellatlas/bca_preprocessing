@@ -1,6 +1,6 @@
 process GENERATE_DASHBOARD {
     publishDir "${params.outdir}", mode: 'copy', overwrite: true
-    label 'process_low'
+    label 'process_single_mem2'
 
     input:
     path(samplesheet)

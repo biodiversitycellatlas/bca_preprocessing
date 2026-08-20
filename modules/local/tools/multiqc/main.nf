@@ -1,6 +1,6 @@
 process MULTIQC {
     publishDir "${params.outdir}/summary_results", mode: 'copy'
-    label 'process_single'
+    label 'process_single2'
 
 
     conda "${moduleDir}/environment.yml"

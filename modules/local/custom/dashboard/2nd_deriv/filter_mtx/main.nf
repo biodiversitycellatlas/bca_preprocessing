@@ -1,6 +1,6 @@
 process FILTER_MATRICES {
     publishDir "${params.outdir}/mapping_STARsolo/${meta.id}/${meta.id}_Solo.out/GeneFull_Ex50pAS/filtered_secondderiv", mode: 'copy'
-    label 'process_low'
+    label 'process_single_mem2'
     tag "${meta.id}"
 
     conda "${moduleDir}/environment.yml"

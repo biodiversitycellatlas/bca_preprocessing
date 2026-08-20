@@ -1,7 +1,7 @@
 process PERCELL_METRICS {
     publishDir "${params.outdir}/summary_results/per-cell_metrics", mode: 'copy'
     tag "${meta.id}"
-    label 'process_low'
+    label 'process_single_long2'
 
     conda "${moduleDir}/environment.yml"
 

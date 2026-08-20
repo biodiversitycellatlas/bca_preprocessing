@@ -1,6 +1,6 @@
 process SAVE_RUN_CONFIG {
     publishDir "${params.outdir}/pipeline_info", mode: 'copy'
-    label 'process_single'
+    label 'process_single2'
     tag "${input_file}"
 
     input:

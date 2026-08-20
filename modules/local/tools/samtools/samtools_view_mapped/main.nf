@@ -1,6 +1,6 @@
 process SAMTOOLS_VIEW_MAPPED {
     tag "${meta.id}"
-    label 'process_low'
+    label 'process_single_long2'
 
     conda "${moduleDir}/environment.yml"
     container "oras://community.wave.seqera.io/library/samtools:1.22.1--9a10f06c24cdf05f"

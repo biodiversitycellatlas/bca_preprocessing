@@ -1,7 +1,7 @@
 process MTX_TO_H5AD {
     publishDir "${params.outdir}/anndata/${meta.id}/${meta.datatype}", mode: 'copy'
     tag "${meta.id} | ${meta.mapping_method} | ${meta.datatype}"
-    label 'process_low'
+    label 'process_single_mem2'
     
     // Memory tracks the size of the matrix being read, overrides process_low's flat assignments. 
     // Coefficients live in params.dynamic_memory; remove the entry to fall back to the plain label.

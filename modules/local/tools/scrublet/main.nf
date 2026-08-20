@@ -1,7 +1,7 @@
 process SCRUBLET {
     publishDir "${params.outdir}/doublet_filtering/${meta.id}/scrublet", mode: 'copy'
     tag "${meta.id} | ${meta.mapping_method}"
-    label 'process_low'
+    label 'process_low2'
 
     // Scrublet cannot model every matrix (too few cells, no bimodal score split). The
     // sample then continues without doublet annotation instead of ending the run.

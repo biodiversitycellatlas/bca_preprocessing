@@ -10,7 +10,7 @@
 process KRAKEN_CREATE_DB {
     publishDir "${params.outdir}/kraken/kraken_db", mode: 'copy', overwrite: false
     tag "kraken_db"
-    label 'process_single'
+    label 'process_single2'
 
 
     output:

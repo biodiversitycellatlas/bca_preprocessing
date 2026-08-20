@@ -2,9 +2,9 @@
 process STARSOLO_ALIGN {
     publishDir "${params.outdir}/mapping_STARsolo/${meta.id}", mode: 'copy'
     tag "${meta.id}"
-    label 'process_high_memory'
+    label 'process_high2'
 
-    // Memory tracks the size of the FASTQs being read, overrides process_high_memory's flat assignments. 
+    // Memory tracks the size of the FASTQs being read, overrides process_high2's flat assignments. 
     // Coefficients live in params.dynamic_memory; remove the entry to fall back to the plain label.
     memory { BcaResources.scaledMemory(
         params.dynamic_memory?.STARSOLO_ALIGN,

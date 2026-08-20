@@ -1,6 +1,6 @@
 process PREPARE_DASHBOARD_INPUTS {
     tag "${meta.id}"
-    label 'process_single'
+    label 'process_single2'
 
     input:
     tuple val(meta), path(files)

@@ -1,7 +1,7 @@
 process MTX_TO_10X {
     publishDir "${params.outdir}/doublet_filtering/${meta.id}/10x_export", mode: 'copy'
     tag "${meta.id} | ${meta.mapping_method}"
-    label 'process_low'
+    label 'process_single_mem2'
 
     // Memory tracks the size of the matrix being read, overrides process_low's flat assignments. 
     // Coefficients live in params.dynamic_memory; remove the entry to fall back to the plain label.

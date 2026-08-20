@@ -1,10 +1,10 @@
 process SATURATION_TABLE {
     publishDir "${params.outdir}/saturation/${meta.id}", mode: 'copy'
     tag "${meta.id}"
-    label 'process_medium'
+    label 'process_single_mem2'
     label 'error_retry'
 
-    // Memory tracks the size of the filtered BAM being read, overrides process_medium's flat assignments.
+    // Memory tracks the size of the filtered BAM being read, overrides process_single_mem's flat assignments.
     // Coefficients live in params.dynamic_memory; remove the entry to fall back to the plain label.
     memory { BcaResources.scaledMemory(
         params.dynamic_memory?.SATURATION_TABLE, [bam_file], task.attempt, 36) }

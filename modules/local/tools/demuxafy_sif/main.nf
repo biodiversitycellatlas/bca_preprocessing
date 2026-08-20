@@ -1,7 +1,7 @@
 process DOWNLOAD_DEMUXAFY_SIF {
     publishDir "${params.outdir}/containers/demuxafy", mode: 'copy', overwrite: false
     tag "demuxafy_sif"
-    label 'process_single'
+    label 'process_single2'
 
     output:
     path 'Demuxafy.sif', emit: sif_file

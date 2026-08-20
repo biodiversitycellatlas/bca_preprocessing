@@ -1,5 +1,5 @@
 process DOWNLOAD_WHITELIST {
-    label 'process_single'
+    label 'process_single2'
 
     input:
     val(whitelist_urls)

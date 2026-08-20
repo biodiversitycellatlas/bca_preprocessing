@@ -1,7 +1,7 @@
 process MARSSEQ_BUILD_READS {
     publishDir "${params.outdir}/marsseq_reformat/${meta.id}", mode: 'copy'
     tag "${meta.id}"
-    label 'process_medium'
+    label 'process_single_long2'
 
     conda "${moduleDir}/environment.yml"
     container "oras://community.wave.seqera.io/library/python:3.14.2--0bd36b5fd9edb930"

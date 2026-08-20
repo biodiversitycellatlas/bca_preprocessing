@@ -1,7 +1,7 @@
 process CELLSWEEP {
     publishDir "${params.outdir}/cellsweep/${meta.id}", mode: 'copy'
     tag "${meta.id} | ${meta.mapping_method}"
-    label 'process_low'
+    label 'process_low2'
 
     conda "${moduleDir}/environment.yml"
     // container "oras://community.wave.seqera.io/library/anndata_numpy_pandas_python_pruned:a3b0b95a49665473"

@@ -1,7 +1,7 @@
 process SATURATION_PLOT {
     publishDir "${params.outdir}/saturation/${meta.id}", mode: 'copy'
     tag "${meta.id}"
-    label 'process_low'
+    label 'process_single2'
 
     conda "${moduleDir}/environment.yml"
     container "oras://community.wave.seqera.io/library/pysam_samtools_matplotlib_numpy_pruned:b8f551e4a5153343"

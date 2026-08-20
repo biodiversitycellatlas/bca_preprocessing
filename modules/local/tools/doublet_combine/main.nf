@@ -1,7 +1,7 @@
 process COMBINE_DOUBLET_RESULTS {
     publishDir "${params.outdir}/doublet_filtering/${meta.id}/combined", mode: 'copy'
     tag "${meta.id} | ${meta.mapping_method}"
-    label 'process_single'
+    label 'process_single2'
 
     container { demuxafy_sif }
 

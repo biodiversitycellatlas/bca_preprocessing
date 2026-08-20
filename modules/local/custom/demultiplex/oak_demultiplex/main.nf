@@ -11,8 +11,6 @@ process OAK_DEMUX {
     tuple val(meta), path("demux_reads"), path("demux_reads/*.fastq.gz"), path(input_file), emit: demux_files
     path "versions.yml", emit: versions
 
-    when:
-
     script:
     """
     echo "\n\n==================  Demultiplex OAK data  =================="

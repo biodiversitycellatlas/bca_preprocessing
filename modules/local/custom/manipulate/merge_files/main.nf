@@ -1,6 +1,6 @@
 process MERGE_FASTQS {
     tag "${meta.id}"
-    label 'process_single'
+    label 'process_single2'
 
     conda "${moduleDir}/environment.yml"
 

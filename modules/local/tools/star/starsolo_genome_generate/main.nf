@@ -1,8 +1,8 @@
 process STARSOLO_INDEX {
     publishDir "${params.outdir}/genome/star_index_${ref_gtf.simpleName}_${meta.id}", mode: 'copy'
-    label 'process_high'
+    label 'process_single_mem2'
 
-    // Memory tracks the size of the reference being indexed, overrides process_high's flat assignments. 
+    // Memory tracks the size of the reference being indexed, overrides process_single_mem2's flat assignments. 
     // Coefficients live in params.dynamic_memory; remove the entry to fall back to the plain label.
     memory { BcaResources.scaledMemory(
         params.dynamic_memory?.STARSOLO_INDEX, [ref_fasta, ref_gtf], task.attempt, 64) }
