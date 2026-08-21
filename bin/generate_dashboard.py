@@ -81,6 +81,25 @@ _PERCELL_COLUMNS: List[str] = [
 ]
 _PERCELL_PCT_COLUMNS: List[str] = ["IntronicPercent", "MTPercent", "rRNAPercent"]
 
+# ── GeneExt ──────────────────────────────────────────────────────────────────
+# GeneExt writes a standalone HTML report next to the extended GTF with every
+# number it computed embedded as a single JSON object.  The dashboard re-uses
+# that object rather than re-deriving anything from the GTF, but keeps only the
+# run-level summary and the two histograms it redraws: the report's ``ext_table``
+# carries one row per extended gene and ``orphan_bed`` the full orphan-peak BED,
+# which together dwarf every other block and are already one click away in the
+# GeneExt report itself.
+_GENEEXT_SUMMARY_KEYS: List[str] = [
+    "n_genes", "n_extended", "pct_extended",
+    "min_ext", "median_ext", "mean_ext", "max_ext",
+    "n_genic_peaks", "n_noov_peaks", "n_orphan_peaks", "orphan_warning",
+    "cov_percentile", "cov_threshold", "n_reads", "subsampled",
+    "input_file", "output_file", "genome_fixed", "run_date", "run_args",
+]
+
+# Blocks copied verbatim from the GeneExt payload (all small, fixed-size).
+_GENEEXT_BLOCK_KEYS: List[str] = ["ext_hist", "cov_hist", "peak_flow", "log_notes"]
+
 
 # ---------------------------------------------------------------------------
 # Argument parsing
@@ -150,6 +169,10 @@ def parse_args() -> argparse.Namespace:
     parser.add_argument("--cellbender_tables",        nargs="*")
     parser.add_argument("--cellbender_plots1",        nargs="*")
     parser.add_argument("--cellbender_plots2",        nargs="*")
+
+    # ── Pipeline mode: GeneExt (run-level, not per sample) ───────────────────
+    parser.add_argument("--geneext_report", nargs="*", help="GeneExt *.Report.html file")
+    parser.add_argument("--geneext_log",    nargs="*", help="GeneExt *.GeneExt.log file")
 
     return parser.parse_args()
 
@@ -256,6 +279,138 @@ def parse_saturation_log(path: Optional[str]) -> str:
     except Exception:
         pass
     return "N/A"
+
+
+def extract_geneext_report_data(html_path: Optional[str]) -> Dict[str, Any]:
+    """Extract the embedded ``const D = {...}`` payload from a GeneExt report.
+
+    The object is written on a single line by GeneExt, but it contains braces and
+    escaped quotes throughout, so it is decoded with :class:`json.JSONDecoder`
+    from the first ``{`` after the declaration rather than matched with a regex.
+
+    Returns ``{}`` when the file is missing or holds no recognisable payload.
+    """
+    if not html_path or not os.path.exists(html_path):
+        return {}
+    try:
+        with open(html_path, "r", encoding="utf-8", errors="replace") as fh:
+            content = fh.read()
+        match = re.search(r"\bconst\s+D\s*=\s*", content)
+        if not match:
+            sys.stderr.write(
+                f"Warning: no GeneExt data payload found in {html_path}; "
+                "falling back to the GeneExt log\n"
+            )
+            return {}
+        obj, _ = json.JSONDecoder().raw_decode(content, match.end())
+        return obj if isinstance(obj, dict) else {}
+    except Exception as exc:
+        sys.stderr.write(f"Warning: could not read GeneExt report {html_path}: {exc}\n")
+        return {}
+
+
+def parse_geneext_log(path: Optional[str]) -> Dict[str, Any]:
+    """Recover GeneExt's headline numbers from its plain-text log.
+
+    Used when the HTML report is absent -- a GeneExt older than the one that
+    writes it -- so the dashboard can still report what the extension did.  Only
+    the three lines GeneExt prints as its result are read; anything the report
+    would have added (the histograms, the peak-filtering flow) has no equivalent
+    in the log and is simply left out.
+    """
+    if not path or not os.path.exists(path):
+        return {}
+    try:
+        with open(path, "r", encoding="utf-8", errors="replace") as fh:
+            content = fh.read()
+    except Exception as exc:
+        sys.stderr.write(f"Warning: could not read GeneExt log {path}: {exc}\n")
+        return {}
+
+    summary: Dict[str, Any] = {}
+    peak_flow: Dict[str, Any] = {}
+
+    extended = re.search(r"Extended\s+(\d+)\s*/\s*(\d+)\s+genes", content)
+    if extended:
+        n_extended, n_genes = int(extended.group(1)), int(extended.group(2))
+        summary["n_extended"] = n_extended
+        summary["n_genes"]    = n_genes
+        if n_genes:
+            summary["pct_extended"] = round(100.0 * n_extended / n_genes, 1)
+
+    median = re.search(r"Median extension length:\s*([\d.]+)\s*bp", content)
+    if median:
+        summary["median_ext"] = float(median.group(1))
+
+    retained = re.search(
+        r"Retained\s+(\d+)\s*/\s*(\d+)\s+\(\s*[\d.]+\s*%\s*\)\s+intergenic peaks", content
+    )
+    if retained:
+        peak_flow["passed_filtering"] = int(retained.group(1))
+        summary["n_noov_peaks"]       = int(retained.group(2))
+    if "n_extended" in summary:
+        peak_flow["assigned_to_genes"] = summary["n_extended"]
+
+    notes = [
+        line.strip() for line in content.splitlines()
+        if "warning" in line.lower() and line.strip()
+    ]
+
+    if not summary and not peak_flow:
+        return {}
+    return {"summary": summary, "peak_flow": peak_flow, "log_notes": notes}
+
+
+def build_geneext_payload(
+    report_path: Optional[str],
+    log_path: Optional[str],
+) -> Dict[str, Any]:
+    """Assemble the gene-extension block the dashboard embeds.
+
+    Prefers GeneExt's own HTML report, which carries every statistic it computed,
+    and falls back to the log when the report is unavailable.  ``source`` records
+    which of the two the numbers came from, so the tab can say when it is showing
+    the reduced, log-derived view.
+
+    Returns ``{}`` when neither file yields anything, which is what hides the tab.
+    """
+    payload: Dict[str, Any] = {}
+
+    data = extract_geneext_report_data(report_path)
+    if data:
+        summary = data.get("summary") or {}
+        payload["summary"] = {
+            k: summary[k] for k in _GENEEXT_SUMMARY_KEYS if k in summary
+        }
+        for key in _GENEEXT_BLOCK_KEYS:
+            if data.get(key):
+                payload[key] = data[key]
+
+        fix_info = data.get("fix_info") or {}
+        if fix_info.get("extension_param"):
+            payload["extension_param"] = fix_info["extension_param"]
+        if fix_info.get("steps"):
+            # Only the steps that actually ran are worth a line in the report
+            payload["genome_fix"] = {
+                name: step for name, step in fix_info["steps"].items()
+                if isinstance(step, dict) and step.get("applied")
+            }
+        if data.get("mapping_stats"):
+            payload["mapping_stats"] = data["mapping_stats"]
+        payload["source"] = "report"
+
+    else:
+        from_log = parse_geneext_log(log_path)
+        if not from_log:
+            return {}
+        payload = {k: v for k, v in from_log.items() if v}
+        payload["source"] = "log"
+
+    if report_path:
+        payload["report_file"] = os.path.basename(report_path)
+    if log_path:
+        payload["log_file"] = os.path.basename(log_path)
+    return payload
 
 
 def parse_run_config(path: Optional[str]) -> Dict[str, str]:
@@ -878,6 +1033,21 @@ def _discover_cell_filtering(
             break
 
 
+def _discover_geneext(result_dir: str) -> Tuple[Optional[str], Optional[str]]:
+    """Locate the GeneExt report and log under ``gene_ext/`` (standalone mode).
+
+    Both are named after the annotation GeneExt wrote, which the pipeline calls
+    ``geneext.gtf``; they are matched by suffix so a differently named output is
+    still found.  Returns ``(report, log)``, either of which may be ``None``.
+    """
+    gene_ext = os.path.join(result_dir, "gene_ext")
+    if not os.path.isdir(gene_ext):
+        return None, None
+    report = _latest_glob(os.path.join(gene_ext, "*.Report.html"))
+    log    = _latest_glob(os.path.join(gene_ext, "*.GeneExt.log"))
+    return report, log
+
+
 def _discover_starsolo_samples(
     result_dir: str,
     active_samples: List[Dict],
@@ -1234,6 +1404,8 @@ def main() -> None:
                     if row.get("sample"):
                         samplesheet_config[row["sample"]] = row
 
+        geneext_report, geneext_log = _discover_geneext(args.result_dir)
+
         print(
             f"Standalone mode: discovered {len(active_samples)} analytical samples.",
             file=sys.stderr,
@@ -1262,6 +1434,11 @@ def main() -> None:
                     })
         else:
             sys.exit(f"Error: manifest not found: {args.analytical_samples}")
+
+        # GeneExt runs once per pipeline run, on the merged alignments of every
+        # sample, so its outputs are run-level and are not part of the file map
+        geneext_report = (args.geneext_report or [None])[0]
+        geneext_log    = (args.geneext_log    or [None])[0]
 
         file_map = _build_file_map_from_cli(args, active_samples)
         print(
@@ -1568,8 +1745,19 @@ def main() -> None:
     if global_rows and mappers_seen == {"starsolo"}:
         global_cols[_MAPPED_COL] = "% Uniquely Mapped Reads"
 
+    # ── Gene extension (run-level) ───────────────────────────────────────────
+    geneext_data = build_geneext_payload(geneext_report, geneext_log)
+    if geneext_data:
+        print(
+            f"GeneExt statistics read from the {geneext_data['source']}.",
+            file=sys.stderr,
+        )
+
     # ── Inject into HTML template ────────────────────────────────────────────
-    with open(args.template, "r") as fh:
+    # The template carries non-ASCII text (superscripts, arrows, primes), so the
+    # encoding is pinned rather than taken from the locale -- a C/POSIX locale
+    # would otherwise fail to read the template at all.
+    with open(args.template, "r", encoding="utf-8") as fh:
         html_content = fh.read()
 
     # The payloads are parsed by the report, never read by a human, so they are
@@ -1590,6 +1778,7 @@ def main() -> None:
         "__KNEE_DATA_PLACEHOLDER__":         _dump(knee_data),
         "__SECONDDERIV_DATA_PLACEHOLDER__":  _dump(secondderiv_data),
         "__CELLFILTERING_DATA_PLACEHOLDER__": _dump(cell_filtering_data),
+        "__GENEEXT_DATA_PLACEHOLDER__":       _dump(geneext_data),
     }
 
     for placeholder, json_str in replacements.items():
@@ -1599,7 +1788,7 @@ def main() -> None:
             safe_ph = re.escape(placeholder)
             html_content = re.sub(r"\s*" + safe_ph + r"\s*", "\n" + json_str + "\n", html_content)
 
-    with open(args.output, "w") as fh:
+    with open(args.output, "w", encoding="utf-8") as fh:
         fh.write(html_content)
 
     print(

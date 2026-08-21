@@ -45,14 +45,15 @@ workflow post_mapping_workflow {
         def ch_sat_logs      = Channel.empty()
         def ch_featurecounts = Channel.empty()
         def ch_pavian_sankey = Channel.empty()
+        def ch_geneext_report = Channel.empty()
+        def ch_geneext_log    = Channel.empty()
 
         def prev_dir = (params.previous_outdir ?: params.outdir).toString()
 
         // Read the previous run's mapping results back into channels
         restage_mapping_workflow(ch_samplesheet)
 
-        // Conditionally bypass MERGE_REF_GTF when no additional features are provided,
-        // as the mapping workflow does
+        // Conditionally bypass MERGE_REF_GTF when no additional features are provided
         def ref_gtf_ch
         if (params.ref_gtf_addfeature) {
             MERGE_REF_GTF(params.ref_gtf, Channel.fromPath(params.ref_gtf_addfeature))
@@ -79,6 +80,16 @@ workflow post_mapping_workflow {
             } else {
                 ref_gtf_geneext_ch = Channel.value(geneext_gtf)
             }
+
+            // Check if GeneExt produced a report and/or log, and if so, publish them to the dashboard
+            def geneext_report = file("${geneext_gtf}.Report.html")
+            def geneext_log    = file("${geneext_gtf}.GeneExt.log")
+            if (geneext_report.exists()) {
+                ch_geneext_report = Channel.value(geneext_report)
+            }
+            if (geneext_log.exists()) {
+                ch_geneext_log = Channel.value(geneext_log)
+            }
         }
 
         // Re-call cells. One invocation covers the standard and the GeneExt-remapped runs,
@@ -92,8 +103,7 @@ workflow post_mapping_workflow {
 
         cellcalling_alevin_workflow(restage_mapping_workflow.out.af_mtx)
 
-        // Both mappers emit the same second-derivative artefacts, so the reporting channels
-        // carry them together
+        // Both mappers emit the same second-derivative artefacts, so the reporting channels carry them together
         def ch_secondderiv_knee = cellcalling_starsolo_workflow.out.secondderiv_knee
             .mix(cellcalling_alevin_workflow.out.secondderiv_knee)
         def ch_secondderiv_stats = cellcalling_starsolo_workflow.out.secondderiv_stats
@@ -168,6 +178,8 @@ workflow post_mapping_workflow {
         af_umipercell                = cellcalling_alevin_workflow.out.umi_per_cell
         featurecount_txt             = ch_featurecounts
         pavian_sankey                = ch_pavian_sankey
+        geneext_report               = ch_geneext_report
+        geneext_log                  = ch_geneext_log
 }
 
 /*

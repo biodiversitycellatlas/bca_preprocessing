@@ -128,7 +128,9 @@ workflow BCA_PREPROCESSING {
                 mapping_out.secondderiv_cutoff,
                 filtering_workflow.out.cs_ambient_hist_plot,
                 filtering_workflow.out.cs_umap_comparison_plot,
-                filtering_workflow.out.cs_top_genes
+                filtering_workflow.out.cs_top_genes,
+                mapping_out.geneext_report,
+                mapping_out.geneext_log
             )
 
             multiqc_report_ch = reporting_workflow.out.multiqc_report

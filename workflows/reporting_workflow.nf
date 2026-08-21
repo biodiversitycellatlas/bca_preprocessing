@@ -49,6 +49,8 @@ workflow reporting_workflow {
         cs_ambient_hist_plot
         cs_umap_comparison_plot
         cs_top_genes
+        geneext_report
+        geneext_log
 
     main:
         // Join BAM, SoloDir, and Logs before per-cell metrics. The cutoff and the
@@ -147,7 +149,9 @@ workflow reporting_workflow {
             percell_json.collect().ifEmpty([]),
             cs_ambient_hist_plot.collect().ifEmpty([]),
             cs_umap_comparison_plot.collect().ifEmpty([]),
-            cs_top_genes.collect().ifEmpty([])
+            cs_top_genes.collect().ifEmpty([]),
+            geneext_report.collect().ifEmpty([]),
+            geneext_log.collect().ifEmpty([])
         )
 
         // Trigger Mapping Stats & MultiQC

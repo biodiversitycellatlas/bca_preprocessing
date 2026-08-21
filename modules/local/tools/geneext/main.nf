@@ -10,8 +10,10 @@ process GENE_EXT {
     path(bam_index)
 
     output:
-    path("geneext.gtf"), emit: gtf
-    path "versions.yml", emit: versions
+    path("geneext.gtf")                 , emit: gtf
+    path("geneext.gtf.Report.html")     , emit: report , optional: true
+    path("geneext.gtf.GeneExt.log")     , emit: log    , optional: true
+    path "versions.yml"                 , emit: versions
 
     script:
     def subsamplebam = params.geneext_subsamplebam ? "--subsamplebam ${params.geneext_subsamplebam}" : ""

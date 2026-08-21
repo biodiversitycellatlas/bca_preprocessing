@@ -532,6 +532,138 @@
             fill: currentColor;
         }
 
+        /**********************************************************************
+    * GENE EXTENSION TAB
+    **********************************************************************/
+        .ge-stats {
+            display: grid;
+            grid-template-columns: repeat(auto-fit, minmax(190px, 1fr));
+            gap: 12px;
+            margin: 12px 0 20px;
+        }
+
+        .ge-stat {
+            background: white;
+            border: 1px solid var(--border);
+            border-top: 3px solid var(--header-color);
+            border-radius: 10px;
+            padding: 12px 14px;
+        }
+
+        .ge-stat .ge-value {
+            font-size: 1.6rem;
+            font-weight: 700;
+            line-height: 1.1;
+        }
+
+        .ge-stat .ge-value small {
+            font-size: 0.9rem;
+            font-weight: 600;
+            color: #777;
+            margin-left: 3px;
+        }
+
+        .ge-stat .ge-label {
+            margin-top: 5px;
+            font-size: 0.72rem;
+            text-transform: uppercase;
+            letter-spacing: 0.5px;
+            color: #777;
+        }
+
+        .ge-panels {
+            display: grid;
+            grid-template-columns: 1fr 1fr;
+            gap: 16px;
+            margin-bottom: 16px;
+        }
+
+        @media (max-width: 900px) {
+            .ge-panels {
+                grid-template-columns: 1fr;
+            }
+        }
+
+        .ge-panel {
+            background: white;
+            border: 1px solid var(--border);
+            border-radius: 10px;
+            padding: 12px 14px;
+        }
+
+        .ge-panel h4 {
+            margin: 0 0 4px 0;
+        }
+
+        .ge-panel .ge-sub {
+            margin: 0 0 10px 0;
+            font-size: 0.8rem;
+            color: #777;
+        }
+
+        .ge-flow {
+            display: flex;
+            flex-direction: column;
+            align-items: center;
+            gap: 6px;
+        }
+
+        .ge-flow-node {
+            width: 100%;
+            max-width: 340px;
+            text-align: center;
+            background: #fafafa;
+            border: 1px solid var(--border);
+            border-top: 3px solid var(--header-color);
+            border-radius: 8px;
+            padding: 10px 12px;
+        }
+
+        .ge-flow-node .n {
+            font-size: 1.4rem;
+            font-weight: 700;
+        }
+
+        .ge-flow-node .l {
+            font-size: 0.72rem;
+            text-transform: uppercase;
+            letter-spacing: 0.4px;
+            color: #777;
+        }
+
+        .ge-flow-arrow {
+            color: #999;
+            font-weight: 700;
+        }
+
+        .ge-warn {
+            background-color: rgba(214, 69, 69, 0.08);
+            border-left: 4px solid #d64545;
+            border-radius: 0 6px 6px 0;
+            padding: 12px 16px;
+            margin-bottom: 16px;
+            font-size: 0.95rem;
+            line-height: 1.5;
+        }
+
+        .ge-meta {
+            font-size: 0.85rem;
+            color: #555;
+            line-height: 1.6;
+        }
+
+        .ge-meta code {
+            background: rgba(0, 0, 0, 0.05);
+            border-radius: 4px;
+            padding: 1px 4px;
+            word-break: break-all;
+        }
+
+        .ge-meta ul {
+            margin: 6px 0 0 18px;
+            padding: 0;
+        }
+
         /* Ensure Plotly text is always visible regardless of global SVG rules */
         .js-plotly-plot .main-svg text {
             fill: #444 !important;
@@ -629,6 +761,7 @@
                 <div class="tab" data-tab="percell">Per-Cell Visualizations</div>
                 <div class="tab" data-tab="taxonomic">Taxonomic Classification</div>
                 <div class="tab" data-tab="cellfiltering">Cell Filtering</div>
+                <div class="tab hidden" data-tab="geneext" id="tab-geneext">Gene Extension</div>
                 <div class="tab" data-tab="config">Configurations</div>
             </nav>
 
@@ -639,6 +772,7 @@
                 <div class="tab-pane" id="percell"></div>
                 <div class="tab-pane" id="taxonomic"></div>
                 <div class="tab-pane" id="cellfiltering"></div>
+                <div class="tab-pane" id="geneext"></div>
                 <div class="tab-pane" id="config"></div>
             </div>
         </section>
@@ -681,6 +815,10 @@
   __CELLFILTERING_DATA_PLACEHOLDER__
   </script>
 
+    <script id="geneext-data" type="application/json">
+  __GENEEXT_DATA_PLACEHOLDER__
+  </script>
+
 
     <!-- ==================================================== -->
     <!-- app.js                                               -->
@@ -718,6 +856,7 @@
         window._currentSample = null;
         window._saturationImages = null;
         window._cellFilteringData = null;
+        window._geneExtData = null;
 
         /**********************************************************************
          * MAIN ENTRY
@@ -732,6 +871,13 @@
 
             const cfData = loadEmbeddedJSON("cellfiltering-data") || {};
             window._cellFilteringData = cfData;
+
+            /* GeneExt runs once per pipeline run rather than per sample, so its tab
+               is shown only when the run actually produced an extended annotation. */
+            const geData = loadEmbeddedJSON("geneext-data") || {};
+            window._geneExtData = geData;
+            const geTab = document.getElementById("tab-geneext");
+            if (geTab && Object.keys(geData).length > 0) geTab.classList.remove("hidden");
 
             if (meta) renderHeader(meta);
             if (global) renderGlobalSummary(global);
@@ -908,13 +1054,16 @@
          * ACTIVE TAB RENDERING
          **********************************************************************/
         function renderActiveTab() {
-            const sample = window._currentSample;
-            if (!sample) return;
-
             const activeTab = document.querySelector(".tab.active");
             if (!activeTab) return;
 
             const tabId = activeTab.dataset.tab;
+
+            /* Run-level, so it does not depend on the selected sample */
+            if (tabId === "geneext") return renderGeneExt();
+
+            const sample = window._currentSample;
+            if (!sample) return;
 
             if (tabId === "mapping") return renderMapping(sample);
             if (tabId === "saturation") return renderSaturation(sample);
@@ -1962,6 +2111,302 @@
 
             } else {
                 container.innerHTML = `<p>Unknown or missing cell filtering method: <strong>${cf.method || 'None'}</strong></p>`;
+            }
+        }
+
+
+        /**********************************************************************
+         * GENE EXTENSION TAB
+         **********************************************************************/
+        /* GeneExt is run once per pipeline run, on the merged alignments of every
+           sample, so this tab describes the extended annotation itself and does not
+           follow the sample selector. The numbers are lifted from GeneExt's own
+           report; when that report is unavailable the generator falls back to the
+           GeneExt log, which carries only the headline counts. */
+        function geEsc(v) {
+            return String(v == null ? "" : v)
+                .replace(/&/g, "&amp;").replace(/</g, "&lt;").replace(/>/g, "&gt;")
+                .replace(/"/g, "&quot;").replace(/'/g, "&#39;");
+        }
+
+        /* Pinned to en-US so these numbers are grouped the same way as the ones the
+           generator formats server-side, rather than following the viewer's locale */
+        function geNum(v) {
+            return (v == null || v === "") ? null : Number(v).toLocaleString("en-US");
+        }
+
+        function renderGeneExt() {
+            const container = document.getElementById("geneext");
+            const D = window._geneExtData || {};
+
+            if (!D || Object.keys(D).length === 0) {
+                container.innerHTML = `<p>No gene extension data available for this run.</p>`;
+                return;
+            }
+
+            const S = D.summary || {};
+            const PF = D.peak_flow || {};
+            const E = D.extension_param || {};
+            const partial = D.source === "log";
+
+            // ── Stat tiles ───────────────────────────────────────────────────
+            const tiles = [
+                S.n_extended != null ? {
+                    value: geNum(S.n_extended),
+                    suffix: S.n_genes != null ? `/${geNum(S.n_genes)}` : "",
+                    label: "Genes extended"
+                } : null,
+                S.pct_extended != null ? { value: S.pct_extended, suffix: "%", label: "Extension rate" } : null,
+                S.median_ext != null ? { value: geNum(S.median_ext), suffix: "bp", label: "Median extension" } : null,
+                S.max_ext != null ? { value: geNum(S.max_ext), suffix: "bp", label: "Longest extension" } : null,
+                E.effective_value_bp != null ? {
+                    value: geNum(E.effective_value_bp), suffix: "bp",
+                    label: "Max extension length (-m)"
+                } : null,
+                S.n_genic_peaks != null ? { value: geNum(S.n_genic_peaks), suffix: "", label: "Genic peaks" } : null,
+                S.n_noov_peaks != null ? { value: geNum(S.n_noov_peaks), suffix: "", label: "Intergenic candidate peaks" } : null,
+                S.n_orphan_peaks ? { value: geNum(S.n_orphan_peaks), suffix: "", label: "Orphan peaks/clusters" } : null,
+                S.n_reads != null ? {
+                    value: geNum(S.n_reads), suffix: S.subsampled ? "(subsampled)" : "",
+                    label: "Reads used for peak calling"
+                } : null,
+            ].filter(Boolean);
+
+            const tilesHtml = tiles.map(t => `
+                <div class="ge-stat">
+                  <div class="ge-value">${t.value}<small>${t.suffix}</small></div>
+                  <div class="ge-label">${t.label}</div>
+                </div>`).join("");
+
+            // ── Peak-filtering flow ──────────────────────────────────────────
+            const flowNodes = [
+                PF.initial_called != null ? { n: PF.initial_called, l: "Initial MACS2 peaks" } : null,
+                PF.passed_filtering != null ? { n: PF.passed_filtering, l: "Intergenic peaks retained" } : null,
+                PF.assigned_to_genes != null ? { n: PF.assigned_to_genes, l: "Assigned to upstream genes" } : null,
+                PF.orphan_enabled ? { n: PF.orphan_count || 0, l: "Orphan peaks/clusters" } : null,
+            ].filter(Boolean);
+
+            const flowHtml = flowNodes.length === 0 ? "" : `
+                <div class="ge-panel">
+                  <h4>Peak filtering flow</h4>
+                  <p class="ge-sub">
+                    MACS2 peaks are filtered on coverage${S.cov_percentile != null
+                    ? ` at the ${S.cov_percentile}th percentile of genic peak coverage (<code>--peak_perc</code>)`
+                    : ""}, and the survivors are assigned to the nearest upstream gene.
+                  </p>
+                  <div class="ge-flow">
+                    ${flowNodes.map((n, i) => `
+                      ${i > 0 ? `<div class="ge-flow-arrow">&#8595;</div>` : ""}
+                      <div class="ge-flow-node">
+                        <div class="n">${geNum(n.n)}</div>
+                        <div class="l">${n.l}</div>
+                      </div>`).join("")}
+                  </div>
+                </div>`;
+
+            // ── Run metadata ─────────────────────────────────────────────────
+            const paramLines = [];
+            if (E.mode) {
+                paramLines.push(E.mode === "auto"
+                    ? `Maximal extension length (<code>-m</code>/<code>--maxdist</code>) auto-estimated${E.auto_quantile != null
+                        ? ` as the ${Math.round(Number(E.auto_quantile) * 100)}th percentile of gene genomic span` : ""}.`
+                    : `Maximal extension length (<code>-m</code>/<code>--maxdist</code>) set by the user.`);
+            }
+            const GF = D.genome_fix || {};
+            if (GF.mRNA_to_transcript) paramLines.push("Input annotation fixed: <code>mRNA</code> features renamed to <code>transcript</code>.");
+            if (GF.gene_features_added) {
+                paramLines.push(`Input annotation fixed: ${geNum(GF.gene_features_added.n_genes_added)} missing <code>gene</code> features added.`);
+            }
+            if (GF.clip_5prime) {
+                paramLines.push(`5&prime; overlap clipping: ${geNum(GF.clip_5prime.n_events)} events across ${geNum(GF.clip_5prime.n_genes_clipped)} genes.`);
+            }
+            if (S.input_file) paramLines.push(`Input annotation: <code>${geEsc(S.input_file)}</code>`);
+            if (S.output_file) paramLines.push(`Extended annotation: <code>${geEsc(S.output_file)}</code>`);
+            if (S.run_date) paramLines.push(`Run: ${geEsc(S.run_date)}`);
+            if (D.report_file) paramLines.push(`Full GeneExt report, including the per-gene extension table: <code>gene_ext/${geEsc(D.report_file)}</code>`);
+
+            const metaHtml = (paramLines.length === 0 && !S.run_args) ? "" : `
+                <div class="ge-panel">
+                  <h4>Parameters and inputs</h4>
+                  <div class="ge-meta">
+                    ${paramLines.length ? `<ul>${paramLines.map(l => `<li>${l}</li>`).join("")}</ul>` : ""}
+                    ${S.run_args ? `<p style="margin-top:10px"><code>${geEsc(S.run_args)}</code></p>` : ""}
+                  </div>
+                </div>`;
+
+            // ── Mapping statistics (only present with GeneExt's --estimate) ───
+            let mappingHtml = "";
+            if (Array.isArray(D.mapping_stats) && D.mapping_stats.length > 0) {
+                mappingHtml = `
+                <h4 style="margin-top:20px">Mapping statistics</h4>
+                <div class="table-scroll">
+                  <table>
+                    <thead><tr>
+                      <th>Annotation</th><th>Total reads</th><th>Mapped</th>
+                      <th>Genic</th><th>Orphan peaks</th><th>Intergenic</th>
+                    </tr></thead>
+                    <tbody>
+                      ${D.mapping_stats.map(r => `
+                        <tr>
+                          <td>${geEsc(String(r.label || "").split("/").pop())}</td>
+                          <td>${geNum(r.total) || "N/A"}</td>
+                          <td>${geNum(r.mapped) || "N/A"}${r.mapped_pct != null ? ` (${r.mapped_pct}%)` : ""}</td>
+                          <td>${geNum(r.genic) || "N/A"}${r.genic_pct != null ? ` (${r.genic_pct}%)` : ""}</td>
+                          <td>${geNum(r.orphan) || "N/A"}${r.orphan_pct != null ? ` (${r.orphan_pct}%)` : ""}</td>
+                          <td>${geNum(r.intergenic) || "N/A"}${r.intergenic_pct != null ? ` (${r.intergenic_pct}%)` : ""}</td>
+                        </tr>`).join("")}
+                    </tbody>
+                  </table>
+                </div>`;
+            }
+
+            const warnHtml = S.orphan_warning ? `
+                <div class="ge-warn">
+                  <strong>&#9888; Too many orphan peaks.</strong>
+                  GeneExt reported ${geNum(S.n_orphan_peaks)} orphan peaks/clusters against
+                  ${geNum(S.n_genes)} input genes, which usually means the annotation is missing
+                  a substantial part of the transcribed genome.
+                </div>` : "";
+
+            const partialHtml = partial ? `
+                <div class="ge-warn">
+                  Showing the headline numbers only: GeneExt's HTML report was not found for this
+                  run, so the statistics were read from <code>${geEsc(D.log_file || "the GeneExt log")}</code>.
+                  The distributions below are unavailable.
+                </div>` : "";
+
+            const notes = Array.isArray(D.log_notes) ? D.log_notes.filter(n => /warning/i.test(n)) : [];
+            const notesHtml = notes.length === 0 ? "" : `
+                <div class="ge-panel" style="margin-bottom:16px">
+                  <h4>Notes from the GeneExt log</h4>
+                  <div class="ge-meta"><ul>${notes.map(n => `<li>${geEsc(n)}</li>`).join("")}</ul></div>
+                </div>`;
+
+            const chartsHtml = partial ? "" : `
+                <div class="ge-panels">
+                  <div class="ge-panel">
+                    <h4>3&prime;-extension length distribution</h4>
+                    <p class="ge-sub">Base pairs added at the 3&prime; end of each extended gene model.</p>
+                    <div id="ge-ext-chart" style="height:320px"></div>
+                  </div>
+                  <div class="ge-panel">
+                    <h4>Peak coverage filtering</h4>
+                    <p class="ge-sub">
+                      Coverage of genic peaks (the reference distribution) against intergenic
+                      candidate peaks; the dashed line marks the retention threshold.
+                    </p>
+                    <div id="ge-cov-chart" style="height:320px"></div>
+                  </div>
+                </div>`;
+
+            container.innerHTML = `
+        <h3>Gene Extension</h3>
+
+        <div class="citation-box">
+          <a href="https://doi.org/10.1093/bioinformatics/btag094" target="_blank" class="citation-link" title="GeneExt publication">
+            <svg viewBox="0 0 16 16" aria-hidden="true"><path d="M8 0a8 8 0 1 0 0 16A8 8 0 0 0 8 0zm.9 12.5h-1.8v-1.8h1.8v1.8zm0-3.1h-1.8c0-2.6 2.4-2.4 2.4-4a1.5 1.5 0 0 0-3 0H5.7a3.3 3.3 0 0 1 6.6 0c0 2-2.4 2.2-2.4 4z"/></svg>
+          </a>
+          <p>
+            3&prime;-untranslated regions are frequently missing or truncated in non-model reference
+            annotations, so 3&prime;-biased single-cell reads fall outside the annotated gene and are
+            counted as intergenic. GeneExt calls peaks on the aligned reads and extends each gene
+            model towards the nearest downstream peak, recovering those reads.
+          </p>
+          <p>
+            GeneExt is run <strong>once per pipeline run</strong> on the merged alignments of all
+            samples, so the statistics here describe the extended annotation as a whole, not the
+            selected sample. Each sample's <code>_geneext_starsolo</code> analytical run in the other
+            tabs is the mapping against this annotation.
+          </p>
+        </div>
+
+        ${partialHtml}
+        ${warnHtml}
+
+        <div class="ge-stats">${tilesHtml}</div>
+
+        ${chartsHtml}
+
+        <div class="ge-panels">
+          ${flowHtml}
+          ${metaHtml}
+        </div>
+
+        ${notesHtml}
+        ${mappingHtml}
+      `;
+
+            if (!partial) plotGeneExtCharts(D);
+        }
+
+        function plotGeneExtCharts(D) {
+            const EH = D.ext_hist || {};
+            const CH = D.cov_hist || {};
+
+            const extDiv = document.getElementById("ge-ext-chart");
+            if (extDiv) {
+                if (EH.labels && EH.counts && EH.counts.length) {
+                    Plotly.purge("ge-ext-chart");
+                    Plotly.newPlot("ge-ext-chart", [{
+                        x: EH.labels.map(Number),
+                        y: EH.counts,
+                        type: "bar",
+                        name: "Genes",
+                        marker: { color: "#239184" },
+                        hovertemplate: "~%{x:,.0f} bp<br>%{y:,} gene(s)<extra></extra>"
+                    }], {
+                        xaxis: { title: { text: "Extension length (bp)", font: { size: 12 } }, gridcolor: "#eee" },
+                        yaxis: { title: { text: "Number of genes", font: { size: 12 } }, gridcolor: "#eee" },
+                        bargap: 0.05,
+                        margin: { l: 60, r: 20, b: 50, t: 20 },
+                        paper_bgcolor: "white",
+                        plot_bgcolor: "white",
+                        showlegend: false
+                    }, { responsive: true });
+                } else {
+                    extDiv.innerHTML = `<p>No extension length distribution available.</p>`;
+                }
+            }
+
+            const covDiv = document.getElementById("ge-cov-chart");
+            if (covDiv) {
+                if (CH.labels && CH.labels.length) {
+                    const x = CH.labels.map(Number);
+                    const traces = [];
+                    if (CH.counts_genic) traces.push({
+                        x: x, y: CH.counts_genic, type: "bar", name: "Genic peaks",
+                        marker: { color: "rgba(255,99,132,0.6)" }
+                    });
+                    if (CH.counts_noov) traces.push({
+                        x: x, y: CH.counts_noov, type: "bar", name: "Intergenic candidate peaks",
+                        marker: { color: "rgba(77,158,245,0.6)" }
+                    });
+
+                    const shapes = [];
+                    if (CH.log10_threshold != null) {
+                        shapes.push({
+                            type: "line", xref: "x", yref: "paper",
+                            x0: CH.log10_threshold, x1: CH.log10_threshold, y0: 0, y1: 1,
+                            line: { color: "#d64545", width: 1.5, dash: "dash" }
+                        });
+                    }
+
+                    Plotly.purge("ge-cov-chart");
+                    Plotly.newPlot("ge-cov-chart", traces, {
+                        barmode: "overlay",
+                        xaxis: { title: { text: "log₁₀(normalized coverage)", font: { size: 12 } }, gridcolor: "#eee" },
+                        yaxis: { title: { text: "Number of peaks", font: { size: 12 } }, gridcolor: "#eee" },
+                        shapes: shapes,
+                        bargap: 0.05,
+                        margin: { l: 60, r: 20, b: 50, t: 20 },
+                        paper_bgcolor: "white",
+                        plot_bgcolor: "white",
+                        showlegend: true,
+                        legend: { x: 1, y: 1, xanchor: "right", yanchor: "top" }
+                    }, { responsive: true });
+                } else {
+                    covDiv.innerHTML = `<p>No peak coverage distribution available.</p>`;
+                }
             }
         }
 

@@ -26,6 +26,8 @@ process GENERATE_DASHBOARD {
     path(cellsweep_plots_contrib)
     path(cellsweep_plots_umap)
     path(cellsweep_top_genes)
+    path(geneext_report)
+    path(geneext_log)
 
     output:
     path "dashboard.html"  , emit: html
@@ -63,7 +65,9 @@ process GENERATE_DASHBOARD {
         --secondderiv_stats ${secondderiv_stats} \\
         --cellsweep_tables ${cellsweep_top_genes} \\
         --cellsweep_plots_contrib ${cellsweep_plots_contrib} \\
-        --cellsweep_plots_umap ${cellsweep_plots_umap}
+        --cellsweep_plots_umap ${cellsweep_plots_umap} \\
+        --geneext_report ${geneext_report} \\
+        --geneext_log ${geneext_log}
 
     cat <<-END_VERSIONS > versions.yml
     "${task.process}":

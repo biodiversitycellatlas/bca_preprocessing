@@ -34,6 +34,8 @@ workflow geneext_workflow {
 
     emit:
         ref_gtf   = GENE_EXT.out.gtf
+        report    = GENE_EXT.out.report
+        log       = GENE_EXT.out.log
 }
 
 /*

@@ -59,6 +59,8 @@ workflow QC_mapping_workflow {
         def ch_alevin_umipercell            = Channel.empty()
         def ch_featurecounts                = Channel.empty()
         def ch_pavian_sankey                = Channel.empty()
+        def ch_geneext_report               = Channel.empty()
+        def ch_geneext_log                  = Channel.empty()
 
         // Conditionally bypass MERGE_REF_GTF/FASTA when no additional features are provided
         def ref_gtf_ch
@@ -151,6 +153,10 @@ workflow QC_mapping_workflow {
 
                 // Collect ALL BAMs from all samples before running geneext
                 geneext_workflow(mapping_starsolo_workflow.out.starsolo_bam)
+
+                // GeneExt's own run statistics, summarised in the dashboard
+                ch_geneext_report = geneext_workflow.out.report
+                ch_geneext_log    = geneext_workflow.out.log
 
                 if (params.perform_geneext) {
 
@@ -257,6 +263,8 @@ workflow QC_mapping_workflow {
         af_umipercell                = ch_alevin_umipercell
         featurecount_txt             = ch_featurecounts
         pavian_sankey                = ch_pavian_sankey
+        geneext_report               = ch_geneext_report
+        geneext_log                  = ch_geneext_log
 }
 
 /*
