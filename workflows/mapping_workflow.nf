@@ -163,7 +163,7 @@ workflow QC_mapping_workflow {
 
                 // GeneExt's own run statistics, summarised in the dashboard
                 ch_geneext_report = geneext_workflow.out.report
-                ch_geneext_log    = geneext_workflow.out.log
+                ch_geneext_log    = geneext_workflow.out.geneext_log
 
                 if (params.perform_geneext) {
 

@@ -33,9 +33,9 @@ workflow geneext_workflow {
         GENE_EXT(SAMTOOLS_MERGE.out.merged_bam, SAMTOOLS_MERGE.out.merged_bai)
 
     emit:
-        ref_gtf   = GENE_EXT.out.gtf
-        report    = GENE_EXT.out.report
-        log       = GENE_EXT.out.log
+        ref_gtf         = GENE_EXT.out.gtf
+        report          = GENE_EXT.out.report
+        geneext_log     = GENE_EXT.out.log
 }
 
 /*
