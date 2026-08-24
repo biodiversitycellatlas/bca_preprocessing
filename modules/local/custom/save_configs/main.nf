@@ -17,7 +17,7 @@ process SAVE_RUN_CONFIG {
     cp ${input_file} "samplesheet_${params.trace_report_suffix}.csv"
 
     # Save the environment variables to a file
-    cat <<EOF > run_config_${params.trace_report_suffix}.txt
+    cat <<'EOF' > run_config_${params.trace_report_suffix}.txt
     ${ params.keySet().sort()
         .collect { k -> "$k = ${params[k]}" }
         .join('\n') }
