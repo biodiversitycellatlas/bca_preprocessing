@@ -237,6 +237,22 @@
                     "fa_icon": "fas fa-question-circle",
                     "hidden": true
                 },
+                "pipeline_version": {
+                    "type": "string",
+                    "description": "The pipeline version. Read back by manifest.version and by the help banner; not intended to be set on the command line.",
+                    "default": "0.2.4",
+                    "hidden": true
+                },
+                "schema_before_text": {
+                    "type": "string",
+                    "description": "Banner printed above the help and summary output.",
+                    "hidden": true
+                },
+                "schema_after_text": {
+                    "type": "string",
+                    "description": "Citation text printed below the help and summary output.",
+                    "hidden": true
+                },
                 "code_dir": {
                     "type": "string"
                 },

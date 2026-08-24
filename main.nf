@@ -182,17 +182,15 @@ workflow {
         params.hook_url,
         BCA_PREPROCESSING.out.multiqc_report
     )
-}
 
 
-
-/*
-~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~
-    WORKFLOWS TO DISPLAY RUNTIME INFORMATION
-~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~
-*/
-workflow.onComplete {
-    summary = """
+    /*
+    ~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~
+        DISPLAY RUNTIME INFORMATION
+    ~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~
+    */
+    workflow.onComplete = {
+        def summary = """
         Pipeline execution summary
         ---------------------------
         Completed at: ${workflow.complete}
@@ -201,11 +199,12 @@ workflow.onComplete {
         workDir     : ${workflow.workDir}
         exit status : ${workflow.exitStatus}
         """
-    println summary
-}
+        println summary
+    }
 
-workflow.onError {
-    println "Error: Pipeline execution stopped with the following message: ${workflow.errorMessage}"
+    workflow.onError = {
+        println "Error: Pipeline execution stopped with the following message: ${workflow.errorMessage}"
+    }
 }
 
 

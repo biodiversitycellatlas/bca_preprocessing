@@ -6,11 +6,11 @@ process PERCELL_METRICS {
     conda "${moduleDir}/environment.yml"
 
     input:
-    tuple val(meta), path(star_bam)
-    tuple val(meta), path(star_solodir)
-    tuple val(meta), path(star_log)
-    tuple val(meta), path(secondderiv_cutoff)
-    tuple val(meta), path(filtered_matrix_dir)
+    tuple val(meta),   path(star_bam)
+    tuple val(_meta2), path(star_solodir)
+    tuple val(_meta3), path(star_log)
+    tuple val(_meta4), path(secondderiv_cutoff)
+    tuple val(_meta5), path(filtered_matrix_dir)
     path (ref_gtf)
 
     output:

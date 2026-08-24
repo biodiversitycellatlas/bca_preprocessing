@@ -34,7 +34,8 @@ Within each custom configuration file the following variables can be defined:
 | `perform_demultiplexing` | Optional        | Boolean flag to enable or disable demultiplexing of the FASTQ files, where applicable. Default is `true`. |
 | `seqspec_file`         | Optional          | Path to the seqspec file. |
 | `subsample_nreads`     | Optional          | The size (number of reads) of the subset used to map to STARsolo, in case the parameter `mapping_software = alevin_subsampled_starsolo`. Default set to `100000000` reads. |
-| `alevin_usa_counts`    | Optional          | Which of alevin-fry's USA blocks are summed into each gene's count before ambient-RNA removal and doublet detection: `"SUA"` (spliced + unspliced + ambiguous), `"SA"` or `"S"`. Default set to `"SUA"`. See [USA counts](#usa-counts). |
+| `alevin_usa_counts`    | Optional          | Which of alevin-fry's USA blocks are summed into each gene's count before ambient-RNA removal and doublet detection: `"SUA"` (spliced + unspliced + ambiguous), `"SA"`, `"S"`, `"UA"` or `"U"`. Default set to `"SUA"`. See [USA counts](#usa-counts). |
+| `perform_velocity`     | Optional          | Boolean flag to additionally produce intronic counts for RNA velocity: STARsolo's `Velocyto` feature (spliced/unspliced/ambiguous) and alevin-fry's unspliced block, plus a velocity-ready `.h5ad` per mapper. Default is `false`. See [RNA velocity](#rna-velocity). |
 
 
 
@@ -46,7 +47,7 @@ Within each custom configuration file the following variables can be defined:
 | `star_genomeSAindexNbases` | Optional         | Lenght of the SA pre-indexing string in STAR. See [protocol-specific defaults](../conf/seqtech_parameters.config) set in the seqtech_paramaters.config file. |
 | `star_genomeSAsparseD`    | Optional       | Suffix array sparsity in STAR.  See [protocol-specific defaults](../conf/seqtech_parameters.config) set in the seqtech_paramaters.config file. |
 | `star_solocellfilter`  | Optional          | Cell filtering type and parameters used by STAR. See [protocol-specific defaults](../conf/seqtech_parameters.config) set in the seqtech_paramaters.config file.|
-| `star_soloFeatures`    | Optional         | Genomic features for which the UMI counts per Cell Barcode are collected. See [protocol-specific defaults](../conf/seqtech_parameters.config) set in the seqtech_paramaters.config file. |
+| `star_soloFeatures`    | Optional         | Genomic features for which the UMI counts per Cell Barcode are collected. See [protocol-specific defaults](../conf/seqtech_parameters.config) set in the seqtech_paramaters.config file. `Velocyto` is appended automatically when `perform_velocity = true`, so it does not need to be listed here; see [RNA velocity](#rna-velocity). |
 | `star_outFilterScoreMin` | Optional       | Alignment will be output only if its score is higher than or equal to this value normalized by read length. See [protocol-specific defaults](../conf/seqtech_parameters.config) set in the seqtech_paramaters.config file. |
 | `star_outSAMunmapped`     | Optional      | Output of unmapped reads in the SAM format. See [protocol-specific defaults](../conf/seqtech_parameters.config) set in the seqtech_paramaters.config file. |
 | `star_outSAMattributes` | Optional        | String of desired SAM attributes. See [protocol-specific defaults](../conf/seqtech_parameters.config) set in the seqtech_paramaters.config file. |

@@ -15,6 +15,32 @@
         missing or incomplete is reported and skipped, rather than failing the run.
 ~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~
 */
+
+// Rebuild one analytical run's meta from the sample's, with the suffix mapping_workflow.nf
+// appended when it published the results.
+def with_suffix(meta, String suffix) {
+    def new_meta = meta.clone()
+    new_meta.base_id = meta.id
+    new_meta.id = meta.id + suffix
+    new_meta.geneext = (suffix == "_geneext_starsolo")
+    return new_meta
+}
+
+// Report everything that is missing once per analytical run, rather than failing on
+// the first gap. 'required' is a list of [label, path] pairs.
+def keep_complete(meta, dir, List required) {
+    if (!dir.exists()) {
+        log.warn "post_mapping: no published results for '${meta.id}' at ${dir}; skipping it"
+        return false
+    }
+    def missing = required.findAll { pair -> !pair[1].exists() }.collect { pair -> pair[0] }
+    if (missing) {
+        log.warn "post_mapping: '${meta.id}' is missing ${missing.join(', ')} under ${dir}; skipping it"
+        return false
+    }
+    return true
+}
+
 workflow restage_mapping_workflow {
     take:
         ch_samplesheet      // channel: [meta, fastq_cDNA, fastq_BC_UMI, fastq_indices, samplesheet]
@@ -41,29 +67,6 @@ workflow restage_mapping_workflow {
         // The samplesheet is re-read every run, so expected_cells and manual_cutoff are
         // whatever it says now -- that is what makes the cells re-callable
         def ch_meta = ch_samplesheet.map { row -> row[0] }
-
-        def with_suffix = { meta, suffix ->
-            def new_meta = meta.clone()
-            new_meta.base_id = meta.id
-            new_meta.id = meta.id + suffix
-            new_meta.geneext = (suffix == "_geneext_starsolo")
-            new_meta
-        }
-
-        // Report everything that is missing once per analytical run, rather than failing on
-        // the first gap. 'required' is a list of [label, path] pairs.
-        def keep_complete = { meta, dir, required ->
-            if (!dir.exists()) {
-                log.warn "post_mapping: no published results for '${meta.id}' at ${dir}; skipping it"
-                return false
-            }
-            def missing = required.findAll { pair -> !pair[1].exists() }.collect { pair -> pair[0] }
-            if (missing) {
-                log.warn "post_mapping: '${meta.id}' is missing ${missing.join(', ')} under ${dir}; skipping it"
-                return false
-            }
-            return true
-        }
 
         /*
          * STARsolo

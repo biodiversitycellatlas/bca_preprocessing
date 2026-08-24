@@ -68,9 +68,16 @@ GB = 1024 ** 3
 # genome index does in reality. Bases are kept small relative to the scaled term
 # so the embedded exponent stays recoverable within a sane tolerance.
 #
-# The requested values mirror the tiers in conf/base.config, and the models are
-# chosen so a successful task stays comfortably under its request; saturating the
-# cap would flatten the curve and make the fit untestable.
+# The requested values are paired with the models so that a successful task stays
+# comfortably under its request: saturating the cap would flatten the curve and make
+# the fit untestable. That pairing, not conf/base.config, is what fixes them.
+#
+# They therefore do NOT track the tier each process currently declares, and must not
+# be "corrected" to -- several of these processes have been relabelled since the
+# fixture was written, and matching the tiers today would put usage above request and
+# destroy the property the fixture exists to test. Nothing should assert that a
+# request here equals a tier value; the cases that need a real tier read it from
+# conf/base.config instead (see tier_memory() in tests/checks/resource_efficiency.sh).
 PROCESSES: List[Tuple[str, str, Tuple[int, int, int], Tuple[float, float, float, float]]] = [
     ("STARSOLO_ALIGN", "BCA:MAPPING:STARSOLO_ALIGN",
      (16, 128 * GB, 10 * 3600), (0.5, 1.50, 370.0, 0.72)),

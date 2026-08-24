@@ -27,6 +27,19 @@ include { SUBSAMPLE_FASTQS                                                  } fr
     WORKFLOW TO RUN MAPPING
 ~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~
 */
+
+// Name every row for the analytical run it belongs to, keeping the sample's own id in
+// 'base_id'. Uses index access to avoid fixed-arity destructuring, since the rows carry
+// different numbers of file elements.
+def apply_suffix(ch, String suffix) {
+    return ch.map { row ->
+        def new_meta = row[0].clone()
+        new_meta.base_id = row[0].id
+        new_meta.id = row[0].id + suffix
+        [new_meta] + row.drop(1)
+    }
+}
+
 workflow QC_mapping_workflow {
     take:
         data_output
@@ -88,16 +101,6 @@ workflow QC_mapping_workflow {
         // Alevin takes the whitelist as a path input, which cannot be an empty string, so protocols running without a whitelist (e.g. MARS-seq) stage nothing instead
         def bc_whitelist_alevin = bc_whitelist_safe
             .map { wl -> wl?.toString()?.trim() ? wl : [] }
-
-        // Suffix application: uses index access to avoid fixed-arity destructuring
-        def apply_suffix = { ch, suffix ->
-            ch.map { row ->
-                def new_meta = row[0].clone()
-                new_meta.base_id = row[0].id
-                new_meta.id = row[0].id + suffix
-                [new_meta] + row.drop(1)
-            }
-        }
 
         // Quality Control
         FASTQC(data_output)

@@ -13,12 +13,12 @@ process SATURATION_TABLE {
     container "oras://community.wave.seqera.io/library/pysam_samtools_bc_python_pruned:82a1e27e868113f0"
 
     input:
-    tuple val(meta), file(bam_file)
-    tuple val(meta), file(star_summary_file)
-    tuple val(meta), file(star_log_final_file)
-    tuple val(meta), file(samtools_bai)
-    tuple val(meta), file(samtools_mapreads)
-    tuple val(meta), file(secondderiv_stats)
+    tuple val(meta),   path(bam_file)
+    tuple val(_meta2), path(star_summary_file)
+    tuple val(_meta3), path(star_log_final_file)
+    tuple val(_meta4), path(samtools_bai)
+    tuple val(_meta5), path(samtools_mapreads)
+    tuple val(_meta6), path(secondderiv_stats)
 
     output:
     tuple val(meta), path("saturation_output.tsv"), emit: saturation_table

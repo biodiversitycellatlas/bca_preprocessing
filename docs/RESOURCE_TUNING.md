@@ -81,7 +81,7 @@ A label like `process_low` gives every step the same memory, and it has to be bi
 enough for the largest dataset you will ever run. On everything smaller, most of that
 is reserved and left idle.
 
-For five steps we noticed that memory tracks the size of their input, so
+For seven steps we noticed that memory tracks the size of their input, so
 they scale with it instead of using a fixed amount of resources:
 
 | Step | Dependent on | Scale |
@@ -91,6 +91,10 @@ they scale with it instead of using a fixed amount of resources:
 | `MTX_TO_H5AD` | Matrix size | ~3 GB small, up to 48 GB |
 | `MTX_TO_10X` | Matrix size | ~3 GB small, up to 48 GB |
 | `SATURATION_TABLE` | Filtered BAM size | ~13 GB small, up to 128 GB |
+| `SUBSET_VELOCYTO_MATRICES` | Velocyto matrix size | ~3 GB small, up to 48 GB |
+| `VELOCITY_H5AD` | Velocyto or USA matrix size | ~3 GB small, up to 48 GB |
+
+The last two only run with `perform_velocity = true`.
 
 The numbers live in `dynamic_memory` in [`nextflow.config`](../nextflow.config), and you can refresh them
 based on your own runs:
@@ -101,6 +105,21 @@ bin/resource_efficiency.py --results /path/to/outdir --dynamic
 
 That writes a `resources_dynamic_*.config` you can pass with `-c`, or copy into
 `nextflow.config`.
+
+`perform_velocity = true` is worth a note of its own. It adds a third feature structure
+to STARsolo's solo post-map step, so `STARSOLO_ALIGN` needs more memory — but its entry
+scales on **FASTQ size**, which does not change when a feature is added. The anchor
+(`mem_gb` at `ref_gb`) therefore under-provisions with velocity on. The retry ladder
+absorbs a single overrun, but if `STARSOLO_ALIGN` starts retrying on memory once you
+enable velocity, raise `dynamic_memory.STARSOLO_ALIGN.mem_gb` (and `cap_gb` if you are
+hitting it) rather than assuming the fit is wrong.
+
+One thing to watch when copying an entry across: `--dynamic` calibrates `ref_gb` from
+the trace's `rchar`, the total bytes a task read, while the module measures the file
+as it was staged. For a step that reads its input more than once the two differ —
+`SATURATION_TABLE` reads its BAM roughly seven times — so a generated `ref_gb` has to
+be converted back to staged size first, or the anchor sits far too high and every
+request collapses to the floor.
 
 
 ## Tips
