@@ -243,16 +243,6 @@
                     "default": "0.2.4",
                     "hidden": true
                 },
-                "schema_before_text": {
-                    "type": "string",
-                    "description": "Banner printed above the help and summary output.",
-                    "hidden": true
-                },
-                "schema_after_text": {
-                    "type": "string",
-                    "description": "Citation text printed below the help and summary output.",
-                    "hidden": true
-                },
                 "code_dir": {
                     "type": "string"
                 },
