@@ -97,12 +97,35 @@ assert_json() {
     local name="$1" json="$2" expr="$3" detail="${4:-}"
     local out
     if out="$("$PYTHON" -c "
-import json, sys
+import importlib.util, json, os, sys
 d = json.load(open(sys.argv[1]))
 procs = {p['process']: p for p in d['processes']}
+
+# The tool itself is importable so that expectations can be DERIVED from what the
+# modules and conf/base.config actually declare. Hardcoded tier names and byte
+# counts have rotted twice here -- once when the *2 tiers were added, once when
+# STARSOLO_ALIGN and FASTQC were relabelled -- and a stale constant in a test that
+# still passes is worse than no test.
+root = sys.argv[2]
+_spec = importlib.util.spec_from_file_location(
+    're_mod', os.path.join(root, 'bin', 'resource_efficiency.py'))
+mod = importlib.util.module_from_spec(_spec)
+_spec.loader.exec_module(mod)
+tiers = mod.parse_base_config(os.path.join(root, 'conf', 'base.config'))
+mod.adopt_resource_labels(tiers)
+labels = mod.scan_module_labels(root)
+
+def tier_of(process):
+    '''The tier a module process declares, as the tool resolves it.'''
+    return labels[process].tier
+
+def tier_memory(process):
+    '''The first-attempt memory of that process's tier, in bytes.'''
+    return tiers[tier_of(process)].memory
+
 ok, msg = ($expr)
 print(('PASS' if ok else 'FAIL') + '\t' + str(msg))
-" "$json" 2>&1)"; then
+" "$json" "$PROJECT_ROOT" 2>&1)"; then
         local status="${out%%$'\t'*}" msg="${out#*$'\t'}"
         if [[ "$status" == "PASS" ]]; then
             record PASS "$name" "${detail:-$msg}"
@@ -175,12 +198,16 @@ assert_json "trace_formats.killed" "$FMT_JSON" \
       str(sorted((f['process'], f['killed']) for f in d['failures'])))" \
     "exit 137 is a kill, exit 1 is not"
 
-# Aliased inclusions are recorded under the alias but declare no label of their own.
+# Aliased inclusions are recorded under the alias but declare no label of their own,
+# so each must end up on the tier its underlying module declares -- whatever that is.
 assert_json "trace_formats.aliases" "$FMT_JSON" \
-    "(procs['DOUBLET_FILTER_RAW']['label'] == 'process_low'
-      and procs['MERGE_REF_GTF_GENEEXT']['label'] == '__default__',
+    "(procs['DOUBLET_FILTER_RAW']['label'] == tier_of('DOUBLET_FILTER')
+      and procs['MERGE_REF_GTF_GENEEXT']['label'] == tier_of('MERGE_REF_GTF')
+      and procs['MERGE_REF_GTF_GENEEXT']['label'] != mod.DEFAULT_TIER,
       f\"DOUBLET_FILTER_RAW={procs['DOUBLET_FILTER_RAW']['label']} \"
-      f\"MERGE_REF_GTF_GENEEXT={procs['MERGE_REF_GTF_GENEEXT']['label']}\")" \
+      f\"(module {tier_of('DOUBLET_FILTER')}), \"
+      f\"MERGE_REF_GTF_GENEEXT={procs['MERGE_REF_GTF_GENEEXT']['label']} \"
+      f\"(module {tier_of('MERGE_REF_GTF')})\")" \
     "aliases resolve to their module's tier"
 
 # A process no module declares must be surfaced, never silently folded into a tier.
@@ -236,13 +263,17 @@ if run_logged "$BCA_TEST_LOGDIR/resource_efficiency_defaults.log" \
         "run config paired by nearest timestamp"
 
     # Efficiency must be computable from the substituted tier values, or the
-    # overview charts render empty.
+    # overview charts render empty. The expected request is read from the tier the
+    # module declares today, so relabelling a process cannot leave this asserting on
+    # a tier it no longer belongs to.
     assert_json "default_fields.backfill" "$DEF_JSON" \
-        "(procs['STARSOLO_ALIGN']['current_memory'] == 128 * 1024**3
+        "(procs['STARSOLO_ALIGN']['current_memory'] == tier_memory('STARSOLO_ALIGN')
           and procs['STARSOLO_ALIGN']['memory_efficiency'] is not None
-          and procs['FASTQC']['current_memory'] == 12 * 1024**3,
+          and procs['FASTQC']['current_memory'] == tier_memory('FASTQC'),
           f\"STARSOLO_ALIGN req={procs['STARSOLO_ALIGN']['current_memory']} \"
-          f\"eff={procs['STARSOLO_ALIGN']['memory_efficiency']}\")" \
+          f\"want {tier_memory('STARSOLO_ALIGN')} ({tier_of('STARSOLO_ALIGN')}); \"
+          f\"FASTQC req={procs['FASTQC']['current_memory']} \"
+          f\"want {tier_memory('FASTQC')} ({tier_of('FASTQC')})\")" \
         "requests substituted from base.config tiers"
 
     # The substitution must be declared, not passed off as measured.
@@ -273,15 +304,23 @@ spec = importlib.util.spec_from_file_location(
 mod = importlib.util.module_from_spec(spec)
 spec.loader.exec_module(mod)
 
+tiers = mod.parse_base_config(os.path.join(root, "conf", "base.config"))
+mod.adopt_resource_labels(tiers)
+
 labels = mod.scan_module_labels(root)
 if not labels:
     print("FAIL\tno processes found under modules/")
     raise SystemExit(0)
 
-known = set(mod.RESOURCE_LABELS) | {mod.DEFAULT_TIER}
-bad = sorted(name for name, info in labels.items() if info.tier not in known)
+# Asserting on `tier` here would be unfalsifiable: it answers DEFAULT_TIER both for a
+# process that declares no label and for one whose label the tool does not know, so an
+# unrecognised label reads as "unlabelled" and passes. That is exactly how six tiers
+# added to base.config went unnoticed while 37 processes were measured against the
+# wrong denominator. `unrecognised` separates the two cases.
+bad = sorted(f"{name} ({', '.join(info.unrecognised)})"
+             for name, info in labels.items() if info.unrecognised)
 if bad:
-    print("FAIL\tprocesses with an unrecognised tier: " + ", ".join(bad))
+    print("FAIL\tlabels not declared in conf/base.config: " + "; ".join(bad))
     raise SystemExit(0)
 
 # Aliases the workflows declare must resolve back to a real module process.
@@ -294,21 +333,33 @@ if unresolved:
 
 print(f"PASS\t{len(labels)} processes, all mapped; {len(aliases)} aliases resolved")
 
-# Every tier that declares resources in base.config must parse to a real value.
-tiers = mod.parse_base_config(os.path.join(root, "conf", "base.config"))
+# Every tier the tool discovered must parse to a complete set of values. Discovered
+# rather than listed, so a tier added to base.config is covered without editing this.
+if not mod.RESOURCE_LABELS:
+    print("FAIL\tno resource-bearing tiers discovered in conf/base.config")
+    raise SystemExit(0)
+
 missing = []
-for label in ("process_single", "process_low", "process_medium",
-              "process_high", "process_high_memory"):
+for label in mod.RESOURCE_LABELS:
     spec_ = tiers.get(label)
     if spec_ is None or spec_.cpus is None or spec_.memory is None or spec_.time is None:
         missing.append(label)
+
+# The behaviour-only labels must NOT be mistaken for tiers -- they carry no
+# cpus/memory/time, and retuning them would emit meaningless withLabel blocks.
+leaked = [label for label in ("error_ignore", "error_optional", "error_retry", "process_gpu")
+          if label in mod.RESOURCE_LABELS]
+
 if missing:
     print("FAIL\ttiers failed to parse: " + ", ".join(missing))
+elif leaked:
+    print("FAIL\tbehaviour-only labels treated as tiers: " + ", ".join(leaked))
 else:
     summary = ", ".join(
         f"{label}={int(tiers[label].memory / 1024 ** 3)}GB"
-        for label in ("process_low", "process_medium", "process_high_memory"))
-    print(f"PASS\tall tiers parsed ({summary})")
+        for label in ("process_low", "process_medium", "process_high_memory")
+        if label in tiers and tiers[label].memory)
+    print(f"PASS\t{len(mod.RESOURCE_LABELS)} tiers parsed ({summary})")
 PYEOF
 then
     n=0

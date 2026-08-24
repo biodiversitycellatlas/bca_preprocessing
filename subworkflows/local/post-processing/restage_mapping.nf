@@ -78,6 +78,8 @@ workflow restage_mapping_workflow {
                 def solo = file("${dir}/${meta.id}_Solo.out")
                 [ meta, dir, solo, file("${solo}/GeneFull_Ex50pAS") ]
             }
+            // Velocyto is deliberately absent from the required list below: a previous run made
+            // without 'perform_velocity' has to restage as cleanly as one made with it
             .filter { meta, dir, solo, gene ->
                 keep_complete(meta, dir, [
                     [ "${meta.id}_Solo.out",                  solo ],
@@ -102,13 +104,16 @@ workflow restage_mapping_workflow {
                 log_out:    [meta, file("${dir}/${meta.id}_Log.out")]
                 log_final:  [meta, file("${dir}/${meta.id}_Log.final.out")]
                 bam:        [meta, file("${dir}/${meta.id}_Aligned.sortedByCoord.out.bam")]
+                velo_raw:   [meta, file("${solo}/Velocyto/raw")]
             }
             .set { ch_star }
 
-        // Both are optional upstream: the BAM only exists with star_generateBAM, and
-        // STARsolo's own filtered matrix is dropped whenever this pipeline re-calls cells
+        // All optional upstream: the BAM only exists with star_generateBAM, STARsolo's own
+        // filtered matrix is dropped whenever this pipeline re-calls cells, and Velocyto/raw
+        // only exists when the previous run set 'perform_velocity'
         def ch_star_bam = ch_star.bam.filter { _meta, bam -> bam.exists() }
         def ch_star_filtered = ch_star.filtered.filter { _meta, dir -> dir.exists() }
+        def ch_star_velo_raw = ch_star.velo_raw.filter { _meta, dir -> dir.exists() }
 
         /*
          * alevin-fry
@@ -148,6 +153,7 @@ workflow restage_mapping_workflow {
         star_solodir                 = ch_star.solodir
         starsolo_genefull50_raw      = ch_star.raw
         starsolo_genefull50_filtered = ch_star_filtered
+        starsolo_velocyto_raw        = ch_star_velo_raw
         star_summaries               = ch_star.summary
         star_cellreads               = ch_star.cellreads
         star_umipercell              = ch_star.umipercell

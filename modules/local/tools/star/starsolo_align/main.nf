@@ -1,10 +1,15 @@
 
+// Retrieve one setting from custom parameters if set, otherwise from the protocol's block in conf/seqtech_parameters.config
+def setting(Map seqtech, String key, Object fallback = null) {
+    return params[key] != null ? params[key] : (seqtech[key] != null ? seqtech[key] : fallback)
+}
+
 process STARSOLO_ALIGN {
     publishDir "${params.outdir}/mapping_STARsolo/${meta.id}", mode: 'copy'
     tag "${meta.id}"
     label 'process_high2'
 
-    // Memory tracks the size of the FASTQs being read, overrides process_high2's flat assignments. 
+    // Memory tracks the size of the FASTQs being read, overrides process_high2's flat assignments.
     // Coefficients live in params.dynamic_memory; remove the entry to fall back to the plain label.
     memory { BcaResources.scaledMemory(
         params.dynamic_memory?.STARSOLO_ALIGN,
@@ -28,28 +33,36 @@ process STARSOLO_ALIGN {
     tuple val(meta), path("*_Solo.out/GeneFull_Ex50pAS/Summary.csv"),   emit: summary_csv
     tuple val(meta), path("*_Solo.out/GeneFull_Ex50pAS/CellReads.stats"), emit: cellreads_stats
     tuple val(meta), path("*_Solo.out/GeneFull_Ex50pAS/UMIperCellSorted.txt"), emit: umi_per_cell
+    tuple val(meta), path("*_Solo.out/Velocyto/raw"),           emit: velocyto_raw_dir, optional: true
     tuple val(meta), path("*_Aligned.sortedByCoord.out.bam"),   emit: bam_file, optional: true
     path "versions.yml",                                        emit: versions
 
     script:
     // Retrieve settings from custom parameters if set, otherwise from conf/seqtech_parameters.config.
     def seqtech = params.seqtech_parameters[params.protocol]
-    def setting = { String key, Object fallback = null ->
-        params[key] != null ? params[key] : (seqtech[key] != null ? seqtech[key] : fallback)
-    }
 
-    def star_soloTypestring    = setting('star_soloTypestring')
-    def star_soloCBmatchWLtype = setting('star_soloCBmatchWLtype')
-    def star_soloUMIfiltering  = setting('star_soloUMIfiltering')
-    def star_soloMultiMappers  = setting('star_soloMultiMappers')
-    def star_soloUMIdedup      = setting('star_soloUMIdedup')
-    def star_soloFeatures      = setting('star_soloFeatures')
-    def star_clipAdapterType   = setting('star_clipAdapterType')
-    def star_outFilterScoreMin = setting('star_outFilterScoreMin')
-    def star_outSAMunmapped    = setting('star_outSAMunmapped')
-    def star_outSAMattributes  = setting('star_outSAMattributes')
-    def star_solocellfilter    = setting('star_solocellfilter')
-    def star_extraargs         = setting('star_extraargs', '')
+    def star_soloTypestring    = setting(seqtech, 'star_soloTypestring')
+    def star_soloCBmatchWLtype = setting(seqtech, 'star_soloCBmatchWLtype')
+    def star_soloUMIfiltering  = setting(seqtech, 'star_soloUMIfiltering')
+    def star_soloMultiMappers  = setting(seqtech, 'star_soloMultiMappers')
+    def star_soloUMIdedup      = setting(seqtech, 'star_soloUMIdedup')
+    def star_soloFeatures      = setting(seqtech, 'star_soloFeatures')
+    def star_clipAdapterType   = setting(seqtech, 'star_clipAdapterType')
+    def star_outFilterScoreMin = setting(seqtech, 'star_outFilterScoreMin')
+    def star_outSAMunmapped    = setting(seqtech, 'star_outSAMunmapped')
+    def star_outSAMattributes  = setting(seqtech, 'star_outSAMattributes')
+    def star_solocellfilter    = setting(seqtech, 'star_solocellfilter')
+    def star_extraargs         = setting(seqtech, 'star_extraargs', '')
+
+    // params.perform_velocity adds the spliced/unspliced/ambiguous matrices used for RNA
+    // velocity. STAR computes Velocyto from the Gene feature and exits without it, so Gene is
+    // added back for a custom star_soloFeatures that left it out.
+    def solo_features = star_soloFeatures.tokenize(' ').findAll { it }
+    if (params.perform_velocity) {
+        if (!solo_features.contains('Gene')) { solo_features = ['Gene'] + solo_features }
+        if (!solo_features.contains('Velocyto')) { solo_features << 'Velocyto' }
+    }
+    def star_soloFeatures_effective = solo_features.join(' ')
 
     // Convert empty bc_whitelist to None
     def safe_bc_whitelist = (bc_whitelist && bc_whitelist != "") ? bc_whitelist : 'None'
@@ -75,10 +88,7 @@ process STARSOLO_ALIGN {
     // If star_generateBAM is false, do not output BAM (omit --outSAMtype)
     def outSAMtype_option = params.star_generateBAM ? '--outSAMtype BAM SortedByCoordinate' : '--outSAMtype None'
 
-    // Whenever this pipeline re-calls cells, they are called by FILTER_MATRICES on the
-    // raw matrix, so STARsolo's own filtered matrix is dropped to keep it out of the
-    // published results and out of every downstream calculation. 
-    // STARsolo still runs its filtering, since Summary.csv is written from it.
+    // If cellfilter_method is "second_derivative" or "manual_cutoff", the filtered matrices are dropped and the raw matrices are used for cell calling.
     def drop_star_filtered = params.cellfilter_method in ["second_derivative", "manual_cutoff"]
 
     // Calculated in BcaResources.bamSortRam(), which returns a note and the byte count.
@@ -97,6 +107,7 @@ process STARSOLO_ALIGN {
     echo "star_solocellfilter: ${star_solocellfilter}"
     echo "star_soloTypestring: ${star_soloTypestring}"
     echo "star_generateBAM: ${params.star_generateBAM}"
+    echo "star_soloFeatures (effective): ${star_soloFeatures_effective}"
     echo "star_outSAMattributes (effective): ${star_outSAMattributes_effective}"
     echo "outSAMtype_option: ${outSAMtype_option}"
 
@@ -132,7 +143,7 @@ process STARSOLO_ALIGN {
         --soloUMIfiltering ${star_soloUMIfiltering} \\
         --soloMultiMappers ${star_soloMultiMappers} \\
         --soloUMIdedup ${star_soloUMIdedup} \\
-        --soloFeatures ${star_soloFeatures} \\
+        --soloFeatures ${star_soloFeatures_effective} \\
         --soloCBwhitelist ${safe_bc_whitelist} \\
         --soloCellReadStats Standard \\
         --soloCellFilter \${SOLO_CELL_FILTER_ARGS} \\
@@ -148,8 +159,9 @@ process STARSOLO_ALIGN {
         ${star_extraargs}
 
     if [[ "${drop_star_filtered}" == "true" ]]; then
-        echo "cellfilter_method=${params.cellfilter_method}: removing STARsolo's own filtered matrix"
+        echo "cellfilter_method=${params.cellfilter_method}: removing STARsolo's own filtered matrices"
         rm -rf ${meta.id}_Solo.out/GeneFull_Ex50pAS/filtered
+        rm -rf ${meta.id}_Solo.out/Gene/filtered
     fi
 
     cat <<-END_VERSIONS > versions.yml

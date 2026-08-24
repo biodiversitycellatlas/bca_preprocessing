@@ -19,6 +19,9 @@ include { DOUBLET_FILTER as DOUBLET_FILTER_RAW         } from '../modules/local/
 include { DOUBLET_FILTER as DOUBLET_FILTER_CELL_CALLED } from '../modules/local/tools/doublet_filter/main'
 include { DOWNLOAD_DEMUXAFY_SIF   } from '../modules/local/tools/demuxafy_sif/main'
 include { COLLAPSE_ALEVIN_USA     } from '../modules/local/custom/manipulate/collapse_alevin_usa/main'
+include { COLLAPSE_ALEVIN_USA as COLLAPSE_ALEVIN_UNSPLICED } from '../modules/local/custom/manipulate/collapse_alevin_usa/main'
+include { VELOCITY_H5AD as VELOCITY_H5AD_STARSOLO } from '../modules/local/tools/velocity_h5ad/main'
+include { VELOCITY_H5AD as VELOCITY_H5AD_ALEVIN   } from '../modules/local/tools/velocity_h5ad/main'
 
 
 /*
@@ -33,10 +36,12 @@ workflow filtering_workflow {
         ch_starsolo_genefull50_filtered
         af_mtx
         af_filtered_mtx
+        ch_starsolo_velocyto_filtered
 
     main:
         // Initialize reporting channels
         def ch_cb_html                  = Channel.empty()
+        def ch_velocity_h5ad            = Channel.empty()
         def ch_cs_ambient_hist_plot     = Channel.empty()
         def ch_cs_umap_comparison_plot  = Channel.empty()
         def ch_cs_top_genes             = Channel.empty()
@@ -64,7 +69,7 @@ workflow filtering_workflow {
                 }
             )
 
-        COLLAPSE_ALEVIN_USA(ch_alevin_dirs)
+        COLLAPSE_ALEVIN_USA(ch_alevin_dirs, params.alevin_usa_counts ?: 'SUA')
 
         // Fix alevin-fry's output into the same triplet format as STARsolo's, so the two mappers can be treated the same downstream
         def ch_alevin_fry = COLLAPSE_ALEVIN_USA.out.matrix.map { meta, dir ->
@@ -73,6 +78,35 @@ workflow filtering_workflow {
         }
 
         def ch_all_matrices = ch_starsolo_raw.mix(ch_starsolo_filtered, ch_alevin_fry)
+
+        /*
+         * RNA velocity outputs. These are a terminal deliverable, deliberately kept out of
+         * ch_all_matrices: everything after that funnel branches on meta.datatype, so mixing
+         * them in would fan the h5ad, 10x-export, doublet and ambient-RNA steps out over the
+         * extra datatypes -- and calling doublets or ambient RNA on unspliced counts is
+         * meaningless.
+         */
+        if (params.perform_velocity) {
+
+            // The unspliced block on its own, alevin-fry's counterpart of STARsolo's Velocyto
+            // unspliced matrix. Retagged so it does not land in the same publishDir as the
+            // gene-level matrix collapsed from the params.alevin_usa_counts blocks.
+            def ch_alevin_unspliced_in = ch_alevin_dirs.map { meta, dir ->
+                [ meta + [datatype: "${meta.datatype}_unspliced"], dir ]
+            }
+
+            COLLAPSE_ALEVIN_UNSPLICED(ch_alevin_unspliced_in, 'U')
+
+            VELOCITY_H5AD_STARSOLO(ch_starsolo_velocyto_filtered.map { meta, dir ->
+                [ meta + [mapping_method: 'starsolo', datatype: 'filtered'], dir ]
+            })
+
+            // The USA matrix carries all three blocks, so the velocity object is built from it
+            // directly rather than from the collapsed output
+            VELOCITY_H5AD_ALEVIN(ch_alevin_dirs)
+
+            ch_velocity_h5ad = VELOCITY_H5AD_STARSOLO.out.h5ad.mix(VELOCITY_H5AD_ALEVIN.out.h5ad)
+        }
 
         // Check the cell filtering method: unless this pipeline re-calls cells, alevin-fry's
         // full matrix is already the mapper's own cell call
@@ -188,6 +222,7 @@ workflow filtering_workflow {
 
     emit:
         cb_html                     = ch_cb_html
+        velocity_h5ad               = ch_velocity_h5ad
         cs_ambient_hist_plot        = ch_cs_ambient_hist_plot
         cs_umap_comparison_plot     = ch_cs_umap_comparison_plot
         cs_top_genes                = ch_cs_top_genes

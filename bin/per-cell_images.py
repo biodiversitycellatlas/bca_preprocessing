@@ -5,6 +5,7 @@ Compute per-cell intronic, mitochondrial, rRNA metrics and generate comparison p
 import os
 import argparse
 import json
+import sys
 from collections import defaultdict
 
 import scipy.io
@@ -151,12 +152,26 @@ def load_matrices(solo_dir):
     """
     Load GeneFull_Ex50pAS and Gene matrices and computes intronic percentages.
     Aligns barcodes safely to prevent IndexErrors.
+
+    Returns ``None`` when the exonic ``Gene/`` matrix is absent. Both features are
+    quantified by default, but ``star_soloFeatures`` is user-settable and a value
+    without ``Gene`` leaves nothing to subtract. This process carries no
+    ``error_optional`` label, so raising here would fail the whole run over one
+    optional metric.
     """
     # File paths
     full_path = os.path.join(solo_dir, "GeneFull_Ex50pAS/raw/matrix.mtx")
     gene_path = os.path.join(solo_dir, "Gene/raw/matrix.mtx")
     full_bc_path = os.path.join(solo_dir, "GeneFull_Ex50pAS/raw/barcodes.tsv")
     gene_bc_path = os.path.join(solo_dir, "Gene/raw/barcodes.tsv")
+
+    if not (os.path.exists(gene_path) and os.path.exists(gene_bc_path)):
+        print(
+            f"Warning: no exonic matrix at {gene_path}; the intronic fraction needs "
+            "'Gene' in star_soloFeatures and is skipped for this sample.",
+            file=sys.stderr,
+        )
+        return None
 
     # Load matrix data and sum across features (axis=0)
     mat_full = scipy.io.mmread(full_path).tocsc()
@@ -285,8 +300,10 @@ def save_metrics(df, out_dir, prefix):
     # Filter out zero-read cells for JSON
     df_json = df[df["TotalReads"] > 0].copy()
 
-    # Round floats to 4 decimals to save space
-    float_cols = ["IntronicPercent", "MTPercent", "rRNAPercent"]
+    # Round floats to 4 decimals to save space. IntronicPercent is absent when the
+    # exonic matrix was not quantified, so the columns are intersected with the frame.
+    float_cols = [c for c in ("IntronicPercent", "MTPercent", "rRNAPercent")
+                  if c in df_json.columns]
     df_json[float_cols] = df_json[float_cols].round(4)
 
     # Convert to dictionary of lists {"col": [val, val...]}
@@ -321,6 +338,11 @@ def plot_comparisons(
         ("MTPercent", "TotalReads", "Percentage Mitochondrial Reads Per Cell vs Cell Size"),
         ("rRNAPercent", "TotalReads", "Percentage rRNA Reads Per Cell vs Cell Size"),
     ]
+    # Pairs involving a metric that could not be computed are dropped rather than
+    # plotted empty; with no exonic matrix that removes the three intronic panels.
+    comparisons = [(x, y, title) for x, y, title in comparisons
+                   if x in df.columns and y in df.columns]
+
     low_mask = ~df["IsCell"].astype(bool)
 
     for x, y, title in comparisons:
@@ -392,15 +414,19 @@ def main():
         noncell_label = f"< {args.min_reads} reads"
         print(f"No cell barcode list given; splitting on {args.min_reads} reads")
 
-    # Build DataFrame
-    df = pd.DataFrame({
-        "Cell": barcodes,
-        "IntronicPercent": intronic,
+    # Build DataFrame. IntronicPercent is omitted entirely rather than filled with a
+    # placeholder when there was no exonic matrix to derive it from, so nothing
+    # downstream can mistake a stand-in value for a measurement.
+    columns = {"Cell": barcodes}
+    if intronic is not None:
+        columns["IntronicPercent"] = intronic
+    columns.update({
         "MTPercent": mt_pct,
         "rRNAPercent": rrna_pct,
         "TotalReads": total_cnt,
         "IsCell": is_cell.astype(int),
     })
+    df = pd.DataFrame(columns)
 
     # Save metrics and plots
     save_metrics(df, args.outdir, prefix)

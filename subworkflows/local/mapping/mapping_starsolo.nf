@@ -51,7 +51,8 @@ workflow mapping_starsolo_workflow {
             STARSOLO_ALIGN.out.genefull50_raw_dir,
             STARSOLO_ALIGN.out.umi_per_cell,
             STARSOLO_ALIGN.out.cellreads_stats,
-            STARSOLO_ALIGN.out.genefull50_filtered_dir
+            STARSOLO_ALIGN.out.genefull50_filtered_dir,
+            STARSOLO_ALIGN.out.velocyto_raw_dir
         )
 
         if (params.star_generateBAM) {
@@ -65,6 +66,8 @@ workflow mapping_starsolo_workflow {
         star_solodir                    = STARSOLO_ALIGN.out.star_solodir
         starsolo_genefull50_raw         = STARSOLO_ALIGN.out.genefull50_raw_dir
         starsolo_genefull50_filtered    = cellcalling_starsolo_workflow.out.filtered_matrix
+        starsolo_velocyto_raw           = STARSOLO_ALIGN.out.velocyto_raw_dir
+        starsolo_velocyto_filtered      = cellcalling_starsolo_workflow.out.velocyto_filtered
         secondderiv_knee                = cellcalling_starsolo_workflow.out.secondderiv_knee
         secondderiv_stats               = cellcalling_starsolo_workflow.out.secondderiv_stats
         secondderiv_cutoff              = cellcalling_starsolo_workflow.out.secondderiv_cutoff

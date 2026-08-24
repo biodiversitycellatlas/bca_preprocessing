@@ -98,7 +98,8 @@ workflow BCA_PREPROCESSING {
         if (run_downstream) {
 
             // Filtering raw matrices of ambient RNA
-            filtering_workflow(mapping_out.starsolo_genefull50_raw, mapping_out.starsolo_genefull50_filtered, mapping_out.af_mtx, mapping_out.af_filtered_mtx)
+            filtering_workflow(mapping_out.starsolo_genefull50_raw, mapping_out.starsolo_genefull50_filtered, mapping_out.af_mtx, mapping_out.af_filtered_mtx,
+                                mapping_out.starsolo_velocyto_filtered)
 
             reporting_workflow(
                 mapping_out.mapped_samplesheet,

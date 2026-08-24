@@ -98,7 +98,8 @@ workflow post_mapping_workflow {
             restage_mapping_workflow.out.starsolo_genefull50_raw,
             restage_mapping_workflow.out.star_umipercell,
             restage_mapping_workflow.out.star_cellreads,
-            restage_mapping_workflow.out.starsolo_genefull50_filtered
+            restage_mapping_workflow.out.starsolo_genefull50_filtered,
+            restage_mapping_workflow.out.starsolo_velocyto_raw
         )
 
         cellcalling_alevin_workflow(restage_mapping_workflow.out.af_mtx)
@@ -159,6 +160,8 @@ workflow post_mapping_workflow {
         star_solodir                 = restage_mapping_workflow.out.star_solodir
         starsolo_genefull50_raw      = restage_mapping_workflow.out.starsolo_genefull50_raw
         starsolo_genefull50_filtered = cellcalling_starsolo_workflow.out.filtered_matrix
+        starsolo_velocyto_raw        = restage_mapping_workflow.out.starsolo_velocyto_raw
+        starsolo_velocyto_filtered   = cellcalling_starsolo_workflow.out.velocyto_filtered
         secondderiv_knee             = ch_secondderiv_knee
         secondderiv_stats            = ch_secondderiv_stats
         secondderiv_cutoff           = ch_secondderiv_cutoff

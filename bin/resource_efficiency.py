@@ -53,7 +53,7 @@ import math
 import os
 import re
 import sys
-from typing import Any, Dict, List, Optional, Sequence, Tuple
+from typing import Any, Dict, List, Optional, Sequence, Set, Tuple
 
 
 # ---------------------------------------------------------------------------
@@ -63,7 +63,14 @@ from typing import Any, Dict, List, Optional, Sequence, Tuple
 # Tiers in conf/base.config that carry cpus/memory/time. Labels outside this set
 # (error_ignore, error_optional, error_retry, process_gpu) change error handling
 # or accelerators, not resource size, so they are recorded but never retuned.
-RESOURCE_LABELS: List[str] = [
+#
+# This set is DISCOVERED from conf/base.config by ``adopt_resource_labels()``, not
+# maintained by hand: the hardcoded list below is only the fallback for when
+# base.config cannot be read. A hand-maintained list silently rots -- when the *2
+# tiers were added, every process carrying one was mapped to DEFAULT_TIER, and the
+# resulting 6 GB denominator corrupted every efficiency figure and every emitted
+# withLabel block until it was noticed.
+FALLBACK_RESOURCE_LABELS: List[str] = [
     "process_single",
     "process_low",
     "process_medium",
@@ -71,6 +78,13 @@ RESOURCE_LABELS: List[str] = [
     "process_high_memory",
     "process_long",
 ]
+
+RESOURCE_LABELS: List[str] = list(FALLBACK_RESOURCE_LABELS)
+
+# Every withLabel block conf/base.config declares, resource-bearing or not. Used to
+# tell "declared a label this tool does not know" apart from "declared no label";
+# empty until base.config has been read.
+KNOWN_LABELS: Set[str] = set()
 
 # Pseudo-tier for processes carrying no label at all (MERGE_REF_FASTA,
 # MERGE_REF_GTF). They inherit the bare `process {}` block, which is shared with
@@ -472,6 +486,23 @@ class ProcessLabels:
         """Labels that are not resource tiers (error_*, process_gpu)."""
         return [label for label in self.labels if label not in RESOURCE_LABELS]
 
+    @property
+    def unrecognised(self) -> List[str]:
+        """Labels this process declares that conf/base.config does not define at all.
+
+        ``tier`` cannot express this on its own: it answers ``DEFAULT_TIER`` both for
+        a process that declares no label and for one that declares a label this tool
+        has never heard of. Those are very different -- the second means the report
+        is measuring against the wrong tier -- so they are separated here, and
+        ``tests/checks/resource_efficiency.sh::label_coverage`` asserts this is empty.
+
+        Empty while ``KNOWN_LABELS`` is unpopulated, so that callers which never read
+        conf/base.config do not report every label as unknown.
+        """
+        if not KNOWN_LABELS:
+            return []
+        return [label for label in self.labels if label not in KNOWN_LABELS]
+
 
 def scan_module_labels(pipeline_dir: str) -> Dict[str, ProcessLabels]:
     """Map every process name declared under ``modules/`` to its labels.
@@ -644,6 +675,37 @@ def parse_base_config(path: str) -> Dict[str, TierSpec]:
         tiers[label] = spec
 
     return tiers
+
+
+def adopt_resource_labels(tiers: Dict[str, TierSpec]) -> List[str]:
+    """Rebind :data:`RESOURCE_LABELS` and :data:`KNOWN_LABELS` from parsed *tiers*.
+
+    A tier is resource-bearing exactly when it declares at least one of
+    cpus/memory/time; the behaviour-only labels (``error_ignore``,
+    ``error_optional``, ``error_retry``, ``process_gpu``) declare none of the three
+    and are therefore excluded, which is the same distinction the hand-maintained
+    list used to encode -- only now it cannot fall out of date.
+
+    Declaration order in ``conf/base.config`` is preserved, since that is the order
+    the tier sections of the report are rendered in.
+
+    Falls back to :data:`FALLBACK_RESOURCE_LABELS` when *tiers* is empty (an
+    unreadable base.config), so the tool still runs against a trace alone.
+    """
+    global RESOURCE_LABELS, KNOWN_LABELS
+
+    if not tiers:
+        RESOURCE_LABELS = list(FALLBACK_RESOURCE_LABELS)
+        KNOWN_LABELS = set(FALLBACK_RESOURCE_LABELS)
+        return RESOURCE_LABELS
+
+    RESOURCE_LABELS = [
+        name for name, spec in tiers.items()
+        if name != DEFAULT_TIER
+        and (spec.cpus is not None or spec.memory is not None or spec.time is not None)
+    ]
+    KNOWN_LABELS = {name for name in tiers if name != DEFAULT_TIER}
+    return RESOURCE_LABELS
 
 
 def simple_process_name(process_field: str, name_field: str) -> str:
@@ -1191,11 +1253,16 @@ def backfill_requests(tasks: Sequence[TaskRecord],
     explicit field list, or with a bare ``-with-trace``, therefore has no
     denominator, and every efficiency figure would be blank.
 
-    The declared value from ``conf/base.config`` is a good stand-in: no module in
-    this pipeline overrides its label, so the tier value *is* what was requested on
-    the first attempt. It is an approximation only in that it cannot see
-    ``task.attempt`` escalation or clamping by the site profile, so it is recorded
-    as inferred and reported as such rather than passed off as measured.
+    The declared value from ``conf/base.config`` is the best stand-in available, and
+    for most processes the tier value *is* what was requested on the first attempt.
+    It is an approximation in three ways, so it is recorded as inferred and reported
+    as such rather than passed off as measured: it cannot see ``task.attempt``
+    escalation, nor clamping by the site profile, and the handful of modules that
+    carry an explicit ``memory { BcaResources.scaledMemory(...) }`` directive
+    (``STARSOLO_ALIGN``, ``STARSOLO_INDEX``, ``MTX_TO_H5AD``, ``MTX_TO_10X``,
+    ``SATURATION_TABLE``, ``SUBSET_VELOCYTO_MATRICES``, ``VELOCITY_H5AD``) override
+    their label's memory entirely, so their backfilled figure is the tier's flat
+    value rather than the size-scaled one they actually ran with.
 
     Parameters
     ----------
@@ -1591,7 +1658,14 @@ def build_tier_plans(stats_by_name: Dict[str, ProcessStats],
 
         # Partial coverage: never shrink a shared value on the strength of the few
         # members this trace happened to exercise.
-        observed_names = {stats.name for stats in eligible}
+        #
+        # Count in the same namespace on both sides. n_declared counts *module*
+        # process names, so the observed set has to be folded back to those too:
+        # an aliased inclusion appears in the trace under each alias
+        # (DOUBLET_FILTER_RAW, DOUBLET_FILTER_CELL_CALLED) but is one declared
+        # module (DOUBLET_FILTER). Counting the aliases would make unobserved
+        # negative and silently switch this guard off for the whole tier.
+        observed_names = {stats.module_process or stats.name for stats in eligible}
         unobserved = plan.n_declared - len(observed_names)
         if current and unobserved > 0:
             if plan.cpus and current.cpus and plan.cpus < current.cpus:
@@ -1688,9 +1762,17 @@ def render_config(plans: Dict[str, TierPlan],
     emitted = False
     for label in RESOURCE_LABELS:
         plan = plans.get(label)
-        if not plan or not plan.members or not plan.changed:
+        if not plan or not plan.members:
             continue
-        emitted = True
+        # A tier the coverage guard pinned all the way back to its conf/base.config
+        # value comes out 'unchanged', which used to drop the whole block -- hiding
+        # the guard precisely when it did the most work, and leaving the reader of
+        # this config no way to tell a tier was deliberately held from one that was
+        # never looked at. Such a tier is reported below as comments, with no
+        # withLabel block, since there is nothing to override.
+        if not plan.changed and not plan.capped_by_coverage:
+            continue
+        emitted = emitted or plan.changed
         current = tiers.get(label)
         n_member_tasks = sum(stats.n_tasks for stats in plan.members)
         n_member_runs = len({key for stats in plan.members for key in stats.run_keys})
@@ -1706,8 +1788,11 @@ def render_config(plans: Dict[str, TierPlan],
         if plan.outliers:
             lines.append(f"    // lifted out into withName blocks below: "
                          f"{', '.join(stats.name for stats in plan.outliers)}")
-        unobserved = plan.n_declared - len({stats.name for stats in plan.members}
-                                           | {stats.name for stats in plan.outliers})
+        # Same namespace fold as in plan_tiers(), so the reported count matches the
+        # one the coverage guard actually acted on.
+        unobserved = plan.n_declared - len(
+            {stats.module_process or stats.name for stats in plan.members}
+            | {stats.module_process or stats.name for stats in plan.outliers})
         if unobserved > 0:
             lines.append(f"    // {unobserved} of {plan.n_declared} process(es) with this label "
                          f"were not exercised by these runs.")
@@ -1715,9 +1800,13 @@ def render_config(plans: Dict[str, TierPlan],
                 lines.append(f"    // {'/'.join(plan.capped_by_coverage)} therefore held at the "
                              f"conf/base.config value rather than lowered, so the")
                 lines.append("    // processes that never ran are not silently under-provisioned.")
-        lines.append(f"    withLabel:{label} {{")
-        lines += emit_directives("        ", plan.cpus, plan.memory, plan.time)
-        lines.append("    }")
+        if plan.changed:
+            lines.append(f"    withLabel:{label} {{")
+            lines += emit_directives("        ", plan.cpus, plan.memory, plan.time)
+            lines.append("    }")
+        else:
+            lines.append("    // Nothing to override: every dimension ended up back at the "
+                         "conf/base.config value.")
 
     for label in list(RESOURCE_LABELS) + [DEFAULT_TIER]:
         plan = plans.get(label)
@@ -2550,9 +2639,25 @@ def main() -> None:
     # ── Label mapping ───────────────────────────────────────────────────────
     module_labels = scan_module_labels(args.pipeline_dir)
     tiers = parse_base_config(os.path.join(args.pipeline_dir, "conf", "base.config"))
+
+    # Discover the tier names from base.config before any ProcessLabels.tier is read,
+    # so a tier added there is picked up without touching this file.
+    adopt_resource_labels(tiers)
+
     if not module_labels:
         sys.stderr.write(f"Warning: no processes found under {args.pipeline_dir}/modules; "
                          f"label mapping will be empty. Check --pipeline-dir.\n")
+
+    # A label no withLabel block defines means this run is measured against the wrong
+    # tier, silently. Say so rather than folding the process into __default__.
+    unrecognised = sorted({label
+                           for info in module_labels.values()
+                           for label in info.unrecognised})
+    if unrecognised:
+        sys.stderr.write(
+            f"Warning: {', '.join(unrecognised)} used by a module but not declared in "
+            f"conf/base.config; processes carrying only those labels are treated as "
+            f"unlabelled.\n")
 
     # ── Parse traces ────────────────────────────────────────────────────────
     parse_results: List[TraceParseResult] = []
@@ -2585,8 +2690,8 @@ def main() -> None:
 
     # ── Backfill requested resources the trace did not record ───────────────
     # Without a denominator every efficiency figure, and both overview charts,
-    # would be blank. The declared tier value is a sound stand-in here because no
-    # module in this pipeline overrides its label.
+    # would be blank. The declared tier value is the best stand-in available; see
+    # backfill_requests() for where it is only an approximation.
     inferred = backfill_requests(list(all_tasks) + list(all_failures), tiers)
     if inferred:
         print(f"\nNote: this trace does not record {', '.join(inferred)}. "

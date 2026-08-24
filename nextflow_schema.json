@@ -84,7 +84,7 @@
                 "alevin_usa_counts": {
                     "type": "string",
                     "default": "SUA",
-                    "enum": ["SUA", "SA", "S"]
+                    "enum": ["SUA", "SA", "S", "UA", "U"]
                 },
                 "star_index": {
                     "type": "string"
@@ -157,6 +157,10 @@
                 },
                 "geneext_gtf": {
                     "type": "string"
+                },
+                "perform_velocity": {
+                    "type": "boolean",
+                    "default": false
                 }
             }
         },

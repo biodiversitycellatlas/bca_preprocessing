@@ -23,6 +23,9 @@ Which blocks to sum is the choice of what counts as expression:
   SA   spliced + ambiguous, the conventional single-cell count, which discards
        intronic signal.
   S    spliced only. The counterpart of STARsolo's Gene.
+  UA   unspliced + ambiguous.
+  U    unspliced only -- the intronic matrix, for RNA velocity. The counterpart
+       of the unspliced matrix in STARsolo's Velocyto feature.
 
 Barcodes are never touched: cells stay in their original order, and no cell or
 gene is dropped, so the matrix keeps its full feature axis whichever blocks
@@ -57,7 +60,7 @@ def parse_args() -> argparse.Namespace:
     parser.add_argument("-d", "--dir", required=True, help="alevin-fry quant matrix directory")
     parser.add_argument("-o", "--outdir", required=True, help="Output directory for the gene-level matrix")
     parser.add_argument(
-        "-c", "--counts", default="SUA", choices=["SUA", "SA", "S"],
+        "-c", "--counts", default="SUA", choices=["SUA", "SA", "S", "UA", "U"],
         help="USA blocks to sum into each gene's count (default: SUA)",
     )
     return parser.parse_args()

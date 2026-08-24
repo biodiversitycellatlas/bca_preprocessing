@@ -45,6 +45,7 @@ The pipeline will produce the following output files:
 
 - Quality control reports for raw FASTQ files
 - Raw & Filtered count matrices (exonic, exonic & intronic) from STARsolo and/or Alevin-fry
+- (Optional) Intronic count matrices for RNA velocity (spliced/unspliced/ambiguous), as `.mtx` and `.h5ad`
 - (Optional) mtDNA and rRNA statistics
 - (Optional) Sequencing saturation analysis
 - (Optional) Extended gene annotation file
@@ -235,6 +236,8 @@ output_directory/
 ├── mapping_alevin/         # (Optional) Alevin-fry count matrices and AlevinQC
 ├── summary_results/        # MultiQC report, Per-Cell metrics, and mapping_stats.tsv table
 ├── dashboard.html          # Portable HTML dashboard displaying results
+│
+├── anndata/                # Count matrices as .h5ad (incl. optional velocity/ layers)
 │
 ├── cellbender/             # (Optional) CellBender filtered matrices
 ├── saturation/             # (Optional) Sequencing saturation analysis

@@ -23,15 +23,19 @@ tests/
 ├── checks/                     # one file per check, discovered automatically
 │   ├── conda_envs.sh
 │   ├── containers.sh
+│   ├── dashboard_geneext.sh
 │   ├── dynamic_resources.sh
 │   ├── nextflow_versions.sh
-│   └── resource_efficiency.sh
+│   ├── resource_efficiency.sh
+│   └── velocity_matrix.sh
 ├── fixtures/
 │   └── execution_trace_formats.txt  # hand-written trace covering awkward formats
 └── lib/
-    ├── common.sh               # logging, result recording, summary
-    ├── extract_containers.awk  # pulls image refs out of module definitions
-    └── make_trace_fixture.py   # generates synthetic runs with a known exponent
+    ├── common.sh                # logging, result recording, summary
+    ├── extract_containers.awk   # pulls image refs out of module definitions
+    ├── make_geneext_fixture.py  # generates a synthetic GeneExt report and log
+    ├── make_trace_fixture.py    # generates synthetic runs with a known exponent
+    └── make_velocyto_fixture.py # generates synthetic Velocyto and USA matrices
 ```
 
 Logs land in `tests/.logs/<timestamp>/`, one file per test case. Those, along
@@ -251,6 +255,59 @@ bash tests/run_tests.sh dynamic_resources -- --java /path/to/java --jar /path/to
 Groovy comes from the Nextflow fat jar that Nextflow caches under
 `$NXF_HOME/framework/`, so no extra toolchain is needed — but the check skips
 cleanly when neither a JDK nor a cached jar is present.
+
+## `dashboard_geneext`
+
+Checks the gene-extension tab of `dashboard.html`, which
+[`bin/generate_dashboard.py`](../bin/generate_dashboard.py) fills by re-reading the
+JSON payload GeneExt embeds in its own HTML report, falling back to GeneExt's
+plain-text log when that report is absent. Neither failure mode is loud: a payload
+that cannot be located yields an empty object, which just hides the tab, and a
+fallback that matches nothing yields a tab full of blanks.
+
+GeneExt itself needs a genome, an annotation and an aligned BAM, so
+[`lib/make_geneext_fixture.py`](lib/make_geneext_fixture.py) reconstructs the two
+files the dashboard reads with distinctive, known numbers — including the one-gene
+discrepancy GeneExt has between its report and its log, which is what tells the two
+code paths apart in the assertions.
+
+The cases also pin the two reductions the dashboard makes deliberately: GeneExt's
+per-gene extension table and its orphan-peak BED are *not* carried over, since they
+dominate the report's size and are one click away in the report itself.
+
+```bash
+bash tests/run_tests.sh dashboard_geneext
+bash tests/run_tests.sh dashboard_geneext -- --keep    # keep the generated dashboards
+```
+
+## `velocity_matrix`
+
+Checks the intronic / RNA-velocity outputs produced under `perform_velocity = true`:
+[`bin/subset_matrices_to_cells.py`](../bin/subset_matrices_to_cells.py),
+[`bin/velocity_matrices_to_h5ad.py`](../bin/velocity_matrices_to_h5ad.py) and the
+`--counts U` path through
+[`bin/collapse_alevin_usa.py`](../bin/collapse_alevin_usa.py).
+
+Every failure mode here is silent. Subsetting the velocity matrices on a UMI cutoff of
+their own rather than the `GeneFull_Ex50pAS` cell call gives a perfectly plausible matrix
+describing the wrong cells. Transposing one layer and not the others, or mapping
+alevin-fry's `-S` block onto the unspliced layer, gives an object of exactly the right
+shape carrying the wrong numbers. None of it raises.
+
+[`lib/make_velocyto_fixture.py`](lib/make_velocyto_fixture.py) therefore writes counts
+that identify their own layer, gene and cell on sight — `spliced` in the hundreds,
+`unspliced` in the tens, `ambiguous` in the units — so a swapped layer cannot pass. It
+emits both mappers' layouts: STARsolo's genes × cells matrices and alevin-fry's cells ×
+columns USA matrix, whose `-S`-first ordering is what a suffix-blind split would return
+instead of the unspliced block.
+
+The `h5ad_layers` cases are skipped where `anndata` is not importable; the rest need only
+numpy, pandas and scipy.
+
+```bash
+bash tests/run_tests.sh velocity_matrix
+bash tests/run_tests.sh velocity_matrix -- --keep    # keep the generated matrices
+```
 
 ## Adding a check
 

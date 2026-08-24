@@ -40,6 +40,8 @@ workflow QC_mapping_workflow {
         def ch_star_solodir                 = Channel.empty()
         def ch_starsolo_genefull50_raw      = Channel.empty()
         def ch_starsolo_genefull50_filtered = Channel.empty()
+        def ch_starsolo_velocyto_raw        = Channel.empty()
+        def ch_starsolo_velocyto_filtered   = Channel.empty()
         def ch_secondderiv_knee             = Channel.empty()
         def ch_secondderiv_stats            = Channel.empty()
         def ch_secondderiv_cutoff           = Channel.empty()
@@ -127,6 +129,8 @@ workflow QC_mapping_workflow {
             ch_star_solodir              =  mapping_starsolo_workflow.out.star_solodir
             ch_starsolo_genefull50_raw   =  mapping_starsolo_workflow.out.starsolo_genefull50_raw
             ch_starsolo_genefull50_filtered = mapping_starsolo_workflow.out.starsolo_genefull50_filtered
+            ch_starsolo_velocyto_raw     =  mapping_starsolo_workflow.out.starsolo_velocyto_raw
+            ch_starsolo_velocyto_filtered = mapping_starsolo_workflow.out.starsolo_velocyto_filtered
             ch_secondderiv_knee          =  mapping_starsolo_workflow.out.secondderiv_knee
             ch_secondderiv_stats         =  mapping_starsolo_workflow.out.secondderiv_stats
             ch_secondderiv_cutoff        =  mapping_starsolo_workflow.out.secondderiv_cutoff
@@ -190,6 +194,8 @@ workflow QC_mapping_workflow {
                     ch_star_solodir                 = ch_star_solodir.mix(mapping_starsolo_geneext_workflow.out.star_solodir)
                     ch_starsolo_genefull50_raw      = ch_starsolo_genefull50_raw.mix(mapping_starsolo_geneext_workflow.out.starsolo_genefull50_raw)
                     ch_starsolo_genefull50_filtered = ch_starsolo_genefull50_filtered.mix(mapping_starsolo_geneext_workflow.out.starsolo_genefull50_filtered)
+                    ch_starsolo_velocyto_raw        = ch_starsolo_velocyto_raw.mix(mapping_starsolo_geneext_workflow.out.starsolo_velocyto_raw)
+                    ch_starsolo_velocyto_filtered   = ch_starsolo_velocyto_filtered.mix(mapping_starsolo_geneext_workflow.out.starsolo_velocyto_filtered)
                     ch_secondderiv_knee             = ch_secondderiv_knee.mix(mapping_starsolo_geneext_workflow.out.secondderiv_knee)
                     ch_secondderiv_stats            = ch_secondderiv_stats.mix(mapping_starsolo_geneext_workflow.out.secondderiv_stats)
                     ch_secondderiv_cutoff           = ch_secondderiv_cutoff.mix(mapping_starsolo_geneext_workflow.out.secondderiv_cutoff)
@@ -244,6 +250,8 @@ workflow QC_mapping_workflow {
         star_solodir                 = ch_star_solodir
         starsolo_genefull50_raw      = ch_starsolo_genefull50_raw
         starsolo_genefull50_filtered = ch_starsolo_genefull50_filtered
+        starsolo_velocyto_raw        = ch_starsolo_velocyto_raw
+        starsolo_velocyto_filtered   = ch_starsolo_velocyto_filtered
         secondderiv_knee             = ch_secondderiv_knee
         secondderiv_stats            = ch_secondderiv_stats
         secondderiv_cutoff           = ch_secondderiv_cutoff

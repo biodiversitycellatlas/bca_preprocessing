@@ -11,6 +11,7 @@ include { SECONDDERIV_CELLCALLING        } from '../../../modules/local/custom/d
 include { FILTER_MATRICES                } from '../../../modules/local/custom/dashboard/2nd_deriv/filter_mtx/main'
 include { SECONDDERIV_CELLCALLING_ALEVIN } from '../../../modules/local/custom/dashboard/2nd_deriv/cellcalling_alevin/main'
 include { FILTER_MATRICES_ALEVIN         } from '../../../modules/local/custom/dashboard/2nd_deriv/filter_mtx_alevin/main'
+include { SUBSET_VELOCYTO_MATRICES       } from '../../../modules/local/custom/manipulate/subset_velocyto/main'
 
 
 /*
@@ -19,6 +20,9 @@ include { FILTER_MATRICES_ALEVIN         } from '../../../modules/local/custom/d
         "second_derivative" and "manual_cutoff" both re-call cells on a UMI threshold
         and filter the raw matrix on it; they differ only in where that threshold comes
         from. Every other cellfilter_method leaves the mapper's own cell call standing.
+
+        Whichever call wins, the velocity matrices are then subset to its barcodes, so
+        every matrix published for a sample describes the same cells.
 ~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~
 */
 workflow cellcalling_starsolo_workflow {
@@ -27,6 +31,7 @@ workflow cellcalling_starsolo_workflow {
         umi_per_cell        // channel: [meta, UMIperCellSorted.txt]
         cellreads_stats     // channel: [meta, CellReads.stats]
         star_filtered       // channel: [meta, GeneFull_Ex50pAS/filtered], STARsolo's own cell call
+        velocyto_raw        // channel: [meta, Velocyto/raw], empty without params.perform_velocity
 
     main:
         // Initialize reporting channels
@@ -53,8 +58,18 @@ workflow cellcalling_starsolo_workflow {
             ch_filtered_mtx = star_filtered
         }
 
+        // The velocity matrices take their cell set from whichever GeneFull_Ex50pAS cell call is
+        // in force, rather than a cutoff of their own, so every published matrix for a sample
+        // describes the same cells. This runs under every cellfilter_method.
+        def ch_velocyto_input = velocyto_raw
+            .join(ch_filtered_mtx)
+            .map { meta, raw_dir, filtered_dir -> [meta, raw_dir, file("${filtered_dir}/barcodes.tsv")] }
+
+        SUBSET_VELOCYTO_MATRICES(ch_velocyto_input)
+
     emit:
         filtered_matrix    = ch_filtered_mtx
+        velocyto_filtered  = SUBSET_VELOCYTO_MATRICES.out.filtered_matrix
         secondderiv_knee   = ch_secondderiv_knee
         secondderiv_stats  = ch_secondderiv_stats
         secondderiv_cutoff = ch_secondderiv_cutoff

@@ -86,8 +86,8 @@ workflow bam_inspection_workflow {
             // Join STARsolo files with samtools index
             bam_file
                 .join(SAMTOOLS_INDEX.out.bam_index)
-                .multiMap { meta, bam_file, bai ->
-                    bam_ch: [meta, bam_file]
+                .multiMap { meta, bam, bai ->
+                    bam_ch: [meta, bam]
                     bai_ch:  [meta, bai]
                 }
                 .set { ch_fc_inputs }
@@ -107,7 +107,7 @@ workflow bam_inspection_workflow {
 
         // Inspecting unmapped reads using Kraken2
         if (params.perform_kraken) {
-            
+
             // Extract unmapped reads
             SAMTOOLS_VIEW_UNMAPPED(bam_file)
 
