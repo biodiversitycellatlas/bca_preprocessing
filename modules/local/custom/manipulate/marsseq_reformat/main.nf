@@ -1,7 +1,7 @@
 process MARSSEQ_BUILD_READS {
     publishDir "${params.outdir}/marsseq_reformat/${meta.id}", mode: 'copy'
     tag "${meta.id}"
-    label 'process_single_long2'
+    label 'process_low2'
 
     conda "${moduleDir}/environment.yml"
     container "oras://community.wave.seqera.io/library/python:3.14.2--0bd36b5fd9edb930"
@@ -35,7 +35,8 @@ process MARSSEQ_BUILD_READS {
         --fq2 ${fastq_BC_UMI} \\
         --read1-design ${marsseq_read1_design} \\
         --read2-design ${marsseq_read2_design} \\
-        --output .
+        --output . \\
+        --threads ${task.cpus}
 
     cat <<-END_VERSIONS > versions.yml
     "${task.process}":
