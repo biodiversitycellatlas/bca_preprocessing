@@ -49,7 +49,7 @@ The pipeline will produce the following output files:
 - (Optional) mtDNA and rRNA statistics
 - (Optional) Sequencing saturation analysis
 - (Optional) Extended gene annotation file
-- (Optional) Filtered count matrices (h5 files) ​from CellBender step
+- (Optional) Ambient-RNA-corrected count matrices (`.h5ad`) from the CellSweep step
 - (Optional) Kraken2 taxonomic classification
 - MultiQC report
 - Portable HTML dashboard displaying results
@@ -239,7 +239,7 @@ output_directory/
 │
 ├── anndata/                # Count matrices as .h5ad (incl. optional velocity/ layers)
 │
-├── cellbender/             # (Optional) CellBender filtered matrices
+├── cellsweep/              # (Optional) CellSweep ambient RNA removal
 ├── saturation/             # (Optional) Sequencing saturation analysis
 ├── gene_ext/               # (Optional) Extended GTF file and outputs from GeneExt
 ├── rRNA_mtDNA/             # (Optional) mtDNA and rRNA results from FeatureCounts

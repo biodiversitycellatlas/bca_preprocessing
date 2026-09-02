@@ -2063,52 +2063,6 @@
                 </div>
                 `;
 
-            } else if (method === "cellbender") {
-
-                // Build CellBender table rows
-                let tableRows = `<tr><td colspan="3">No gene data available.</td></tr>`;
-                if (cf.top_genes && Array.isArray(cf.top_genes)) {
-                    tableRows = cf.top_genes.map(g => `
-                        <tr>
-                        <td>${g.gene_name || 'N/A'}</td>
-                        <td>${g.ambient_expression != null ? Number(g.ambient_expression) : 'N/A'}</td>
-                        <td>${g.n_removed != null ? Number(g.n_removed).toLocaleString() : 'N/A'}</td>
-                        <td>${g.fraction_removed != null ? (Number(g.fraction_removed) * 100).toFixed(2) + '%' : 'N/A'}</td>
-                        </tr>
-                    `).join("");
-                }
-
-                container.innerHTML = `
-          <h3>CellBender</h3>
-
-          <div style="display: flex; gap: 20px; flex-wrap: wrap;">
-             <div style="flex: 1; min-width: 300px; display: flex; justify-content: center;">
-                <img src="${cf.plot1 || ''}" style="max-width: 100%; height: auto; border-radius: 8px; border: 1px solid var(--border);" alt="CellBender Plot 1" />
-             </div>
-             <div style="flex: 1; min-width: 300px; display: flex; justify-content: center;">
-                <img src="${cf.plot2 || ''}" style="max-width: 100%; height: auto; border-radius: 8px; border: 1px solid var(--border);" alt="CellBender Plot 2" />
-             </div>
-          </div>
-
-          <h4 style="margin-top: 30px;">Table of top genes removed</h4>
-
-          <div class="table-scroll" style="max-height: 310px; overflow-y: auto; border: 1px solid var(--border);">
-            <table style="width: 100%; border-collapse: collapse; font-size: 14px;">
-              <thead style="position: sticky; top: 0; background: #f9f9f9; z-index: 2; box-shadow: 0 1px 2px rgba(0,0,0,0.1);">
-                <tr>
-                  <th>Gene Name</th>
-                  <th>Ambient Expression</th>
-                  <th>Removed Count (n_removed)</th>
-                  <th>Fraction Removed</th>
-                </tr>
-              </thead>
-              <tbody>
-                ${tableRows}
-              </tbody>
-            </table>
-          </div>
-        `;
-
             } else {
                 container.innerHTML = `<p>Unknown or missing cell filtering method: <strong>${cf.method || 'None'}</strong></p>`;
             }

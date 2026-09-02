@@ -9,7 +9,6 @@
 */
 
 include { MTX_TO_H5AD             } from '../modules/local/tools/scanpy/main'
-include { CELLBENDER              } from '../modules/local/tools/cellbender/main'
 include { CELLSWEEP               } from '../modules/local/tools/cellsweep/main'
 include { MTX_TO_10X              } from '../modules/local/tools/mtx_to_10x/main'
 include { SCRUBLET                } from '../modules/local/tools/scrublet/main'
@@ -40,7 +39,6 @@ workflow filtering_workflow {
 
     main:
         // Initialize reporting channels
-        def ch_cb_html                  = Channel.empty()
         def ch_velocity_h5ad            = Channel.empty()
         def ch_cs_ambient_hist_plot     = Channel.empty()
         def ch_cs_umap_comparison_plot  = Channel.empty()
@@ -125,12 +123,7 @@ workflow filtering_workflow {
         }
 
         // Ambient RNA removal
-        if (params.ambient_rna_remover == "cellbender" || params.perform_cellbender) {
-            CELLBENDER(ch_raw_h5ad)
-            ch_cb_html = CELLBENDER.out.cb_html
-            // TODO: create script to convert pdf to imgs and table
-
-        } else if (params.ambient_rna_remover == "cellsweep") {
+        if (params.ambient_rna_remover == "cellsweep") {
 
             if (params.perform_doublet_detection) {
                 
@@ -221,7 +214,6 @@ workflow filtering_workflow {
         }
 
     emit:
-        cb_html                     = ch_cb_html
         velocity_h5ad               = ch_velocity_h5ad
         cs_ambient_hist_plot        = ch_cs_ambient_hist_plot
         cs_umap_comparison_plot     = ch_cs_umap_comparison_plot

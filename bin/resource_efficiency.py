@@ -507,9 +507,9 @@ class ProcessLabels:
 def scan_module_labels(pipeline_dir: str) -> Dict[str, ProcessLabels]:
     """Map every process name declared under ``modules/`` to its labels.
 
-    A module may declare several labels (``CELLBENDER`` is ``process_high`` plus
-    ``process_gpu``; ``SCRUBLET`` is ``process_medium`` plus ``error_optional``),
-    so all are collected and :attr:`ProcessLabels.tier` picks the resource one.
+    A module may declare several labels (``SCRUBLET`` is ``process_medium`` plus
+    ``error_optional``), so all are collected and :attr:`ProcessLabels.tier`
+    picks the resource one.
 
     Parameters
     ----------

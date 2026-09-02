@@ -64,29 +64,12 @@ workflow PIPELINE_INITIALISATION {
     )
 
     //
-    // Fail fast on GPU requests that cannot be satisfied
-    //
-    // CellBender is the only GPU-accelerated tool in the pipeline, only its containers carry CUDA-enabled PyTorch, the bioconda build is CPU-only. 
-    // Checked here so the run aborts at launch instead of after mapping has already completed.
-    //
-    def gpu_requested   = workflow.profile.tokenize(',').contains('gpu')
-    def cellbender_used = params.ambient_rna_remover == "cellbender" || params.perform_cellbender
-    if (gpu_requested && cellbender_used && !workflow.containerEngine) {
-        error(
-            "GPU acceleration was requested with '-profile gpu', but no container engine is enabled.\n" +
-            "CellBender only supports GPUs from its containers; the bundled Conda environment ships CPU-only PyTorch.\n" +
-            "Re-run with a container profile (e.g. '-profile docker,gpu' or '-profile singularity,gpu'),\n" +
-            "or drop '-profile gpu' to run CellBender on CPU."
-        )
-    }
-
-    //
     // Fail fast on doublet options that would silently do nothing
     //
     // Doublet detection annotates the consensus calls, doublet filtering additionally removes
     // them from the matrix. Both run inside the CellSweep branch of the filtering workflow.
     //
-    def cellsweep_used = !cellbender_used && params.ambient_rna_remover == "cellsweep"
+    def cellsweep_used = params.ambient_rna_remover == "cellsweep"
     if (params.perform_doublet_filtering && !params.perform_doublet_detection) {
         error(
             "'perform_doublet_filtering' is set, but 'perform_doublet_detection' is false.\n" +
@@ -97,8 +80,7 @@ workflow PIPELINE_INITIALISATION {
     if (params.perform_doublet_detection && !cellsweep_used) {
         log.warn(
             "'perform_doublet_detection' is set, but the CellSweep branch is not active " +
-            "(ambient_rna_remover = '${params.ambient_rna_remover}'" +
-            (params.perform_cellbender ? ", perform_cellbender = true" : "") + "). " +
+            "(ambient_rna_remover = '${params.ambient_rna_remover}'). " +
             "Doublet detection will be skipped."
         )
     }

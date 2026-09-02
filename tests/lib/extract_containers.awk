@@ -1,10 +1,9 @@
 # Extract literal container image references from a Nextflow module file.
 #
-# Handles both forms used in this pipeline:
+# Handles a plain literal as well as a multi-line conditional directive:
 #   container "oras://community.wave.seqera.io/library/fastqc:0.12.1--104d..."
-#   container "${ task.ext.use_gpu ? 'us.gcr.io/.../cellbender:0.3.2' :
-#       workflow.containerEngine in ['singularity', 'apptainer'] ? 'https://...' :
-#       'community.wave.seqera.io/library/cellbender_webcolors:156d...' }"
+#   container "${ workflow.containerEngine in ['singularity', 'apptainer'] ?
+#       'https://...' : 'community.wave.seqera.io/library/tool:1.0' }"
 #
 # Commented-out directives (// container "...") are ignored, because the regex
 # anchors `container` to the start of the line. Fully dynamic directives such as

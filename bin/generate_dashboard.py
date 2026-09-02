@@ -44,7 +44,6 @@ _SECONDDERIV_DIR: str = "filtered_secondderiv"
 
 # Candidate locations for optional cell-filtering outputs (checked in order).
 _CELLSWEEP_ROOTS:  List[str] = ["cell_filtering/cellsweep", "cellsweep"]
-_CELLBENDER_ROOTS: List[str] = ["cell_filtering/cellbender", "cellbender"]
 
 # Candidate locations for Kraken sankey HTML files.
 _SANKEY_ROOTS: List[str] = ["kraken", "taxonomy"]
@@ -166,9 +165,6 @@ def parse_args() -> argparse.Namespace:
     parser.add_argument("--cellsweep_tables",        nargs="*")
     parser.add_argument("--cellsweep_plots_contrib", nargs="*")
     parser.add_argument("--cellsweep_plots_umap",    nargs="*")
-    parser.add_argument("--cellbender_tables",        nargs="*")
-    parser.add_argument("--cellbender_plots1",        nargs="*")
-    parser.add_argument("--cellbender_plots2",        nargs="*")
 
     # ── Pipeline mode: GeneExt (run-level, not per sample) ───────────────────
     parser.add_argument("--geneext_report", nargs="*", help="GeneExt *.Report.html file")
@@ -429,8 +425,8 @@ def parse_run_config(path: Optional[str]) -> Dict[str, str]:
     return config
 
 
-def parse_cell_filtering_table(path: Optional[str], method: str) -> List[Dict[str, Any]]:
-    """Parse a cellsweep or cellbender output table into a list of row dicts."""
+def parse_cell_filtering_table(path: Optional[str]) -> List[Dict[str, Any]]:
+    """Parse a cellsweep output table into a list of row dicts."""
     if not path or not os.path.exists(path):
         return []
     data: List[Dict[str, Any]] = []
@@ -441,19 +437,11 @@ def parse_cell_filtering_table(path: Optional[str], method: str) -> List[Dict[st
             fh.seek(0)
             for row in csv.DictReader(fh, delimiter=delimiter):
                 cleaned = {k.strip(): v.strip() for k, v in row.items() if k}
-                if method == "cellsweep":
-                    data.append({
-                        "gene":        cleaned.get("gene", "N/A"),
-                        "ambient_hat": safe_float(cleaned.get("ambient_hat")),
-                    })
-                elif method == "cellbender":
-                    data.append({
-                        "gene_name":        cleaned.get("gene_name", "N/A"),
-                        "n_removed":        safe_float(cleaned.get("n_removed")),
-                        "fraction_removed": safe_float(cleaned.get("fraction_removed")),
-                    })
-        sort_key = "ambient_hat" if method == "cellsweep" else "n_removed"
-        data.sort(key=lambda x: x[sort_key] if x[sort_key] is not None else -1, reverse=True)
+                data.append({
+                    "gene":        cleaned.get("gene", "N/A"),
+                    "ambient_hat": safe_float(cleaned.get("ambient_hat")),
+                })
+        data.sort(key=lambda x: x["ambient_hat"] if x["ambient_hat"] is not None else -1, reverse=True)
         return data[:100]
     except Exception:
         return []
@@ -998,11 +986,10 @@ def _discover_cell_filtering(
     analytical_id: str,
     files: Dict[str, str],
 ) -> None:
-    """Populate cellsweep / cellbender entries in *files* when outputs are present.
+    """Populate cellsweep entries in *files* when outputs are present.
 
-    Searches :data:`_CELLSWEEP_ROOTS` and :data:`_CELLBENDER_ROOTS` under
-    *result_dir* for per-sample subdirectories, stopping at the first hit for
-    each method.
+    Searches :data:`_CELLSWEEP_ROOTS` under *result_dir* for per-sample
+    subdirectories, stopping at the first hit.
     """
     for cs_root in _CELLSWEEP_ROOTS:
         base = os.path.join(result_dir, cs_root, analytical_id)
@@ -1012,20 +999,6 @@ def _discover_cell_filtering(
             for key, suffix in [
                 ("cs_plot_contrib", "_ambient_hat_histogram.png"),
                 ("cs_plot_umap",    "_umap_comparison.png"),
-            ]:
-                candidate = _probe(os.path.join(base, f"{analytical_id}{suffix}"))
-                if candidate:
-                    files[key] = candidate
-            break
-
-    for cb_root in _CELLBENDER_ROOTS:
-        base = os.path.join(result_dir, cb_root, analytical_id)
-        table = _probe(os.path.join(base, f"{analytical_id}_cellbender.tsv"))
-        if table:
-            files["cb_table"] = table
-            for key, suffix in [
-                ("cb_plot1", "_plot1.png"),
-                ("cb_plot2", "_plot2.png"),
             ]:
                 candidate = _probe(os.path.join(base, f"{analytical_id}{suffix}"))
                 if candidate:
@@ -1353,9 +1326,6 @@ def _build_file_map_from_cli(
     _map(args.cellsweep_tables,        "cs_table")
     _map(args.cellsweep_plots_contrib, "cs_plot_contrib")
     _map(args.cellsweep_plots_umap,    "cs_plot_umap")
-    _map(args.cellbender_tables,       "cb_table")
-    _map(args.cellbender_plots1,       "cb_plot1")
-    _map(args.cellbender_plots2,       "cb_plot2")
 
     return file_map
 
@@ -1660,16 +1630,9 @@ def main() -> None:
         if files.get("cs_table"):
             cf_dict = {
                 "method":    "cellsweep",
-                "top_genes": parse_cell_filtering_table(files["cs_table"], "cellsweep"),
+                "top_genes": parse_cell_filtering_table(files["cs_table"]),
                 "plot1":     encode_image(files.get("cs_plot_contrib")),
                 "plot2":     encode_image(files.get("cs_plot_umap")),
-            }
-        elif files.get("cb_table"):
-            cf_dict = {
-                "method":    "cellbender",
-                "top_genes": parse_cell_filtering_table(files["cb_table"], "cellbender"),
-                "plot1":     encode_image(files.get("cb_plot1")),
-                "plot2":     encode_image(files.get("cb_plot2")),
             }
         if cf_dict:
             cell_filtering_data[s_id] = cf_dict

@@ -185,8 +185,9 @@
             "description": "",
             "default": "",
             "properties": {
-                "perform_cellbender": {
-                    "type": "boolean"
+                "ambient_rna_remover": {
+                    "type": "string",
+                    "default": "cellsweep"
                 }
             }
         },

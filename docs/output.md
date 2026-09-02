@@ -17,7 +17,7 @@ them. Which directories appear depends on the options you enabled — see
 9. [Cell calling](#cell-calling) — `filtered_secondderiv/`
 10. [Intronic counts and RNA velocity](#intronic-counts-and-rna-velocity) — `Velocyto/`, `anndata/<id>/velocity/`
 11. [AnnData conversion](#anndata-conversion) — `anndata/`
-12. [Ambient RNA removal](#ambient-rna-removal) — `cellsweep/`, `cellbender/`
+12. [Ambient RNA removal](#ambient-rna-removal) — `cellsweep/`
 13. [Doublet detection](#doublet-detection) — `doublet_filtering/`
 14. [Optional analyses](#optional-analyses) — `saturation/`, `rRNA_mtDNA/`, `gene_ext/`, `kraken/`
 15. [Summary reports](#summary-reports) — `summary_results/`, `dashboard.html`
@@ -66,7 +66,6 @@ output_directory/
 │   └── <analytical_run>/velocity/  # (Optional) Spliced/unspliced layers for RNA velocity
 │
 ├── cellsweep/                      # (Optional) CellSweep ambient RNA removal
-├── cellbender/                     # (Optional) CellBender ambient RNA removal
 ├── doublet_filtering/              # (Optional) Scrublet, scDblFinder and consensus calls
 │
 ├── saturation/                     # (Optional) Sequencing saturation analysis
@@ -374,8 +373,8 @@ meaningful on unspliced counts. See
 
 ## Ambient RNA removal
 
-Controlled by `ambient_rna_remover` (`"cellsweep"` by default, or `"cellbender"`, or `"none"`).
-Both operate on the **unfiltered** matrix.
+Controlled by `ambient_rna_remover` (`"cellsweep"` by default, or `"none"`).
+It operates on the **unfiltered** matrix.
 
 <details markdown="1">
 <summary><code>cellsweep/&lt;analytical_run&gt;/</code></summary>
@@ -389,22 +388,6 @@ Both operate on the **unfiltered** matrix.
 | `<id>_umap_comparison.png` | UMAP before vs. after decontamination. |
 
 All four visual outputs are reproduced in the dashboard's Cell Filtering tab.
-
-</details>
-
-<details markdown="1">
-<summary><code>cellbender/&lt;analytical_run&gt;/</code></summary>
-
-| File | Description |
-| ---- | ----------- |
-| `cellbender_output.h5` | Decontaminated matrix, all barcodes. |
-| `cellbender_output_filtered.h5` | Decontaminated matrix, cells only. |
-| `cellbender_output_report.html` | CellBender's own report. |
-| `cellbender_output_metrics.csv` | Summary metrics. |
-
-> [!NOTE]
-> CellBender's outputs are **not** currently forwarded to the dashboard's Cell Filtering tab;
-> read `cellbender_output_report.html` directly.
 
 </details>
 
@@ -616,8 +599,8 @@ The pipeline deliberately produces several matrices. For a standard analysis:
    — the cell-called, exonic+intronic matrix.
    For alevin-fry, the equivalent is
    `mapping_alevin/<sample>_alevinfry/<sample>_alevinfry_counts/alevin/filtered_secondderiv/filtered/`.
-2. **If you enabled ambient RNA removal**, prefer `cellsweep/<sample>_starsolo/<sample>_starsolo_cs_filtered.h5ad`
-   (or the CellBender equivalent), which is decontaminated and cell-called.
+2. **If you enabled ambient RNA removal**, prefer `cellsweep/<sample>_starsolo/<sample>_starsolo_cs_filtered.h5ad`,
+   which is decontaminated and cell-called.
 3. **Apply doublet calls** from `doublet_filtering/<sample>_starsolo/combined/`, or use the
    pre-filtered `.h5ad` if you ran with `perform_doublet_filtering = true`.
 4. **If you ran GeneExt**, compare against the `_geneext_starsolo` analytical run and use it
