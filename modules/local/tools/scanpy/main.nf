@@ -2,57 +2,44 @@ process MTX_TO_H5AD {
     publishDir "${params.outdir}/anndata/${meta.id}/${meta.datatype}", mode: 'copy'
     tag "${meta.id} | ${meta.mapping_method} | ${meta.datatype}"
     label 'process_single_mem2'
-    
-    // Memory tracks the size of the matrix being read, overrides process_low's flat assignments. 
-    // Coefficients live in params.dynamic_memory; remove the entry to fall back to the plain label.
+
+    // Memory tracks the size of the matrix being read -- both of them, where CellSweep's
+    // denoised counts are merged in -- and overrides process_low's flat assignments.
+    // Coefficients live in params.dynamic_memory; remove the entry to fall back to the
+    // plain label.
     memory { BcaResources.scaledMemory(
-        params.dynamic_memory?.MTX_TO_H5AD, [mtx, barcodes, features], task.attempt, 12) }
+        params.dynamic_memory?.MTX_TO_H5AD, [mtx, barcodes, features, cellsweep_h5ad], task.attempt, 12) }
 
     container 'oras://community.wave.seqera.io/library/scanpy:1.12--45f1dccaf83880df'
     conda "${moduleDir}/environment.yml"
 
     input:
-    tuple val(meta), path(mtx), path(barcodes), path(features)
+    tuple val(meta), path(mtx), path(barcodes), path(features), path(doublet_results), path(cellsweep_h5ad)
 
     output:
     tuple val(meta), path("*.h5ad"), emit: h5ad
     path "versions.yml",             emit: versions
 
     script:
+    def doublet_arg   = doublet_results ? "--doublet_results ${doublet_results} --doublet_method ${params.doublet_consensus_method}" : ""
+    def cellsweep_arg = cellsweep_h5ad  ? "--cellsweep_h5ad ${cellsweep_h5ad}" : ""
     """
-    #!/usr/bin/env python3
-    import scanpy as sc
-    import pandas as pd
-    import anndata as ad
-    from scipy.io import mmread
+    echo "\n\n==================  MTX to h5ad =================="
+    echo "Meta: ${meta}"
+    echo "Matrix: ${mtx}"
+    echo "Doublet results: ${doublet_results ?: 'none'}"
+    echo "CellSweep results: ${cellsweep_h5ad ?: 'none'}"
 
-    # Read the sparse matrix
-    X = mmread("${mtx}").tocsr()
-
-    # Read Barcodes
-    obs_names = pd.read_csv("${barcodes}", header=None)[0].astype(str).values
-    obs = pd.DataFrame(index=obs_names)
-
-    # Read Features
-    var_names = pd.read_csv("${features}", header=None, sep='\\t')[0].astype(str).values
-    var = pd.DataFrame(index=var_names)
-
-    # Create AnnData object
-    if X.shape[0] == len(var_names) and X.shape[1] == len(obs_names):
-        adata = ad.AnnData(X=X.T, obs=obs, var=var)
-    else:
-        adata = ad.AnnData(X=X, obs=obs, var=var)
-
-    # Clean up names and metadata
-    adata.var_names_make_unique()
-    adata.obs['sample_id'] = "${meta.id}"
-
-    # Write compressed H5AD
-    adata.write_h5ad("${meta.id}_${meta.datatype}.h5ad", compression="gzip")
-
-    with open("versions.yml", "w") as f:
-        f.write(f'"${task.process}":\\n')
-        f.write(f'    python: {__import__("platform").python_version()}\\n')
-        f.write(f'    scanpy: {sc.__version__}\\n')
+    mtx_to_h5ad.py \\
+        --mtx ${mtx} \\
+        --barcodes ${barcodes} \\
+        --features ${features} \\
+        --sample_id ${meta.id} \\
+        --output_h5ad ${meta.id}_${meta.datatype}.h5ad \\
+        --compression ${params.h5ad_compression ?: 'gzip'} \\
+        --versions_yml versions.yml \\
+        --process_name "${task.process}" \\
+        ${doublet_arg} \\
+        ${cellsweep_arg}
     """
 }

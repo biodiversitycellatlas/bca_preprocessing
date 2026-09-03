@@ -25,7 +25,40 @@ include { VELOCITY_H5AD as VELOCITY_H5AD_ALEVIN   } from '../modules/local/tools
 
 /*
 ~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~
+    HELPERS
+~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~
+*/
+
+/*
+ * Attach an optional per-sample annotation to a channel of matrices, appending it as the
+ * last element and an empty list where it is absent.
+ */
+def attach_annotation(ch_left, ch_annotation, Closure key_of) {
+    return ch_left
+        .map { row -> [key_of(row[0])] + (row as List) }
+        .join(ch_annotation, remainder: true)
+        .filter { row -> row[1] != null }
+        .map { row -> row[1..-2] + [row[-1] ?: []] }
+}
+
+/* A matrix directory written by mtx_io.write_triplet, resolved back into a triplet. */
+def resolve_triplet(ch_dirs) {
+    return ch_dirs.map { meta, dir ->
+        [ meta, file("${dir}/matrix.mtx"), file("${dir}/barcodes.tsv"), file("${dir}/features.tsv") ]
+    }
+}
+
+
+/*
+~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~
     WORKFLOW TO RUN FILTERING
+        The matrices travel as an (mtx, barcodes, features) triplet all the way through:
+        doublet detection, optional doublet filtering and ambient-RNA denoising each read
+        and write that triplet, and MTX_TO_H5AD runs last, packing one .h5ad per matrix
+        that carries every annotation the stages before it produced.
+
+        Each stage is optional and passes its input straight through when switched off, so
+        with everything off this is the plain triplet -> h5ad conversion it has always been.
 ~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~
 */
 
@@ -69,7 +102,7 @@ workflow filtering_workflow {
 
         COLLAPSE_ALEVIN_USA(ch_alevin_dirs, params.alevin_usa_counts ?: 'SUA')
 
-        // Fix alevin-fry's output into the same triplet format as STARsolo's, so the two mappers can be treated the same downstream
+        // Fix alevin-fry's output into the same triplet format as STARsolo
         def ch_alevin_fry = COLLAPSE_ALEVIN_USA.out.matrix.map { meta, dir ->
             [ meta,
               file("${dir}/quants_mat.mtx"), file("${dir}/quants_mat_rows.txt"), file("${dir}/quants_mat_cols.txt") ]
@@ -110,110 +143,144 @@ workflow filtering_workflow {
         // full matrix is already the mapper's own cell call
         def alevin_full_is_cell_called = !(params.cellfilter_method in ["second_derivative", "manual_cutoff"])
 
-        // Doublets are called on the cell-called matrices only
+        /*
+         * Three views of the same matrices, each holding at most one entry per
+         * [id, mapping_method] so that the annotation joins below stay unambiguous.
+         */
+        def ch_ambient_matrices = ch_all_matrices.filter { meta, _mtx, _barcodes, _features ->
+            meta.datatype in ['raw', 'full']
+        }
+
+        def ch_filtered_matrices = ch_all_matrices.filter { meta, _mtx, _barcodes, _features ->
+            meta.datatype == 'filtered'
+        }
+
         def ch_cell_called_matrices = ch_all_matrices.filter { meta, _mtx, _barcodes, _features ->
             meta.datatype == 'filtered' || (meta.datatype == 'full' && alevin_full_is_cell_called)
         }
 
-        MTX_TO_H5AD(ch_all_matrices)
+        // Keyed on sample + mapping method, so calls made on the cell-called matrix can be carried over to that sample's raw matrix
+        def sample_key = { meta -> meta.subMap(['id', 'mapping_method']) }
 
-        // Ambient RNA removal runs on the unfiltered matrices
-        def ch_raw_h5ad = MTX_TO_H5AD.out.h5ad.filter { meta, _h5ad ->
-            meta.datatype in ['raw', 'full']
+        /*
+         * Doublet detection, on the cell-called matrices of both mappers.
+         *
+         * Independent of params.ambient_rna_remover: the calls are an annotation in their own
+         * right, and MTX_TO_H5AD carries them whether or not CellSweep ran.
+         */
+        def ch_calls_by_meta   = Channel.empty()
+        def ch_calls_by_sample = Channel.empty()
+
+        if (params.perform_doublet_detection) {
+
+            // Resolve the Demuxafy .sif image once per run: reuse params.demuxafy_sif if provided, otherwise download it
+            DOWNLOAD_DEMUXAFY_SIF()
+
+            // Mount the .sif straight from the task work directory
+            def ch_demuxafy_sif = DOWNLOAD_DEMUXAFY_SIF.out.sif_file
+                .map { it.toRealPath().toString() }
+
+            MTX_TO_10X(ch_cell_called_matrices)
+
+            SCRUBLET(MTX_TO_10X.out.tenx_dir, ch_demuxafy_sif)
+            SCDBLFINDER(MTX_TO_10X.out.tenx_dir, ch_demuxafy_sif)
+
+            // Both tools ran on the same matrix, so they share a meta and join on it directly. 
+            COMBINE_DOUBLET_RESULTS(
+                SCRUBLET.out.scrublet_results.join(SCDBLFINDER.out.scdblfinder_results),
+                ch_demuxafy_sif
+            )
+
+            ch_calls_by_meta      = COMBINE_DOUBLET_RESULTS.out.combined_results
+            ch_calls_by_sample    = ch_calls_by_meta.map { meta, calls -> [sample_key(meta), calls] }
+            ch_scrublet_histogram = SCRUBLET.out.scrublet_histogram
+
+            // Warn once for a sample that lost a caller: it continues through every stage
+            // below unannotated and unfiltered, rather than ending the run.
+            ch_cell_called_matrices
+                .map { meta, _mtx, _barcodes, _features -> [sample_key(meta), meta] }
+                .join(ch_calls_by_sample, remainder: true)
+                .filter { row -> row[1] != null && row[2] == null }
+                .view { _key, meta, _calls ->
+                    "[WARNING] No doublet calls for ${meta.id} (${meta.mapping_method}): a caller " +
+                    "could not run on this matrix, which usually means too few cells were called. " +
+                    "The sample continues without doublet annotation."
+                }
         }
 
-        // Ambient RNA removal
+        /*
+         * Optional doublet removal.
+         */
+        if (params.perform_doublet_filtering) {
+
+            def ch_ambient_to_filter  = attach_annotation(ch_ambient_matrices, ch_calls_by_sample, sample_key)
+            def ch_filtered_to_filter = attach_annotation(ch_filtered_matrices, ch_calls_by_meta, { meta -> meta })
+
+            DOUBLET_FILTER_RAW(ch_ambient_to_filter.filter { row -> row[-1] })
+            DOUBLET_FILTER_CELL_CALLED(ch_filtered_to_filter.filter { row -> row[-1] })
+
+            ch_ambient_matrices = resolve_triplet(DOUBLET_FILTER_RAW.out.matrix)
+                .mix(ch_ambient_to_filter.filter { row -> !row[-1] }.map { row -> row[0..-2] })
+
+            ch_filtered_matrices = resolve_triplet(DOUBLET_FILTER_CELL_CALLED.out.matrix)
+                .mix(ch_filtered_to_filter.filter { row -> !row[-1] }.map { row -> row[0..-2] })
+
+            ch_doublet_filter_summary = DOUBLET_FILTER_RAW.out.summary
+                .mix(DOUBLET_FILTER_CELL_CALLED.out.summary)
+            ch_doublet_filter_plot    = DOUBLET_FILTER_RAW.out.filtering_summary_plot
+                .mix(DOUBLET_FILTER_CELL_CALLED.out.filtering_summary_plot)
+        }
+
+        // The matrices as they now stand, with the consensus calls alongside them. With
+        // detection switched off there is nothing to join against, so the empty slot is
+        // filled in directly rather than by a join against an empty channel.
+        def ch_ambient_with_calls = params.perform_doublet_detection
+            ? attach_annotation(ch_ambient_matrices, ch_calls_by_sample, sample_key)
+            : ch_ambient_matrices.map { row -> (row as List) + [[]] }
+
+        def ch_filtered_with_calls = params.perform_doublet_detection
+            ? attach_annotation(ch_filtered_matrices, ch_calls_by_meta, { meta -> meta })
+            : ch_filtered_matrices.map { row -> (row as List) + [[]] }
+
+        /*
+         * Ambient RNA removal, on the unfiltered matrices.
+         *
+         * CellSweep gets exactly one of two things: the untouched matrix plus the calls, which
+         * it annotates and projects onto its UMAP, or the matrix STAGE 2 already removed them
+         * from and no calls at all. CellSweep's own guidance is to remove doublets first;
+         * annotating them is the conservative default here, and removal stays opt-in.
+         */
+        def ch_cellsweep_by_sample = Channel.empty()
+
         if (params.ambient_rna_remover == "cellsweep") {
 
-            if (params.perform_doublet_detection) {
-                
-                // Resolve the Demuxafy .sif image once per run: reuse params.demuxafy_sif if provided, otherwise download it
-                DOWNLOAD_DEMUXAFY_SIF()
+            CELLSWEEP(
+                params.perform_doublet_filtering
+                    ? ch_ambient_matrices.map { row -> (row as List) + [[]] }
+                    : ch_ambient_with_calls
+            )
 
-                // Mount the .sif straight from the task work directory
-                ch_demuxafy_sif = DOWNLOAD_DEMUXAFY_SIF.out.sif_file
-                    .map { it.toRealPath().toString() }
-
-                MTX_TO_10X(ch_cell_called_matrices)
-
-                SCRUBLET(MTX_TO_10X.out.tenx_dir, ch_demuxafy_sif)
-                SCDBLFINDER(MTX_TO_10X.out.tenx_dir, ch_demuxafy_sif)
-
-                // Both tools ran on the same matrix, so they share a meta and join on it
-                // directly. Either can bow out on a matrix it cannot model, in which case
-                // there is no pair to reach a consensus on and the sample drops out here.
-                COMBINE_DOUBLET_RESULTS(
-                    SCRUBLET.out.scrublet_results.join(SCDBLFINDER.out.scdblfinder_results),
-                    ch_demuxafy_sif
-                )
-
-                // Join on sample + mapping method instead.
-                def ch_doublets_by_sample = COMBINE_DOUBLET_RESULTS.out.combined_results
-                    .map { meta, doublets -> [meta.subMap(['id', 'mapping_method']), doublets] }
-
-                // remainder carries the samples that lost a caller through with no calls
-                // attached, rather than dropping them from the run altogether; it can also
-                // emit calls whose matrix is absent, which are discarded here
-                def ch_raw_h5ad_with_doublets = ch_raw_h5ad
-                    .map { meta, h5ad -> [meta.subMap(['id', 'mapping_method']), meta, h5ad] }
-                    .join(ch_doublets_by_sample, remainder: true)
-                    .filter { row -> row[1] != null }
-                    .map { _key, meta, h5ad, doublets -> [meta, h5ad, doublets ?: []] }
-
-                def ch_doublets_called = ch_raw_h5ad_with_doublets
-                    .filter { _meta, _h5ad, doublets -> doublets }
-
-                def ch_doublets_missing = ch_raw_h5ad_with_doublets
-                    .filter { _meta, _h5ad, doublets -> !doublets }
-                    .view { meta, _h5ad, _doublets ->
-                        "[WARNING] No doublet calls for ${meta.id} (${meta.mapping_method}): a caller " +
-                        "could not run on this matrix, which usually means too few cells were called. " +
-                        "The sample continues without doublet annotation."
-                    }
-
-                // Filter both raw and cell-called matrices for doublets
-                if (params.perform_doublet_filtering) {
-                    DOUBLET_FILTER_RAW(ch_doublets_called)
-                    DOUBLET_FILTER_CELL_CALLED(
-                        MTX_TO_H5AD.out.h5ad
-                            .filter { meta, _h5ad -> meta.datatype == 'filtered' }
-                            .join(COMBINE_DOUBLET_RESULTS.out.combined_results)
-                    )
-
-                    // The flagged cells are gone from the matrix, so there is nothing left for
-                    // CellSweep to annotate or project; each DOUBLET_FILTER run reports what it
-                    // removed in its own summary plot instead. Samples with no calls have
-                    // nothing to remove and go on unchanged.
-                    ch_cellsweep_input = DOUBLET_FILTER_RAW.out.h5ad
-                        .map { meta, h5ad -> [meta, h5ad, []] }
-                        .mix(ch_doublets_missing)
-
-                    ch_doublet_filter_summary = DOUBLET_FILTER_RAW.out.summary
-                        .mix(DOUBLET_FILTER_CELL_CALLED.out.summary)
-                    ch_doublet_filter_plot    = DOUBLET_FILTER_RAW.out.filtering_summary_plot
-                        .mix(DOUBLET_FILTER_CELL_CALLED.out.filtering_summary_plot)
-
-                } else {
-                    // The calls travel alongside the matrix for CellSweep to annotate and
-                    // project; where they are missing it receives an empty list, exactly as
-                    // it does when doublet detection is switched off entirely
-                    ch_cellsweep_input = ch_doublets_called.mix(ch_doublets_missing)
-                }
-
-                ch_scrublet_histogram = SCRUBLET.out.scrublet_histogram
-
-            } else {
-                // No doublet calls to project: nothing to stage into CellSweep's optional input
-                ch_cellsweep_input = ch_raw_h5ad.map { meta, h5ad -> [meta, h5ad, []] }
-            }
-
-            CELLSWEEP(ch_cellsweep_input)
+            ch_cellsweep_by_sample      = CELLSWEEP.out.cs_full_h5ad.map { meta, h5ad -> [sample_key(meta), h5ad] }
             ch_cs_ambient_hist_plot     = CELLSWEEP.out.cs_ambient_hist_plot
             ch_cs_umap_comparison_plot  = CELLSWEEP.out.cs_umap_comparison_plot
             ch_cs_top_genes             = CELLSWEEP.out.cs_top_genes
         }
 
+        /*
+         * Published AnnData objects, one per matrix, assembled last so that
+         * each carries whatever the stages above produced for it. Only the ambient matrices
+         * have denoised counts to merge; the cell-called ones get the doublet calls alone.
+         */
+        def ch_h5ad_ambient = params.ambient_rna_remover == "cellsweep"
+            ? attach_annotation(ch_ambient_with_calls, ch_cellsweep_by_sample, sample_key)
+            : ch_ambient_with_calls.map { row -> (row as List) + [[]] }
+
+        def ch_h5ad_filtered = ch_filtered_with_calls.map { row -> (row as List) + [[]] }
+
+        MTX_TO_H5AD(ch_h5ad_ambient.mix(ch_h5ad_filtered))
+
     emit:
+        h5ad                        = MTX_TO_H5AD.out.h5ad
         velocity_h5ad               = ch_velocity_h5ad
         cs_ambient_hist_plot        = ch_cs_ambient_hist_plot
         cs_umap_comparison_plot     = ch_cs_umap_comparison_plot

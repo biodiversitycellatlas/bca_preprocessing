@@ -21,6 +21,7 @@ bash tests/run_tests.sh --list
 tests/
 ├── run_tests.sh                # entry point; discovers and runs the checks
 ├── checks/                     # one file per check, discovered automatically
+│   ├── annotated_h5ad.sh
 │   ├── conda_envs.sh
 │   ├── containers.sh
 │   ├── dashboard_geneext.sh
@@ -31,11 +32,13 @@ tests/
 ├── fixtures/
 │   └── execution_trace_formats.txt  # hand-written trace covering awkward formats
 └── lib/
-    ├── common.sh                # logging, result recording, summary
-    ├── extract_containers.awk   # pulls image refs out of module definitions
-    ├── make_geneext_fixture.py  # generates a synthetic GeneExt report and log
-    ├── make_trace_fixture.py    # generates synthetic runs with a known exponent
-    └── make_velocyto_fixture.py # generates synthetic Velocyto and USA matrices
+    ├── common.sh                  # logging, result recording, summary
+    ├── extract_containers.awk     # pulls image refs out of module definitions
+    ├── make_annotation_fixture.py # generates both mappers' triplets plus doublet
+    │                              # and CellSweep annotations to merge
+    ├── make_geneext_fixture.py    # generates a synthetic GeneExt report and log
+    ├── make_trace_fixture.py      # generates synthetic runs with a known exponent
+    └── make_velocyto_fixture.py   # generates synthetic Velocyto and USA matrices
 ```
 
 Logs land in `tests/.logs/<timestamp>/`, one file per test case. Those, along

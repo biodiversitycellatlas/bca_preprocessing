@@ -81,20 +81,24 @@ A label like `process_low` gives every step the same memory, and it has to be bi
 enough for the largest dataset you will ever run. On everything smaller, most of that
 is reserved and left idle.
 
-For seven steps we noticed that memory tracks the size of their input, so
+For eight steps we noticed that memory tracks the size of their input, so
 they scale with it instead of using a fixed amount of resources:
 
 | Step | Dependent on | Scale |
 | --- | --- | --- |
 | `STARSOLO_ALIGN` | FASTQ size | ~5 GB small, ~160 GB very large |
 | `STARSOLO_INDEX` | Reference genome size |  ~4 GB small, ~34 GB large |
-| `MTX_TO_H5AD` | Matrix size | ~3 GB small, up to 48 GB |
+| `MTX_TO_H5AD` | Matrix size, plus CellSweep's denoised matrix where it ran | ~3 GB small, up to 96 GB |
 | `MTX_TO_10X` | Matrix size | ~3 GB small, up to 48 GB |
+| `DOUBLET_FILTER` | Matrix size | ~3 GB small, up to 48 GB |
 | `SATURATION_TABLE` | Filtered BAM size | ~13 GB small, up to 128 GB |
 | `SUBSET_VELOCYTO_MATRICES` | Velocyto matrix size | ~3 GB small, up to 48 GB |
 | `VELOCITY_H5AD` | Velocyto or USA matrix size | ~3 GB small, up to 48 GB |
 
-The last two only run with `perform_velocity = true`.
+`DOUBLET_FILTER` only runs with `perform_doublet_filtering = true`, and the last two only
+with `perform_velocity = true`. `MTX_TO_H5AD` reads two matrices where CellSweep ran — the
+counts and the denoised counts it merges in as a layer — which is why its ceiling is the
+higher one; its coefficients were measured before that and are worth re-measuring.
 
 The numbers live in `dynamic_memory` in [`nextflow.config`](../nextflow.config), and you can refresh them
 based on your own runs:

@@ -361,8 +361,20 @@ Count matrices converted to `.h5ad` for downstream analysis in scanpy. `<datatyp
 | `filtered` | Cell-called matrix. |
 | `full` | alevin-fry full matrix (the alevin-fry counterpart of `raw`). |
 
-These are the inputs to ambient RNA removal (which uses `raw`/`full`, since it models the empty
-droplets that cell calling removes) and doublet detection (which uses `filtered`).
+These are the **last** step of the filtering workflow, not the first: ambient RNA removal
+(which uses `raw`/`full`, since it models the empty droplets that cell calling removes) and
+doublet detection (which uses the cell-called matrix) both work on the `mtx`/`barcodes`/`features`
+triplet straight out of the mapper, and their results are merged in here. So each object
+carries not only the counts but everything that was called on them:
+
+| Field | Written when |
+|-------|--------------|
+| `X` | always — the counts, with the consensus doublets already removed under `perform_doublet_filtering` |
+| `obs["sample_id"]` | always |
+| `obs["doublet_status"]` | `perform_doublet_detection` — `singlet` / `doublet`. The empty droplets of a `raw`/`full` matrix were never evaluated and read `singlet` |
+| `layers["cellsweep"]` | `ambient_rna_remover = "cellsweep"`, `raw`/`full` only — the denoised counts, aligned to `X` |
+| `obs["is_empty"]`, `obs["celltype"]`, `obs["alpha_hat"]` | as above — empty-droplet call, Leiden grouping, per-cell ambient fraction |
+| `var["ambient_hat"]` | as above — per-gene ambient profile |
 
 The velocity objects in `anndata/<analytical_run>/velocity/` are a separate, terminal output —
 they are deliberately not fed to ambient RNA removal or doublet detection, since neither is
@@ -407,15 +419,18 @@ matrix.
 | `scdblfinder/<id>_scDblFinder_summary.tsv` | Summary counts. |
 | `combined/<id>_combined_doublets_w_combined_assignments.tsv` | The consensus call per barcode, combining both methods under `doublet_consensus_method`. |
 | `combined/<id>_combined_doublets_summary.tsv` | Consensus summary counts. |
-| `<datatype>/<id>_<datatype>_doublet_filtered.h5ad` | Matrix with doublets **removed** — only when `perform_doublet_filtering = true`. |
+| `<datatype>/<id>_<datatype>_doublet_filtered/` | Count matrix with doublets **removed**, as an `mtx`/`barcodes`/`features` triplet — only when `perform_doublet_filtering = true`. This is what ambient RNA removal then denoises and what `anndata/` publishes. |
 | `<datatype>/<id>_<datatype>_doublet_filter_summary.txt` | What was removed. |
 | `<datatype>/<id>_<datatype>_doublet_filtering_summary.png` | Visual summary of the filtering. |
 | `10x_export/<id>_10x/` | Cell-called matrix exported in 10x format, used as input to the doublet callers. |
 
 > [!NOTE]
 > By default doublets are **annotated, not removed** — set `perform_doublet_filtering = true`
-> to remove them. Without it, no `*_doublet_filtered.h5ad` is written and the calls in
-> `combined/` are yours to apply.
+> to remove them. Without it, no `*_doublet_filtered/` matrix is written, `obs["doublet_status"]`
+> in `anndata/` flags them, and the calls in `combined/` are yours to apply.
+>
+> Detection is independent of `ambient_rna_remover`: the calls reach `anndata/` whether or not
+> CellSweep runs.
 >
 > Doublet detection can legitimately fail on sparse libraries: scDblFinder's k-nearest-neighbour
 > step needs more cells than a poor library retains, and Scrublet needs a bimodal score
@@ -600,9 +615,12 @@ The pipeline deliberately produces several matrices. For a standard analysis:
    For alevin-fry, the equivalent is
    `mapping_alevin/<sample>_alevinfry/<sample>_alevinfry_counts/alevin/filtered_secondderiv/filtered/`.
 2. **If you enabled ambient RNA removal**, prefer `cellsweep/<sample>_starsolo/<sample>_starsolo_cs_filtered.h5ad`,
-   which is decontaminated and cell-called.
-3. **Apply doublet calls** from `doublet_filtering/<sample>_starsolo/combined/`, or use the
-   pre-filtered `.h5ad` if you ran with `perform_doublet_filtering = true`.
+   which is decontaminated and cell-called. To keep the raw counts alongside the denoised ones,
+   take `anndata/<sample>_starsolo/raw/` instead: it carries both, plus every annotation
+   (see [AnnData conversion](#anndata-conversion)).
+3. **Doublet calls are already in** `anndata/.../obs["doublet_status"]`. The per-barcode tables
+   behind them are in `doublet_filtering/<sample>_starsolo/combined/`, and with
+   `perform_doublet_filtering = true` the doublets are gone from every published matrix.
 4. **If you ran GeneExt**, compare against the `_geneext_starsolo` analytical run and use it
    instead if the extension improved gene detection — the dashboard's Mapping tab shows both.
 5. **For RNA velocity**, start from `anndata/<sample>_starsolo/velocity/` instead — it carries

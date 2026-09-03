@@ -1,21 +1,26 @@
 #!/usr/bin/env python3
 """
 Drops cells flagged as consensus doublets (Scrublet + scDblFinder agreement,
-combined via Demuxafy's Combine_Results.R) from an .h5ad file. Runs once on the
-raw matrix, whose output goes on to CellSweep, and once on the cell-called
-matrix, which is published in its own right. Opt-in: only runs when
-params.perform_doublet_filtering is set, otherwise the doublets are merely
-annotated by CellSweep.
+combined via Demuxafy's Combine_Results.R) from a count-matrix triplet, writing a
+new triplet in its place.
+
+Works on the matrix rather than on an .h5ad because it sits in the middle of the
+chain: the triplet it emits is what CellSweep denoises and what MTX_TO_H5AD
+finally packs, so the published AnnData is the doublet-free matrix. Runs once on
+the raw matrix and once on the cell-called one, and only when
+params.perform_doublet_filtering is set -- otherwise the doublets are kept and
+merely annotated (by CellSweep on the UMAP, and by MTX_TO_H5AD in .obs).
 """
 
 import argparse
 import logging
 import sys
 
-import anndata as ad
 import matplotlib.pyplot as plt
-import pandas as pd
 from matplotlib.patches import Circle
+
+import doublet_calls
+import mtx_io
 
 logging.basicConfig(
     level=logging.INFO,
@@ -69,56 +74,62 @@ def plot_filtering_summary(combined, n_evaluated, n_doublets, image_prefix):
 
 
 def main():
-    parser = argparse.ArgumentParser(description="Filter consensus doublets out of an h5ad file.")
-    parser.add_argument("--input_h5ad", type=str, required=True, help="Path to the h5ad file to filter")
+    parser = argparse.ArgumentParser(description="Filter consensus doublets out of a count-matrix triplet.")
+    parser.add_argument("--mtx", type=str, required=True, help="Matrix to filter")
+    parser.add_argument("--barcodes", type=str, required=True, help="Barcode axis of --mtx")
+    parser.add_argument("--features", type=str, required=True, help="Feature axis of --mtx")
     parser.add_argument("--combined_results", type=str, required=True,
                          help="Combine_Results.R '_w_combined_assignments.tsv' output")
     parser.add_argument("--method", type=str, required=True,
                          help="Consensus method name used in Combine_Results.R (e.g. AnySinglet)")
-    parser.add_argument("--output_h5ad", type=str, required=True, help="Output path for filtered h5ad")
+    parser.add_argument("--outdir", type=str, required=True, help="Output directory for the filtered triplet")
     parser.add_argument("--summary_txt", type=str, required=True, help="Output path for summary text file")
     parser.add_argument("--image_prefix", type=str, default="", help="Prefix for output PNGs")
     args = parser.parse_args()
 
-    logger.info(f"Loading {args.input_h5ad}")
-    adata = ad.read_h5ad(args.input_h5ad)
+    # CSC (Compressed Sparse Column) for efficient cell slicing: the matrix arrives
+    # genes x cells whichever mapper it came from, so cells are its columns.
+    matrix, barcodes, features = mtx_io.read_triplet(args.mtx, args.barcodes, args.features)
+    matrix = matrix.tocsc()
 
     logger.info(f"Loading combined doublet results from {args.combined_results}")
-    combined = pd.read_csv(args.combined_results, sep="\t")
+    combined = doublet_calls.read_combined_results(args.combined_results)
+    doublets = doublet_calls.doublet_barcodes(combined, args.method, source=args.combined_results)
 
-    classification_col = f"{args.method}_DropletType"
-    if classification_col not in combined.columns:
-        raise ValueError(
-            f"Expected column '{classification_col}' not found in {args.combined_results}. "
-            f"Available columns: {list(combined.columns)}"
-        )
-
-    doublet_barcodes = set(
-        combined.loc[combined[classification_col].str.lower() == "doublet", "Barcode"]
-    )
-
-    # On the raw matrix adata holds every barcode (incl. empty droplets) while only the
+    # On the raw matrix `barcodes` holds every droplet (incl. empty ones) while only the
     # cell-called ones in `combined` were evaluated; on the cell-called matrix the two sets
     # coincide. Report both counts either way rather than assuming which matrix this is.
-    total_cells = adata.n_obs
+    total_cells = len(barcodes)
     n_evaluated = len(combined)
-    is_doublet = adata.obs_names.isin(doublet_barcodes)
-    n_doublets = int(is_doublet.sum())
+    keep_idx = [i for i, barcode in enumerate(barcodes) if barcode not in doublets]
+    n_doublets = total_cells - len(keep_idx)
     doublet_pct = (n_doublets / n_evaluated * 100) if n_evaluated > 0 else 0.0
 
     logger.info(
         f"Removing {n_doublets} / {n_evaluated} evaluated candidate cells as consensus doublets ({doublet_pct:.2f}%)"
     )
 
-    adata_filtered = adata[~is_doublet].copy()
-    adata_filtered.write_h5ad(args.output_h5ad)
+    if not keep_idx:
+        raise SystemExit(
+            f"Error: every one of the {total_cells} barcodes in {args.barcodes} was called a "
+            f"consensus doublet; there is no matrix left to write."
+        )
+
+    # Barcodes keep their source order, so the filtered triplet stays comparable to the
+    # matrix it came from.
+    mtx_io.write_triplet(
+        args.outdir,
+        matrix[:, keep_idx].tocsr(),
+        [barcodes[i] for i in keep_idx],
+        features,
+    )
 
     with open(args.summary_txt, "w") as f:
         f.write(f"Total_Cells_In_Input_Matrix\t{total_cells}\n")
         f.write(f"Cells_Evaluated_For_Doublets\t{n_evaluated}\n")
         f.write(f"Consensus_Doublets_Removed\t{n_doublets}\n")
         f.write(f"Doublet_Percentage\t{doublet_pct:.2f}%\n")
-        f.write(f"Cells_Remaining\t{adata_filtered.n_obs}\n")
+        f.write(f"Cells_Remaining\t{len(keep_idx)}\n")
 
     plot_filtering_summary(combined, n_evaluated, n_doublets, args.image_prefix)
 

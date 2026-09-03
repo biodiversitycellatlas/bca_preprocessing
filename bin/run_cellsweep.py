@@ -1,25 +1,39 @@
 #!/usr/bin/env python3
 """
 Handles empty droplet detection, automated cell typing via Leiden clustering,
-and ambient RNA denoising using the Cellsweep tool. Doublet detection happens
-upstream on the cell-called matrix (Scrublet + scDblFinder consensus); the calls
-are passed in here purely as an annotation to project onto the UMAP. They are
-only passed when those cells are still present: removing them instead is opt-in
-and handled upstream (see bin/filter_doublets.py), and in that case this script
-runs without --doublet_results.
+and ambient RNA denoising using the Cellsweep tool.
+
+Reads the raw count-matrix triplet directly, like every other step of the
+filtering workflow: MTX_TO_H5AD now runs last, after this, and packs the denoised
+counts alongside the raw ones.
+
+Doublet detection happens upstream on the cell-called matrix (Scrublet +
+scDblFinder consensus). Exactly one of two things arrives here, on
+params.perform_doublet_filtering:
+
+  false (default)  the unfiltered triplet plus --doublet_results, whose calls are
+                   annotated and projected onto the UMAP but left in the matrix
+  true             a triplet DOUBLET_FILTER has already removed them from, and no
+                   --doublet_results
+
+CellSweep's own guidance is to drop doublets before denoising; keeping them and
+only annotating them is the conservative default here, and removal stays opt-in
+(see bin/filter_doublets.py).
 """
 
 import argparse
 import logging
 import sys
 
-import numpy as np
-import pandas as pd
 import scanpy as sc
 import matplotlib.pyplot as plt
 import seaborn as sns
 from cellsweep import denoise_count_matrix
 from cellsweep.utils import visualization_utils as cs_utils
+
+import doublet_calls
+import mtx_io
+from doublet_calls import DOUBLET_COL
 
 
 # Configure Logging
@@ -29,42 +43,6 @@ logging.basicConfig(
     handlers=[logging.StreamHandler(sys.stdout)]
 )
 logger = logging.getLogger("CellSweep")
-
-
-DOUBLET_COL = "doublet_status"
-
-
-def read_doublet_barcodes(combined_results, method):
-    """
-    Barcodes called doublets by the upstream consensus (Demuxafy's Combine_Results.R
-    output for `method`, e.g. AnySinglet = the intersection of the per-tool calls).
-    """
-    combined = pd.read_csv(combined_results, sep="\t")
-
-    classification_col = f"{method}_DropletType"
-    if classification_col not in combined.columns:
-        raise ValueError(
-            f"Expected column '{classification_col}' not found in {combined_results}. "
-            f"Available columns: {list(combined.columns)}"
-        )
-
-    return set(combined.loc[combined[classification_col].str.lower() == "doublet", "Barcode"])
-
-
-def annotate_doublets(adata, doublet_barcodes):
-    """
-    Flag the consensus doublets in .obs. Doublets were called on the cell-called matrix,
-    so only a subset of this (raw) matrix's barcodes was ever evaluated; everything else
-    is left as 'singlet'. Applied again after denoising, since CellSweep hands back its
-    own AnnData object.
-    """
-    is_doublet = adata.obs_names.isin(doublet_barcodes)
-    adata.obs[DOUBLET_COL] = pd.Categorical(
-        np.where(is_doublet, "doublet", "singlet"),
-        categories=["singlet", "doublet"]
-    )
-    logger.info(f"Annotated {int(is_doublet.sum())} / {adata.n_obs} barcodes as consensus doublets")
-    return adata
 
 
 def detect_empty_droplets(adata, expected_cells, image_prefix):
@@ -206,7 +184,10 @@ def compare_umaps(adata, image_prefix):
 
 def main():
     parser = argparse.ArgumentParser(description="Run CellSweep denoising on scRNA-seq data.")
-    parser.add_argument("--input_h5ad", type=str, required=True, help="Path to raw h5ad file")
+    parser.add_argument("--mtx", type=str, required=True, help="Raw count matrix (mtx)")
+    parser.add_argument("--barcodes", type=str, required=True, help="Barcode axis of --mtx")
+    parser.add_argument("--features", type=str, required=True, help="Feature axis of --mtx")
+    parser.add_argument("--sample_id", type=str, default=None, help="Written to .obs['sample_id']")
     parser.add_argument("--expected_cells", type=int, required=True, help="Expected number of cells")
     parser.add_argument("--cs_filtered_h5ad", type=str, required=True, help="Output path for filtered cells")
     parser.add_argument("--cs_full_h5ad", type=str, required=True, help="Output path for full denoised matrix")
@@ -227,16 +208,14 @@ def main():
         parser.error("--doublet_method is required when --doublet_results is given")
 
     # 1. Load Data
-    logger.info(f"Loading data from {args.input_h5ad}")
-    adata = sc.read_h5ad(args.input_h5ad)
-    adata.var_names_make_unique()
+    adata = mtx_io.read_triplet_anndata(args.mtx, args.barcodes, args.features, sample_id=args.sample_id)
 
     # 1b. Annotate (do not remove) the consensus doublets called upstream
     doublet_barcodes = None
     if args.doublet_results:
         logger.info(f"Loading consensus doublet calls from {args.doublet_results}")
-        doublet_barcodes = read_doublet_barcodes(args.doublet_results, args.doublet_method)
-        adata = annotate_doublets(adata, doublet_barcodes)
+        doublet_barcodes = doublet_calls.read_doublet_barcodes(args.doublet_results, args.doublet_method)
+        adata = doublet_calls.annotate(adata, doublet_barcodes)
 
     # 2. Identify Empty Droplets
     adata = detect_empty_droplets(adata, args.expected_cells, args.image_prefix)
@@ -257,7 +236,14 @@ def main():
     generate_noise_boxplot(adata_cs, args.image_prefix, 'before')
 
     if doublet_barcodes is not None:
-        adata_cs = annotate_doublets(adata_cs, doublet_barcodes)
+        adata_cs = doublet_calls.annotate(adata_cs, doublet_barcodes)
+
+    # denoise_count_matrix() wrote --cs_full_h5ad itself, before the annotation above and
+    # before CellSweep's own columns were complete. MTX_TO_H5AD reads this file to lift the
+    # denoised counts and annotations into the published object, so the copy on disk has to
+    # be the finished one.
+    logger.info(f"Re-writing {args.cs_full_h5ad} with the final annotations")
+    adata_cs.write_h5ad(args.cs_full_h5ad)
 
     # 5. Filter and Save
     generate_visualizations(adata_cs, args.image_prefix)

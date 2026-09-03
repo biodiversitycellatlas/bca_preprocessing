@@ -67,21 +67,14 @@ workflow PIPELINE_INITIALISATION {
     // Fail fast on doublet options that would silently do nothing
     //
     // Doublet detection annotates the consensus calls, doublet filtering additionally removes
-    // them from the matrix. Both run inside the CellSweep branch of the filtering workflow.
+    // them from the matrix. Both are independent of 'ambient_rna_remover': the calls reach the
+    // published AnnData through MTX_TO_H5AD whether or not CellSweep ran.
     //
-    def cellsweep_used = params.ambient_rna_remover == "cellsweep"
     if (params.perform_doublet_filtering && !params.perform_doublet_detection) {
         error(
             "'perform_doublet_filtering' is set, but 'perform_doublet_detection' is false.\n" +
             "There would be no doublet calls to filter on: either enable 'perform_doublet_detection',\n" +
             "or unset 'perform_doublet_filtering'."
-        )
-    }
-    if (params.perform_doublet_detection && !cellsweep_used) {
-        log.warn(
-            "'perform_doublet_detection' is set, but the CellSweep branch is not active " +
-            "(ambient_rna_remover = '${params.ambient_rna_remover}'). " +
-            "Doublet detection will be skipped."
         )
     }
 

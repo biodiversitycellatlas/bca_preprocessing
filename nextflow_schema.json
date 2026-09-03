@@ -188,6 +188,10 @@
                 "ambient_rna_remover": {
                     "type": "string",
                     "default": "cellsweep"
+                },
+                "h5ad_compression": {
+                    "type": "string",
+                    "default": "gzip"
                 }
             }
         },

@@ -3,13 +3,19 @@ process DOUBLET_FILTER {
     tag "${meta.id} | ${meta.mapping_method} | ${meta.datatype}"
     label 'process_low'
 
+    // Memory tracks the size of the matrix being sliced, overrides process_low's flat
+    // assignments. Coefficients live in params.dynamic_memory; remove the entry to fall
+    // back to the plain label.
+    memory { BcaResources.scaledMemory(
+        params.dynamic_memory?.DOUBLET_FILTER, [mtx, barcodes, features], task.attempt, 12) }
+
     conda "${moduleDir}/environment.yml"
 
     input:
-    tuple val(meta), path(input_h5ad), path(combined_results)
+    tuple val(meta), path(mtx), path(barcodes), path(features), path(combined_results)
 
     output:
-    tuple val(meta), path("${meta.id}_${meta.datatype}_doublet_filtered.h5ad"), emit: h5ad
+    tuple val(meta), path("${meta.id}_${meta.datatype}_doublet_filtered"),      emit: matrix
     path("${meta.id}_${meta.datatype}_doublet_filter_summary.txt"),             emit: summary
     path("${meta.id}_${meta.datatype}_doublet_filtering_summary.png"),          emit: filtering_summary_plot
 
@@ -17,14 +23,16 @@ process DOUBLET_FILTER {
     """
     echo "\n\n==================  Doublet consensus filter =================="
     echo "Meta: ${meta}"
-    echo "Input h5ad: ${input_h5ad}"
+    echo "Matrix: ${mtx}"
     echo "Combined results: ${combined_results}"
 
     filter_doublets.py \\
-        --input_h5ad ${input_h5ad} \\
+        --mtx ${mtx} \\
+        --barcodes ${barcodes} \\
+        --features ${features} \\
         --combined_results ${combined_results} \\
         --method ${params.doublet_consensus_method} \\
-        --output_h5ad ${meta.id}_${meta.datatype}_doublet_filtered.h5ad \\
+        --outdir ${meta.id}_${meta.datatype}_doublet_filtered \\
         --summary_txt ${meta.id}_${meta.datatype}_doublet_filter_summary.txt \\
         --image_prefix ${meta.id}_${meta.datatype}_
     """

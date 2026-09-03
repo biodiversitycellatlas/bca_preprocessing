@@ -3,24 +3,23 @@
 Repacks a raw mtx/barcodes/features triplet (as produced by STARsolo or
 alevin-fry) into a 10x Genomics-style matrix directory (matrix.mtx.gz,
 barcodes.tsv.gz, features.tsv.gz) for the Demuxafy CLI wrappers
-(Scrublet.py, scDblFinder.R). This works directly on the pre-h5ad triplet
-to avoid an unnecessary mtx -> h5ad -> mtx round-trip through MTX_TO_H5AD.
+(Scrublet.py, scDblFinder.R). This works directly on the pre-h5ad triplet,
+like every other step of the filtering workflow.
 
-STARsolo's raw matrix is already genes (rows) x cells (columns), matching
-the 10x convention. alevin-fry's quants_mat.mtx is cells (rows) x genes
-(columns), so it is transposed -- the same orientation check used in
-MTX_TO_H5AD (modules/local/tools/scanpy/main.nf).
+The genes x cells orientation the 10x convention expects is resolved by
+``mtx_io.read_triplet``, which handles alevin-fry's transposed
+``quants_mat.mtx`` for every consumer alike.
 """
 
 import argparse
 import gzip
 import logging
 import os
-import shutil
 import sys
 
-import pandas as pd
-from scipy.io import mmread, mmwrite
+from scipy.io import mmwrite
+
+import mtx_io
 
 logging.basicConfig(
     level=logging.INFO,
@@ -40,25 +39,9 @@ def main():
 
     os.makedirs(args.outdir, exist_ok=True)
 
-    logger.info(f"Loading {args.mtx}")
-    matrix = mmread(args.mtx).tocsr()
+    matrix, barcodes, features = mtx_io.read_triplet(args.mtx, args.barcodes, args.features)
 
-    barcodes = pd.read_csv(args.barcodes, header=None)[0].astype(str).values
-    features = pd.read_csv(args.features, header=None, sep="\t")
-
-    n_features, n_barcodes = len(features), len(barcodes)
-
-    # Normalize orientation to genes (rows) x cells (columns), the 10x convention.
-    if matrix.shape[0] == n_barcodes and matrix.shape[1] == n_features:
-        logger.info("Input matrix is cells x genes; transposing to genes x cells")
-        matrix = matrix.T.tocsr()
-    elif matrix.shape[0] != n_features or matrix.shape[1] != n_barcodes:
-        raise ValueError(
-            f"Matrix shape {matrix.shape} does not match {n_features} features / "
-            f"{n_barcodes} barcodes in either orientation"
-        )
-
-    logger.info(f"Writing {n_barcodes} barcodes and {n_features} features")
+    logger.info(f"Writing {len(barcodes)} barcodes and {len(features)} features")
 
     barcodes_path = os.path.join(args.outdir, "barcodes.tsv.gz")
     with gzip.open(barcodes_path, "wt") as f:
@@ -72,11 +55,10 @@ def main():
             feature_type = str(row[2]) if len(row) > 2 else "Gene Expression"
             f.write(f"{gene_id}\t{gene_name}\t{feature_type}\n")
 
-    matrix_path = os.path.join(args.outdir, "matrix.mtx")
-    mmwrite(matrix_path, matrix)
-    with open(matrix_path, "rb") as f_in, gzip.open(f"{matrix_path}.gz", "wb") as f_out:
-        shutil.copyfileobj(f_in, f_out)
-    os.remove(matrix_path)
+    # Straight into the gzip stream: mmwrite takes a file object, so the matrix does
+    # not need writing out in full and reading back to be compressed.
+    with gzip.open(os.path.join(args.outdir, "matrix.mtx.gz"), "wb") as f:
+        mmwrite(f, matrix)
 
     logger.info(f"10x-format export written to {args.outdir}")
 
