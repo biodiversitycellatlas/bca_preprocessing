@@ -77,6 +77,9 @@ workflow QC_mapping_workflow {
         def ch_geneext_report               = Channel.empty()
         def ch_geneext_log                  = Channel.empty()
 
+        // Switch to disable non-GeneExt outputs when the user has requested a geneext_only run
+        def geneext_bam_only = params.geneext_bam_only && params.run_method == "geneext_only"
+
         // Conditionally bypass MERGE_REF_GTF/FASTA when no additional features are provided
         def ref_gtf_ch
         if (params.ref_gtf_addfeature) {
@@ -95,8 +98,7 @@ workflow QC_mapping_workflow {
         }
 
         // Safe bc_whitelist: emit empty string when no whitelist is produced by preprocessing
-        def bc_whitelist_safe = bc_whitelist
-            .ifEmpty("")
+        def bc_whitelist_safe = bc_whitelist.ifEmpty("")
 
         // Alevin takes the whitelist as a path input, which cannot be an empty string, so protocols running without a whitelist (e.g. MARS-seq) stage nothing instead
         def bc_whitelist_alevin = bc_whitelist_safe
@@ -143,8 +145,8 @@ workflow QC_mapping_workflow {
             ch_star_summaries            =  mapping_starsolo_workflow.out.star_summaries
             ch_star_cellreads            =  mapping_starsolo_workflow.out.star_cellreads
 
-            // Run BAM inspection workflow on standard STARsolo output
-            if (params.star_generateBAM) {
+            // Run BAM inspection workflow on STARsolo output when run_method is not set to 'geneext_only'
+            if (params.star_generateBAM && !geneext_bam_only) {
                 bam_inspection_workflow(ch_starsolo_bam, ref_gtf_ch, ch_star_summaries, ch_star_final_log,
                                             mapping_starsolo_workflow.out.secondderiv_stats)
 

@@ -158,6 +158,21 @@
                 "geneext_gtf": {
                     "type": "string"
                 },
+                "geneext_bam_only": {
+                    "type": "boolean",
+                    "default": true,
+                    "description": "Only consulted with 'run_method' = 'geneext_only': strip STARsolo down to producing the BAM GeneExt reads, skipping the count matrices, the cell call and the BAM inspection."
+                },
+                "geneext_subsample_nreads": {
+                    "type": "integer",
+                    "default": 50000000,
+                    "minimum": 0,
+                    "description": "Per-sample cap on the reads reaching GeneExt, applied before the BAMs are merged so one deeply sequenced sample cannot dominate the extension. 0 disables it."
+                },
+                "geneext_subsamplebam": {
+                    "type": "integer",
+                    "description": "GeneExt's own --subsamplebam, applied to the merged BAM. Downsamples uniformly and so does not balance samples against each other; use 'geneext_subsample_nreads' for that."
+                },
                 "perform_velocity": {
                     "type": "boolean",
                     "default": false

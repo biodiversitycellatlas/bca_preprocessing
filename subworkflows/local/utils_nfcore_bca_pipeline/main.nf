@@ -92,6 +92,21 @@ workflow PIPELINE_INITIALISATION {
     }
 
     //
+    // Fail fast on a 'geneext_only' run that cannot produce a BAM
+    //
+    // GeneExt reads the alignments, so without a BAM there is nothing to extend from. Left
+    // unchecked the run succeeds and writes no annotation at all: the BAM channel stays
+    // empty, collect() on it emits nothing, and the merge and GeneExt never run.
+    //
+    if (params.run_method == "geneext_only" && !params.star_generateBAM && !params.geneext_bam_only) {
+        error(
+            "'run_method' = 'geneext_only' with both 'star_generateBAM' and 'geneext_bam_only'\n" +
+            "unset produces no BAM for GeneExt to read, so no extended annotation would be\n" +
+            "written. Leave 'geneext_bam_only' set, or enable 'star_generateBAM'."
+        )
+    }
+
+    //
     // Create channel from input file provided through params.input
     //
     def samples_file = file(params.input)

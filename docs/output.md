@@ -187,7 +187,7 @@ These are run on the **raw** input files, before any protocol-specific read mani
 | `<id>_Log.final.out` | Alignment summary: input reads, uniquely mapped %, multimapping %, unmapped % by reason. The source of most of the dashboard's Mapping tab. |
 | `<id>_Log.out` | Verbose run log, including the resolved parameters STAR ran with. |
 | `<id>_Log.progress.out` | Progress log. |
-| `<id>_Aligned.sortedByCoord.out.bam` | Coordinate-sorted alignments, present when `star_generateBAM = true`. Includes unmapped reads (`--outSAMunmapped Within`), which is what makes the Kraken step possible. |
+| `<id>_Aligned.sortedByCoord.out.bam` | Coordinate-sorted alignments, present when `star_generateBAM = true`. Includes unmapped reads (`--outSAMunmapped Within`), which is what makes the Kraken step possible. Under `run_method = "geneext_only"` with the default `geneext_bam_only` it is written for GeneExt alone: no `CR`/`UR`/`CB`/`UB` tags and no unmapped reads. |
 | `<id>_Aligned.sortedByCoord.out.bam.bai` | BAM index. |
 | `<id>_SJ.out.tab` | Splice junctions. |
 
@@ -489,6 +489,12 @@ Produced when `perform_geneext = true` or `run_method = "geneext_only"`.
 GeneExt is run **once** on the merged alignments of all samples in the run, not per sample —
 pooling gives enough 3′ coverage to support extensions that a single sample would not.
 
+Because they are pooled, every sample is first capped at `geneext_subsample_nreads` reads
+(50M by default), so a deeply sequenced sample cannot dominate the MACS2 peaks that decide
+each gene's extension. Samples already under the cap are merged untouched. This is not the
+same as `geneext_subsamplebam`, which is GeneExt's own cap on the *merged* BAM and downsamples
+every sample by the same fraction, leaving the imbalance in place.
+
 The headline statistics from `geneext.gtf.Report.html` — how many genes were extended and by
 how much, how the MACS2 peaks were filtered, and which `--maxdist` was used — are summarised
 in the dashboard's **Gene Extension** tab. The per-gene extension table is not duplicated
@@ -501,7 +507,11 @@ exactly what the extension changed.
 
 With `run_method = "geneext_only"` the pipeline stops here, which is the mode to use when you
 want to generate a reference improvement once and reuse it across many runs — pass it back as
-`ref_gtf` on subsequent runs.
+`ref_gtf` on subsequent runs. In that mode `mapping_STARsolo/` carries the logs and the BAM
+but no count matrices, no cell calls and no saturation curves: the steps that produce them
+feed only the reporting that this mode never reaches. Set `geneext_bam_only = false` to map
+as a `standard` run would and still stop after GeneExt — see
+[The `geneext_only` run method](CONFIGURATION_PARAMETERS.md#the-geneext_only-run-method).
 
 </details>
 
