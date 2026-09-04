@@ -89,7 +89,8 @@ workflow cellcalling_alevin_workflow {
         af_mtx              // channel: [meta, <sample>_counts/alevin]
 
     main:
-        // Initialize reporting channels
+        // Initialize channels
+        def ch_af_mtx = af_mtx
         def ch_filtered_mtx       = Channel.empty()
         def ch_secondderiv_umis   = Channel.empty()
         def ch_secondderiv_knee   = Channel.empty()
@@ -97,10 +98,10 @@ workflow cellcalling_alevin_workflow {
         def ch_secondderiv_cutoff = Channel.empty()
 
         if (params.cellfilter_method in ["second_derivative", "manual_cutoff"]) {
-            SECONDDERIV_CELLCALLING_ALEVIN(af_mtx)
+            SECONDDERIV_CELLCALLING_ALEVIN(ch_af_mtx)
 
             // Join on meta so every sample is filtered on its own cutoff
-            def ch_filter_input = af_mtx
+            def ch_filter_input = ch_af_mtx
                 .join(SECONDDERIV_CELLCALLING_ALEVIN.out.cutoff)
 
             FILTER_MATRICES_ALEVIN(ch_filter_input)

@@ -53,12 +53,15 @@ workflow reporting_workflow {
         geneext_log
 
     main:
+        // Declare channels
+        def ch_star_logs = star_logs
+
         // Join BAM, SoloDir, and Logs before per-cell metrics. The cutoff and the
         // filtered matrix are both optional: the module prefers the filtered matrix's
         // barcodes, falls back to the cutoff, and then to STARsolo's nUMImin.
         starsolo_bam
             .join(star_solodir)
-            .join(star_logs)
+            .join(ch_star_logs)
             .join(secondderiv_cutoff, remainder: true)
             .join(star_filtered_mtx, remainder: true)
             // remainder keeps samples without those inputs, but can also emit rows for
@@ -113,7 +116,7 @@ workflow reporting_workflow {
         PREPARE_DASHBOARD_INPUTS(ch_to_rename)
 
         // Extract the exact analytical mappings that were successfully processed
-        def ch_analytical_manifest = star_logs
+        def ch_analytical_manifest = ch_star_logs
             .map { meta, log -> "${meta.id},${meta.base_id ?: meta.id},starsolo" }
             .mix(
                 af_meta_info.map { meta, info -> "${meta.id},${meta.base_id ?: meta.id},alevin" }
@@ -130,7 +133,7 @@ workflow reporting_workflow {
             samplesheet_file,
             run_config,
             ch_analytical_manifest,
-            star_logs.map{ it[1] }.collect().ifEmpty([]),
+            ch_star_logs.map{ it[1] }.collect().ifEmpty([]),
             PREPARE_DASHBOARD_INPUTS.out.summary.collect().ifEmpty([]),
             star_full_logs.map{ it[1] }.collect().ifEmpty([]),
             saturation_logs.collect().ifEmpty([]),
@@ -155,7 +158,7 @@ workflow reporting_workflow {
         )
 
         // Trigger Mapping Stats & MultiQC
-        mapping_stats_trigger = star_logs.collect()
+        mapping_stats_trigger = ch_star_logs.collect()
             .mix(
                 saturation_logs.collect(),
                 mt_rrna_metrics.collect(),

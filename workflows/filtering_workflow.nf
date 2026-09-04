@@ -35,7 +35,7 @@ include { VELOCITY_H5AD as VELOCITY_H5AD_ALEVIN   } from '../modules/local/tools
  */
 def attach_annotation(ch_left, ch_annotation, Closure key_of) {
     return ch_left
-        .map { row -> [key_of(row[0])] + (row as List) }
+        .map { row -> [key_of.call(row[0])] + (row as List) }
         .join(ch_annotation, remainder: true)
         .filter { row -> row[1] != null }
         .map { row -> row[1..-2] + [row[-1] ?: []] }
@@ -192,13 +192,13 @@ workflow filtering_workflow {
             )
 
             ch_calls_by_meta      = COMBINE_DOUBLET_RESULTS.out.combined_results
-            ch_calls_by_sample    = ch_calls_by_meta.map { meta, calls -> [sample_key(meta), calls] }
+            ch_calls_by_sample    = ch_calls_by_meta.map { meta, calls -> [sample_key.call(meta), calls] }
             ch_scrublet_histogram = SCRUBLET.out.scrublet_histogram
 
             // Warn once for a sample that lost a caller: it continues through every stage
             // below unannotated and unfiltered, rather than ending the run.
             ch_cell_called_matrices
-                .map { meta, _mtx, _barcodes, _features -> [sample_key(meta), meta] }
+                .map { meta, _mtx, _barcodes, _features -> [sample_key.call(meta), meta] }
                 .join(ch_calls_by_sample, remainder: true)
                 .filter { row -> row[1] != null && row[2] == null }
                 .view { _key, meta, _calls ->
@@ -260,7 +260,7 @@ workflow filtering_workflow {
                     : ch_ambient_with_calls
             )
 
-            ch_cellsweep_by_sample      = CELLSWEEP.out.cs_full_h5ad.map { meta, h5ad -> [sample_key(meta), h5ad] }
+            ch_cellsweep_by_sample      = CELLSWEEP.out.cs_full_h5ad.map { meta, h5ad -> [sample_key.call(meta), h5ad] }
             ch_cs_ambient_hist_plot     = CELLSWEEP.out.cs_ambient_hist_plot
             ch_cs_umap_comparison_plot  = CELLSWEEP.out.cs_umap_comparison_plot
             ch_cs_top_genes             = CELLSWEEP.out.cs_top_genes

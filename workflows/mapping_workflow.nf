@@ -46,7 +46,8 @@ workflow QC_mapping_workflow {
         bc_whitelist
 
     main:
-        // Initialize reporting channels
+        // Initialize channels
+        def ch_samples = data_output
         def ch_mapped_ss                    = Channel.empty()
         def ch_mapping_files                = Channel.empty()
         def ch_starsolo_bam                 = Channel.empty()
@@ -105,7 +106,7 @@ workflow QC_mapping_workflow {
             .map { wl -> wl?.toString()?.trim() ? wl : [] }
 
         // Quality Control
-        FASTQC(data_output)
+        FASTQC(ch_samples)
 
         // Mapping: starsolo, alevin, alevin_starsolo (both), or alevin_subsampled_starsolo
         if (params.mapping_software == "starsolo" || params.mapping_software == "both" || params.mapping_software == "alevin_subsampled_starsolo" || params.mapping_software == "alevin_starsolo") {
@@ -113,7 +114,7 @@ workflow QC_mapping_workflow {
             // If 'alevin_subsampled_starsolo' is selected, run STARsolo on a subsampled dataset
             if (params.mapping_software == "alevin_subsampled_starsolo") {
 
-                def ch_star           = apply_suffix(data_output, "_subsampled_starsolo")
+                def ch_star           = apply_suffix(ch_samples, "_subsampled_starsolo")
                 ch_mapped_ss = ch_mapped_ss.mix(ch_star)
                 SUBSAMPLE_FASTQS(ch_star)
 
@@ -122,7 +123,7 @@ workflow QC_mapping_workflow {
             // Run STARsolo on the full dataset
             } else {
 
-                def ch_star           = apply_suffix(data_output, "_starsolo")
+                def ch_star           = apply_suffix(ch_samples, "_starsolo")
                 ch_mapped_ss = ch_mapped_ss.mix(ch_star)
 
                 mapping_starsolo_workflow(ch_star, bc_whitelist_safe, ref_gtf_ch, ref_fasta_ch, 'false')
@@ -188,7 +189,7 @@ workflow QC_mapping_workflow {
                         ref_fasta_geneext_ch = Channel.value(file(params.ref_fasta))
                     }
 
-                    def ch_geneext           = apply_suffix(data_output, "_geneext_starsolo")
+                    def ch_geneext           = apply_suffix(ch_samples, "_geneext_starsolo")
                     ch_mapped_ss = ch_mapped_ss.mix(ch_geneext)
 
                     mapping_starsolo_geneext_workflow(ch_geneext, bc_whitelist_safe, ref_gtf_geneext_ch, ref_fasta_geneext_ch, 'true')
@@ -229,7 +230,7 @@ workflow QC_mapping_workflow {
         }
 
         if (params.mapping_software == "alevin" || params.mapping_software == "both" || params.mapping_software == "alevin_subsampled_starsolo" || params.mapping_software == "alevin_starsolo") {
-            def ch_alevin = apply_suffix(data_output, "_alevinfry")
+            def ch_alevin = apply_suffix(ch_samples, "_alevinfry")
             ch_mapped_ss = ch_mapped_ss.mix(ch_alevin)
             mapping_alevin_workflow(ch_alevin, bc_whitelist_alevin)
 
