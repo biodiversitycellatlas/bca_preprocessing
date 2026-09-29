@@ -16,20 +16,26 @@ workflow sciRNAseq3_nogather_workflow {
         ch_samplesheet
 
     main:
+        // Define channels
+        out_whitelist = Channel.create()
+        out_samplesheet = Channel.create()
+
         if (params.perform_demultiplexing) {
             log.info "Starting demultiplexing with sci-rocket"
             SCIROCKET_DEMUX(ch_samplesheet)
-            ch_samplesheet = SCIROCKET_DEMUX.out.demux_samplesheet
+            out_samplesheet = SCIROCKET_DEMUX.out.demux_samplesheet
+            out_whitelist = SCIROCKET_DEMUX.out.bc_whitelist
         } else {
             log.info "Skipping demultiplexing as perform_demultiplexing is set to false"
+            out_samplesheet = ch_samplesheet
         }
 
         // Trimming adapters and low-quality reads
-        FASTP(ch_samplesheet)
+        FASTP(out_samplesheet)
 
     emit:
         data_output     = FASTP.out.trimmed_files
-        bc_whitelist    = SCIROCKET_DEMUX.out.bc_whitelist
+        bc_whitelist    = out_whitelist
 }
 
 /*

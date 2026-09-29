@@ -1,5 +1,5 @@
 process MARSSEQ_BUILD_READS {
-    publishDir "${params.outdir}/marsseq_reformat/${meta.id}", mode: 'copy'
+    publishDir "${params.outdir}/demultiplex/${meta.id}", mode: 'copy'
     tag "${meta.id}"
     label 'process_low2'
 
@@ -11,7 +11,7 @@ process MARSSEQ_BUILD_READS {
 
     output:
     tuple val(meta), path("${meta.id}_marsseq_cDNA.fastq.gz"), path("${meta.id}_marsseq_BC_UMI.fastq.gz"), path(fastq_indices), path(input_file), emit: reformatted_files
-    tuple val(meta), path("${meta.id}_marsseq_reformat.log"), emit: stats
+    tuple val(meta), path("${meta.id}_marsseq_demultiplex.log"), emit: stats
     path "versions.yml", emit: versions
 
     script:
