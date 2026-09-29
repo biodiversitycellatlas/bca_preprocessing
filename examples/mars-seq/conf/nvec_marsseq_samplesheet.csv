@@ -1,0 +1,2 @@
+sample,fastq_cDNA,fastq_BC_UMI,expected_cells,p5,p7,rt
+nvec_marsseq,examples/mars-seq/test_data/nvec_marsseq_R1.fastq.gz,examples/mars-seq/test_data/nvec_marsseq_R2.fastq.gz,30,,,

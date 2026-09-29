@@ -39,6 +39,9 @@ export NXF_JVM_ARGS="-Xms2g -Xmx5g"
 #     -profile crg,conda \
 #     -c tests/test_parsebio.config
 
+## Test run on the small test dataset with capped resources (conf/test.config)
+# nextflow run -profile crg,conda,test -c conf/custom_parameters.config -ansi-log false "$@"
+
 ## TEST SUITE -- Checks conda environments and container images (no data needed)
 ## Run `bash tests/run_tests.sh --list` for the available checks.
 # bash tests/run_tests.sh
