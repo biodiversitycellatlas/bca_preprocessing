@@ -1,2 +1,2 @@
 sample,fastq_cDNA,fastq_BC_UMI,expected_cells,p5,p7,rt
-spis_10x,examples/spis_10x/test_data/spis_10x_R2.fastq.gz,examples/spis_10x/test_data/spis_10x_R1.fastq.gz,30,,,
+spis_10x,examples/10x/test_data/spis_10x_R2.fastq.gz,examples/10x/test_data/spis_10x_R1.fastq.gz,30,,,
