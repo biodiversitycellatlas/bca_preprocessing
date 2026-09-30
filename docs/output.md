@@ -96,6 +96,7 @@ output_directory/
 | `execution_timeline_<timestamp>.html` | Nextflow's timeline of task execution. |
 | `execution_trace_<timestamp>.txt` | Per-task trace: CPU, memory, I/O, exit status, retries. |
 | `pipeline_dag_<timestamp>.html` | The workflow DAG. |
+| `mapping_rate_check.tsv` | One row per sample with the verdict of the [mapping-rate check](CONFIGURATION_PARAMETERS.md#mapping-rate-check): mapper, stage (`mid-run` or `final`), reads processed, percentage mapped and threshold. Only written when the check ran, and overwritten by each run. |
 
 Files are timestamp-suffixed rather than overwritten, so repeated runs into the same output
 directory accumulate rather than replace.
@@ -491,7 +492,8 @@ pooling gives enough 3′ coverage to support extensions that a single sample wo
 
 Because they are pooled, every sample is first capped at `geneext_subsample_nreads` reads
 (50M by default), so a deeply sequenced sample cannot dominate the MACS2 peaks that decide
-each gene's extension. Samples already under the cap are merged untouched. This is not the
+each gene's extension. Samples already under the cap are merged untouched, and a run with a
+single sample is not subsampled at all. This is not the
 same as `geneext_subsamplebam`, which is GeneExt's own cap on the *merged* BAM and downsamples
 every sample by the same fraction, leaving the imbalance in place.
 

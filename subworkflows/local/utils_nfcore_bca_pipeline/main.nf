@@ -64,6 +64,25 @@ workflow PIPELINE_INITIALISATION {
     )
 
     //
+    // Fail fast on git submodules that were not checked out
+    //
+    // GeneExt, 10x_saturate and pavianCore are run from submodules/, so without them the
+    // run would only fail once it reaches one of those steps.
+    //
+    def missing_submodules = [
+        'submodules/10x_saturate/saturation_table.py',
+        'submodules/GeneExt/geneext.py',
+        'submodules/pavianCore/exec/pavianCoreTools.R'
+    ].findAll { path -> !file("${projectDir}/${path}").exists() }
+    if (missing_submodules) {
+        error(
+            "Git submodules are missing from ${projectDir}: ${missing_submodules.join(', ')}.\n" +
+            "Fetch them with 'git -C ${projectDir} submodule update --init --recursive',\n" +
+            "or clone the pipeline with 'git clone --recurse-submodules'."
+        )
+    }
+
+    //
     // Fail fast on doublet options that would silently do nothing
     //
     // Doublet detection annotates the consensus calls, doublet filtering additionally removes

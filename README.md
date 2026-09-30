@@ -60,33 +60,13 @@ The pipeline will produce the following output files:
 
 ## Installation
 
-1. **Download the latest release**
-
-Go to the [Releases](https://github.com/biodiversitycellatlas/bca_preprocessing/releases) page and download the `.zip` or `.tar.gz` file for the version you want.
-
-2. **Unpack the files**
-
+1. **Clone the pipeline**
 ```
-unzip bca_preprocessing-<version>.zip
-cd bca_preprocessing-<version>
+git clone --recurse-submodules https://github.com/biodiversitycellatlas/bca_preprocessing.git
 ```
 
-or for tar.gz:
 
-```
-tar -xzf bca_preprocessing-<version>.tar.gz
-cd bca_preprocessing-<version>
-```
-
-3. **Download submodules**
-
-The pipeline uses two submodules, [10x_saturate](https://github.com/zolotarovgl/10x_saturate) to plot the saturation curve and [GeneExt](https://github.com/zolotarovgl/GeneExt) for an extended gene annotation file. These are not included automatically, so have to be installed explicitly by running:
-
-```
-bash fetch_submodules.sh
-```
-
-4. **Conda & Nextflow**
+2. **Conda & Nextflow**
 
 In order to run the pipeline, you must have [Conda](https://anaconda.org/) and [Nextflow](https://www.nextflow.io/docs/latest/index.html) installed. When working on a HPC, there might be a module system available to use instead, simplifying the use of different software.
 To see which modules are available and how to load them:
@@ -112,7 +92,7 @@ conda -h
 nextflow -h
 ```
 
-5. **(Optional) Installing external pipelines as validation**
+3. **(Optional) Installing external pipelines as validation**
 
 After following these [installation instructions](docs/INSTALLATION_EXTERNAL_PIPELINES.md) for some of the sequencing technologies, see table below, users can run external pipelines simultaneaously with the BCA pre-processing pipeline. Depending on the sequencing technique, you only have to provide the path to the installation as within the [`conf/custom_parameters.config`](conf/custom_parameters.config) file or a boolean flag to enable/disable the execution, see Setup explenation below, and it will automatically start.
 
