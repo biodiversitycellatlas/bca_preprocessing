@@ -3,6 +3,9 @@ process ALEVIN_FRY {
     tag "${meta.id}"
     label 'process_high'
 
+    // Exit 42 from bin/mapping_rate_guard.sh (mapping rate below params.min_mapping_rate)
+    // aborts the pipeline or drops the sample; other exit codes follow conf/base.config.
+    errorStrategy { MappingRateCheck.errorStrategy(task, params) }
 
     conda "${moduleDir}/environment.yml"
     container "oras://community.wave.seqera.io/library/alevin-fry_piscem_salmon_simpleaf_pruned:c71cfb476b003414"
@@ -30,6 +33,16 @@ process ALEVIN_FRY {
     if (!bc_geom || !umi_geom || !read_geom) {
         error "No alevin geometry defined for protocol '${params.protocol}'. Set 'alevin_bc_geometry', 'alevin_umi_geometry' and 'alevin_read_geometry' in the configuration file."
     }
+
+    // Mapping-rate check: salmon runs under bin/mapping_rate_guard.sh, which reads
+    // percent_mapped from meta_info.json before the alevin-fry steps, and cancels salmon
+    // early if STARsolo already found this sample below the threshold.
+    def mapping_guard = MappingRateCheck.enabled(params)
+        ? "mapping_rate_guard.sh run --mapper salmon" +
+          " --flag-dir ${MappingRateCheck.flagDir(workflow)} --sample ${meta.base_id ?: meta.id} --label ${meta.id}" +
+          " --min ${params.min_mapping_rate} --poll ${params.mapping_rate_poll_secs ?: 60}" +
+          " --report ./${meta.id}_run/aux_info/meta_info.json --"
+        : ''
     """
     echo "\n\n==================  ALEVIN-FRY =================="
     echo "Sample ID: ${meta}"
@@ -42,7 +55,7 @@ process ALEVIN_FRY {
 
 
     echo "\n\n-------------  Salmon Alevin -------------------"
-    salmon alevin \\
+    ${mapping_guard} salmon alevin \\
         -i ${salmon_index} \\
         -l A \\
         -1 ${fastq_BC_UMI} \\

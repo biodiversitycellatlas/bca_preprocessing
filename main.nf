@@ -200,6 +200,9 @@ workflow {
         exit status : ${workflow.exitStatus}
         """
         println summary
+
+        // Samples cancelled for a low mapping rate, with the Kraken recommendation
+        MappingRateCheck.summarise(workflow, params, log)
     }
 
     workflow.onError = {

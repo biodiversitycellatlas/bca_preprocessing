@@ -15,6 +15,10 @@ process STARSOLO_ALIGN {
         params.dynamic_memory?.STARSOLO_ALIGN,
         [fastq_cDNA, fastq_BC_UMI], task.attempt, 128, genome_index_files) }
 
+    // Exit 42 from bin/mapping_rate_guard.sh (mapping rate below params.min_mapping_rate)
+    // aborts the pipeline or drops the sample; other exit codes follow conf/base.config.
+    errorStrategy { MappingRateCheck.errorStrategy(task, params) }
+
     conda "${moduleDir}/environment.yml"
     container "oras://community.wave.seqera.io/library/htslib_samtools_seqspec_star_pruned:cef769c7e3b03dd0"
 
@@ -106,6 +110,20 @@ process STARSOLO_ALIGN {
     // params.star_limitBAMsortRAM overrides whenever it is set to something non-zero.
     def bamsort = BcaResources.bamSortRam(params.star_limitBAMsortRAM, task.memory, genome_index_files)
 
+    // Mapping-rate check: STAR runs under bin/mapping_rate_guard.sh, which reads
+    // Log.progress.out once mapping_rate_check_reads reads are processed, and Log.final.out
+    // at the end. It shares a verdict with alevin-fry through the base sample id.
+    def mapping_guard = MappingRateCheck.enabled(params)
+        ? "mapping_rate_guard.sh run --mapper star" +
+          " --flag-dir ${MappingRateCheck.flagDir(workflow)} --sample ${meta.base_id ?: meta.id} --label ${meta.id}" +
+          " --min ${params.min_mapping_rate} --check-reads ${params.mapping_rate_check_reads ?: 0}" +
+          " --poll ${params.mapping_rate_poll_secs ?: 60}" +
+          " --progress ${meta.id}_Log.progress.out --report ${meta.id}_Log.final.out --"
+        : ''
+    def mapping_guard_note = mapping_guard
+        ? "min ${params.min_mapping_rate}%, action ${params.mapping_rate_action}"
+        : 'disabled'
+
     """
     echo "\n\n==============  MAPPING STARSOLO  ================"
     echo "Mapping sample ${meta.id} with STARsolo"
@@ -124,6 +142,7 @@ process STARSOLO_ALIGN {
     echo "star_outSAMunmapped (effective): ${star_outSAMunmapped_effective}"
     echo "star_outSAMattributes (effective): ${star_outSAMattributes_effective}"
     echo "outSAMtype_option: ${outSAMtype_option}"
+    echo "Mapping-rate check: ${mapping_guard_note}"
 
     if [[ -n \"${params.seqspec_file}\" && \"${params.protocol}\" == *\"seqspec\"* ]];
     then
@@ -149,7 +168,7 @@ process STARSOLO_ALIGN {
     echo "SOLO_CELL_FILTER_ARGS: \${SOLO_CELL_FILTER_ARGS}"
 
     # Mapping step and generating count matrix using STAR
-    STAR \\
+    ${mapping_guard} STAR \\
         --runThreadN ${task.cpus} \\
         \${SOLO_TYPE_STRING} \\
         --readFilesIn ${input_files} \\

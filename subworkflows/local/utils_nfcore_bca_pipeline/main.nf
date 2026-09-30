@@ -92,6 +92,18 @@ workflow PIPELINE_INITIALISATION {
     }
 
     //
+    // Fail fast on mapping-rate check settings, and clear verdicts left by an earlier
+    // attempt of this session (-resume) so they cannot cancel a rerun with new settings
+    //
+    if (!(params.mapping_rate_action in MappingRateCheck.VALID_ACTIONS)) {
+        error("Unknown 'mapping_rate_action' = '${params.mapping_rate_action}'. Use one of: ${MappingRateCheck.VALID_ACTIONS.join(', ')}.")
+    }
+    if (!(params.min_mapping_rate instanceof Number) || params.min_mapping_rate < 0 || params.min_mapping_rate > 100) {
+        error("'min_mapping_rate' = '${params.min_mapping_rate}' must be a percentage between 0 and 100 (0 disables the check).")
+    }
+    MappingRateCheck.reset(workflow)
+
+    //
     // Fail fast on a 'geneext_only' run that cannot produce a BAM
     //
     // GeneExt reads the alignments, so without a BAM there is nothing to extend from. Left

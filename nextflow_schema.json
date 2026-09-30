@@ -86,6 +86,36 @@
                     "default": "SUA",
                     "enum": ["SUA", "SA", "S", "UA", "U"]
                 },
+                "skip_mapping_rate_check": {
+                    "type": "boolean",
+                    "default": false,
+                    "description": "Never cancel a sample for a low mapping rate."
+                },
+                "min_mapping_rate": {
+                    "type": "number",
+                    "default": 10,
+                    "minimum": 0,
+                    "maximum": 100,
+                    "description": "Percentage of reads uniquely mapped (STARsolo) or mapped (salmon) below which a sample is cancelled."
+                },
+                "mapping_rate_action": {
+                    "type": "string",
+                    "default": "abort",
+                    "enum": ["abort", "skip_sample"],
+                    "description": "What a failed mapping-rate check does: stop the pipeline, or drop only that sample."
+                },
+                "mapping_rate_check_reads": {
+                    "type": "integer",
+                    "default": 20000000,
+                    "minimum": 0,
+                    "description": "STARsolo: check the mapping rate mid-run once this many reads are processed; 0 checks only at the end."
+                },
+                "mapping_rate_poll_secs": {
+                    "type": "integer",
+                    "default": 60,
+                    "minimum": 1,
+                    "description": "How often a running mapper is checked, in seconds."
+                },
                 "star_index": {
                     "type": "string"
                 },
