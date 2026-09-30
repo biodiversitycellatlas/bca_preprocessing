@@ -28,10 +28,20 @@ workflow geneext_workflow {
     main:
         // Cap every sample at the same number of reads, so no one sample is overrepresented
         // in the extended annotation. Set geneext_subsample_nreads = 0 to merge as sequenced.
+        // With a single sample there is nothing to balance, so its reads are kept in full.
         def ch_bams = ch_starsolo_bam
-        if (params.geneext_subsample_nreads) {
-            SAMTOOLS_SUBSAMPLE(ch_starsolo_bam)
-            ch_bams = SAMTOOLS_SUBSAMPLE.out.subsampled_bam
+        if (params.geneext_subsample_nreads != 0) {
+            ch_by_count = ch_starsolo_bam
+                .combine(ch_starsolo_bam.count())
+                .branch { meta, bam, n_samples ->
+                    subsample: n_samples > 1
+                        return [meta, bam]
+                    keep: true
+                        return [meta, bam]
+                }
+
+            SAMTOOLS_SUBSAMPLE(ch_by_count.subsample)
+            ch_bams = SAMTOOLS_SUBSAMPLE.out.subsampled_bam.mix(ch_by_count.keep)
         }
 
         // Extract the BAM files and collect them into a single list
