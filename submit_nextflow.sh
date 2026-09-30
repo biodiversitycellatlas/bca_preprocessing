@@ -40,7 +40,7 @@ export NXF_JVM_ARGS="-Xms2g -Xmx5g"
 #     -c tests/test_parsebio.config
 
 ## Test run on the small test dataset with capped resources
-# nextflow run -profile crg,conda,test -c examples/mars-seq/conf/nvec_marsseq_parameters.config -ansi-log false "$@"
+# nextflow run -profile crg,conda,test -c examples/10x/conf/spis_10x_parameters.config -ansi-log false "$@" & pid=$!
 
 ## TEST SUITE -- Checks conda environments and container images (no data needed)
 ## Run `bash tests/run_tests.sh --list` for the available checks.
