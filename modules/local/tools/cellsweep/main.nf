@@ -2,9 +2,26 @@ process CELLSWEEP {
     publishDir "${params.outdir}/cellsweep/${meta.id}", mode: 'copy'
     tag "${meta.id} | ${meta.mapping_method}"
     label 'process_low2'
+    debug true
+
+    // A matrix with too few cells to cluster exits 3 from bin/run_cellsweep.py; the
+    // sample is then dropped from this step and published without denoised counts.
+    // Other failures keep the error_optional rule from conf/base.config: one retry for
+    // the transient exit codes, otherwise skipped the same way.
+    errorStrategy {
+        if (task.exitStatus in ((130..145) + 104 + 175 + 255)) {
+            return 'retry'
+        }
+        def reason = task.exitStatus == 3
+            ? "too few cells passed its filters"
+            : "it failed with exit status ${task.exitStatus}"
+        log.warn "No CellSweep output for ${meta.id} (${meta.mapping_method}): ${reason} " +
+            "(see .command.log in the task work directory). The sample continues without denoised counts."
+        return 'ignore'
+    }
+    maxRetries 1
 
     conda "${moduleDir}/environment.yml"
-    // container "oras://community.wave.seqera.io/library/anndata_numpy_pandas_python_pruned:a3b0b95a49665473"
 
     input:
     tuple val(meta), path(mtx), path(barcodes), path(features), path(doublet_results)

@@ -44,6 +44,18 @@ logging.basicConfig(
 )
 logger = logging.getLogger("CellSweep")
 
+# Principal components used for the Leiden neighbour graph. The clustering needs more
+# cells and genes than this left after filtering, or PCA cannot produce them.
+N_PCS = 50
+
+# Exit status for a matrix with too few cells to cluster. Distinct from a crash, so
+# that the log says why; the module's error_optional label skips the sample either way.
+EXIT_TOO_FEW_CELLS = 3
+
+
+class TooFewCellsError(Exception):
+    pass
+
 
 def detect_empty_droplets(adata, expected_cells, image_prefix):
     """
@@ -74,16 +86,26 @@ def assign_clusters(adata, min_genes, max_mt_percent):
     logger.info("Assigning preliminary cell types via Leiden clustering...")
 
     adata_celltype = adata[~adata.obs["is_empty"]].copy()
+    n_non_empty = adata_celltype.n_obs
 
     if min_genes is not None:
         sc.pp.filter_cells(adata_celltype, min_genes=min_genes)
+    n_min_genes = adata_celltype.n_obs
 
     sc.pp.filter_genes(adata_celltype, min_cells=1)
 
     if max_mt_percent is not None:
         adata_celltype.var["mt"] = adata_celltype.var_names.str.upper().str.startswith("MT-")
         sc.pp.calculate_qc_metrics(adata_celltype, qc_vars=["mt"], percent_top=None, log1p=False, inplace=True)
-        adata_celltype = adata_celltype[adata_celltype.obs.pct_counts_mt < max_mt_percent, :]
+        adata_celltype = adata_celltype[adata_celltype.obs.pct_counts_mt < max_mt_percent, :].copy()
+
+    if adata_celltype.n_obs <= N_PCS or adata_celltype.n_vars <= N_PCS:
+        raise TooFewCellsError(
+            f"{adata_celltype.n_obs} cells x {adata_celltype.n_vars} genes left to cluster, "
+            f"more than {N_PCS} of each are needed "
+            f"({n_non_empty} non-empty barcodes, {n_min_genes} with >= {min_genes} genes, "
+            f"{adata_celltype.n_obs} below {max_mt_percent}% MT)"
+        )
 
     # Standard Scanpy preprocessing for clustering
     adata_celltype.layers["counts"] = adata_celltype.X.copy()
@@ -91,7 +113,7 @@ def assign_clusters(adata, min_genes, max_mt_percent):
     sc.pp.log1p(adata_celltype)
     sc.pp.highly_variable_genes(adata_celltype, n_top_genes=2000)
     sc.tl.pca(adata_celltype, svd_solver="arpack", random_state=42)
-    sc.pp.neighbors(adata_celltype, n_neighbors=15, n_pcs=50)
+    sc.pp.neighbors(adata_celltype, n_neighbors=15, n_pcs=N_PCS)
 
     sc.tl.leiden(adata_celltype, flavor="igraph", n_iterations=2, resolution=1.0, random_state=42)
 
@@ -221,7 +243,14 @@ def main():
     adata = detect_empty_droplets(adata, args.expected_cells, args.image_prefix)
 
     # 3. Cluster Cells (biological grouping for CellSweep)
-    adata = assign_clusters(adata, args.min_genes, args.max_mt_percent)
+    try:
+        adata = assign_clusters(adata, args.min_genes, args.max_mt_percent)
+    except TooFewCellsError as e:
+        logger.error(
+            f"Too few cells for CellSweep in {args.sample_id}: {e}. "
+            "Skipping ambient RNA removal; the sample continues without denoised counts."
+        )
+        sys.exit(EXIT_TOO_FEW_CELLS)
 
     # 4. Run CellSweep Denoising
     logger.info("Starting CellSweep denoising (this may take a few minutes)...")

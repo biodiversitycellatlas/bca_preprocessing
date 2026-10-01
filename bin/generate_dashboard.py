@@ -365,8 +365,8 @@ def build_geneext_payload(
 
     Prefers GeneExt's own HTML report, which carries every statistic it computed,
     and falls back to the log when the report is unavailable.  ``source`` records
-    which of the two the numbers came from, so the tab can say when it is showing
-    the reduced, log-derived view.
+    which of the two the numbers came from, so the tab can leave out the
+    distributions the log cannot supply.
 
     Returns ``{}`` when neither file yields anything, which is what hides the tab.
     """

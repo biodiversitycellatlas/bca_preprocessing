@@ -124,13 +124,23 @@ filt_cells <- cell_summary_dt[
   cell_sizes >= umi_thr[1] & cell_sizes <= umi_thr[2] & cell_genes >= gen_thr
 ]
 
-# Check if any cells pass the filters
-if (nrow(filt_cells) == 0)
-    stop("No cells pass the filters, adjust umi_thr or gen_thr")
+# Check if any cells pass the filters (e.g. small test datasets); warn instead of failing
+has_filt_cells <- nrow(filt_cells) > 0
+if (!has_filt_cells) {
+  message(sprintf(
+    "[WARNING] No cells pass the filters (%s <= UMI <= %s, genes >= %s); skipping per-cell summary plots",
+    umi_thr[1], umi_thr[2], gen_thr
+  ))
+}
 
 # Filter cells and genes for plotting (only positive counts)
 sum_cells_plot <- cell_summary_dt[cell_sizes > 0]
 sum_genes_plot <- gene_summary_dt[gene_umis > 0]
+
+if (nrow(sum_cells_plot) == 0) {
+  message("[WARNING] No barcodes with UMI > 0 found; skipping all plots")
+  quit(save = "no", status = 0)
+}
 
 # Define a dynamic color palette
 dataset_names <- unique(cell_summary_dt$dataset)
@@ -188,8 +198,12 @@ if (!dir.exists(scdb_fig_dir)) {
 }
 
 # Combine plots with relative widths
-combined_plot <- gp_umis_dist + gp_cells +
-  plot_layout(nrow = 1)
+if (has_filt_cells) {
+  combined_plot <- gp_umis_dist + gp_cells +
+    plot_layout(nrow = 1)
+} else {
+  combined_plot <- gp_umis_dist
+}
 
 # Save the combined_plot
 ggsave(file.path(scdb_fig_dir, sprintf("UMI_dist_%s_%s.png", map_dir, sub_label)),
@@ -198,6 +212,8 @@ ggsave(file.path(scdb_fig_dir, sprintf("UMI_dist_%s_%s.png", map_dir, sub_label)
 # =============================================================================
 # Per Dataset & Per Cell Plots
 # =============================================================================
+if (!has_filt_cells) quit(save = "no", status = 0)
+
 gp_cells <- ggplot(filt_cells, aes(dataset, fill = dataset)) +
   geom_bar(color = "black") +
   scale_y_continuous(expand = expansion(mult = c(0, 0.2))) +
