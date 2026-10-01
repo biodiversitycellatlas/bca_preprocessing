@@ -158,6 +158,7 @@ def parse_args() -> argparse.Namespace:
     parser.add_argument("--residuals_imgs",  nargs="*", help="Residuals PNG images")
     parser.add_argument("--saturation_logs",nargs="*", help="saturation.log files")
     parser.add_argument("--mt_rrna_metrics",nargs="*", help="*_mt_rrna_metrics.txt files")
+    parser.add_argument("--antisense_metrics", nargs="*", help="*_antisense_metrics.txt files")
     parser.add_argument("--knee_files",      nargs="*", help="UMIperCellSorted.txt files")
     parser.add_argument("--secondderiv_knee",  nargs="*", help="*_knee_data.json files from the second-derivative cell calling")
     parser.add_argument("--secondderiv_stats", nargs="*", help="*_secondderiv_statistics.json files from the second-derivative matrix filtering")
@@ -1087,6 +1088,13 @@ def _discover_starsolo_samples(
         if mt:
             files["mt_rrna"] = mt
 
+        # Antisense reads (stranded runs only, next to the rRNA / mtDNA metrics)
+        antisense = _probe(os.path.join(
+            result_dir, "rRNA_mtDNA", f"{analytical_id}_antisense_metrics.txt"
+        ))
+        if antisense:
+            files["antisense"] = antisense
+
         # Sequencing saturation outputs
         sat_dir = os.path.join(result_dir, "saturation", analytical_id)
         for key, fname in [
@@ -1304,6 +1312,7 @@ def _build_file_map_from_cli(
     _map(args.star_summaries,          "star_summary",  {"starsolo"})
     _map(args.star_full_logs,          "star_full_log", {"starsolo"})
     _map(args.mt_rrna_metrics,         "mt_rrna",       {"starsolo"})
+    _map(args.antisense_metrics,       "antisense",     {"starsolo"})
     _map(args.saturation_logs,         "sat_log",       {"starsolo"})
     _map(args.cell_stats,              "cell_stats",    {"starsolo"})
     _map(args.saturation_imgs,         "sat_img",       {"starsolo"})
@@ -1618,6 +1627,15 @@ def main() -> None:
         mtdna_multi_all    = to_pct(get_val(mt_stats, "Percentage of mtDNA in multimapped reads (all alignments)"))
         mtdna_multi_primary = to_pct(get_val(mt_stats, "Percentage of mtDNA in multimapped reads (primary alignment)"))
 
+        # None rather than "N/A" when the file is absent, so the card leaves the row
+        # out for runs that never counted antisense reads (featureCounts off, or unstranded)
+        antisense_pct: Optional[str] = None
+        if files.get("antisense"):
+            antisense_stats = parse_mt_rrna_metrics(files["antisense"])
+            antisense_pct = to_pct(get_val(
+                antisense_stats, "Percentage of antisense reads (of reads assigned to genes)"
+            ))
+
         global_rows.append([
             s_id, "STARsolo" if using_star else "alevin-fry",
             pct_unique, fmt(n_cells), saturation, reads_07_sat_val, noise_pct,
@@ -1671,6 +1689,7 @@ def main() -> None:
                 "mtdna_unique_pct":     mtdna_unique,
                 "mtdna_multi_all_pct":  mtdna_multi_all,
                 "mtdna_multi_primary_pct": mtdna_multi_primary,
+                "antisense_pct":        antisense_pct,
                 "n_cells":              fmt(n_cells),
                 "saturation":           saturation,
                 "reads_07_saturation":  reads_07_sat_val,
