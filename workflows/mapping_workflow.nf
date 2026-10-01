@@ -74,6 +74,7 @@ workflow QC_mapping_workflow {
         def ch_alevin_filtered_mtx          = Channel.empty()
         def ch_alevin_umipercell            = Channel.empty()
         def ch_featurecounts                = Channel.empty()
+        def ch_antisense                    = Channel.empty()
         def ch_pavian_sankey                = Channel.empty()
         def ch_geneext_report               = Channel.empty()
         def ch_geneext_log                  = Channel.empty()
@@ -155,6 +156,7 @@ workflow QC_mapping_workflow {
                 ch_sat_res_imgs          =  bam_inspection_workflow.out.saturation_residual_imgs
                 ch_sat_logs              =  bam_inspection_workflow.out.saturation_logs
                 ch_featurecounts         =  bam_inspection_workflow.out.featurecount_txt
+                ch_antisense             =  bam_inspection_workflow.out.antisense_txt
                 ch_pavian_sankey         =  bam_inspection_workflow.out.pavian_sankey
             }
 
@@ -223,6 +225,7 @@ workflow QC_mapping_workflow {
                         ch_sat_res_imgs                 = ch_sat_res_imgs.mix(bam_inspection_geneext_workflow.out.saturation_residual_imgs)
                         ch_sat_logs                     = ch_sat_logs.mix(bam_inspection_geneext_workflow.out.saturation_logs)
                         ch_featurecounts                = ch_featurecounts.mix(bam_inspection_geneext_workflow.out.featurecount_txt)
+                        ch_antisense                    = ch_antisense.mix(bam_inspection_geneext_workflow.out.antisense_txt)
                         ch_pavian_sankey                = ch_pavian_sankey.mix(bam_inspection_geneext_workflow.out.pavian_sankey)
                     }
                 }
@@ -276,6 +279,7 @@ workflow QC_mapping_workflow {
         af_filtered_mtx              = ch_alevin_filtered_mtx
         af_umipercell                = ch_alevin_umipercell
         featurecount_txt             = ch_featurecounts
+        antisense_txt                = ch_antisense
         pavian_sankey                = ch_pavian_sankey
         geneext_report               = ch_geneext_report
         geneext_log                  = ch_geneext_log

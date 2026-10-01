@@ -159,7 +159,7 @@ Within each custom configuration file the following variables can be defined:
 | `seqspec_file`           | Optional          | Path to the seqspec file.                                                                                                                                                                                                                                          |
 | `mapping_software`       | Optional          | Software used to map reads (must be one of the following: `"starsolo"`, `"alevin"` or `"both"`). Default set to `"starsolo"`.                                                                                                                                      |
 | `perform_geneext`        | Optional          | Boolean flag to enable or disable the gene extension step in preprocessing. Default is `false`.                                                                                                                                                                    |
-| `perform_featurecounts`  | Optional          | Boolean flag to enable or disable calculation of mtDNA & rRNA percentages. Default is `false`.                                                                                                                                                                     |
+| `perform_featurecounts`  | Optional          | Boolean flag to enable or disable calculation of mtDNA, rRNA & antisense read percentages. Default is `false`.                                                                                                                                                                     |
 | `perform_kraken`         | Optional          | Boolean flag to enable or disable Kraken2 classification of unmapped reads. Default is `false`.                                                                                                                                                                    |
 
 To modify the behaviour of certain processes or enable external pipelines, additional variables can be added to the configuration file. An overview of the extended custom parameters is listed [here](docs/CONFIGURATION_PARAMETERS.md).
@@ -222,7 +222,7 @@ output_directory/
 ├── cellsweep/              # (Optional) CellSweep ambient RNA removal
 ├── saturation/             # (Optional) Sequencing saturation analysis
 ├── gene_ext/               # (Optional) Extended GTF file and outputs from GeneExt
-├── rRNA_mtDNA/             # (Optional) mtDNA and rRNA results from FeatureCounts
+├── rRNA_mtDNA/             # (Optional) mtDNA, rRNA and antisense results from FeatureCounts
 ├── kraken/                 # (Optional) Kraken2 taxonomic classification of unmapped reads
 │
 ├── CellRanger_pipeline/    # (Optional) External Cell Ranger outputs

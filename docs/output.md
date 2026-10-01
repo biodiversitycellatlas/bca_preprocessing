@@ -69,7 +69,7 @@ output_directory/
 ├── doublet_filtering/              # (Optional) Scrublet, scDblFinder and consensus calls
 │
 ├── saturation/                     # (Optional) Sequencing saturation analysis
-├── rRNA_mtDNA/                     # (Optional) rRNA and mtDNA percentages
+├── rRNA_mtDNA/                     # (Optional) rRNA, mtDNA and antisense read percentages
 ├── gene_ext/                       # (Optional) GeneExt extended annotation, report and log
 ├── kraken/                         # (Optional) Taxonomic classification of unmapped reads
 │
@@ -469,10 +469,17 @@ Produced when `perform_featurecounts = true`.
 | File | Description |
 | ---- | ----------- |
 | `<id>_mt_rrna_metrics.txt` | Percentage of reads assigned to mitochondrial and ribosomal RNA features, reported separately for uniquely mapped reads and for multimappers (all alignments, and primary alignments only). |
+| `<id>_antisense_metrics.txt` | Reads assigned to exons on the sense and the antisense strand, and the antisense percentage of the two together. Not produced when `star_soloStrand = "Unstranded"`. |
 
 High rRNA is usually a library preparation issue; high mtDNA usually indicates cell stress or
 damage during dissociation. Both are surfaced in the dashboard's Mapping tab and in the
 per-cell metrics.
+
+STARsolo counts only the strand set by `star_soloStrand`, so reads on the opposite strand of
+a gene do not appear in any of its outputs. For the antisense percentage, featureCounts is run
+twice over the existing BAM, once per strand, using uniquely mapped reads only. A read
+overlapping genes on both strands is counted on both. The percentage appears in the Quality
+Metrics card of the dashboard's Mapping tab.
 
 </details>
 

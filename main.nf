@@ -124,6 +124,7 @@ workflow BCA_PREPROCESSING {
                 mapping_out.saturation_residual_imgs,
                 mapping_out.star_umipercell,
                 mapping_out.featurecount_txt,
+                mapping_out.antisense_txt,
                 mapping_out.secondderiv_knee,
                 mapping_out.secondderiv_stats,
                 mapping_out.secondderiv_cutoff,

@@ -13,7 +13,8 @@ include { SATURATION_TABLE                                  } from '../../../mod
 include { SATURATION_PLOT                                   } from '../../../modules/local/tools/10x_saturate/plot_curve/main'
 include { SAMTOOLS_VIEW_MAPPED                              } from '../../../modules/local/tools/samtools/samtools_view_mapped/main'
 include { SAMTOOLS_VIEW_UNMAPPED                            } from '../../../modules/local/tools/samtools/samtools_view_unmapped/main'
-include { CALC_MT_RRNA                                      } from '../../../modules/local/tools/featurecounts/main'
+include { CALC_MT_RRNA                                      } from '../../../modules/local/tools/featurecounts/calc_mt_rrna/main'
+include { CALC_ANTISENSE                                    } from '../../../modules/local/tools/featurecounts/calc_antisense/main'
 include { KRAKEN_CREATE_DB                                  } from '../../../modules/local/tools/kraken/kraken_create_db/main'
 include { KRAKEN                                            } from '../../../modules/local/tools/kraken/kraken_classify/main'
 include { PAVIAN                                            } from '../../../modules/local/tools/pavian/main'
@@ -38,6 +39,7 @@ workflow bam_inspection_workflow {
         def ch_sat_res_imgs             = Channel.empty()
         def ch_sat_logs                 = Channel.empty()
         def ch_featurecounts            = Channel.empty()
+        def ch_antisense                = Channel.empty()
         def ch_pavian_sankey            = Channel.empty()
 
         SAMTOOLS_INDEX(bam_file)
@@ -105,6 +107,13 @@ workflow bam_inspection_workflow {
             ch_featurecounts = CALC_MT_RRNA.out.mt_rrna_metrics
         }
 
+        // Antisense reads, counted on the opposite strand of the one STARsolo used. Skipped
+        // for an unstranded run, which has no antisense to separate.
+        if (params.perform_featurecounts && params.star_soloStrand != 'Unstranded') {
+            CALC_ANTISENSE(bam_file, ref_gtf.first())
+            ch_antisense = CALC_ANTISENSE.out.antisense_metrics
+        }
+
         // Inspecting unmapped reads using Kraken2
         if (params.perform_kraken) {
 
@@ -123,6 +132,7 @@ workflow bam_inspection_workflow {
         saturation_residual_imgs        = ch_sat_res_imgs
         saturation_logs                 = ch_sat_logs
         featurecount_txt                = ch_featurecounts
+        antisense_txt                   = ch_antisense
         pavian_sankey                   = ch_pavian_sankey
 }
 

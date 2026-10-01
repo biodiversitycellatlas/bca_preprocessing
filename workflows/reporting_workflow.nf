@@ -43,6 +43,7 @@ workflow reporting_workflow {
         residuals_imgs
         knee_files
         mt_rrna_metrics
+        antisense_metrics
         secondderiv_knee
         secondderiv_stats
         secondderiv_cutoff
@@ -147,6 +148,7 @@ workflow reporting_workflow {
             residuals_imgs.collect().ifEmpty([]),
             PREPARE_DASHBOARD_INPUTS.out.knee_files.collect().ifEmpty([]),
             mt_rrna_metrics.collect().ifEmpty([]),
+            antisense_metrics.collect().ifEmpty([]),
             secondderiv_knee.map { it[1] }.collect().ifEmpty([]),
             secondderiv_stats.map { it[1] }.collect().ifEmpty([]),
             percell_json.collect().ifEmpty([]),

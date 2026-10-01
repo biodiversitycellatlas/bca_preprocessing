@@ -1109,7 +1109,11 @@
                         { label: "% rRNA in multimappers primary pos", value: m.rrna_multi_primary_pct },
                         { label: "% mtDNA in unique reads", value: m.mtdna_unique_pct },
                         { label: "% mtDNA in multimappers all pos", value: m.mtdna_multi_all_pct },
-                        { label: "% mtDNA in multimappers primary pos", value: m.mtdna_multi_primary_pct }
+                        { label: "% mtDNA in multimappers primary pos", value: m.mtdna_multi_primary_pct },
+                        // Not counted for unstranded runs, so the row is left out there
+                        ...(m.antisense_pct != null
+                            ? [{ label: "% Antisense reads (of gene-assigned reads)", value: m.antisense_pct }]
+                            : [])
                     ]
                 },
                 {

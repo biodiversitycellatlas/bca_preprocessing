@@ -20,6 +20,7 @@ process GENERATE_DASHBOARD {
     path(residuals_imgs)
     path(knee_files)
     path(mt_rrna_metrics)
+    path(antisense_metrics)
     path(secondderiv_knee)
     path(secondderiv_stats)
     path(per_cell_files)
@@ -50,6 +51,7 @@ process GENERATE_DASHBOARD {
         --star_summaries ${star_summaries} \\
         --star_full_logs ${star_full_logs} \\
         --mt_rrna_metrics ${mt_rrna_metrics} \\
+        --antisense_metrics ${antisense_metrics} \\
         --saturation_logs ${saturation_logs} \\
         --cell_stats ${cell_stats} \\
         --af_meta_info ${af_meta_info} \\
