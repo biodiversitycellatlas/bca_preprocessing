@@ -1,13 +1,77 @@
 #!/bin/bash
 
 # ------------------------------------------------------------------------------
-# Usage / Argument parsing
+# Demultiplex OAK reads on one index (i5 or i7)
+#
+# Usage:
+#   oakseq_custom_demux_i5_i7.sh --barcode CAGGGTTGGC --index-type i5|i7 \
+#       --r1 R1.fastq.gz --r2 R2.fastq.gz [--i1 I1.fastq.gz] --i2 I2.fastq.gz \
+#       --out PREFIX [--max-mm 1]
+#
+# Reads whose index (I2 for i5, I1 for i7) lies within --max-mm mismatches of the
+# reverse-complemented barcode are written to PREFIX_{R1,R2,I1,I2}_001.fastq.gz.
+# --i1 is only required when demultiplexing on i7.
 # ------------------------------------------------------------------------------
-barcode_raw=$1           # e.g. CAGGGTTGGC
-index_type=$2            # either 'i5' or 'i7'
-input_dir=$3
-outdir=$4
-max_mm="${5:-1}"         # default: 1 mismatch
+set -euo pipefail
+
+usage() {
+  sed -n '4,13p' "$0" | sed 's/^# \{0,1\}//'
+  exit 1
+}
+
+# ------------------------------------------------------------------------------
+# Argument parsing
+# ------------------------------------------------------------------------------
+barcode_raw=""
+index_type=""
+R1=""
+R2=""
+I1=""
+I2=""
+out_prefix=""
+max_mm=1                 # default: 1 mismatch
+
+while [[ $# -gt 0 ]]; do
+  case "$1" in
+    --barcode)    barcode_raw=$2; shift 2 ;;
+    --index-type) index_type=$2;  shift 2 ;;
+    --r1)         R1=$2;          shift 2 ;;
+    --r2)         R2=$2;          shift 2 ;;
+    --i1)         I1=$2;          shift 2 ;;
+    --i2)         I2=$2;          shift 2 ;;
+    --out)        out_prefix=$2;  shift 2 ;;
+    --max-mm)     max_mm=$2;      shift 2 ;;
+    -h|--help)    usage ;;
+    *) echo "Error: unknown argument '$1'" >&2; usage ;;
+  esac
+done
+
+if [[ -z "${barcode_raw}" || -z "${index_type}" || -z "${R1}" || -z "${R2}" || -z "${out_prefix}" ]]; then
+  echo "Error: --barcode, --index-type, --r1, --r2 and --out are required." >&2
+  usage
+fi
+
+# Pick the index FASTQ based on i5 or i7
+if [[ "${index_type}" == "i5" ]]; then
+  idx_fastq="${I2}"
+elif [[ "${index_type}" == "i7" ]]; then
+  idx_fastq="${I1}"
+else
+  echo "Error: --index-type must be 'i5' or 'i7'." >&2
+  exit 1
+fi
+
+if [[ -z "${idx_fastq}" ]]; then
+  echo "Error: demultiplexing on ${index_type} needs --$([[ ${index_type} == i5 ]] && echo i2 || echo i1)." >&2
+  exit 1
+fi
+
+for fq in "${R1}" "${R2}" "${I1}" "${I2}"; do
+  if [[ -n "${fq}" && ! -f "${fq}" ]]; then
+    echo "Error: FASTQ '${fq}' not found." >&2
+    exit 1
+  fi
+done
 
 # Reverse‐complement function
 revcomp() {
@@ -16,33 +80,9 @@ revcomp() {
 
 barcode_rc=$(revcomp "$barcode_raw")
 
-# ------------------------------------------------------------------------------
-# Paths & filenames
-# ------------------------------------------------------------------------------
-demux_dir="${outdir}/fastq_demux_${index_type}_${barcode_raw}"
-tmp_dir="${demux_dir}/tmp_demux_${index_type}_${barcode_raw}"
-
-mkdir -p "${demux_dir}" "${tmp_dir}"
-
-# Raw FASTQ files: accept plain or gzipped, whichever is present
-find_read() {
-  local read_id=$1
-  local candidate
-  for ext in fastq.gz fq.gz fastq fq; do
-    candidate="${input_dir}/Undetermined_S0_${read_id}_001.${ext}"
-    if [[ -f "${candidate}" ]]; then
-      echo "${candidate}"
-      return 0
-    fi
-  done
-  echo "Error: no FASTQ found for ${read_id} in ${input_dir}" >&2
-  return 1
-}
-
-R1=$(find_read R1) || exit 1
-R2=$(find_read R2) || exit 1
-I1=$(find_read I1) || exit 1
-I2=$(find_read I2) || exit 1
+mkdir -p "$(dirname "${out_prefix}")"
+ids_file="${out_prefix}_${index_type}_ids.txt"
+: > "${ids_file}"
 
 # Stream a FASTQ as plain text, whether or not it is gzipped
 cat_fastq() {
@@ -53,22 +93,12 @@ cat_fastq() {
   fi
 }
 
-# Pick the index FASTQ based on i5 or i7
-if [[ "${index_type}" == "i5" ]]; then
-  idx_fastq="${I2}"
-elif [[ "${index_type}" == "i7" ]]; then
-  idx_fastq="${I1}"
-else
-  echo "Error: first argument must be 'i5' or 'i7'."
-  exit 1
-fi
-
 # ------------------------------------------------------------------------------
 # 1) Extract matching read IDs
 # ------------------------------------------------------------------------------
 echo "Extracting read IDs from ${index_type} (${idx_fastq}) for barcode ${barcode_raw} (RC=${barcode_rc}), ≤${max_mm} mismatches..."
 cat_fastq "${idx_fastq}" | \
-awk -v bc="${barcode_rc}" -v mm="${max_mm}" -v out="${tmp_dir}/ids.txt" '
+awk -v bc="${barcode_rc}" -v mm="${max_mm}" -v out="${ids_file}" '
   function hamming(a,b) {
     if (length(a)!=length(b)) return -1;
     d=0;
@@ -79,23 +109,34 @@ awk -v bc="${barcode_rc}" -v mm="${max_mm}" -v out="${tmp_dir}/ids.txt" '
     hdr=$0; sub(/^@/,"",hdr); split(hdr,A," "); id=A[1];
   }
   NR%4==2 {
-    if (hamming($0,bc) >= 0 && hamming($0,bc) <= mm) {
+    h=hamming($0,bc);
+    if (h >= 0 && h <= mm) {
       print id >> out
     }
   }
 '
 
+n_matched=$(wc -l < "${ids_file}" | tr -d ' ')
+echo "Reads matching ${index_type} ${barcode_raw}: ${n_matched}"
+
 # ------------------------------------------------------------------------------
-# 2) Subset all four FASTQs with seqtk
+# 2) Subset all FASTQs with seqtk
 # ------------------------------------------------------------------------------
-echo "Demultiplexing all four reads into ${demux_dir}/${barcode_raw}_*.fastq.gz …"
-for fq in "${R1}" "${R2}" "${I1}" "${I2}"; do
-  # seqtk reads plain and gzipped FASTQs alike; strip whichever extension is present
-  base=$(basename "${fq}" | sed -E 's/\.(fastq|fq)(\.gz)?$//')
-  clean_base=${base#Undetermined_}
-  seqtk subseq "${fq}" "${tmp_dir}/ids.txt" | gzip > "${demux_dir}/${barcode_raw}_${clean_base}.fastq.gz"
-done
+echo "Demultiplexing reads into ${out_prefix}_*_001.fastq.gz …"
+subset() {
+  local fq=$1
+  local read_id=$2
+  # seqtk reads plain and gzipped FASTQs alike
+  seqtk subseq "${fq}" "${ids_file}" | gzip > "${out_prefix}_${read_id}_001.fastq.gz"
+}
+
+subset "${R1}" R1
+subset "${R2}" R2
+if [[ -n "${I1}" ]]; then subset "${I1}" I1; fi
+if [[ -n "${I2}" ]]; then subset "${I2}" I2; fi
+
+rm -f "${ids_file}"
 
 echo "Done."
 echo "Outputs:"
-ls -1 "${demux_dir}/${barcode_raw}"_*.fastq.gz
+ls -1 "${out_prefix}"_*_001.fastq.gz
