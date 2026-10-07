@@ -1,5 +1,5 @@
 process STARSOLO_INDEX {
-    publishDir "${params.outdir}/genome/star_index_${ref_gtf.simpleName}_${meta.id}", mode: 'copy'
+    publishDir "${params.outdir}/genome/star_index_${ref_gtf.simpleName}${index_suffix}", mode: 'copy'
     label 'process_single_mem2'
 
     // Memory tracks the size of the reference being indexed, overrides process_single_mem2's flat assignments. 
@@ -10,10 +10,13 @@ process STARSOLO_INDEX {
     conda "${moduleDir}/environment.yml"
     container "oras://community.wave.seqera.io/library/htslib_samtools_star_gawk:f196f82abbbc8871"
 
+    // One index per run: fastq_cDNA holds the cDNA reads of every sample, only used for
+    // the read length. Staged into numbered dirs so equal filenames across samples don't clash.
     input:
-    tuple val(meta), path(fastq_cDNA), path(fastq_BC_UMI), path(fastq_indices), path(input_file)
+    path(fastq_cDNA, stageAs: 'cdna_?/*')
     path ref_gtf
     path ref_fasta
+    val index_suffix
 
     output:
     path("*"),          emit: index
@@ -35,8 +38,15 @@ process STARSOLO_INDEX {
     echo "--genomeSAsparseD = ${star_genomeSAsparseD}"
     echo "--limitGenomeGenerateRAM = ${genomegen_ram} (allocation: ${task.memory})"
 
-    # Calculate SJDB overhang using the first read from the first fastq file
-    sjdb_overhang=\$(zcat ${fastq_cDNA} | awk 'NR==2 {print length(\$0)-1; exit}' || echo "")
+    # SJDB overhang = max read length - 1, taken from the first read of every sample's cDNA fastq
+    sjdb_overhang=""
+    for fq in cdna_*/*; do
+        len=\$(zcat "\$fq" | awk 'NR==2 {print length(\$0)-1; exit}' || echo "")
+        if [ -n "\$len" ] && { [ -z "\$sjdb_overhang" ] || [ "\$len" -gt "\$sjdb_overhang" ]; }; then
+            sjdb_overhang=\$len
+        fi
+    done
+    echo "--sjdbOverhang = \${sjdb_overhang}"
 
     echo "Generating genome index with STAR"
     STAR --runMode genomeGenerate \\

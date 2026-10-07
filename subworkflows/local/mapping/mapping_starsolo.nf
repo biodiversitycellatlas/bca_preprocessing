@@ -42,7 +42,13 @@ workflow mapping_starsolo_workflow {
         if (params.star_index && file(params.star_index).exists() && remap_geneext == 'false') {
             star_index_ch = Channel.value(file(params.star_index))
         } else {
-            STARSOLO_INDEX(data_output, ref_gtf, ref_fasta)
+            // Build a single index for the whole run; the samples' cDNA reads are only
+            // gathered so the index can size --sjdbOverhang on the longest read
+            def all_cdna_ch = data_output
+                .map { meta, fastq_cDNA, fastq_BC_UMI, fastq_indices, input_file -> fastq_cDNA }
+                .collect()
+            def index_suffix = remap_geneext == 'true' ? '_geneext' : ''
+            STARSOLO_INDEX(all_cdna_ch, ref_gtf, ref_fasta, index_suffix)
             star_index_ch = STARSOLO_INDEX.out.index.first()
         }
 
