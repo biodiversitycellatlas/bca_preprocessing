@@ -76,6 +76,7 @@ workflow QC_mapping_workflow {
         def ch_featurecounts                = Channel.empty()
         def ch_antisense                    = Channel.empty()
         def ch_pavian_sankey                = Channel.empty()
+        def ch_kraken_report                = Channel.empty()
         def ch_geneext_report               = Channel.empty()
         def ch_geneext_log                  = Channel.empty()
 
@@ -158,6 +159,7 @@ workflow QC_mapping_workflow {
                 ch_featurecounts         =  bam_inspection_workflow.out.featurecount_txt
                 ch_antisense             =  bam_inspection_workflow.out.antisense_txt
                 ch_pavian_sankey         =  bam_inspection_workflow.out.pavian_sankey
+                ch_kraken_report         =  bam_inspection_workflow.out.kraken_report
             }
 
             // Optionally run geneext and rerun mapping steps
@@ -227,6 +229,7 @@ workflow QC_mapping_workflow {
                         ch_featurecounts                = ch_featurecounts.mix(bam_inspection_geneext_workflow.out.featurecount_txt)
                         ch_antisense                    = ch_antisense.mix(bam_inspection_geneext_workflow.out.antisense_txt)
                         ch_pavian_sankey                = ch_pavian_sankey.mix(bam_inspection_geneext_workflow.out.pavian_sankey)
+                        ch_kraken_report                = ch_kraken_report.mix(bam_inspection_geneext_workflow.out.kraken_report)
                     }
                 }
             }
@@ -252,6 +255,7 @@ workflow QC_mapping_workflow {
         }
 
     emit:
+        fastqc_results               = FASTQC.out.fastqc_results
         mapped_samplesheet           = ch_mapped_ss
         ref_gtf                      = ref_gtf_ch
         mapping_files                = ch_mapping_files
@@ -281,6 +285,7 @@ workflow QC_mapping_workflow {
         featurecount_txt             = ch_featurecounts
         antisense_txt                = ch_antisense
         pavian_sankey                = ch_pavian_sankey
+        kraken_report                = ch_kraken_report
         geneext_report               = ch_geneext_report
         geneext_log                  = ch_geneext_log
 }

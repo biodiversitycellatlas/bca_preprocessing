@@ -41,6 +41,7 @@ workflow bam_inspection_workflow {
         def ch_featurecounts            = Channel.empty()
         def ch_antisense                = Channel.empty()
         def ch_pavian_sankey            = Channel.empty()
+        def ch_kraken_report            = Channel.empty()
 
         SAMTOOLS_INDEX(bam_file)
 
@@ -125,6 +126,7 @@ workflow bam_inspection_workflow {
             KRAKEN(KRAKEN_CREATE_DB.out.db_path_file, SAMTOOLS_VIEW_UNMAPPED.out.filtered_unmapped_fasta)
             PAVIAN(KRAKEN.out.k2report)
             ch_pavian_sankey = PAVIAN.out.sankey
+            ch_kraken_report = KRAKEN.out.k2report
         }
 
     emit:
@@ -134,6 +136,7 @@ workflow bam_inspection_workflow {
         featurecount_txt                = ch_featurecounts
         antisense_txt                   = ch_antisense
         pavian_sankey                   = ch_pavian_sankey
+        kraken_report                   = ch_kraken_report
 }
 
 /*

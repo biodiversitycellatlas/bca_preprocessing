@@ -1,7 +1,6 @@
 # MultiQC Configuration File
 
 # General settings
-dirs: true
 verbose: true
 force: true
 

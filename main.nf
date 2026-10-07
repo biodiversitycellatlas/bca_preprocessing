@@ -132,7 +132,9 @@ workflow BCA_PREPROCESSING {
                 filtering_workflow.out.cs_umap_comparison_plot,
                 filtering_workflow.out.cs_top_genes,
                 mapping_out.geneext_report,
-                mapping_out.geneext_log
+                mapping_out.geneext_log,
+                mapping_out.fastqc_results,
+                mapping_out.kraken_report
             )
 
             multiqc_report_ch = reporting_workflow.out.multiqc_report

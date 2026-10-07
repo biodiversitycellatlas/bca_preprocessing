@@ -52,6 +52,8 @@ workflow reporting_workflow {
         cs_top_genes
         geneext_report
         geneext_log
+        fastqc_results
+        kraken_report
 
     main:
         // Declare channels
@@ -159,7 +161,7 @@ workflow reporting_workflow {
             geneext_log.collect().ifEmpty([])
         )
 
-        // Trigger Mapping Stats & MultiQC
+        // Trigger Mapping Stats
         mapping_stats_trigger = ch_star_logs.collect()
             .mix(
                 saturation_logs.collect(),
@@ -171,9 +173,28 @@ workflow reporting_workflow {
 
         MAPPING_STATS(mapping_stats_trigger)
 
+        // The outputs MultiQC has a module for: FastQC zips, STAR's Log.final.out
+        // and the Kraken2 reports
+        def ch_multiqc_files = fastqc_results
+            .flatten()
+            .filter { f -> f.name.endsWith('_fastqc.zip') }
+            .mix(
+                ch_star_logs.map { meta, log_final -> log_final },
+                kraken_report
+            )
+            .collect()
+            .ifEmpty([])
+
+        // Salmon's meta_info.json takes its sample name from the run directory it sits
+        // in, so the IDs are passed along to rebuild '<id>_run/aux_info/' in MULTIQC
+        def ch_multiqc_salmon = af_meta_info
+            .toSortedList { a, b -> a[0].id <=> b[0].id }
+            .map { rows -> [ rows.collect { row -> row[0].id }, rows.collect { row -> row[1] } ] }
+
         ch_multiqc_config = Channel.fromPath("${projectDir}/assets/multiqc_config.yml", checkIfExists: true)
         MULTIQC(
-            mapping_stats_trigger,
+            ch_multiqc_files,
+            ch_multiqc_salmon,
             ch_multiqc_config
         )
 
