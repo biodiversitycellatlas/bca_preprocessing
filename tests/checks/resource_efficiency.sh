@@ -325,7 +325,7 @@ if bad:
 
 # Aliases the workflows declare must resolve back to a real module process.
 aliases = ["DOUBLET_FILTER_RAW", "DOUBLET_FILTER_CELL_CALLED",
-           "MERGE_REF_GTF_GENEEXT", "MERGE_REF_FASTA_GENEEXT"]
+           "MERGE_REF_GTF_GENEEXT"]
 unresolved = [a for a in aliases if mod.resolve_label(a, labels)[1] is None]
 if unresolved:
     print("FAIL\taliases did not resolve: " + ", ".join(unresolved))

@@ -7,16 +7,19 @@ process SALMON_SPLICI {
 
     input:
     tuple val(meta), path(fastq_cDNA), path(fastq_BC_UMI), path(fastq_indices), path(input_file)
+    path(ref_gtf)
+    path(ref_fasta)
+    val(index_suffix)
 
     output:
-    path("splici_index/"), emit: splici_index_reference
+    path("splici_index${index_suffix}/"), emit: splici_index_reference
     path "versions.yml",   emit: versions
 
     script:
     """
     echo -e "\\n\\n==================  SALMON SPLICI =================="
-    echo "Reference fasta: ${params.ref_fasta}"
-    echo "Reference ref_gtf: ${params.ref_gtf}"
+    echo "Reference fasta: ${ref_fasta}"
+    echo "Reference ref_gtf: ${ref_gtf}"
 
     # Calculate read length using the first read from the first fastq file
     readlen=\$(zcat ${fastq_cDNA} | awk 'NR==2 {print length(\$0)}')
@@ -24,12 +27,12 @@ process SALMON_SPLICI {
 
     # Create splici reference
     salmon_create_splici_ref.R \\
-        --ref_fasta ${params.ref_fasta} \\
-        --ref_gtf ${params.ref_gtf} \\
+        --ref_fasta ${ref_fasta} \\
+        --ref_gtf ${ref_gtf} \\
         --readlen \${readlen} \\
         --flanklen 5 \\
         --prefix "transcriptome_splici" \\
-        --out_dir ./splici_index
+        --out_dir ./splici_index${index_suffix}
 
     # Define the reference fasta file created by the R script
     # ref_fasta=\$(ls ./splici_index_reference/*.fa)

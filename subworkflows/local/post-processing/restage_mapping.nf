@@ -22,7 +22,7 @@ def with_suffix(meta, String suffix) {
     def new_meta = meta.clone()
     new_meta.base_id = meta.id
     new_meta.id = meta.id + suffix
-    new_meta.geneext = (suffix == "_geneext_starsolo")
+    new_meta.geneext = suffix.startsWith("_geneext_")
     return new_meta
 }
 
@@ -63,6 +63,10 @@ workflow restage_mapping_workflow {
         def alevin_suffixes = params.mapping_software in ["alevin", "both", "alevin_starsolo", "alevin_subsampled_starsolo"]
             ? ["_alevinfry"]
             : []
+        // GeneExt reads the STARsolo alignments, so alevin-fry was only re-mapped when STARsolo ran
+        if (alevin_suffixes && star_suffixes && params.perform_geneext) {
+            alevin_suffixes << "_geneext_alevinfry"
+        }
 
         // The samplesheet is re-read every run, so expected_cells and manual_cutoff are
         // whatever it says now -- that is what makes the cells re-callable

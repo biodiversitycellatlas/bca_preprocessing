@@ -1,10 +1,13 @@
 process MERGE_REF_GTF {
-    publishDir path: { "${params.outdir}/genome" }, mode: 'copy', saveAs: { filename -> filename == 'versions.yml' ? null : filename }
+    // The task's file stays ref.gtf, which STARSOLO_INDEX names its directory after; only the
+    // published copy carries the suffix, so the GeneExt merge does not overwrite the standard one
+    publishDir path: { "${params.outdir}/genome" }, mode: 'copy', saveAs: { filename -> filename == 'versions.yml' ? null : (filename == 'ref.gtf' ? "ref${publish_suffix}.gtf" : filename) }
     label 'process_single2'
 
     input:
     path base_gtf
     path add_gtf
+    val publish_suffix
 
     output:
     path "ref.gtf",      emit: gtf

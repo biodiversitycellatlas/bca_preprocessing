@@ -10,12 +10,12 @@
 include { mapping_starsolo_workflow                                         } from '../subworkflows/local/mapping/mapping_starsolo'
 include { mapping_starsolo_workflow as mapping_starsolo_geneext_workflow    } from '../subworkflows/local/mapping/mapping_starsolo'
 include { mapping_alevin_workflow                                           } from '../subworkflows/local/mapping/mapping_alevin'
+include { mapping_alevin_workflow as mapping_alevin_geneext_workflow        } from '../subworkflows/local/mapping/mapping_alevin'
 include { bam_inspection_workflow                                           } from '../subworkflows/local/post-processing/bam_inspection'
 include { bam_inspection_workflow as bam_inspection_geneext_workflow        } from '../subworkflows/local/post-processing/bam_inspection'
 include { geneext_workflow                                                  } from '../subworkflows/local/mapping/geneext'
 
 include { MERGE_REF_FASTA                                                   } from '../modules/local/custom/manipulate/merge_ref_fasta/main'
-include { MERGE_REF_FASTA as MERGE_REF_FASTA_GENEEXT                        } from '../modules/local/custom/manipulate/merge_ref_fasta/main'
 include { MERGE_REF_GTF                                                     } from '../modules/local/custom/manipulate/merge_ref_gtf/main'
 include { MERGE_REF_GTF as MERGE_REF_GTF_GENEEXT                            } from '../modules/local/custom/manipulate/merge_ref_gtf/main'
 include { FASTQC                                                            } from '../modules/local/tools/fastqc/main'
@@ -87,7 +87,7 @@ workflow QC_mapping_workflow {
         // Conditionally bypass MERGE_REF_GTF/FASTA when no additional features are provided
         def ref_gtf_ch
         if (params.ref_gtf_addfeature) {
-            MERGE_REF_GTF(params.ref_gtf, Channel.fromPath(params.ref_gtf_addfeature))
+            MERGE_REF_GTF(params.ref_gtf, Channel.fromPath(params.ref_gtf_addfeature), '')
             ref_gtf_ch = MERGE_REF_GTF.out.gtf
             ch_versions = ch_versions.mix(MERGE_REF_GTF.out.versions)
         } else {
@@ -102,6 +102,11 @@ workflow QC_mapping_workflow {
         } else {
             ref_fasta_ch = Channel.value(file(params.ref_fasta))
         }
+
+        // The GeneExt reference, set once GeneExt has run on the STARsolo alignments, so the
+        // alevin-fry branch can re-map against the same extended annotation
+        def ref_gtf_geneext_ch   = null
+        def ref_fasta_geneext_ch = null
 
         // Safe bc_whitelist: emit empty string when no whitelist is produced by preprocessing
         def bc_whitelist_safe = bc_whitelist.ifEmpty("")
@@ -182,26 +187,19 @@ workflow QC_mapping_workflow {
 
                 if (params.perform_geneext) {
 
-                    // Same conditional bypass for geneext GTF/FASTA
-                    def ref_gtf_geneext_ch
+                    // Same conditional bypass for geneext GTF
                     if (params.ref_gtf_addfeature) {
-                        MERGE_REF_GTF_GENEEXT(geneext_workflow.out.ref_gtf, Channel.fromPath(params.ref_gtf_addfeature))
+                        MERGE_REF_GTF_GENEEXT(geneext_workflow.out.ref_gtf, Channel.fromPath(params.ref_gtf_addfeature), '_geneext')
                         ref_gtf_geneext_ch = MERGE_REF_GTF_GENEEXT.out.gtf
                     } else {
                         // Geneext always extends from the geneext output, no bypass possible here
-                        MERGE_REF_GTF_GENEEXT(geneext_workflow.out.ref_gtf, Channel.value([]))
+                        MERGE_REF_GTF_GENEEXT(geneext_workflow.out.ref_gtf, Channel.value([]), '_geneext')
                         ref_gtf_geneext_ch = MERGE_REF_GTF_GENEEXT.out.gtf
                     }
                     ch_versions = ch_versions.mix(MERGE_REF_GTF_GENEEXT.out.versions)
 
-                    def ref_fasta_geneext_ch
-                    if (params.ref_fasta_addfeature) {
-                        MERGE_REF_FASTA_GENEEXT(params.ref_fasta, Channel.fromPath(params.ref_fasta_addfeature))
-                        ref_fasta_geneext_ch = MERGE_REF_FASTA_GENEEXT.out.fasta
-                        ch_versions = ch_versions.mix(MERGE_REF_FASTA_GENEEXT.out.versions)
-                    } else {
-                        ref_fasta_geneext_ch = Channel.value(file(params.ref_fasta))
-                    }
+                    // GeneExt only extends the annotation, so the genome is the standard one
+                    ref_fasta_geneext_ch = ref_fasta_ch
 
                     def ch_geneext           = apply_suffix(ch_samples, "_geneext_starsolo")
                     ch_mapped_ss = ch_mapped_ss.mix(ch_geneext)
@@ -250,7 +248,8 @@ workflow QC_mapping_workflow {
         if (params.mapping_software == "alevin" || params.mapping_software == "both" || params.mapping_software == "alevin_subsampled_starsolo" || params.mapping_software == "alevin_starsolo") {
             def ch_alevin = apply_suffix(ch_samples, "_alevinfry")
             ch_mapped_ss = ch_mapped_ss.mix(ch_alevin)
-            mapping_alevin_workflow(ch_alevin, bc_whitelist_alevin)
+            // Same reference as the standard STARsolo run, so the two mappers are compared like for like
+            mapping_alevin_workflow(ch_alevin, bc_whitelist_alevin, ref_gtf_ch, ref_fasta_ch, 'false')
 
             ch_mapping_files    = ch_mapping_files.mix(mapping_alevin_workflow.out.mapping_files)
             ch_alevin_meta_info = mapping_alevin_workflow.out.af_meta_info
@@ -266,6 +265,26 @@ workflow QC_mapping_workflow {
             ch_secondderiv_cutoff = ch_secondderiv_cutoff.mix(mapping_alevin_workflow.out.secondderiv_cutoff)
 
             ch_versions = ch_versions.mix(mapping_alevin_workflow.out.versions)
+
+            // Re-map against the GeneExt annotation too, the counterpart of the _geneext_starsolo run.
+            // GeneExt reads the STARsolo alignments, so this only exists when STARsolo ran as well.
+            if (params.perform_geneext && ref_gtf_geneext_ch != null) {
+                def ch_alevin_geneext = apply_suffix(ch_samples, "_geneext_alevinfry")
+                ch_mapped_ss = ch_mapped_ss.mix(ch_alevin_geneext)
+                mapping_alevin_geneext_workflow(ch_alevin_geneext, bc_whitelist_alevin, ref_gtf_geneext_ch, ref_fasta_geneext_ch, 'true')
+
+                ch_mapping_files       = ch_mapping_files.mix(mapping_alevin_geneext_workflow.out.mapping_files)
+                ch_alevin_meta_info    = ch_alevin_meta_info.mix(mapping_alevin_geneext_workflow.out.af_meta_info)
+                ch_alevin_quant_json   = ch_alevin_quant_json.mix(mapping_alevin_geneext_workflow.out.af_quant_json)
+                ch_alevin_cell_meta    = ch_alevin_cell_meta.mix(mapping_alevin_geneext_workflow.out.af_cell_meta)
+                ch_alevin_mtx          = ch_alevin_mtx.mix(mapping_alevin_geneext_workflow.out.af_mtx)
+                ch_alevin_filtered_mtx = ch_alevin_filtered_mtx.mix(mapping_alevin_geneext_workflow.out.af_filtered_mtx)
+                ch_alevin_umipercell   = ch_alevin_umipercell.mix(mapping_alevin_geneext_workflow.out.af_umipercell)
+                ch_secondderiv_knee    = ch_secondderiv_knee.mix(mapping_alevin_geneext_workflow.out.secondderiv_knee)
+                ch_secondderiv_stats   = ch_secondderiv_stats.mix(mapping_alevin_geneext_workflow.out.secondderiv_stats)
+                ch_secondderiv_cutoff  = ch_secondderiv_cutoff.mix(mapping_alevin_geneext_workflow.out.secondderiv_cutoff)
+                ch_versions            = ch_versions.mix(mapping_alevin_geneext_workflow.out.versions)
+            }
         }
 
     emit:

@@ -31,7 +31,9 @@ from typing import Any, Dict, List, Optional, Tuple
 
 # Ordered longest-first so "_geneext_starsolo" is checked before "_starsolo".
 _ANALYTICAL_SUFFIXES: List[str] = [
+    "_geneext_alevinfry",
     "_geneext_starsolo",
+    "_subsampled_starsolo",
     "_starsolo",
     "_alevinfry",
 ]
@@ -942,9 +944,11 @@ def _extract_base_id(analytical_id: str) -> str:
 
     Examples::
 
-        "Nvec-1C_starsolo"         → "Nvec-1C"
-        "Nvec-1C_geneext_starsolo" → "Nvec-1C"
-        "BCA015_sample_alevinfry"  → "BCA015_sample"
+        "Nvec-1C_starsolo"                → "Nvec-1C"
+        "Nvec-1C_geneext_starsolo"        → "Nvec-1C"
+        "Nvec-1C_subsampled_starsolo"     → "Nvec-1C"
+        "BCA015_sample_alevinfry"         → "BCA015_sample"
+        "BCA015_sample_geneext_alevinfry" → "BCA015_sample"
     """
     for suffix in _ANALYTICAL_SUFFIXES:
         if analytical_id.endswith(suffix):

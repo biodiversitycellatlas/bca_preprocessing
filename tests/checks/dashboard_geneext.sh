@@ -269,4 +269,26 @@ assert_payload "absent.empty" "$NONE" \
     "(d == {}, f\"payload={d}\")" \
     "empty payload hides the tab"
 
+# --------------------------------------------------------------------------
+# Case: suffixes
+#
+# Standalone mode recovers the sample from the analytical id. Every suffix
+# mapping_workflow.nf appends has to strip back to it, the GeneExt alevin-fry run
+# and the subsampled STARsolo run included.
+# --------------------------------------------------------------------------
+
+if out="$("$PYTHON" -c "
+import sys
+sys.path.insert(0, sys.argv[1])
+import generate_dashboard as gd
+ids = ['sampleA_' + s for s in ('starsolo', 'geneext_starsolo', 'subsampled_starsolo',
+                                'alevinfry', 'geneext_alevinfry')]
+got = {i: gd._extract_base_id(i) for i in ids}
+print(('PASS' if set(got.values()) == {'sampleA'} else 'FAIL') + '\t' + str(got))
+" "$PROJECT_ROOT/bin" 2>&1)" && [[ "${out%%$'\t'*}" == "PASS" ]]; then
+    record PASS "suffixes.base_id" "every analytical suffix strips back to the sample"
+else
+    record FAIL "suffixes.base_id" "${out#*$'\t'}"
+fi
+
 finish_check

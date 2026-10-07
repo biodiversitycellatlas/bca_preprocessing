@@ -59,7 +59,7 @@ workflow post_mapping_workflow {
         // Conditionally bypass MERGE_REF_GTF when no additional features are provided
         def ref_gtf_ch
         if (params.ref_gtf_addfeature) {
-            MERGE_REF_GTF(params.ref_gtf, Channel.fromPath(params.ref_gtf_addfeature))
+            MERGE_REF_GTF(params.ref_gtf, Channel.fromPath(params.ref_gtf_addfeature), '')
             ref_gtf_ch = MERGE_REF_GTF.out.gtf
             ch_versions = ch_versions.mix(MERGE_REF_GTF.out.versions)
         } else {
@@ -79,7 +79,7 @@ workflow post_mapping_workflow {
                 )
             }
             if (params.ref_gtf_addfeature) {
-                MERGE_REF_GTF_GENEEXT(Channel.value(geneext_gtf), Channel.fromPath(params.ref_gtf_addfeature))
+                MERGE_REF_GTF_GENEEXT(Channel.value(geneext_gtf), Channel.fromPath(params.ref_gtf_addfeature), '_geneext')
                 ref_gtf_geneext_ch = MERGE_REF_GTF_GENEEXT.out.gtf
                 ch_versions = ch_versions.mix(MERGE_REF_GTF_GENEEXT.out.versions)
             } else {

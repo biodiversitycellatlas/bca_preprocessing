@@ -23,11 +23,17 @@ workflow mapping_alevin_workflow {
     take:
         data_output
         bc_whitelist
+        ref_gtf
+        ref_fasta
+        remap_geneext
 
     main:
-        // Build one Salmon splici and index for all samples
-        SALMON_SPLICI(data_output.first())
-        SALMON_INDEX(SALMON_SPLICI.out.splici_index_reference)
+        // The GeneExt re-mapping builds its own splici and index, kept apart in genome/
+        def index_suffix = remap_geneext == 'true' ? '_geneext' : ''
+
+        // Build one Salmon splici and index for all samples, on the same reference STARsolo uses
+        SALMON_SPLICI(data_output.first(), ref_gtf, ref_fasta, index_suffix)
+        SALMON_INDEX(SALMON_SPLICI.out.splici_index_reference, index_suffix)
 
         // Run Alevin-fry for each sample
         ALEVIN_FRY(

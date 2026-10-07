@@ -8,9 +8,10 @@ process SALMON_INDEX {
 
     input:
     path(splici_index_reference)
+    val(index_suffix)
 
     output:
-    path("salmon_index/"), emit: salmon_index
+    path("salmon_index${index_suffix}/"), emit: salmon_index
     path "versions.yml",   emit: versions
 
 
@@ -20,7 +21,7 @@ process SALMON_INDEX {
     # Build reference index
     salmon index \\
         -t ${splici_index_reference}/*.fa \\
-        -i ./salmon_index \\
+        -i ./salmon_index${index_suffix} \\
         -k 31
 
     cat <<-END_VERSIONS > versions.yml
