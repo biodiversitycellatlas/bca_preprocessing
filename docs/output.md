@@ -38,13 +38,23 @@ run** with its own identifier, formed by appending a suffix to the sample name:
 | ------ | ------------- | ---------------------- |
 | `_starsolo` | STARsolo mapping (`mapping_software = "starsolo"` or `"both"`) | `sampleA_starsolo` |
 | `_alevinfry` | alevin-fry mapping (`mapping_software = "alevin"` or `"both"`) | `sampleA_alevinfry` |
-| `_geneext_starsolo` | The second STARsolo pass against the extended annotation (`perform_geneext = true`) | `sampleA_geneext_starsolo` |
+| `_geneext_starsolo` | STARsolo against the extended annotation (`perform_geneext = true`) | `sampleA_geneext_starsolo` |
+| `_geneext_alevinfry` | alevin-fry against the extended annotation (`perform_geneext = true`, with a `mapping_software` that runs alevin-fry) | `sampleA_geneext_alevinfry` |
 | `_subsampled_starsolo` | STARsolo on subsampled reads (`mapping_software = "alevin_subsampled_starsolo"`) | `sampleA_subsampled_starsolo` |
+| `_geneext_subsampled_starsolo` | STARsolo on the same subsampled reads, against the extended annotation (`alevin_subsampled_starsolo` with `perform_geneext = true`) | `sampleA_geneext_subsampled_starsolo` |
 
 Per-sample subdirectories throughout the output are named by the **analytical run**, not by the
-sample. So a run of `sampleA` with `mapping_software = "both"` and `perform_geneext = true`
-produces `sampleA_starsolo`, `sampleA_geneext_starsolo` and `sampleA_alevinfry` side by side.
-Nothing overwrites anything, and the dashboard shows all of them together.
+sample. So a run of `sampleA` with `mapping_software = "both"`, `perform_geneext = true` and
+`geneext_downstream = "both"` produces `sampleA_starsolo`, `sampleA_geneext_starsolo`,
+`sampleA_alevinfry` and `sampleA_geneext_alevinfry` side by side. Nothing overwrites anything,
+and the dashboard shows all of them together. With the default `geneext_downstream =
+"geneext_only"` only the two `_geneext_` runs are made; `mapping_STARsolo/sampleA_starsolo/`
+then holds just the alignment GeneExt read (BAM and logs), and appears nowhere else. See
+[Which runs GeneExt adds](CONFIGURATION_PARAMETERS.md#which-runs-geneext-adds).
+
+Both mappers are built on the same reference: `ref_fasta` and `ref_gtf` merged with
+`ref_fasta_addfeature` and `ref_gtf_addfeature` when those are set, and the GeneExt annotation for
+the `_geneext_` runs. 
 
 ## Directory structure
 
@@ -120,10 +130,11 @@ Generated reference files, reusable across runs on the same species.
 
 | Path | Produced by | Description |
 | ---- | ----------- | ----------- |
-| `star_index_<gtf_name>_<id>/` | `STARSOLO_INDEX` | STAR genome index. |
-| `*_splici*.fa`, `*_t2g_3col.tsv` | `SALMON_SPLICI` | Spliced + intronic (splici) reference and its three-column transcript-to-gene map, used by alevin-fry. |
-| `salmon_index/` | `SALMON_INDEX` | Salmon index built on the splici reference. |
-| `*.fasta`, `*.gtf` | `MERGE_REF_FASTA`, `MERGE_REF_GTF` | Merged reference files, when more than one FASTA or GTF was supplied. |
+| `star_index_<gtf_name>/` | `STARSOLO_INDEX` | STAR genome index, built once per run (`star_index_<gtf_name>_geneext/` for the GeneExt remap). |
+| `splici_index/` | `SALMON_SPLICI` | Spliced + intronic (splici) reference (`*_splici*.fa`) and its three-column transcript-to-gene map (`*_t2g_3col.tsv`), used by alevin-fry (`splici_index_geneext/` for the GeneExt remap). |
+| `salmon_index/` | `SALMON_INDEX` | Salmon index built on the splici reference (`salmon_index_geneext/` for the GeneExt remap). |
+| `ref.fasta`, `ref.gtf` | `MERGE_REF_FASTA`, `MERGE_REF_GTF` | Reference merged with `ref_fasta_addfeature` / `ref_gtf_addfeature`, when those are set. |
+| `ref_geneext.gtf` | `MERGE_REF_GTF_GENEEXT` | The GeneExt annotation merged with `ref_gtf_addfeature`, used by the GeneExt remap (`perform_geneext = true`). |
 | `cellranger_ref/` | `CELLRANGER_MKREF` | Cell Ranger reference, only when `perform_cellranger = true`. |
 
 > [!TIP]
@@ -509,12 +520,19 @@ how much, how the MACS2 peaks were filtered, and which `--maxdist` was used — 
 in the dashboard's **Gene Extension** tab. The per-gene extension table is not duplicated
 there; open `geneext.gtf.Report.html` for it.
 
-With `perform_geneext = true`, the pipeline then rebuilds the index and re-runs the full
-mapping stack against `geneext.gtf`, producing a parallel set of `_geneext_starsolo` analytical
-runs. Comparing `<sample>_starsolo` against `<sample>_geneext_starsolo` in the dashboard shows
+GeneExt always reads STARsolo alignments of the full data. With `mapping_software = "alevin"`
+or `"alevin_subsampled_starsolo"`, or with `geneext_downstream = "geneext_only"`, that is a
+STARsolo pass mapped for GeneExt alone, stripped to the BAM.
+
+With `perform_geneext = true`, the pipeline then rebuilds the index and re-maps against
+`geneext.gtf` with every mapper of `mapping_software`: `_geneext_starsolo` (or
+`_geneext_subsampled_starsolo`, on the subsample) and `_geneext_alevinfry` analytical runs.
+By default (`geneext_downstream = "geneext_only"`) these are the only runs reported and
+analysed downstream. With `geneext_downstream = "both"` the standard runs are kept as well,
+and comparing `<sample>_starsolo` against `<sample>_geneext_starsolo` in the dashboard shows
 exactly what the extension changed.
 
-With `run_method = "geneext_only"` the pipeline stops here, which is the mode to use when you
+With `run_method = "geneext_only"` only that STARsolo pass is mapped and the pipeline stops here, which is the mode to use when you
 want to generate a reference improvement once and reuse it across many runs — pass it back as
 `ref_gtf` on subsequent runs. In that mode `mapping_STARsolo/` carries the logs and the BAM
 but no count matrices, no cell calls and no saturation curves: the steps that produce them
@@ -600,11 +618,11 @@ bin/generate_dashboard.py --result-dir /path/to/output_directory --output dashbo
 
 | Path | Description |
 | ---- | ----------- |
-| `mapping_stats.tsv` | One row per analytical run with the headline mapping and quantification statistics. The right file for pulling numbers into a spreadsheet or a downstream script. |
-| `multiqc_report.html` | MultiQC report aggregating FastQC, STAR and other tool outputs. |
+| `mapping_stats.tsv` | One row per analytical run with the headline mapping and quantification statistics. |
+| `multiqc_report.html` | MultiQC report aggregating FastQC, STAR (`Log.final.out`), Kraken2 and Salmon (alevin-fry mapping) outputs. |
 | `multiqc_data/` | The underlying MultiQC data tables. |
-| `UMI_dist_*.png` | UMI distribution plots (STARsolo runs only). |
-| `cells_genes_*.png` | Cell and gene count plots (STARsolo runs only). |
+| `R_images/UMI_dist_*.png` | UMI distribution plots (runs that mapped with STARsolo). |
+| `R_images/cells_genes_*.png` | Cell and gene count plots (runs that mapped with STARsolo). |
 | `per-cell_metrics/<id>_metrics.csv` | Per-cell metrics table: barcode, total reads, intronic %, mitochondrial %, rRNA %, cell/non-cell status. |
 | `per-cell_metrics/<id>_metrics.json` | The same metrics as embedded in the dashboard. |
 | `per-cell_metrics/*.png` | Per-cell metric plots. |
@@ -640,8 +658,10 @@ The pipeline deliberately produces several matrices. For a standard analysis:
 3. **Doublet calls are already in** `anndata/.../obs["doublet_status"]`. The per-barcode tables
    behind them are in `doublet_filtering/<sample>_starsolo/combined/`, and with
    `perform_doublet_filtering = true` the doublets are gone from every published matrix.
-4. **If you ran GeneExt**, compare against the `_geneext_starsolo` analytical run and use it
-   instead if the extension improved gene detection — the dashboard's Mapping tab shows both.
+4. **If you ran GeneExt**, take the `_geneext_starsolo` analytical run (or `_geneext_alevinfry`
+   for alevin-fry) instead. By default these are the only runs; with
+   `geneext_downstream = "both"` the dashboard's Mapping tab shows them next to the standard
+   runs, so you can check that the extension improved gene detection.
 5. **For RNA velocity**, start from `anndata/<sample>_starsolo/velocity/` instead — it carries
    the same cells with the splicing breakdown as layers. Requires `perform_velocity = true`.
 

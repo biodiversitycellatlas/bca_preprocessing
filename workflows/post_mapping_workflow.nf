@@ -28,7 +28,8 @@ include { MERGE_REF_GTF as MERGE_REF_GTF_GENEEXT                            } fr
 
         Mapping itself, including the GeneExt re-mapping, is not repeated: when
         'perform_geneext' is set, the GeneExt-remapped analytical runs of the previous
-        run are picked up alongside the standard ones and carried through the same steps.
+        run are picked up, alongside the standard ones with geneext_downstream = 'both',
+        and carried through the same steps.
 
         Emits the same channels as QC_mapping_workflow, so the filtering and reporting
         workflows are driven identically in both modes.

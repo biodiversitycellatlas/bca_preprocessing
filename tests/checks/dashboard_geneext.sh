@@ -274,14 +274,14 @@ assert_payload "absent.empty" "$NONE" \
 #
 # Standalone mode recovers the sample from the analytical id. Every suffix
 # mapping_workflow.nf appends has to strip back to it, the GeneExt alevin-fry run
-# and the subsampled STARsolo run included.
+# and the (GeneExt) subsampled STARsolo runs included.
 # --------------------------------------------------------------------------
 
 if out="$("$PYTHON" -c "
 import sys
 sys.path.insert(0, sys.argv[1])
 import generate_dashboard as gd
-ids = ['sampleA_' + s for s in ('starsolo', 'geneext_starsolo', 'subsampled_starsolo',
+ids = ['sampleA_' + s for s in ('starsolo', 'geneext_starsolo', 'subsampled_starsolo', 'geneext_subsampled_starsolo',
                                 'alevinfry', 'geneext_alevinfry')]
 got = {i: gd._extract_base_id(i) for i in ids}
 print(('PASS' if set(got.values()) == {'sampleA'} else 'FAIL') + '\t' + str(got))

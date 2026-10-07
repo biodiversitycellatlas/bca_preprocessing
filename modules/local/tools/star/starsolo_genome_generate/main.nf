@@ -19,7 +19,7 @@ process STARSOLO_INDEX {
     val index_suffix
 
     output:
-    path("*"),          emit: index
+    path("GenomeDir"),  emit: index
     path "versions.yml", emit: versions
 
     script:
@@ -29,7 +29,7 @@ process STARSOLO_INDEX {
 
     // Derive it from task.memory * 0.85, and allow for a user override via params.star_limitGenomeGenerateRAM. 
     def genomegen_ram = params.star_limitGenomeGenerateRAM
-        ?: (long) ((task.memory ? task.memory.toBytes() : 32000000000L) * 0.85)
+        ?: ((task.memory ? task.memory.toBytes() : 32000000000L) * 0.85) as long
 
     """
     echo -e "\\n\\n==================  GENOME INDEX STARSOLO =================="

@@ -9,8 +9,8 @@
         results a previous run published instead of re-running the mappers.
 
         The analytical run IDs are rebuilt from the samplesheet with the same suffixes
-        mapping_workflow.nf appends, so 'mapping_software' and 'perform_geneext' must
-        still describe the run being picked up (they are recorded in the previous run's
+        mapping_workflow.nf appends, so 'mapping_software', 'perform_geneext' and
+        'geneext_downstream' must still describe the run being picked up (they are recorded in the previous run's
         pipeline_info/run_config_*.txt). Any analytical run whose published outputs are
         missing or incomplete is reported and skipped, rather than failing the run.
 ~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~
@@ -48,25 +48,12 @@ workflow restage_mapping_workflow {
     main:
         def prev_dir = (params.previous_outdir ?: params.outdir).toString()
 
-        // Suffixes mirroring apply_suffix in mapping_workflow.nf, so the directory names
-        // resolved here are the ones the previous run published under
-        def star_suffixes = []
-        if (params.mapping_software == "alevin_subsampled_starsolo") {
-            star_suffixes << "_subsampled_starsolo"
-        } else if (params.mapping_software in ["starsolo", "both", "alevin_starsolo"]) {
-            star_suffixes << "_starsolo"
-        }
-        if (star_suffixes && params.perform_geneext) {
-            star_suffixes << "_geneext_starsolo"
-        }
-
-        def alevin_suffixes = params.mapping_software in ["alevin", "both", "alevin_starsolo", "alevin_subsampled_starsolo"]
-            ? ["_alevinfry"]
-            : []
-        // GeneExt reads the STARsolo alignments, so alevin-fry was only re-mapped when STARsolo ran
-        if (alevin_suffixes && star_suffixes && params.perform_geneext) {
-            alevin_suffixes << "_geneext_alevinfry"
-        }
+        // The same analytical runs mapping_workflow.nf mapped, so the directory names resolved
+        // here are the ones the previous run published under. The pass mapped only for
+        // GeneExt is not among them: it holds just a BAM and was never carried downstream.
+        def runs = AnalyticalRuns.plan(params)
+        def star_suffixes   = AnalyticalRuns.starSuffixes(runs)
+        def alevin_suffixes = AnalyticalRuns.alevinSuffixes(runs)
 
         // The samplesheet is re-read every run, so expected_cells and manual_cutoff are
         // whatever it says now -- that is what makes the cells re-callable

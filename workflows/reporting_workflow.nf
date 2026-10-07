@@ -100,11 +100,11 @@ workflow reporting_workflow {
             [ meta, file("${dir}/quants_mat_cols.txt") ]
         }
 
-        // Join channels that need renaming by meta ID
+        // Join channels that need renaming by meta ID. af_meta_info is not joined again:
+        // the anchor already carries it, and a second copy collides when staged.
         ch_to_rename = ch_anchor
             .join(cell_stats,     remainder: true)
             .join(knee_files,     remainder: true)
-            .join(af_meta_info,   remainder: true)
             .join(af_quant_json,  remainder: true)
             .join(af_cell_meta,   remainder: true)
             .join(ch_af_mat_cols, remainder: true)

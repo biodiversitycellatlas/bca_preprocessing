@@ -24,6 +24,8 @@ workflow mapping_starsolo_workflow {
         ref_gtf
         ref_fasta
         remap_geneext
+        bam_only            // true for a pass mapped only for GeneExt: alignment and BAM, nothing else
+        prebuilt_star_index // a STARsolo index another pass already built, or null to build one here
 
     main:
         // Initialize reporting channels
@@ -35,12 +37,11 @@ workflow mapping_starsolo_workflow {
         def ch_secondderiv_cutoff   = Channel.empty()
         def ch_versions             = Channel.empty()
 
-        // Check if the user has requested a valid geneext-only run
-        def bam_only = params.geneext_bam_only && params.run_method == "geneext_only" && remap_geneext == 'false'
-
         // Check if star index is provided, if not create it
         def star_index_ch
-        if (params.star_index && file(params.star_index).exists() && remap_geneext == 'false') {
+        if (prebuilt_star_index != null) {
+            star_index_ch = prebuilt_star_index
+        } else if (params.star_index && file(params.star_index).exists() && remap_geneext == 'false') {
             star_index_ch = Channel.value(file(params.star_index))
         } else {
             // Build a single index for the whole run; the samples' cDNA reads are only
@@ -104,6 +105,7 @@ workflow mapping_starsolo_workflow {
         star_final_log                  = STARSOLO_ALIGN.out.log_final_file
         star_summaries                  = STARSOLO_ALIGN.out.summary_csv
         star_cellreads                  = STARSOLO_ALIGN.out.cellreads_stats
+        star_index                      = star_index_ch
         versions                        = ch_versions
 }
 

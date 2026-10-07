@@ -138,19 +138,33 @@ workflow PIPELINE_INITIALISATION {
     }
     MappingRateCheck.reset(workflow)
 
+    if (!(params.geneext_downstream in AnalyticalRuns.VALID_GENEEXT_DOWNSTREAM)) {
+        error("Unknown 'geneext_downstream' = '${params.geneext_downstream}'. Use one of: ${AnalyticalRuns.VALID_GENEEXT_DOWNSTREAM.join(', ')}.")
+    }
+
     //
-    // Fail fast on a 'geneext_only' run that cannot produce a BAM
+    // Fail fast on a GeneExt run that cannot produce a BAM
     //
     // GeneExt reads the alignments, so without a BAM there is nothing to extend from. Left
     // unchecked the run succeeds and writes no annotation at all: the BAM channel stays
     // empty, collect() on it emits nothing, and the merge and GeneExt never run.
     //
-    if (params.run_method == "geneext_only" && !params.star_generateBAM && !params.geneext_bam_only) {
-        error(
-            "'run_method' = 'geneext_only' with both 'star_generateBAM' and 'geneext_bam_only'\n" +
-            "unset produces no BAM for GeneExt to read, so no extended annotation would be\n" +
-            "written. Leave 'geneext_bam_only' set, or enable 'star_generateBAM'."
-        )
+    if (params.run_method in ["standard", "geneext_only"] && !params.star_generateBAM) {
+        def geneext_input = AnalyticalRuns.plan(params).geneext_input
+        if (geneext_input == 'own_run' && !params.geneext_bam_only) {
+            error(
+                "GeneExt reads a STARsolo pass of its own here, which with both 'star_generateBAM'\n" +
+                "and 'geneext_bam_only' unset writes no BAM, so no extended annotation would be\n" +
+                "written. Leave 'geneext_bam_only' set, or enable 'star_generateBAM'."
+            )
+        }
+        if (geneext_input == 'reuse_standard') {
+            error(
+                "With 'geneext_downstream' = 'both', GeneExt reads the BAMs of the standard '_starsolo'\n" +
+                "run, which 'star_generateBAM' = false does not write, so no extended annotation would\n" +
+                "be written. Enable 'star_generateBAM', or set 'geneext_downstream' = 'geneext_only'."
+            )
+        }
     }
 
     //

@@ -183,7 +183,14 @@
             "default": "",
             "properties": {
                 "perform_geneext": {
-                    "type": "boolean"
+                    "type": "boolean",
+                    "description": "Extend the annotation with GeneExt, from full-data STARsolo alignments, and re-map every mapper against the extended annotation."
+                },
+                "geneext_downstream": {
+                    "type": "string",
+                    "default": "geneext_only",
+                    "enum": ["geneext_only", "both"],
+                    "description": "Only consulted with 'perform_geneext': 'geneext_only' maps, reports and analyses downstream only the runs on the extended annotation; 'both' also the standard-annotation runs, for a comparison."
                 },
                 "geneext_gtf": {
                     "type": "string"
@@ -191,7 +198,7 @@
                 "geneext_bam_only": {
                     "type": "boolean",
                     "default": true,
-                    "description": "Only consulted with 'run_method' = 'geneext_only': strip STARsolo down to producing the BAM GeneExt reads, skipping the count matrices, the cell call and the BAM inspection."
+                    "description": "Strip a STARsolo pass that is mapped only for GeneExt down to producing the BAM GeneExt reads, skipping the count matrices and the cell call."
                 },
                 "geneext_subsample_nreads": {
                     "type": "integer",
