@@ -1,5 +1,5 @@
 process DOWNLOAD_DEMUXAFY_SIF {
-    publishDir "${params.outdir}/containers/demuxafy", mode: 'copy', overwrite: false
+    publishDir path: { "${params.outdir}/containers/demuxafy" }, mode: 'copy', overwrite: false, saveAs: { filename -> filename == 'versions.yml' ? null : filename }
     tag "demuxafy_sif"
     label 'process_single2'
 
@@ -12,7 +12,7 @@ process DOWNLOAD_DEMUXAFY_SIF {
     def sif_url = 'https://www.dropbox.com/scl/fi/kykwi78vk4yifbbag5ajz/Demuxafy.sif?rlkey=5hcugu6ztpy0eik3xno63xiar&dl=1'
     def md5_url = 'https://www.dropbox.com/scl/fi/37oj9y1frzhqazl4h8s21/Demuxafy.sif.md5?rlkey=o2bn5wp9q68numlaav8gg95kh&dl=1'
     """
-    echo "\n\n==================  DOWNLOAD DEMUXAFY SIF =================="
+    echo -e "\\n\\n==================  DOWNLOAD DEMUXAFY SIF =================="
 
     if [ -z "${params.demuxafy_sif}" ] || [ "${params.demuxafy_sif}" = "null" ]; then
         echo "No demuxafy_sif provided. Downloading Demuxafy.sif (~7.5GB, this can take 15-30 min)..."

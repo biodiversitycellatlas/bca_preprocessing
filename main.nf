@@ -30,6 +30,8 @@ include { reporting_workflow        } from './workflows/reporting_workflow'
 
 include { PIPELINE_INITIALISATION   } from './subworkflows/local/utils_nfcore_bca_pipeline'
 include { PIPELINE_COMPLETION       } from './subworkflows/local/utils_nfcore_bca_pipeline'
+include { processVersionsFromYAML   } from './subworkflows/nf-core/utils_nfcore_pipeline'
+include { workflowVersionToYAML     } from './subworkflows/nf-core/utils_nfcore_pipeline'
 
 include { SAVE_RUN_CONFIG           } from './modules/local/custom/save_configs/main'
 include { MAPPING_STATS             } from './modules/local/custom/dashboard/mapping_stats/main'
@@ -62,6 +64,9 @@ workflow BCA_PREPROCESSING {
         def multiqc_report_ch   = Channel.empty()
         def preprocs_output_ch  = Channel.empty()
 
+        // Cell Ranger / split-pipe results, empty in post_mapping where they are not rerun
+        def vendor_results_ch   = Channel.empty()
+
         // The mapping results the downstream workflows run on, either freshly mapped or
         // read back from a previous run; both branches emit the same channel names
         def mapping_out         = null
@@ -69,6 +74,9 @@ workflow BCA_PREPROCESSING {
 
         // Save run configurations
         SAVE_RUN_CONFIG(samplesheet.first())
+
+        // versions.yml of every process that ran, merged into one file at the end
+        def ch_versions = SAVE_RUN_CONFIG.out.versions
 
         // "post_mapping" resumes a previous run from the point mapping ended, so neither
         // pre-processing nor mapping is repeated
@@ -83,6 +91,8 @@ workflow BCA_PREPROCESSING {
             // Pre-processing workflow
             preprocessing_workflow(samplesheet)
             preprocs_output_ch = preprocessing_workflow.out.data_output
+            vendor_results_ch  = preprocessing_workflow.out.vendor_results
+            ch_versions = ch_versions.mix(preprocessing_workflow.out.versions)
 
             // Runs mapping for "standard", "geneext_only"
             if ( params.run_method != "external_pipeline_only" ) {
@@ -93,6 +103,11 @@ workflow BCA_PREPROCESSING {
                 // Continue with filtering and MultiQC only with "standard" run_method
                 run_downstream = (params.run_method == "standard")
             }
+        }
+
+        // Both mapping branches emit their versions under the same name
+        if (mapping_out != null) {
+            ch_versions = ch_versions.mix(mapping_out.versions)
         }
 
         if (run_downstream) {
@@ -134,15 +149,20 @@ workflow BCA_PREPROCESSING {
                 mapping_out.geneext_report,
                 mapping_out.geneext_log,
                 mapping_out.fastqc_results,
-                mapping_out.kraken_report
+                mapping_out.kraken_report,
+                mapping_out.starsolo_genefull50_raw,
+                vendor_results_ch
             )
 
             multiqc_report_ch = reporting_workflow.out.multiqc_report
+            ch_versions = ch_versions.mix(filtering_workflow.out.versions, reporting_workflow.out.versions)
+
         }
 
     emit:
         preprocs_output         = preprocs_output_ch
         multiqc_report          = multiqc_report_ch
+        versions                = ch_versions
 }
 
 
@@ -173,6 +193,28 @@ workflow {
     BCA_PREPROCESSING (
         PIPELINE_INITIALISATION.out.samplesheet
     )
+
+    //
+    // Collate the software versions into a single <outdir>/versions.yml. A process that ran
+    // per sample reports the same versions every time, so the duplicates are dropped; a file
+    // that does not parse as YAML is kept as written rather than failing the run.
+    //
+    BCA_PREPROCESSING.out.versions
+        .map { yml -> yml.text }
+        .filter { text -> text.trim() }
+        .unique()
+        .map { text ->
+            try {
+                processVersionsFromYAML(text)
+            } catch (Exception e) {
+                log.warn "Could not parse a versions.yml, adding it unprocessed: ${e.message}"
+                text.trim()
+            }
+        }
+        .unique()
+        .mix(Channel.of(workflowVersionToYAML()))
+        .collectFile(storeDir: params.outdir, name: 'versions.yml', sort: true, newLine: true)
+
     //
     // SUBWORKFLOW: Run completion tasks
     //

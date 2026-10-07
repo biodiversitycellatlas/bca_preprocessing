@@ -5,7 +5,7 @@ def setting(Map seqtech, String key, Object fallback = null) {
 }
 
 process STARSOLO_ALIGN {
-    publishDir "${params.outdir}/mapping_STARsolo/${meta.id}", mode: 'copy'
+    publishDir path: { "${params.outdir}/mapping_STARsolo/${meta.id}" }, mode: 'copy', saveAs: { filename -> filename == 'versions.yml' ? null : filename }
     tag "${meta.id}"
     label 'process_high2'
 
@@ -125,7 +125,7 @@ process STARSOLO_ALIGN {
         : 'disabled'
 
     """
-    echo "\n\n==============  MAPPING STARSOLO  ================"
+    echo -e "\\n\\n==============  MAPPING STARSOLO  ================"
     echo "Mapping sample ${meta.id} with STARsolo"
     echo "FASTQ cDNA: ${fastq_cDNA}"
     echo "FASTQ BC & UMI: ${fastq_BC_UMI}"

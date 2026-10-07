@@ -9,7 +9,7 @@ process PARSEBIO_PIPELINE_MKREF {
 
     script:
     """
-    echo "\n\n==================  REF GENOME PARSE PIPELINE  =================="
+    echo -e "\\n\\n==================  REF GENOME PARSE PIPELINE  =================="
     echo "Conda environment: \$CONDA_DEFAULT_ENV"
 
     # Check if a specific reference GTF file is provided, otherwise use the default

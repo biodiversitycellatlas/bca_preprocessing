@@ -8,7 +8,7 @@
 */
 
 process KRAKEN_CREATE_DB {
-    publishDir "${params.outdir}/kraken/kraken_db", mode: 'copy', overwrite: false
+    publishDir path: { "${params.outdir}/kraken/kraken_db" }, mode: 'copy', overwrite: false, saveAs: { filename -> filename == 'versions.yml' ? null : filename }
     tag "kraken_db"
     label 'process_single2'
 
@@ -22,7 +22,7 @@ process KRAKEN_CREATE_DB {
     def db_url = 'https://genome-idx.s3.amazonaws.com/kraken/k2_pluspf_16gb_20241228.tar.gz'
 
     """
-    echo "\n\n==================  KRAKEN CREATE DB  =================="
+    echo -e "\\n\\n==================  KRAKEN CREATE DB  =================="
 
     if [ -z "${params.kraken_db_path}" ]; then
         echo "No kraken_db_path provided. Downloading default database..."

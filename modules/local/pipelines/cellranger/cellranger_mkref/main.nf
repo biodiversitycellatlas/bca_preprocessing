@@ -1,5 +1,5 @@
 process CR_PIPELINE_MKREF {
-    publishDir "${params.outdir}/genome/cellranger_ref", mode: 'copy'
+    publishDir path: { "${params.outdir}/genome/cellranger_ref" }, mode: 'copy', saveAs: { filename -> filename == 'versions.yml' ? null : filename }
     label 'process_medium'
 
 
@@ -16,7 +16,7 @@ process CR_PIPELINE_MKREF {
     // }
 
     """
-    echo "\n\n=============== CellRanger pipeline - create REF  ==============="
+    echo -e "\\n\\n=============== CellRanger pipeline - create REF  ==============="
 
     GTF_FILE="${params.ref_gtf_alt ?: params.ref_gtf}"
 

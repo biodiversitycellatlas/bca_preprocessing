@@ -1,5 +1,5 @@
 process SALMON_SPLICI {
-    publishDir "${params.outdir}/genome", mode: 'copy'
+    publishDir path: { "${params.outdir}/genome" }, mode: 'copy', saveAs: { filename -> filename == 'versions.yml' ? null : filename }
     label 'process_high'
 
     conda "${moduleDir}/environment.yml"
@@ -14,7 +14,7 @@ process SALMON_SPLICI {
 
     script:
     """
-    echo "\n\n==================  SALMON SPLICI =================="
+    echo -e "\\n\\n==================  SALMON SPLICI =================="
     echo "Reference fasta: ${params.ref_fasta}"
     echo "Reference ref_gtf: ${params.ref_gtf}"
 

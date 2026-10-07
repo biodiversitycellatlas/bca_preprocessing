@@ -1,5 +1,5 @@
 process MTX_TO_H5AD {
-    publishDir "${params.outdir}/anndata/${meta.id}/${meta.datatype}", mode: 'copy'
+    publishDir path: { "${params.outdir}/anndata/${meta.id}/${meta.datatype}" }, mode: 'copy', saveAs: { filename -> filename == 'versions.yml' ? null : filename }
     tag "${meta.id} | ${meta.mapping_method} | ${meta.datatype}"
     label 'process_single_mem2'
 
@@ -24,7 +24,7 @@ process MTX_TO_H5AD {
     def doublet_arg   = doublet_results ? "--doublet_results ${doublet_results} --doublet_method ${params.doublet_consensus_method}" : ""
     def cellsweep_arg = cellsweep_h5ad  ? "--cellsweep_h5ad ${cellsweep_h5ad}" : ""
     """
-    echo "\n\n==================  MTX to h5ad =================="
+    echo -e "\\n\\n==================  MTX to h5ad =================="
     echo "Meta: ${meta}"
     echo "Matrix: ${mtx}"
     echo "Doublet results: ${doublet_results ?: 'none'}"

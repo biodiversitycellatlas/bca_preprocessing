@@ -1,5 +1,5 @@
 process FASTQC {
-    publishDir "${params.outdir}/fastqc", mode: 'copy'
+    publishDir path: { "${params.outdir}/fastqc" }, mode: 'copy', saveAs: { filename -> filename == 'versions.yml' ? null : filename }
     tag "${fastq_cDNA}, ${fastq_BC_UMI}"
     label 'process_single_long2'
 

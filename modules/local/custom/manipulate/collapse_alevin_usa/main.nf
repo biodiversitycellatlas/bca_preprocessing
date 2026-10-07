@@ -1,5 +1,5 @@
 process COLLAPSE_ALEVIN_USA {
-    publishDir "${params.outdir}/mapping_alevin/${meta.id}/gene_level_matrix/${meta.datatype}", mode: 'copy'
+    publishDir path: { "${params.outdir}/mapping_alevin/${meta.id}/gene_level_matrix/${meta.datatype}" }, mode: 'copy', saveAs: { filename -> filename == 'versions.yml' ? null : filename }
     tag "${meta.id} | ${meta.datatype} | ${usa_counts}"
     label 'process_low'
 

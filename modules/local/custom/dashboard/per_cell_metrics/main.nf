@@ -1,5 +1,5 @@
 process PERCELL_METRICS {
-    publishDir "${params.outdir}/summary_results/per-cell_metrics", mode: 'copy'
+    publishDir path: { "${params.outdir}/summary_results/per-cell_metrics" }, mode: 'copy', saveAs: { filename -> filename == 'versions.yml' ? null : filename }
     tag "${meta.id}"
     label 'process_single_long2'
 

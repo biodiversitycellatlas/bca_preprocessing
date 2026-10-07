@@ -1,5 +1,5 @@
 process SCIROCKET_SPL_GATHER {
-    publishDir "${params.outdir}", mode: 'copy'
+    publishDir path: { "${params.outdir}" }, mode: 'copy', saveAs: { filename -> filename == 'versions.yml' ? null : filename }
     label 'process_single'
 
 
@@ -13,7 +13,7 @@ process SCIROCKET_SPL_GATHER {
 
     script:
     """
-    echo "\n\n==================  GATHER DEMULTIPLEXED SAMPLES  =================="
+    echo -e "\\n\\n==================  GATHER DEMULTIPLEXED SAMPLES  =================="
     echo "Gathering ${r1_list.size()} R1 files and ${r2_list.size()} R2 files"
     echo "Output directory: spl_gather/"
 

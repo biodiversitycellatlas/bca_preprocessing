@@ -1,5 +1,5 @@
 process VELOCITY_H5AD {
-    publishDir "${params.outdir}/anndata/${meta.id}/velocity", mode: 'copy'
+    publishDir path: { "${params.outdir}/anndata/${meta.id}/velocity" }, mode: 'copy', saveAs: { filename -> filename == 'versions.yml' ? null : filename }
     tag "${meta.id} | ${meta.mapping_method} | ${meta.datatype}"
     label 'process_single_mem2'
 

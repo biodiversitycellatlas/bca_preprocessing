@@ -1,5 +1,5 @@
 process SAMTOOLS_INDEX {
-    publishDir "${params.outdir}/mapping_STARsolo/${meta.id}", mode: 'copy'
+    publishDir path: { "${params.outdir}/mapping_STARsolo/${meta.id}" }, mode: 'copy', saveAs: { filename -> filename == 'versions.yml' ? null : filename }
     tag "${meta.id}"
     label 'process_low2'
 
@@ -15,7 +15,7 @@ process SAMTOOLS_INDEX {
 
     script:
     """
-    echo "\n\n==================  SAMTOOLS INDEX  =================="
+    echo -e "\\n\\n==================  SAMTOOLS INDEX  =================="
     echo "Sample ID: ${meta.id}"
     echo "Indexing BAM file: ${bam_file}"
 

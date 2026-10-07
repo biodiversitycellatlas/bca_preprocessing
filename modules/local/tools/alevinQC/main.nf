@@ -1,5 +1,5 @@
 process ALEVIN_QC {
-    publishDir "${params.outdir}/mapping_alevin/${meta.id}", mode: 'copy'
+    publishDir path: { "${params.outdir}/mapping_alevin/${meta.id}" }, mode: 'copy', saveAs: { filename -> filename == 'versions.yml' ? null : filename }
     tag "${meta.id}"
     label 'process_medium'
 
@@ -15,7 +15,7 @@ process ALEVIN_QC {
 
     script:
     """
-    echo "\n\n==================  ALEVIN-FRY =================="
+    echo -e "\\n\\n==================  ALEVIN-FRY =================="
     echo "Sample ID: ${meta.id}"
     echo "Alevin-Fry output: ${alevin_fry_output}"
 

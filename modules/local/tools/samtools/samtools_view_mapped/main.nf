@@ -16,7 +16,7 @@ process SAMTOOLS_VIEW_MAPPED {
 
     script:
     """
-    echo "\n\n==================  SAMTOOLS VIEW MAPPED =================="
+    echo -e "\\n\\n==================  SAMTOOLS VIEW MAPPED =================="
     echo "Sample ID: ${meta}"
     echo "Processing files: ${bam_file}"
 

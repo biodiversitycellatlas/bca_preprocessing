@@ -73,6 +73,7 @@ workflow cellcalling_starsolo_workflow {
         secondderiv_knee   = ch_secondderiv_knee
         secondderiv_stats  = ch_secondderiv_stats
         secondderiv_cutoff = ch_secondderiv_cutoff
+        versions           = SUBSET_VELOCYTO_MATRICES.out.versions
 }
 
 

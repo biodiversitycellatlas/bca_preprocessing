@@ -1,5 +1,5 @@
 process KRAKEN {
-    publishDir "${params.outdir}/kraken/", mode: 'copy'
+    publishDir path: { "${params.outdir}/kraken/" }, mode: 'copy', saveAs: { filename -> filename == 'versions.yml' ? null : filename }
     tag "${meta.id}"
     label 'process_single_high2'
 
@@ -16,7 +16,7 @@ process KRAKEN {
 
     script:
     """
-    echo "\n\n==================  KRAKEN  =================="
+    echo -e "\\n\\n==================  KRAKEN  =================="
     echo "Kraken db path file: ${db_path_file}"
     echo "Running KRAKEN for ${meta.id}"
     echo "FASTA file: ${filtered_fasta}"

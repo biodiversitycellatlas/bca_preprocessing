@@ -49,6 +49,7 @@ workflow post_mapping_workflow {
         def ch_kraken_report = Channel.empty()
         def ch_geneext_report = Channel.empty()
         def ch_geneext_log    = Channel.empty()
+        def ch_versions       = Channel.empty()
 
         def prev_dir = (params.previous_outdir ?: params.outdir).toString()
 
@@ -60,6 +61,7 @@ workflow post_mapping_workflow {
         if (params.ref_gtf_addfeature) {
             MERGE_REF_GTF(params.ref_gtf, Channel.fromPath(params.ref_gtf_addfeature))
             ref_gtf_ch = MERGE_REF_GTF.out.gtf
+            ch_versions = ch_versions.mix(MERGE_REF_GTF.out.versions)
         } else {
             ref_gtf_ch = Channel.value(file(params.ref_gtf))
         }
@@ -79,6 +81,7 @@ workflow post_mapping_workflow {
             if (params.ref_gtf_addfeature) {
                 MERGE_REF_GTF_GENEEXT(Channel.value(geneext_gtf), Channel.fromPath(params.ref_gtf_addfeature))
                 ref_gtf_geneext_ch = MERGE_REF_GTF_GENEEXT.out.gtf
+                ch_versions = ch_versions.mix(MERGE_REF_GTF_GENEEXT.out.versions)
             } else {
                 ref_gtf_geneext_ch = Channel.value(geneext_gtf)
             }
@@ -105,6 +108,7 @@ workflow post_mapping_workflow {
         )
 
         cellcalling_alevin_workflow(restage_mapping_workflow.out.af_mtx)
+        ch_versions = ch_versions.mix(cellcalling_starsolo_workflow.out.versions)
 
         // Both mappers emit the same second-derivative artefacts, so the reporting channels carry them together
         def ch_secondderiv_knee = cellcalling_starsolo_workflow.out.secondderiv_knee
@@ -138,6 +142,7 @@ workflow post_mapping_workflow {
             ch_antisense     = bam_inspection_workflow.out.antisense_txt
             ch_pavian_sankey = bam_inspection_workflow.out.pavian_sankey
             ch_kraken_report = bam_inspection_workflow.out.kraken_report
+            ch_versions      = ch_versions.mix(bam_inspection_workflow.out.versions)
 
             if (params.perform_geneext) {
                 bam_inspection_geneext_workflow(
@@ -155,6 +160,7 @@ workflow post_mapping_workflow {
                 ch_antisense     = ch_antisense.mix(bam_inspection_geneext_workflow.out.antisense_txt)
                 ch_pavian_sankey = ch_pavian_sankey.mix(bam_inspection_geneext_workflow.out.pavian_sankey)
                 ch_kraken_report = ch_kraken_report.mix(bam_inspection_geneext_workflow.out.kraken_report)
+                ch_versions      = ch_versions.mix(bam_inspection_geneext_workflow.out.versions)
             }
         }
 
@@ -192,6 +198,7 @@ workflow post_mapping_workflow {
         kraken_report                = ch_kraken_report
         geneext_report               = ch_geneext_report
         geneext_log                  = ch_geneext_log
+        versions                     = ch_versions
 }
 
 /*

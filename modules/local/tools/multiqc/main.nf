@@ -1,5 +1,5 @@
 process MULTIQC {
-    publishDir "${params.outdir}/summary_results", mode: 'copy'
+    publishDir path: { "${params.outdir}/summary_results" }, mode: 'copy', saveAs: { filename -> filename == 'versions.yml' ? null : filename }
     label 'process_single2'
 
 

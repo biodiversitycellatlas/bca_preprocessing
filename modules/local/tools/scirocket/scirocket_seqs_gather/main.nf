@@ -1,5 +1,5 @@
 process SCIROCKET_SEQS_GATHER {
-    publishDir "${params.outdir}", mode: 'copy'
+    publishDir path: { "${params.outdir}" }, mode: 'copy', saveAs: { filename -> filename == 'versions.yml' ? null : filename }
     label 'process_single'
 
 
@@ -17,7 +17,7 @@ process SCIROCKET_SEQS_GATHER {
 
     script:
     """
-    echo "\n\n==================  GATHER DEMULTIPLEXED SEQUENCING DATA  =================="
+    echo -e "\\n\\n==================  GATHER DEMULTIPLEXED SEQUENCING DATA  =================="
     echo "Output directory: seqs_gather/"
 
     mkdir -p seqs_gather/

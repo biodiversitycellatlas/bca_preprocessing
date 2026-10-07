@@ -1,5 +1,5 @@
 process PAVIAN {
-    publishDir "${params.outdir}/kraken", mode: 'copy'
+    publishDir path: { "${params.outdir}/kraken" }, mode: 'copy', saveAs: { filename -> filename == 'versions.yml' ? null : filename }
     label 'process_single2'
 
     conda "${moduleDir}/environment.yml"

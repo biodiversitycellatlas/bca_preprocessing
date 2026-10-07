@@ -1,5 +1,5 @@
 process SCRUBLET {
-    publishDir "${params.outdir}/doublet_filtering/${meta.id}/scrublet", mode: 'copy'
+    publishDir path: { "${params.outdir}/doublet_filtering/${meta.id}/scrublet" }, mode: 'copy', saveAs: { filename -> filename == 'versions.yml' ? null : filename }
     tag "${meta.id} | ${meta.mapping_method}"
     label 'process_low2'
 
@@ -20,7 +20,7 @@ process SCRUBLET {
 
     script:
     """
-    echo "\n\n==================  Scrublet =================="
+    echo -e "\\n\\n==================  Scrublet =================="
     echo "Meta: ${meta}"
     echo "10x dir: ${tenx_dir}"
     echo "Datatype: ${meta.datatype}"

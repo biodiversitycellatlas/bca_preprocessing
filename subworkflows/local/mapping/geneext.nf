@@ -30,6 +30,7 @@ workflow geneext_workflow {
         // in the extended annotation. Set geneext_subsample_nreads = 0 to merge as sequenced.
         // With a single sample there is nothing to balance, so its reads are kept in full.
         def ch_bams = ch_starsolo_bam
+        def ch_versions = Channel.empty()
         if (params.geneext_subsample_nreads != 0) {
             ch_by_count = ch_starsolo_bam
                 .combine(ch_starsolo_bam.count())
@@ -42,6 +43,7 @@ workflow geneext_workflow {
 
             SAMTOOLS_SUBSAMPLE(ch_by_count.subsample)
             ch_bams = SAMTOOLS_SUBSAMPLE.out.subsampled_bam.mix(ch_by_count.keep)
+            ch_versions = ch_versions.mix(SAMTOOLS_SUBSAMPLE.out.versions)
         }
 
         // Extract the BAM files and collect them into a single list
@@ -54,11 +56,13 @@ workflow geneext_workflow {
 
         // Run gene extension using GeneExt
         GENE_EXT(SAMTOOLS_MERGE.out.merged_bam, SAMTOOLS_MERGE.out.merged_bai)
+        ch_versions = ch_versions.mix(SAMTOOLS_MERGE.out.versions, GENE_EXT.out.versions)
 
     emit:
         ref_gtf         = GENE_EXT.out.gtf
         report          = GENE_EXT.out.report
         geneext_log     = GENE_EXT.out.log
+        versions        = ch_versions
 }
 
 /*

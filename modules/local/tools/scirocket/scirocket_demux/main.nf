@@ -1,5 +1,5 @@
 process SCIROCKET_DEMUX {
-    publishDir "${params.outdir}", mode: 'copy'
+    publishDir path: { "${params.outdir}" }, mode: 'copy', saveAs: { filename -> filename == 'versions.yml' ? null : filename }
     tag "${meta.id}, ${fastq_cDNA}, ${fastq_BC_UMI}"
     label 'process_medium'
     debug true
@@ -29,7 +29,7 @@ process SCIROCKET_DEMUX {
     def fastq_BC_UMI_name = fastq_BC_UMI.toString().replaceAll(/.fastq.gz$/, '')
 
     """
-    echo "\n\n==================  DEMULTIPLEXING FASTQ FILES  =================="
+    echo -e "\\n\\n==================  DEMULTIPLEXING FASTQ FILES  =================="
     echo "Sample ID: ${meta.id}"
     echo "FASTQ cDNA: ${fastq_cDNA}"
     echo "FASTQ BC & UMI: ${fastq_BC_UMI}"

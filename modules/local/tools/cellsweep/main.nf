@@ -1,5 +1,5 @@
 process CELLSWEEP {
-    publishDir "${params.outdir}/cellsweep/${meta.id}", mode: 'copy'
+    publishDir path: { "${params.outdir}/cellsweep/${meta.id}" }, mode: 'copy', saveAs: { filename -> filename == 'versions.yml' ? null : filename }
     tag "${meta.id} | ${meta.mapping_method}"
     label 'process_low2'
     debug true
@@ -37,7 +37,7 @@ process CELLSWEEP {
     script:
     def doublet_arg = doublet_results ? "--doublet_results ${doublet_results} --doublet_method ${params.doublet_consensus_method}" : ""
     """
-    echo "\n\n==================  CellSweep =================="
+    echo -e "\\n\\n==================  CellSweep =================="
     echo "Meta: ${meta}"
     echo "Raw matrix: ${mtx}"
     echo "Mapping method: ${meta.mapping_method}"

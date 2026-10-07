@@ -1,5 +1,5 @@
 process ALEVIN_FRY {
-    publishDir "${params.outdir}/mapping_alevin/${meta.id}", mode: 'copy'
+    publishDir path: { "${params.outdir}/mapping_alevin/${meta.id}" }, mode: 'copy', saveAs: { filename -> filename == 'versions.yml' ? null : filename }
     tag "${meta.id}"
     label 'process_high'
 
@@ -44,7 +44,7 @@ process ALEVIN_FRY {
           " --report ./${meta.id}_run/aux_info/meta_info.json --"
         : ''
     """
-    echo "\n\n==================  ALEVIN-FRY =================="
+    echo -e "\\n\\n==================  ALEVIN-FRY =================="
     echo "Sample ID: ${meta}"
     echo "Salmon Index: ${salmon_index}"
     echo "Reference fasta: ${params.ref_fasta}"
@@ -54,7 +54,7 @@ process ALEVIN_FRY {
     echo "Geometry (bc / umi / read): ${bc_geom} / ${umi_geom} / ${read_geom}"
 
 
-    echo "\n\n-------------  Salmon Alevin -------------------"
+    echo -e "\\n\\n-------------  Salmon Alevin -------------------"
     ${mapping_guard} salmon alevin \\
         -i ${salmon_index} \\
         -l A \\
@@ -67,20 +67,20 @@ process ALEVIN_FRY {
         -o ./${meta.id}_run \\
         --justAlign
 
-    echo "\n\n-------------  generate permit -------------------"
+    echo -e "\\n\\n-------------  generate permit -------------------"
     alevin-fry generate-permit-list \\
         -i ./${meta.id}_run \\
         -d both \\
         --output-dir ./${meta.id}_out_permit_knee \\
         -k
 
-    echo "\n\n-------------  collate -------------------"
+    echo -e "\\n\\n-------------  collate -------------------"
     alevin-fry collate \\
         -i ./${meta.id}_out_permit_knee \\
         -t 16 \\
         -r ./${meta.id}_run
 
-    echo "\n\n-------------  quant -------------------"
+    echo -e "\\n\\n-------------  quant -------------------"
     alevin-fry quant \\
         -m ${splici_index_reference}/*t2g_3col.tsv \\
         -i ./${meta.id}_out_permit_knee  \\

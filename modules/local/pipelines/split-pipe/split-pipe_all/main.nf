@@ -1,5 +1,5 @@
 process PARSEBIO_PIPELINE {
-    publishDir "${params.outdir}/ParseBio_pipeline/${meta.id}", mode: 'copy'
+    publishDir path: { "${params.outdir}/ParseBio_pipeline/${meta.id}" }, mode: 'copy', saveAs: { filename -> filename == 'versions.yml' ? null : filename }
     tag "${meta.id}"
     label 'process_high'
 
@@ -11,12 +11,14 @@ process PARSEBIO_PIPELINE {
 
     output:
     path("*")
+    tuple val(meta), path("all-sample/report/sample_all_stats.csv"), emit: sample_stats, optional: true
+    tuple val(meta), path("agg_samp_ana_summary.csv"),               emit: agg_summary,  optional: true
     path "versions.yml", emit: versions
 
     script:
     def kitskip_arg   = task.ext.args ?: ''          // If ext.args is defined assign it to kitskip_arg
     """
-    echo "\n\n=============  PARSE BIOSCIENCES PIPELINE  ================"
+    echo -e "\\n\\n=============  PARSE BIOSCIENCES PIPELINE  ================"
     echo "Mapping sample ${meta.id} with Parse Biosciences pipeline"
     echo "FASTQ cDNA: ${fastq_cDNA}"
     echo "FASTQ BC & UMI: ${fastq_BC_UMI}"

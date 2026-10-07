@@ -1,5 +1,5 @@
 process CALC_MT_RRNA {
-    publishDir "${params.outdir}/rRNA_mtDNA", mode: 'copy'
+    publishDir path: { "${params.outdir}/rRNA_mtDNA" }, mode: 'copy', saveAs: { filename -> filename == 'versions.yml' ? null : filename }
     tag "${meta.id}"
     label 'process_single_long2'
 
@@ -19,7 +19,7 @@ process CALC_MT_RRNA {
     script:
     def rrna_arg = rrna_gtf ? "--rrna-gtf ${rrna_gtf} " : ""
     """
-    echo "\n\n==================  CALCULATION rRNA & mtDNA =================="
+    echo -e "\\n\\n==================  CALCULATION rRNA & mtDNA =================="
     echo "Sample ID: ${meta.id}"
     echo "BAM file: ${bam_file}"
     echo "GTF: ${ref_gtf}"

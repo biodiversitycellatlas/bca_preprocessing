@@ -8,6 +8,7 @@
 2. [BD Rhapsody](#bd-rhapsody)
 3. [MARS-seq](#mars-seq)
 4. [sci-RNA-seq3](#sci-rna-seq3)
+5. [OAK](#oak)
 
 ---
 
@@ -227,3 +228,41 @@ columns are required.
 `alevin_*_geometry` values in `conf/seqtech_parameters.config` address this synthetic read, not
 the original one. Setting `perform_demultiplexing = false` skips the rebuild, which also leaves
 the generated whitelists undefined.
+
+## OAK
+
+Protocol `"oak_v1"`:
+    Barcode whitelists: the 10x Genomics 3' v3.1 whitelist (`3M-february-2018.txt`), given via
+    `bc_whitelist`.
+
+OAK overloads a 10x Genomics 3' v3.1 run and splits it into aliquots that each get their own
+i5 index, and optionally their own i7 index. The same 10x barcode can occur in several
+aliquots, so every aliquot has to be demultiplexed and processed as a sample of its own.
+
+**Samplesheet.** Add one row per aliquot, each with a unique `sample` name. All rows point to
+the same (Undetermined) FASTQs:
+
+| Column          | Content                                                              |
+| --------------- | -------------------------------------------------------------------- |
+| `fastq_cDNA`    | read 2 (cDNA)                                                        |
+| `fastq_BC_UMI`  | read 1 (cell barcode positions 1-16, UMI positions 17-28)            |
+| `fastq_indices` | both index reads, e.g. `/path/Undetermined_S0_I*`                    |
+| `p5`            | i5 barcode sequence of the aliquot (**required**)                    |
+| `p7`            | i7 barcode sequence of the aliquot (optional)                        |
+
+`oak_workflow` (`subworkflows/local/pre-processing/preprocs_oak.nf`) runs `OAK_DEMUX`, which
+calls `bin/oakseq_custom_demux_i5_i7.sh` once or twice:
+
+- if `p7` is filled in, reads are first selected on the I1 index read;
+- reads are then selected on the I2 index read for `p5`.
+
+The barcode is reverse-complemented before matching, and a read is kept when its index lies
+within `oak_demux_max_mismatches` mismatches (default 1, set in
+`conf/seqtech_parameters.config`). The selected reads are written to
+`demultiplex/<sample>/<sample>_S1_L001_{R1,R2,I1,I2}_001.fastq.gz`, together with
+`<sample>_oak_demux.log`, which holds the read counts after each step.
+
+From there on, each aliquot is mapped as a 10x 3' v3.1 sample, and with
+`perform_cellranger = true` also run through Cell Ranger. Setting
+`perform_demultiplexing = false` skips the selection and maps the input FASTQs as they are,
+which is only meaningful when they already contain a single aliquot.

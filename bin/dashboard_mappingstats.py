@@ -897,9 +897,12 @@ def parse_cellranger_sample(cr_dir: Path) -> Dict[str, object]:
         "Median UMI Counts per Cell": None,
     }
 
-    metrics_csv = cr_dir / "outs" / "log_metrics_summary.csv"
-    if not metrics_csv.exists():
-        print(f"[WARNING] Cell Ranger metrics CSV not found: {metrics_csv}")
+    # Cell Ranger writes outs/metrics_summary.csv; the log_ name is kept as a fallback
+    metrics_csv = first_existing(
+        [cr_dir / "outs" / "metrics_summary.csv", cr_dir / "outs" / "log_metrics_summary.csv"]
+    )
+    if metrics_csv is None:
+        print(f"[WARNING] Cell Ranger metrics CSV not found in {cr_dir / 'outs'}")
         return row
 
     try:

@@ -1,5 +1,5 @@
 process CR_PIPELINE {
-    publishDir "${params.outdir}/CellRanger_pipeline/", mode: 'copy'
+    publishDir path: { "${params.outdir}/CellRanger_pipeline/" }, mode: 'copy', saveAs: { filename -> filename == 'versions.yml' ? null : filename }
     tag "${meta.id}"
     label 'process_medium'
 
@@ -11,7 +11,7 @@ process CR_PIPELINE {
     path(cr_reference_dir)
 
     output:
-    path("${meta.id}_count/outs"), emit: outs
+    tuple val(meta), path("${meta.id}_count/outs"), emit: outs
     path "versions.yml",           emit: versions
 
     script:
@@ -27,7 +27,7 @@ process CR_PIPELINE {
     def cr_prefix = "fastqs/${meta.id}_S1_L001"
 
     """
-    echo "\n\n=============== CellRanger pipeline  ==============="
+    echo -e "\\n\\n=============== CellRanger pipeline  ==============="
     echo "Sample ID: ${meta}"
     echo "Reference directory: ${cr_reference_dir}"
 

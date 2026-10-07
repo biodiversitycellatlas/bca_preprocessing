@@ -1,5 +1,5 @@
 process SECONDDERIV_CELLCALLING_ALEVIN {
-    publishDir "${params.outdir}/mapping_alevin/${meta.id}/${meta.id}_counts/alevin/filtered_secondderiv", mode: 'copy'
+    publishDir path: { "${params.outdir}/mapping_alevin/${meta.id}/${meta.id}_counts/alevin/filtered_secondderiv" }, mode: 'copy', saveAs: { filename -> filename == 'versions.yml' ? null : filename }
     label 'process_single2'
     tag "${meta.id}"
 

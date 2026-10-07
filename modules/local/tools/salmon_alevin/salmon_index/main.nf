@@ -1,5 +1,5 @@
 process SALMON_INDEX {
-    publishDir "${params.outdir}/genome", mode: 'copy'
+    publishDir path: { "${params.outdir}/genome" }, mode: 'copy', saveAs: { filename -> filename == 'versions.yml' ? null : filename }
     label 'process_high'
 
 
@@ -16,7 +16,7 @@ process SALMON_INDEX {
 
     script:
     """
-    echo "\n\n==================  SALMON INDEX =================="
+    echo -e "\\n\\n==================  SALMON INDEX =================="
     # Build reference index
     salmon index \\
         -t ${splici_index_reference}/*.fa \\

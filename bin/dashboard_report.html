@@ -739,12 +739,12 @@
         <section class="box">
             <nav class="tabs">
                 <div class="tab active" data-tab="mapping">Mapping</div>
+                <div class="tab hidden" data-tab="geneext" id="tab-geneext">Gene Extension</div>
                 <div class="tab" data-tab="cellcalling">Cell Calling</div>
                 <div class="tab" data-tab="saturation">Saturation</div>
                 <div class="tab" data-tab="percell">Per-Cell Visualizations</div>
                 <div class="tab" data-tab="taxonomic">Taxonomic Classification</div>
                 <div class="tab" data-tab="cellfiltering">Cell Filtering</div>
-                <div class="tab hidden" data-tab="geneext" id="tab-geneext">Gene Extension</div>
                 <div class="tab" data-tab="config">Configurations</div>
             </nav>
 
@@ -2227,14 +2227,7 @@
 
             container.innerHTML = `
         <h3>Gene Extension</h3>
-
         <div class="citation-box">
-          <p>
-            3&prime;-untranslated regions are frequently missing or truncated in non-model reference
-            annotations, so 3&prime;-biased single-cell reads fall outside the annotated gene and are
-            counted as intergenic. GeneExt calls peaks on the aligned reads and extends each gene
-            model towards the nearest downstream peak, recovering those reads.
-          </p>
           <p>
             GeneExt is run <strong>once per pipeline run</strong> on the merged alignments of all
             samples, so the statistics here describe the extended annotation as a whole, not the

@@ -79,6 +79,7 @@ workflow QC_mapping_workflow {
         def ch_kraken_report                = Channel.empty()
         def ch_geneext_report               = Channel.empty()
         def ch_geneext_log                  = Channel.empty()
+        def ch_versions                     = Channel.empty()
 
         // Switch to disable non-GeneExt outputs when the user has requested a geneext_only run
         def geneext_bam_only = params.geneext_bam_only && params.run_method == "geneext_only"
@@ -88,6 +89,7 @@ workflow QC_mapping_workflow {
         if (params.ref_gtf_addfeature) {
             MERGE_REF_GTF(params.ref_gtf, Channel.fromPath(params.ref_gtf_addfeature))
             ref_gtf_ch = MERGE_REF_GTF.out.gtf
+            ch_versions = ch_versions.mix(MERGE_REF_GTF.out.versions)
         } else {
             ref_gtf_ch = Channel.value(file(params.ref_gtf))
         }
@@ -96,6 +98,7 @@ workflow QC_mapping_workflow {
         if (params.ref_fasta_addfeature) {
             MERGE_REF_FASTA(params.ref_fasta, Channel.fromPath(params.ref_fasta_addfeature))
             ref_fasta_ch = MERGE_REF_FASTA.out.fasta
+            ch_versions = ch_versions.mix(MERGE_REF_FASTA.out.versions)
         } else {
             ref_fasta_ch = Channel.value(file(params.ref_fasta))
         }
@@ -109,6 +112,7 @@ workflow QC_mapping_workflow {
 
         // Quality Control
         FASTQC(ch_samples)
+        ch_versions = ch_versions.mix(FASTQC.out.versions)
 
         // Mapping: starsolo, alevin, alevin_starsolo (both), or alevin_subsampled_starsolo
         if (params.mapping_software == "starsolo" || params.mapping_software == "both" || params.mapping_software == "alevin_subsampled_starsolo" || params.mapping_software == "alevin_starsolo") {
@@ -119,6 +123,7 @@ workflow QC_mapping_workflow {
                 def ch_star           = apply_suffix(ch_samples, "_subsampled_starsolo")
                 ch_mapped_ss = ch_mapped_ss.mix(ch_star)
                 SUBSAMPLE_FASTQS(ch_star)
+                ch_versions = ch_versions.mix(SUBSAMPLE_FASTQS.out.versions)
 
                 mapping_starsolo_workflow(SUBSAMPLE_FASTQS.out.subsampled_files, bc_whitelist_safe, ref_gtf_ch, ref_fasta_ch, 'false')
 
@@ -147,6 +152,7 @@ workflow QC_mapping_workflow {
             ch_star_final_log            =  mapping_starsolo_workflow.out.star_final_log
             ch_star_summaries            =  mapping_starsolo_workflow.out.star_summaries
             ch_star_cellreads            =  mapping_starsolo_workflow.out.star_cellreads
+            ch_versions                  =  ch_versions.mix(mapping_starsolo_workflow.out.versions)
 
             // Run BAM inspection workflow on STARsolo output when run_method is not set to 'geneext_only'
             if (params.star_generateBAM && !geneext_bam_only) {
@@ -160,6 +166,7 @@ workflow QC_mapping_workflow {
                 ch_antisense             =  bam_inspection_workflow.out.antisense_txt
                 ch_pavian_sankey         =  bam_inspection_workflow.out.pavian_sankey
                 ch_kraken_report         =  bam_inspection_workflow.out.kraken_report
+                ch_versions              =  ch_versions.mix(bam_inspection_workflow.out.versions)
             }
 
             // Optionally run geneext and rerun mapping steps
@@ -171,6 +178,7 @@ workflow QC_mapping_workflow {
                 // GeneExt's own run statistics, summarised in the dashboard
                 ch_geneext_report = geneext_workflow.out.report
                 ch_geneext_log    = geneext_workflow.out.geneext_log
+                ch_versions       = ch_versions.mix(geneext_workflow.out.versions)
 
                 if (params.perform_geneext) {
 
@@ -184,11 +192,13 @@ workflow QC_mapping_workflow {
                         MERGE_REF_GTF_GENEEXT(geneext_workflow.out.ref_gtf, Channel.value([]))
                         ref_gtf_geneext_ch = MERGE_REF_GTF_GENEEXT.out.gtf
                     }
+                    ch_versions = ch_versions.mix(MERGE_REF_GTF_GENEEXT.out.versions)
 
                     def ref_fasta_geneext_ch
                     if (params.ref_fasta_addfeature) {
                         MERGE_REF_FASTA_GENEEXT(params.ref_fasta, Channel.fromPath(params.ref_fasta_addfeature))
                         ref_fasta_geneext_ch = MERGE_REF_FASTA_GENEEXT.out.fasta
+                        ch_versions = ch_versions.mix(MERGE_REF_FASTA_GENEEXT.out.versions)
                     } else {
                         ref_fasta_geneext_ch = Channel.value(file(params.ref_fasta))
                     }
@@ -214,6 +224,7 @@ workflow QC_mapping_workflow {
                     ch_star_final_log               = ch_star_final_log.mix(mapping_starsolo_geneext_workflow.out.star_final_log)
                     ch_star_summaries               = ch_star_summaries.mix(mapping_starsolo_geneext_workflow.out.star_summaries)
                     ch_star_cellreads               = ch_star_cellreads.mix(mapping_starsolo_geneext_workflow.out.star_cellreads)
+                    ch_versions                     = ch_versions.mix(mapping_starsolo_geneext_workflow.out.versions)
 
                     // Run BAM inspection workflow on geneext STARsolo output
                     if (params.star_generateBAM) {
@@ -230,6 +241,7 @@ workflow QC_mapping_workflow {
                         ch_antisense                    = ch_antisense.mix(bam_inspection_geneext_workflow.out.antisense_txt)
                         ch_pavian_sankey                = ch_pavian_sankey.mix(bam_inspection_geneext_workflow.out.pavian_sankey)
                         ch_kraken_report                = ch_kraken_report.mix(bam_inspection_geneext_workflow.out.kraken_report)
+                        ch_versions                     = ch_versions.mix(bam_inspection_geneext_workflow.out.versions)
                     }
                 }
             }
@@ -252,6 +264,8 @@ workflow QC_mapping_workflow {
             ch_secondderiv_knee   = ch_secondderiv_knee.mix(mapping_alevin_workflow.out.secondderiv_knee)
             ch_secondderiv_stats  = ch_secondderiv_stats.mix(mapping_alevin_workflow.out.secondderiv_stats)
             ch_secondderiv_cutoff = ch_secondderiv_cutoff.mix(mapping_alevin_workflow.out.secondderiv_cutoff)
+
+            ch_versions = ch_versions.mix(mapping_alevin_workflow.out.versions)
         }
 
     emit:
@@ -288,6 +302,7 @@ workflow QC_mapping_workflow {
         kraken_report                = ch_kraken_report
         geneext_report               = ch_geneext_report
         geneext_log                  = ch_geneext_log
+        versions                     = ch_versions
 }
 
 /*

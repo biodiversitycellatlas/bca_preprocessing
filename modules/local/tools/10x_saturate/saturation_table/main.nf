@@ -1,5 +1,5 @@
 process SATURATION_TABLE {
-    publishDir "${params.outdir}/saturation/${meta.id}", mode: 'copy'
+    publishDir path: { "${params.outdir}/saturation/${meta.id}" }, mode: 'copy', saveAs: { filename -> filename == 'versions.yml' ? null : filename }
     tag "${meta.id}"
     label 'process_single_mem2'
     label 'error_retry'
@@ -28,7 +28,7 @@ process SATURATION_TABLE {
     // Present only for cellfilter_method = "second_derivative"
     def sd_stats_file = secondderiv_stats ?: ''
     """
-    echo "\n\n==================  SATURATION TABLE =================="
+    echo -e "\\n\\n==================  SATURATION TABLE =================="
     echo "BAM file: ${bam_file}"
     echo "BAM index: ${samtools_bai}"
     echo "Mapped reads: ${samtools_mapreads}"

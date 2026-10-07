@@ -1,5 +1,5 @@
 process DOUBLET_FILTER {
-    publishDir "${params.outdir}/doublet_filtering/${meta.id}/${meta.datatype}", mode: 'copy'
+    publishDir path: { "${params.outdir}/doublet_filtering/${meta.id}/${meta.datatype}" }, mode: 'copy', saveAs: { filename -> filename == 'versions.yml' ? null : filename }
     tag "${meta.id} | ${meta.mapping_method} | ${meta.datatype}"
     label 'process_low'
 
@@ -21,7 +21,7 @@ process DOUBLET_FILTER {
 
     script:
     """
-    echo "\n\n==================  Doublet consensus filter =================="
+    echo -e "\\n\\n==================  Doublet consensus filter =================="
     echo "Meta: ${meta}"
     echo "Matrix: ${mtx}"
     echo "Combined results: ${combined_results}"

@@ -1,5 +1,5 @@
 process MERGE_REF_GTF {
-    publishDir "${params.outdir}/genome", mode: 'copy'
+    publishDir path: { "${params.outdir}/genome" }, mode: 'copy', saveAs: { filename -> filename == 'versions.yml' ? null : filename }
     label 'process_single2'
 
     input:

@@ -12,7 +12,7 @@ process BDRHAP_PIPELINE_YAML {
 
     script:
     """
-    echo "\n\n===============  BD Rhapsody pipeline - create yaml  ==============="
+    echo -e "\\n\\n===============  BD Rhapsody pipeline - create yaml  ==============="
     echo "Sample: ${meta.id}"
     echo "Fastq cDNA: ${fastq_cDNA}"
     echo "Fastq BC UMI: ${fastq_BC_UMI}"

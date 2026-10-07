@@ -1,5 +1,5 @@
 process MARSSEQ_BUILD_READS {
-    publishDir "${params.outdir}/demultiplex/${meta.id}", mode: 'copy'
+    publishDir path: { "${params.outdir}/demultiplex/${meta.id}" }, mode: 'copy', saveAs: { filename -> filename == 'versions.yml' ? null : filename }
     tag "${meta.id}"
     label 'process_low2'
 
@@ -11,7 +11,7 @@ process MARSSEQ_BUILD_READS {
 
     output:
     tuple val(meta), path("${meta.id}_marsseq_cDNA.fastq.gz"), path("${meta.id}_marsseq_BC_UMI.fastq.gz"), path(fastq_indices), path(input_file), emit: reformatted_files
-    tuple val(meta), path("${meta.id}_marsseq_demultiplex.log"), emit: stats
+    tuple val(meta), path("${meta.id}_marsseq_reformat.log"), emit: stats
     path "versions.yml", emit: versions
 
     script:
@@ -22,7 +22,7 @@ process MARSSEQ_BUILD_READS {
         error "No MARS-seq read design defined for protocol '${params.protocol}'. Set 'marsseq_read1_design' and 'marsseq_read2_design' in the configuration file."
     }
     """
-    echo "\n\n==================  MARS-seq: Rebuilding reads  =================="
+    echo -e "\\n\\n==================  MARS-seq: Rebuilding reads  =================="
     echo "Processing sample: ${meta}"
     echo "Fastq files: ${fastq_cDNA}, ${fastq_BC_UMI}"
     echo "Read 1 design: ${marsseq_read1_design}"

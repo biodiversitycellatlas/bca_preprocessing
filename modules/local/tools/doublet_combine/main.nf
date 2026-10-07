@@ -1,5 +1,5 @@
 process COMBINE_DOUBLET_RESULTS {
-    publishDir "${params.outdir}/doublet_filtering/${meta.id}/combined", mode: 'copy'
+    publishDir path: { "${params.outdir}/doublet_filtering/${meta.id}/combined" }, mode: 'copy', saveAs: { filename -> filename == 'versions.yml' ? null : filename }
     tag "${meta.id} | ${meta.mapping_method}"
     label 'process_single2'
 
@@ -15,7 +15,7 @@ process COMBINE_DOUBLET_RESULTS {
 
     script:
     """
-    echo "\n\n==================  Combine doublet results =================="
+    echo -e "\\n\\n==================  Combine doublet results =================="
     echo "Meta: ${meta}"
     echo "Consensus method: ${params.doublet_consensus_method}"
 

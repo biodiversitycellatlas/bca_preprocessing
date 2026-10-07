@@ -33,10 +33,10 @@ This nextflow pipeline is designed to pre-process single-cell and single-nucleus
 - Parse Biosciences
 - BD Rhapsody
 - 10x Genomics
-- OAK-seq
+- OAK
 - Ultima Genomics
 - sci-RNA-seq3
-- MARS-seq (v1 and v2)
+- MARS-seq
 - and others, when providing a [seqspec](https://github.com/pachterlab/seqspec) file
 
 Depending on the chosen sequencing technique, it handles the processing of the FASTQ files accordingly. Whenever possible, we compared our results to a commercial pre-processing pipeline for that sequencing technique. For example, comparing our Parse Biosciences results to the official split-pipe pipeline from Parse Biosciences. While we cannot provide this commercial software directly, you can install it yourself (e.g. by following [these instructions](docs/INSTALLATION_EXTERNAL_PIPELINES.md)), and provide a path where the installation is located in the configuration file. This way, it will be executed alongside of the BCA pre-processing pipeline.
@@ -100,7 +100,7 @@ This option is limited to the following sequencing technologies:
 | Sequencing technology | External pipeline | Requires manual installation |
 |-----------------------|-------------------|-------------------|
 | 10x Genomics | [10x Genomics Cell Ranger](https://github.com/10XGenomics/cellranger) | :x: |
-| OAK-seq | [10x Genomics Cell Ranger](https://github.com/10XGenomics/cellranger) | :x: |
+| OAK | [10x Genomics Cell Ranger](https://github.com/10XGenomics/cellranger) | :x: |
 | Ultima Genomics | [10x Genomics Cell Ranger](https://github.com/10XGenomics/cellranger) | :x: |
 | Parse Biosciences | [split-pipe](https://support.parsebiosciences.com/hc/en-us/articles/27066395947412-How-Do-I-Analyze-my-Parse-Biosciences-Data) | :heavy_check_mark: |
 | BD-Rhapsody | [BD Rhapsody™ Sequence Analysis Pipeline](https://www.bdbiosciences.com/en-us/products/software/rhapsody-sequence-analysis-pipeline) | :heavy_check_mark: |
@@ -111,7 +111,7 @@ This option is limited to the following sequencing technologies:
 
 The samplesheet should be a comma-seperated file, specifying the names and locations of the files and details necessary for pipeline execution. Depending on the chosen sequencing technique the order of the FASTQ files is altered, R1 might contain the cDNA while in other cases this might contain the Cell barcode & UMI's, check the available documentation or do a manual inspection.
 
-Some protocols need more than the FASTQ paths: sci-RNA-seq3 needs the `p5`, `p7` and `rt` columns filled in, Parse Biosciences needs the group-well definition in `rt`, and Parse Biosciences and MARS-seq put the cDNA in read 1 rather than read 2. These per-protocol requirements, together with the read layouts and the pre-processing steps they trigger, are described in [Protocol-specific steps & whitelists](docs/PROTOCOLS_AND_WHITELISTS.md).
+Some protocols need more than the FASTQ paths: sci-RNA-seq3 needs the `p5`, `p7` and `rt` columns filled in, Parse Biosciences needs the group-well definition in `rt`, OAK needs one row per aliquot with its i5 (`p5`) and optional i7 (`p7`) barcode plus the index FASTQs, and Parse Biosciences and MARS-seq put the cDNA in read 1 rather than read 2. These per-protocol requirements, together with the read layouts and the pre-processing steps they trigger, are described in [Protocol-specific steps & whitelists](docs/PROTOCOLS_AND_WHITELISTS.md).
 
 In the table below, the available variables are summarized:
 | Variable | Required/Optional | Description |
@@ -121,8 +121,8 @@ In the table below, the available variables are summarized:
 | fastq_CB_UMI | **Required** | Path to the FASTQ file containing the cell barcode & UMI. Uncompressed and gzipped files are both accepted. |
 | fastq_indices | Optional | Path to the FASTQ index file(s), to provide both I1 and I2, use an asterisk to the path like /path/name_I\*. Uncompressed and gzipped files are both accepted. |
 | expected_cells | **Required** | Number of expected cells |
-| p5 | Optional | Only required for sci-RNA-seq3 |
-| p7 | Optional | Only required for sci-RNA-seq3 |
+| p5 | Optional | Required for sci-RNA-seq3 and OAK (i5 barcode of the aliquot) |
+| p7 | Optional | Required for sci-RNA-seq3; optional for OAK (i7 barcode of the aliquot) |
 | rt | Optional | Only required for sci-RNA-seq3 & Parse Biosciences (group-well definition) |
 
 To illustrate how the samplesheet would be filled across the different sequencing techniques, the table below is given, as well as an example samplesheet published [here](conf/example_samplesheet.csv). The names within the parenthesis of the p5 and rt column indicate the official names, often referenced like this in the official documentation of this protocol.
@@ -133,7 +133,7 @@ To illustrate how the samplesheet would be filled across the different sequencin
 | bd_rhapsody_example       | R2         | R1           |               | expected_cells |     |     |            |
 | parse_biosciences_example | R1         | R2           |               | expected_cells |     |     | rt (wells) |
 | 10xv3_example             | R2         | R1           |               | expected_cells |     |     |            |
-| oak_seq_example           | R2         | R1           |               | expected_cells |     |     |            |
+| oak_v1_example            | R2         | R1           | I* (I1 & I2) | expected_cells | p5  | p7  |            |
 | ultima_genomics_example   | R2         | R1           |               | expected_cells |     |     |            |
 | marsseq_example           | R1         | R2           |               | expected_cells |     |     |            |
 
@@ -149,7 +149,7 @@ Within each custom configuration file the following variables can be defined:
 | ------------------------ | ----------------- | ------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------ |
 | `input`                  | **Required**      | Path to the samplesheet.                                                                                                                                                                                                                                           |
 | `outdir`                 | **Required**      | Path to the results/output directory; must exist before running.                                                                                                                                                                                                   |
-| `protocol`               | **Required**      | Specifies the sequencing technology used (must be one of the following: `"oak_seq"`, `"10xv1"`, `"10xv2"`, `"10xv3"`, `"10xv4"`, `"parse_biosciences_WT_mini"` or `"parse_biosciences_WT"`, `"bd_rhapsody_v1"`, `"bd_rhapsody_enhancedbeads"`, `"sciRNAseq3"` , `"ultima_genomics"`, `"marsseq_v1"`, `"marsseq_v2"` or `"seqspec"`). |
+| `protocol`               | **Required**      | Specifies the sequencing technology used (must be one of the following: `"oak_v1"`, `"10xv1"`, `"10xv2"`, `"10xv3"`, `"10xv4"`, `"parse_biosciences_WT_mini"` or `"parse_biosciences_WT"`, `"bd_rhapsody_v1"`, `"bd_rhapsody_enhancedbeads"`, `"sciRNAseq3"` , `"ultima_genomics"`, `"marsseq_v1"`, `"marsseq_v2"` or `"seqspec"`). |
 | `bc_whitelist`           | **Required**      | Path or link to the barcode whitelist file(s), multiple ones separated by whitespace. If links are given, they are automatically downloaded (and unzipped if applicable) for any protocol. Not used by `"marsseq_v1"`/`"marsseq_v2"`, which run without a whitelist. |
 | `ref_fasta`              | **Required**      | Path to the genome FASTA file used for mapping reads.                                                                                                                                                                                                              |
 | `ref_gtf`                | **Required**      | Path to the GTF/GFF file formatted for STARsolo.                                                                                                                                                                                                                   |

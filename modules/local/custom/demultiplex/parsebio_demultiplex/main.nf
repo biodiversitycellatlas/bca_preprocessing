@@ -1,5 +1,5 @@
 process PARSEBIO_CUSTOM_DEMUX {
-    publishDir "${params.outdir}/demultiplex/demux_custom/${meta.id}", mode: 'copy'
+    publishDir path: { "${params.outdir}/demultiplex/demux_custom/${meta.id}" }, mode: 'copy', saveAs: { filename -> filename == 'versions.yml' ? null : filename }
     tag "${meta.id}"
     label 'process_medium'
 
@@ -15,7 +15,7 @@ process PARSEBIO_CUSTOM_DEMUX {
 
     script:
     """
-    echo "\n\n==================  Parse Biosciences: Custom Demultiplexing  =================="
+    echo -e "\\n\\n==================  Parse Biosciences: Custom Demultiplexing  =================="
     echo "Processing sample: ${meta}"
     echo "Fastq files: ${fastq_cDNA}, ${fastq_BC_UMI}"
     echo "Group id: ${meta.id}, wells (rt): ${meta.rt}"

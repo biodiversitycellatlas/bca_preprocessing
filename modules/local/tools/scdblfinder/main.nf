@@ -1,5 +1,5 @@
 process SCDBLFINDER {
-    publishDir "${params.outdir}/doublet_filtering/${meta.id}/scdblfinder", mode: 'copy'
+    publishDir path: { "${params.outdir}/doublet_filtering/${meta.id}/scdblfinder" }, mode: 'copy', saveAs: { filename -> filename == 'versions.yml' ? null : filename }
     tag "${meta.id} | ${meta.mapping_method}"
     label 'process_single_mem2'
 
@@ -20,7 +20,7 @@ process SCDBLFINDER {
 
     script:
     """
-    echo "\n\n==================  scDblFinder =================="
+    echo -e "\\n\\n==================  scDblFinder =================="
     echo "Meta: ${meta}"
     echo "10x dir: ${tenx_dir}"
     echo "Datatype: ${meta.datatype}"

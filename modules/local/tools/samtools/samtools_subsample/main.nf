@@ -16,7 +16,7 @@ process SAMTOOLS_SUBSAMPLE {
     // Matches the seed hard-coded in SUBSAMPLE_FASTQS, so both subsamplers are reproducible the same way
     def seed = 100
     """
-    echo "\n\n==================  SUBSAMPLE BAM  =================="
+    echo -e "\\n\\n==================  SUBSAMPLE BAM  =================="
     echo "Sample ID: ${meta.id}"
     echo "BAM file: ${bam_file}"
     echo "Target reads: ${params.geneext_subsample_nreads}"

@@ -1,5 +1,5 @@
 process GENERATE_DASHBOARD {
-    publishDir "${params.outdir}", mode: 'copy', overwrite: true
+    publishDir path: { "${params.outdir}" }, mode: 'copy', overwrite: true, saveAs: { filename -> filename == 'versions.yml' ? null : filename }
     label 'process_single_mem2'
 
     input:

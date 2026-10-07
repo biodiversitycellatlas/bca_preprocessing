@@ -1,5 +1,5 @@
 process STARSOLO_INDEX {
-    publishDir "${params.outdir}/genome/star_index_${ref_gtf.simpleName}${index_suffix}", mode: 'copy'
+    publishDir path: { "${params.outdir}/genome/star_index_${ref_gtf.simpleName}${index_suffix}" }, mode: 'copy', saveAs: { filename -> filename == 'versions.yml' ? null : filename }
     label 'process_single_mem2'
 
     // Memory tracks the size of the reference being indexed, overrides process_single_mem2's flat assignments. 
@@ -32,7 +32,7 @@ process STARSOLO_INDEX {
         ?: (long) ((task.memory ? task.memory.toBytes() : 32000000000L) * 0.85)
 
     """
-    echo "\n\n==================  GENOME INDEX STARSOLO =================="
+    echo -e "\\n\\n==================  GENOME INDEX STARSOLO =================="
     echo "Creating star index using GTF file: ${ref_gtf}"
     echo "--genomeSAindexNbases = ${star_genomeSAindexNbases}"
     echo "--genomeSAsparseD = ${star_genomeSAsparseD}"

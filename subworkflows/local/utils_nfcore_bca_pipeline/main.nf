@@ -38,6 +38,22 @@ workflow PIPELINE_INITIALISATION {
     ch_versions = Channel.empty()
 
     //
+    // Print the help and stop. Up to Nextflow 25.10, nf-schema answers --help itself (the
+    // validation.help config) before this is reached; Nextflow 26.04 no longer reads that
+    // config for nf-schema 2.3.0, so the help is printed here instead.
+    //
+    if (params.help || params.help_full) {
+        def show_hidden = params.help_full || (params.containsKey('show_hidden') && params.get('show_hidden'))
+        log.info params.schema_before_text + schemaHelpText(show_hidden) + params.schema_after_text
+        exit 0
+    }
+
+    //
+    // Fail fast on command-line values that Nextflow 26.04+ passes as text
+    //
+    checkCommandLineParamTypes()
+
+    //
     // Print version and exit if required and dump pipeline parameters to JSON file
     //
     UTILS_NEXTFLOW_PIPELINE (
@@ -295,6 +311,86 @@ workflow PIPELINE_COMPLETION {
     FUNCTIONS
 ~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~
 */
+
+//
+// Fail fast on command-line values that would be read with the wrong type
+//
+// Up to Nextflow 25.10, '--perform_kraken false' arrives as a boolean and '--min_mapping_rate 20'
+// as a number. From 26.04 every command-line value is text, and text is true whatever it says,
+// so the first would switch Kraken on and the second would fail the range check. A -params-file
+// or a -c config file keeps the types on every version. 'true' needs no check, since as text it
+// still reads as true.
+//
+def checkCommandLineParamTypes() {
+    def given = (workflow.commandLine ?: '').tokenize(' ')
+        .findAll { token -> token.startsWith('--') }
+        .collect { token -> token.substring(2).tokenize('=')[0] }
+        .unique()
+
+    def string_params = schemaStringParams()
+    def mistyped = given.findAll { name ->
+        def value = params.containsKey(name) ? params.get(name) : null
+        value instanceof CharSequence &&
+            !(name in string_params) &&
+            value.toString().trim() ==~ /(?i)false|-?\d+(\.\d+)?/
+    }
+
+    if (mistyped) {
+        def yaml = mistyped.collect { name -> "    ${name}: ${params.get(name).toString().trim().toLowerCase()}" }
+        error(
+            "Nextflow ${workflow.nextflow.version} passes command-line parameters as text, so " +
+            "${mistyped.collect { name -> "'--${name} ${params.get(name)}'" }.join(', ')} would not be read as\n" +
+            "a boolean or number ('false' as text counts as true). Set them in a params file instead,\n" +
+            "e.g. params.yml:\n\n" +
+            yaml.join('\n') + "\n\n" +
+            "and run with '-params-file params.yml', or set them in the -c config file."
+        )
+    }
+}
+
+//
+// Help text built from nextflow_schema.json: every parameter group with each parameter's type
+// and description, leaving out hidden parameters unless asked for
+//
+def schemaHelpText(show_hidden) {
+    def schema = new groovy.json.JsonSlurper().parseText(file("${projectDir}/nextflow_schema.json").text)
+    def lines  = [
+        "Typical pipeline command:",
+        "",
+        "  nextflow run -profile <institution_config>,conda -c /path/to/custom_config",
+        ""
+    ]
+    ((schema['$defs'] ?: schema['definitions'] ?: [:]) as Map).each { group_name, group ->
+        def shown = ((group['properties'] ?: [:]) as Map).findAll { _name, spec -> show_hidden || !spec['hidden'] }
+        if (shown) {
+            def width = shown.keySet().collect { name -> name.length() }.max() + 2
+            lines << (group['title'] ?: group_name).toString()
+            shown.each { name, spec ->
+                lines << "  --${name.padRight(width)} [${spec['type']}] ${spec['description'] ?: ''}".toString()
+            }
+            lines << ""
+        }
+    }
+    if (!show_hidden) {
+        lines << "Hidden parameters are not shown; use --help_full to list them as well."
+    }
+    return lines.join('\n')
+}
+
+//
+// Names of the parameters nextflow_schema.json declares as strings, which may look like a number
+//
+def schemaStringParams() {
+    def schema_file = file("${projectDir}/nextflow_schema.json")
+    if (!schema_file.exists()) {
+        return []
+    }
+    def schema = new groovy.json.JsonSlurper().parseText(schema_file.text)
+    def groups = ((schema['$defs'] ?: schema['definitions'] ?: [:]) as Map).values().toList() + [schema]
+    return groups
+        .collectMany { group -> ((group['properties'] ?: [:]) as Map).findAll { _name, spec -> spec['type'] == 'string' }.keySet().toList() }
+        .unique()
+}
 
 //
 // Validate channels from input samplesheet

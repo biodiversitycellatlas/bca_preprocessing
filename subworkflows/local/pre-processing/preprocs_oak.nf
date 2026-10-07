@@ -26,11 +26,14 @@ workflow oak_workflow {
     main:
         // Define channels
         out_samplesheet = Channel.empty()
+        ch_versions = Channel.empty()
+        ch_cellranger_outs = Channel.empty()
 
         if (params.perform_demultiplexing) {
             log.info "OAK '${params.protocol}': demultiplexing aliquots on their i7 (optional) and i5 index."
             OAK_DEMUX(ch_samplesheet)
             out_samplesheet = OAK_DEMUX.out.demux_files
+            ch_versions = ch_versions.mix(OAK_DEMUX.out.versions)
         } else {
             log.info "Skipping demultiplexing as perform_demultiplexing is set to false"
             out_samplesheet = ch_samplesheet
@@ -42,10 +45,14 @@ workflow oak_workflow {
 
             // Use .first() to allow the reference index to be reused for all samples
             CR_PIPELINE(out_samplesheet, CR_PIPELINE_MKREF.out.reference.first())
+            ch_cellranger_outs = CR_PIPELINE.out.outs
+            ch_versions = ch_versions.mix(CR_PIPELINE_MKREF.out.versions, CR_PIPELINE.out.versions)
         }
 
     emit:
         data_output     = out_samplesheet
+        cellranger_outs = ch_cellranger_outs
+        versions        = ch_versions
 }
 
 /*

@@ -14,7 +14,7 @@ process SAMTOOLS_VIEW_UNMAPPED {
 
     script:
     """
-    echo "\n\n==================  SAMTOOLS VIEW UNMAPPED =================="
+    echo -e "\\n\\n==================  SAMTOOLS VIEW UNMAPPED =================="
     echo "Metadata: ${meta}"
     echo "BAM file: ${bam_file}"
 

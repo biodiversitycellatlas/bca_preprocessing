@@ -1,5 +1,5 @@
 process CALC_ANTISENSE {
-    publishDir "${params.outdir}/rRNA_mtDNA", mode: 'copy'
+    publishDir path: { "${params.outdir}/rRNA_mtDNA" }, mode: 'copy', saveAs: { filename -> filename == 'versions.yml' ? null : filename }
     tag "${meta.id}"
     label 'process_single_long2'
 
@@ -16,7 +16,7 @@ process CALC_ANTISENSE {
 
     script:
     """
-    echo "\n\n==================  ANTISENSE READS =================="
+    echo -e "\\n\\n==================  ANTISENSE READS =================="
     echo "Sample ID: ${meta.id}"
     echo "BAM file: ${bam_file}"
     echo "GTF: ${ref_gtf}"

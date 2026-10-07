@@ -44,6 +44,7 @@ workflow bam_inspection_workflow {
         def ch_kraken_report            = Channel.empty()
 
         SAMTOOLS_INDEX(bam_file)
+        def ch_versions = SAMTOOLS_INDEX.out.versions
 
         // Calculate saturation curve if perform_10x_saturate is true
         if (params.perform_10x_saturate) {
@@ -82,6 +83,12 @@ workflow bam_inspection_workflow {
             ch_sat_imgs     = SATURATION_PLOT.out.img_saturation
             ch_sat_res_imgs = SATURATION_PLOT.out.img_residuals
             ch_sat_logs     = SATURATION_PLOT.out.logs
+
+            ch_versions = ch_versions.mix(
+                SAMTOOLS_VIEW_MAPPED.out.versions,
+                SATURATION_TABLE.out.versions,
+                SATURATION_PLOT.out.versions
+            )
         }
 
         // Calculate percentages mitochondrial DNA and ribosomal RNA
@@ -106,6 +113,7 @@ workflow bam_inspection_workflow {
             // Run featureCounts to calculate mtDNA and rRNA percentages and capture output
             CALC_MT_RRNA(ch_fc_inputs.bam_ch, ch_fc_inputs.bai_ch, ref_gtf.first(), ch_rrna_gtf)
             ch_featurecounts = CALC_MT_RRNA.out.mt_rrna_metrics
+            ch_versions = ch_versions.mix(CALC_MT_RRNA.out.versions)
         }
 
         // Antisense reads, counted on the opposite strand of the one STARsolo used. Skipped
@@ -113,6 +121,7 @@ workflow bam_inspection_workflow {
         if (params.perform_featurecounts && params.star_soloStrand != 'Unstranded') {
             CALC_ANTISENSE(bam_file, ref_gtf.first())
             ch_antisense = CALC_ANTISENSE.out.antisense_metrics
+            ch_versions = ch_versions.mix(CALC_ANTISENSE.out.versions)
         }
 
         // Inspecting unmapped reads using Kraken2
@@ -127,6 +136,13 @@ workflow bam_inspection_workflow {
             PAVIAN(KRAKEN.out.k2report)
             ch_pavian_sankey = PAVIAN.out.sankey
             ch_kraken_report = KRAKEN.out.k2report
+
+            ch_versions = ch_versions.mix(
+                SAMTOOLS_VIEW_UNMAPPED.out.versions,
+                KRAKEN_CREATE_DB.out.versions,
+                KRAKEN.out.versions,
+                PAVIAN.out.versions
+            )
         }
 
     emit:
@@ -137,6 +153,7 @@ workflow bam_inspection_workflow {
         antisense_txt                   = ch_antisense
         pavian_sankey                   = ch_pavian_sankey
         kraken_report                   = ch_kraken_report
+        versions                        = ch_versions
 }
 
 /*

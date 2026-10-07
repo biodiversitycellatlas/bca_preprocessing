@@ -1,5 +1,5 @@
 process GENE_EXT {
-    publishDir "${params.outdir}/gene_ext", mode: 'copy'
+    publishDir path: { "${params.outdir}/gene_ext" }, mode: 'copy', saveAs: { filename -> filename == 'versions.yml' ? null : filename }
     label 'process_long'
 
     // conda "${projectDir}/submodules/GeneExt/environment.yaml"
@@ -18,7 +18,7 @@ process GENE_EXT {
     script:
     def subsamplebam = params.geneext_subsamplebam ? "--subsamplebam ${params.geneext_subsamplebam}" : ""
     """
-    echo "\n\n==================  GENE EXTENSION =================="
+    echo -e "\\n\\n==================  GENE EXTENSION =================="
     echo "BAM file: ${bam_file}"
     echo "BAM index: ${bam_index}"
     echo "Original GTF: ${params.ref_gtf}"

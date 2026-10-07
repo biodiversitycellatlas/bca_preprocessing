@@ -43,6 +43,12 @@ workflow mapping_alevin_workflow {
         // Re-call cells on a UMI cutoff, if selected
         cellcalling_alevin_workflow(ALEVIN_FRY.out.af_mtx)
 
+        def ch_versions = SALMON_SPLICI.out.versions.mix(
+            SALMON_INDEX.out.versions,
+            ALEVIN_FRY.out.versions,
+            ALEVIN_QC.out.versions
+        )
+
     emit:
         mapping_files      = ALEVIN_FRY.out.mapping_files
         af_meta_info       = ALEVIN_FRY.out.af_meta_info
@@ -55,6 +61,7 @@ workflow mapping_alevin_workflow {
         secondderiv_stats  = cellcalling_alevin_workflow.out.secondderiv_stats
         secondderiv_cutoff = cellcalling_alevin_workflow.out.secondderiv_cutoff
         qc_reports         = ALEVIN_QC.out.alevinQC_report
+        versions           = ch_versions
 }
 
 /*

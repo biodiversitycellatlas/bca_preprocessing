@@ -1,5 +1,5 @@
 process SAVE_RUN_CONFIG {
-    publishDir "${params.outdir}/pipeline_info", mode: 'copy'
+    publishDir path: { "${params.outdir}/pipeline_info" }, mode: 'copy', saveAs: { filename -> filename == 'versions.yml' ? null : filename }
     label 'process_single2'
     tag "${input_file}"
 

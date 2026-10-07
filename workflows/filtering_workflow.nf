@@ -79,6 +79,7 @@ workflow filtering_workflow {
         def ch_scrublet_histogram       = Channel.empty()
         def ch_doublet_filter_summary   = Channel.empty()
         def ch_doublet_filter_plot      = Channel.empty()
+        def ch_versions                 = Channel.empty()
 
         // Resolve each mapper's output directory into an (mtx, barcodes, features) triplet
         def ch_starsolo_raw = ch_starsolo_genefull50_raw.map { meta, dir ->
@@ -101,6 +102,7 @@ workflow filtering_workflow {
             )
 
         COLLAPSE_ALEVIN_USA(ch_alevin_dirs, params.alevin_usa_counts ?: 'SUA')
+        ch_versions = ch_versions.mix(COLLAPSE_ALEVIN_USA.out.versions)
 
         // Fix alevin-fry's output into the same triplet format as STARsolo
         def ch_alevin_fry = COLLAPSE_ALEVIN_USA.out.matrix.map { meta, dir ->
@@ -137,6 +139,12 @@ workflow filtering_workflow {
             VELOCITY_H5AD_ALEVIN(ch_alevin_dirs)
 
             ch_velocity_h5ad = VELOCITY_H5AD_STARSOLO.out.h5ad.mix(VELOCITY_H5AD_ALEVIN.out.h5ad)
+
+            ch_versions = ch_versions.mix(
+                COLLAPSE_ALEVIN_UNSPLICED.out.versions,
+                VELOCITY_H5AD_STARSOLO.out.versions,
+                VELOCITY_H5AD_ALEVIN.out.versions
+            )
         }
 
         // Check the cell filtering method: unless this pipeline re-calls cells, alevin-fry's
@@ -194,6 +202,7 @@ workflow filtering_workflow {
             ch_calls_by_meta      = COMBINE_DOUBLET_RESULTS.out.combined_results
             ch_calls_by_sample    = ch_calls_by_meta.map { meta, calls -> [sample_key.call(meta), calls] }
             ch_scrublet_histogram = SCRUBLET.out.scrublet_histogram
+            ch_versions           = ch_versions.mix(SCRUBLET.out.versions)
 
             // Warn once for a sample that lost a caller: it continues through every stage
             // below unannotated and unfiltered, rather than ending the run.
@@ -264,6 +273,7 @@ workflow filtering_workflow {
             ch_cs_ambient_hist_plot     = CELLSWEEP.out.cs_ambient_hist_plot
             ch_cs_umap_comparison_plot  = CELLSWEEP.out.cs_umap_comparison_plot
             ch_cs_top_genes             = CELLSWEEP.out.cs_top_genes
+            ch_versions                 = ch_versions.mix(CELLSWEEP.out.versions)
         }
 
         /*
@@ -278,6 +288,7 @@ workflow filtering_workflow {
         def ch_h5ad_filtered = ch_filtered_with_calls.map { row -> (row as List) + [[]] }
 
         MTX_TO_H5AD(ch_h5ad_ambient.mix(ch_h5ad_filtered))
+        ch_versions = ch_versions.mix(MTX_TO_H5AD.out.versions)
 
     emit:
         h5ad                        = MTX_TO_H5AD.out.h5ad
@@ -288,6 +299,7 @@ workflow filtering_workflow {
         scrublet_histogram          = ch_scrublet_histogram
         doublet_filter_summary      = ch_doublet_filter_summary
         doublet_filter_plot         = ch_doublet_filter_plot
+        versions                    = ch_versions
 }
 
 

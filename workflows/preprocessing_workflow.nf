@@ -38,6 +38,10 @@ workflow preprocessing_workflow {
         // Merge fastq files of duplicate sample IDs
         MERGE_FASTQS(ch_samplesheet)
         merged_samplesheet = MERGE_FASTQS.out.merged_files
+        def ch_versions = MERGE_FASTQS.out.versions
+
+        // Vendor pipeline results the mapping statistics are read from, as [pipeline, meta, file]
+        def ch_vendor_results = Channel.empty()
 
         // Download it when provided as an URL(s), multiple URLs are separated by whitespace
         def whitelist_param = params.bc_whitelist?.toString()?.trim()
@@ -47,6 +51,7 @@ workflow preprocessing_workflow {
         def resolved_whitelist
         if (whitelist_is_url) {
             DOWNLOAD_WHITELIST(whitelist_param)
+            ch_versions = ch_versions.mix(DOWNLOAD_WHITELIST.out.versions)
 
             // Keep the whitespace-separated format
             resolved_whitelist = DOWNLOAD_WHITELIST.out.whitelist
@@ -60,30 +65,39 @@ workflow preprocessing_workflow {
             parse_workflow(merged_samplesheet)
             data_output_ch = parse_workflow.out.data_output
             bc_whitelist_ch  = resolved_whitelist
+            ch_versions = ch_versions.mix(parse_workflow.out.versions)
+            ch_vendor_results = parse_workflow.out.splitpipe_stats.map { meta, f -> ['splitpipe', meta, f] }
 
         } else if (params.protocol in ['bd_rhapsody_v1', 'bd_rhapsody_enhancedbeads']) {
             bd_rhapsody_workflow(merged_samplesheet)
             data_output_ch = bd_rhapsody_workflow.out.data_output
             bc_whitelist_ch  = resolved_whitelist
+            ch_versions = ch_versions.mix(bd_rhapsody_workflow.out.versions)
 
         } else if (params.protocol in ['10xv1', '10xv2', '10xv3', '10xv4', 'ultima_genomics']) {
             tenx_genomics_workflow(merged_samplesheet)
             data_output_ch = tenx_genomics_workflow.out.data_output
             bc_whitelist_ch  = resolved_whitelist
+            ch_versions = ch_versions.mix(tenx_genomics_workflow.out.versions)
+            ch_vendor_results = tenx_genomics_workflow.out.cellranger_outs.map { meta, outs -> ['cellranger', meta, outs] }
 
         } else if (params.protocol == 'oak_v1') {
             oak_workflow(merged_samplesheet)
             data_output_ch = oak_workflow.out.data_output
             bc_whitelist_ch  = resolved_whitelist
+            ch_versions = ch_versions.mix(oak_workflow.out.versions)
+            ch_vendor_results = oak_workflow.out.cellranger_outs.map { meta, outs -> ['cellranger', meta, outs] }
 
         } else if (params.protocol == 'sciRNAseq3') {
             sciRNAseq3_nogather_workflow(merged_samplesheet)
             data_output_ch   = sciRNAseq3_nogather_workflow.out.data_output
             bc_whitelist_ch  = sciRNAseq3_nogather_workflow.out.bc_whitelist.map { tup -> tup*.toString().join(' ') }
+            ch_versions = ch_versions.mix(sciRNAseq3_nogather_workflow.out.versions)
 
         } else if (params.protocol in ['marsseq_v1', 'marsseq_v2']) {
             marsseq_workflow(merged_samplesheet)
             data_output_ch = marsseq_workflow.out.data_output
+            ch_versions = ch_versions.mix(marsseq_workflow.out.versions)
 
             // MARS-seq has no barcode whitelist; an empty value makes STARsolo use '--soloCBwhitelist None'
             bc_whitelist_ch  = resolved_whitelist ?: ""
@@ -92,6 +106,7 @@ workflow preprocessing_workflow {
             seqspec_workflow(merged_samplesheet)
             data_output_ch = seqspec_workflow.out.data_output
             bc_whitelist_ch  = resolved_whitelist
+            ch_versions = ch_versions.mix(seqspec_workflow.out.versions)
 
         } else {
             error """
@@ -117,6 +132,8 @@ workflow preprocessing_workflow {
         merged_samplesheet = merged_samplesheet
         data_output     = data_output_ch
         bc_whitelist    = bc_whitelist_ch
+        vendor_results  = ch_vendor_results
+        versions        = ch_versions
 }
 
 /*

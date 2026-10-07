@@ -33,6 +33,7 @@ workflow mapping_starsolo_workflow {
         def ch_secondderiv_knee     = Channel.empty()
         def ch_secondderiv_stats    = Channel.empty()
         def ch_secondderiv_cutoff   = Channel.empty()
+        def ch_versions             = Channel.empty()
 
         // Check if the user has requested a valid geneext-only run
         def bam_only = params.geneext_bam_only && params.run_method == "geneext_only" && remap_geneext == 'false'
@@ -50,6 +51,7 @@ workflow mapping_starsolo_workflow {
             def index_suffix = remap_geneext == 'true' ? '_geneext' : ''
             STARSOLO_INDEX(all_cdna_ch, ref_gtf, ref_fasta, index_suffix)
             star_index_ch = STARSOLO_INDEX.out.index.first()
+            ch_versions = ch_versions.mix(STARSOLO_INDEX.out.versions)
         }
 
         // Confirm bc_whitelist is a safe value channel
@@ -59,6 +61,7 @@ workflow mapping_starsolo_workflow {
 
         // Run STARsolo alignment
         STARSOLO_ALIGN(data_output, bc_whitelist, bam_only, star_index_ch)
+        ch_versions = ch_versions.mix(STARSOLO_ALIGN.out.versions)
 
         // Re-call cells on a UMI cutoff, or keep STARsolo's own filtered matrix
         if (!bam_only) {
@@ -75,6 +78,7 @@ workflow mapping_starsolo_workflow {
             ch_secondderiv_knee   = cellcalling_starsolo_workflow.out.secondderiv_knee
             ch_secondderiv_stats  = cellcalling_starsolo_workflow.out.secondderiv_stats
             ch_secondderiv_cutoff = cellcalling_starsolo_workflow.out.secondderiv_cutoff
+            ch_versions           = ch_versions.mix(cellcalling_starsolo_workflow.out.versions)
         }
 
         // 'bam_only' forces the BAM on regardless of star_generateBAM: it is the only
@@ -100,6 +104,7 @@ workflow mapping_starsolo_workflow {
         star_final_log                  = STARSOLO_ALIGN.out.log_final_file
         star_summaries                  = STARSOLO_ALIGN.out.summary_csv
         star_cellreads                  = STARSOLO_ALIGN.out.cellreads_stats
+        versions                        = ch_versions
 }
 
 /*

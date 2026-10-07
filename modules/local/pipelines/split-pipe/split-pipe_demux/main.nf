@@ -1,5 +1,5 @@
 process PARSEBIO_PIPELINE_DEMUX {
-    publishDir "${params.outdir}/demultiplex/demux_spipe", mode: 'copy'
+    publishDir path: { "${params.outdir}/demultiplex/demux_spipe" }, mode: 'copy', saveAs: { filename -> filename == 'versions.yml' ? null : filename }
     tag "${meta.id}"
     label 'process_medium'
 
@@ -18,7 +18,7 @@ process PARSEBIO_PIPELINE_DEMUX {
     def kit_specification = params.splitpipe_kit ? "--kit ${params.splitpipe_kit} --kit_score_skip" : ''
 
     """
-    echo "\n\n==================  split-pipe Demultiplex  =================="
+    echo -e "\\n\\n==================  split-pipe Demultiplex  =================="
     echo "split-pipe script: ${params.splitpipe_demultiplex_script}"
     echo "Processing sample: ${meta}"
     echo "FASTQ cDNA: ${fastq_cDNA}"

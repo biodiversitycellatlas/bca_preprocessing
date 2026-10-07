@@ -1,5 +1,5 @@
 process OAK_DEMUX {
-    publishDir "${params.outdir}/demultiplex/${meta.id}", mode: 'copy'
+    publishDir path: { "${params.outdir}/demultiplex/${meta.id}" }, mode: 'copy', saveAs: { filename -> filename == 'versions.yml' ? null : filename }
     tag "${meta.id}"
     label 'process_single'
 
@@ -62,7 +62,7 @@ process OAK_DEMUX {
     # Fail when the demultiplexing script fails, not only when tee does
     set -o pipefail
 
-    echo "\n\n==================  Demultiplex OAK data  =================="
+    echo -e "\\n\\n==================  Demultiplex OAK data  =================="
     echo "Processing sample: ${meta}"
     echo "FASTQ cDNA: ${fastq_cDNA}"
     echo "FASTQ BC & UMI: ${fastq_BC_UMI}"

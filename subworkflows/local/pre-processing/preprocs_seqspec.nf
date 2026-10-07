@@ -23,6 +23,7 @@ workflow seqspec_workflow {
 
     emit:
         data_output     = FASTP.out.trimmed_files
+        versions        = FASTP.out.versions
 }
 
 /*

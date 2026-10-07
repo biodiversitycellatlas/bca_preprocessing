@@ -1,5 +1,5 @@
 process FASTP {
-    publishDir "${params.outdir}/fastp", mode: 'copy'
+    publishDir path: { "${params.outdir}/fastp" }, mode: 'copy', saveAs: { filename -> filename == 'versions.yml' ? null : filename }
     tag "${meta.id}"
     label 'process_low'
     debug true
@@ -20,7 +20,7 @@ process FASTP {
     def fastp_qualified_quality_phred = params.fastp_qualified_quality_phred ?: params.seqtech_parameters[params.protocol].fastp_qualified_quality_phred
 
     """
-    echo "\n\n==================  TRIM FASTQs WITH FASTP  =================="
+    echo -e "\\n\\n==================  TRIM FASTQs WITH FASTP  =================="
     echo "Metadata: ${meta}"
     echo "FASTQ cDNA: ${fastq_cDNA}"
     echo "FASTQ BC & UMI: ${fastq_BC_UMI}"
