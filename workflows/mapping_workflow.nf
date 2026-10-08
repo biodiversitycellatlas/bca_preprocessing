@@ -58,39 +58,39 @@ workflow QC_mapping_workflow {
     main:
         // Initialize channels
         def ch_samples = data_output
-        def ch_mapped_ss                    = Channel.empty()
-        def ch_mapping_files                = Channel.empty()
-        def ch_starsolo_bam                 = Channel.empty()
-        def ch_star_solodir                 = Channel.empty()
-        def ch_starsolo_genefull50_raw      = Channel.empty()
-        def ch_starsolo_genefull50_filtered = Channel.empty()
-        def ch_starsolo_velocyto_raw        = Channel.empty()
-        def ch_starsolo_velocyto_filtered   = Channel.empty()
-        def ch_secondderiv_knee             = Channel.empty()
-        def ch_secondderiv_stats            = Channel.empty()
-        def ch_secondderiv_cutoff           = Channel.empty()
-        def ch_sat_imgs                     = Channel.empty()
-        def ch_sat_res_imgs                 = Channel.empty()
-        def ch_sat_logs                     = Channel.empty()
-        def ch_star_umi                     = Channel.empty()
-        def ch_star_log                     = Channel.empty()
-        def ch_star_final_log               = Channel.empty()
-        def ch_star_summaries               = Channel.empty()
-        def ch_star_cellreads               = Channel.empty()
-        def ch_alevin_meta_info             = Channel.empty()
-        def ch_alevin_quant_json            = Channel.empty()
-        def ch_alevin_cell_meta             = Channel.empty()
-        def ch_alevin_mtx                   = Channel.empty()
-        def ch_alevin_filtered_mtx          = Channel.empty()
-        def ch_alevin_umipercell            = Channel.empty()
-        def ch_featurecounts                = Channel.empty()
-        def ch_antisense                    = Channel.empty()
-        def ch_barcode_reads                = Channel.empty()
-        def ch_pavian_sankey                = Channel.empty()
-        def ch_kraken_report                = Channel.empty()
-        def ch_geneext_report               = Channel.empty()
-        def ch_geneext_log                  = Channel.empty()
-        def ch_versions                     = Channel.empty()
+        def ch_mapped_ss                    = channel.empty()
+        def ch_mapping_files                = channel.empty()
+        def ch_starsolo_bam                 = channel.empty()
+        def ch_star_solodir                 = channel.empty()
+        def ch_starsolo_genefull50_raw      = channel.empty()
+        def ch_starsolo_genefull50_filtered = channel.empty()
+        def ch_starsolo_velocyto_raw        = channel.empty()
+        def ch_starsolo_velocyto_filtered   = channel.empty()
+        def ch_secondderiv_knee             = channel.empty()
+        def ch_secondderiv_stats            = channel.empty()
+        def ch_secondderiv_cutoff           = channel.empty()
+        def ch_sat_imgs                     = channel.empty()
+        def ch_sat_res_imgs                 = channel.empty()
+        def ch_sat_logs                     = channel.empty()
+        def ch_star_umi                     = channel.empty()
+        def ch_star_log                     = channel.empty()
+        def ch_star_final_log               = channel.empty()
+        def ch_star_summaries               = channel.empty()
+        def ch_star_cellreads               = channel.empty()
+        def ch_alevin_meta_info             = channel.empty()
+        def ch_alevin_quant_json            = channel.empty()
+        def ch_alevin_cell_meta             = channel.empty()
+        def ch_alevin_mtx                   = channel.empty()
+        def ch_alevin_filtered_mtx          = channel.empty()
+        def ch_alevin_umipercell            = channel.empty()
+        def ch_featurecounts                = channel.empty()
+        def ch_antisense                    = channel.empty()
+        def ch_barcode_reads                = channel.empty()
+        def ch_pavian_sankey                = channel.empty()
+        def ch_kraken_report                = channel.empty()
+        def ch_geneext_report               = channel.empty()
+        def ch_geneext_log                  = channel.empty()
+        def ch_versions                     = channel.empty()
 
         // The analytical runs to map, see lib/AnalyticalRuns.groovy
         def runs = AnalyticalRuns.plan(params)
@@ -98,20 +98,20 @@ workflow QC_mapping_workflow {
         // Conditionally bypass MERGE_REF_GTF/FASTA when no additional features are provided
         def ref_gtf_ch
         if (params.ref_gtf_addfeature) {
-            MERGE_REF_GTF(params.ref_gtf, Channel.fromPath(params.ref_gtf_addfeature), '')
+            MERGE_REF_GTF(params.ref_gtf, channel.fromPath(params.ref_gtf_addfeature), '')
             ref_gtf_ch = MERGE_REF_GTF.out.gtf
             ch_versions = ch_versions.mix(MERGE_REF_GTF.out.versions)
         } else {
-            ref_gtf_ch = Channel.value(file(params.ref_gtf))
+            ref_gtf_ch = channel.value(file(params.ref_gtf))
         }
 
         def ref_fasta_ch
         if (params.ref_fasta_addfeature) {
-            MERGE_REF_FASTA(params.ref_fasta, Channel.fromPath(params.ref_fasta_addfeature))
+            MERGE_REF_FASTA(params.ref_fasta, channel.fromPath(params.ref_fasta_addfeature))
             ref_fasta_ch = MERGE_REF_FASTA.out.fasta
             ch_versions = ch_versions.mix(MERGE_REF_FASTA.out.versions)
         } else {
-            ref_fasta_ch = Channel.value(file(params.ref_fasta))
+            ref_fasta_ch = channel.value(file(params.ref_fasta))
         }
 
         // The GeneExt reference, set once GeneExt has run, so both mappers re-map against
@@ -132,7 +132,7 @@ workflow QC_mapping_workflow {
 
         // 'alevin_subsampled_starsolo' maps STARsolo on a subsample. It is drawn once and shared
         // by the standard and the GeneExt subsampled runs, so both map the same reads.
-        def ch_subsampled = Channel.empty()
+        def ch_subsampled = channel.empty()
         if (runs.star_standard == '_subsampled_starsolo' || runs.star_geneext == '_geneext_subsampled_starsolo') {
             SUBSAMPLE_FASTQS(apply_suffix(ch_samples, "_subsampled_starsolo"))
             ch_subsampled = SUBSAMPLE_FASTQS.out.subsampled_files
@@ -231,11 +231,11 @@ workflow QC_mapping_workflow {
 
                 // Same conditional bypass for geneext GTF
                 if (params.ref_gtf_addfeature) {
-                    MERGE_REF_GTF_GENEEXT(geneext_workflow.out.ref_gtf, Channel.fromPath(params.ref_gtf_addfeature), '_geneext')
+                    MERGE_REF_GTF_GENEEXT(geneext_workflow.out.ref_gtf, channel.fromPath(params.ref_gtf_addfeature), '_geneext')
                     ref_gtf_geneext_ch = MERGE_REF_GTF_GENEEXT.out.gtf
                 } else {
                     // Geneext always extends from the geneext output, no bypass possible here
-                    MERGE_REF_GTF_GENEEXT(geneext_workflow.out.ref_gtf, Channel.value([]), '_geneext')
+                    MERGE_REF_GTF_GENEEXT(geneext_workflow.out.ref_gtf, channel.value([]), '_geneext')
                     ref_gtf_geneext_ch = MERGE_REF_GTF_GENEEXT.out.gtf
                 }
                 ch_versions = ch_versions.mix(MERGE_REF_GTF_GENEEXT.out.versions)

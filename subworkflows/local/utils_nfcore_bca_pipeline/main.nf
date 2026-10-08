@@ -35,7 +35,7 @@ workflow PIPELINE_INITIALISATION {
 
     main:
 
-    ch_versions = Channel.empty()
+    ch_versions = channel.empty()
 
     //
     // Print the help and stop. Up to Nextflow 25.10, nf-schema answers --help itself (the
@@ -226,7 +226,7 @@ workflow PIPELINE_INITIALISATION {
         )
     }
 
-    Channel
+    channel
     .fromPath(params.input)
     .splitCsv(header: true, sep: ',')
     .map { row ->

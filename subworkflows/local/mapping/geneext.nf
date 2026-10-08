@@ -30,7 +30,7 @@ workflow geneext_workflow {
         // in the extended annotation. Set geneext_subsample_nreads = 0 to merge as sequenced.
         // With a single sample there is nothing to balance, so its reads are kept in full.
         def ch_bams = ch_starsolo_bam
-        def ch_versions = Channel.empty()
+        def ch_versions = channel.empty()
         if (params.geneext_subsample_nreads != 0) {
             ch_by_count = ch_starsolo_bam
                 .combine(ch_starsolo_bam.count())

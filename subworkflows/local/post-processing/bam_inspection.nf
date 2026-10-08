@@ -35,11 +35,11 @@ workflow bam_inspection_workflow {
 
     main:
         // Initialize reporting channels
-        def ch_sat_imgs                 = Channel.empty()
-        def ch_sat_res_imgs             = Channel.empty()
-        def ch_sat_logs                 = Channel.empty()
-        def ch_pavian_sankey            = Channel.empty()
-        def ch_kraken_report            = Channel.empty()
+        def ch_sat_imgs                 = channel.empty()
+        def ch_sat_res_imgs             = channel.empty()
+        def ch_sat_logs                 = channel.empty()
+        def ch_pavian_sankey            = channel.empty()
+        def ch_kraken_report            = channel.empty()
 
         SAMTOOLS_INDEX(bam_file)
         def ch_versions = SAMTOOLS_INDEX.out.versions
@@ -95,8 +95,8 @@ workflow bam_inspection_workflow {
             .set { ch_metrics_inputs }
 
         def ch_rrna_gtf = params.ref_gtf_addfeature
-            ? Channel.value(file(params.ref_gtf_addfeature))
-            : Channel.value([])
+            ? channel.value(file(params.ref_gtf_addfeature))
+            : channel.value([])
 
         // Percentages of mtDNA and rRNA reads, per library, per called cell and per barcode,
         // and the antisense share of gene reads from STARsolo's CellReads.stats (stranded runs only).

@@ -25,9 +25,9 @@ workflow oak_workflow {
 
     main:
         // Define channels
-        out_samplesheet = Channel.empty()
-        ch_versions = Channel.empty()
-        ch_cellranger_outs = Channel.empty()
+        out_samplesheet = channel.empty()
+        ch_versions = channel.empty()
+        ch_cellranger_outs = channel.empty()
 
         if (params.perform_demultiplexing) {
             log.info "OAK '${params.protocol}': demultiplexing aliquots on their i7 (optional) and i5 index."

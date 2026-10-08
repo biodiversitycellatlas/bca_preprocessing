@@ -72,14 +72,14 @@ workflow filtering_workflow {
 
     main:
         // Initialize reporting channels
-        def ch_velocity_h5ad            = Channel.empty()
-        def ch_cs_ambient_hist_plot     = Channel.empty()
-        def ch_cs_umap_comparison_plot  = Channel.empty()
-        def ch_cs_top_genes             = Channel.empty()
-        def ch_scrublet_histogram       = Channel.empty()
-        def ch_doublet_filter_summary   = Channel.empty()
-        def ch_doublet_filter_plot      = Channel.empty()
-        def ch_versions                 = Channel.empty()
+        def ch_velocity_h5ad            = channel.empty()
+        def ch_cs_ambient_hist_plot     = channel.empty()
+        def ch_cs_umap_comparison_plot  = channel.empty()
+        def ch_cs_top_genes             = channel.empty()
+        def ch_scrublet_histogram       = channel.empty()
+        def ch_doublet_filter_summary   = channel.empty()
+        def ch_doublet_filter_plot      = channel.empty()
+        def ch_versions                 = channel.empty()
 
         // Resolve each mapper's output directory into an (mtx, barcodes, features) triplet
         def ch_starsolo_raw = ch_starsolo_genefull50_raw.map { meta, dir ->
@@ -176,8 +176,8 @@ workflow filtering_workflow {
          * Independent of params.ambient_rna_remover: the calls are an annotation in their own
          * right, and MTX_TO_H5AD carries them whether or not CellSweep ran.
          */
-        def ch_calls_by_meta   = Channel.empty()
-        def ch_calls_by_sample = Channel.empty()
+        def ch_calls_by_meta   = channel.empty()
+        def ch_calls_by_sample = channel.empty()
 
         if (params.perform_doublet_detection) {
 
@@ -259,7 +259,7 @@ workflow filtering_workflow {
          * from and no calls at all. CellSweep's own guidance is to remove doublets first;
          * annotating them is the conservative default here, and removal stays opt-in.
          */
-        def ch_cellsweep_by_sample = Channel.empty()
+        def ch_cellsweep_by_sample = channel.empty()
 
         if (params.ambient_rna_remover == "cellsweep") {
 

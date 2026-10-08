@@ -230,7 +230,7 @@ workflow reporting_workflow {
             .toSortedList { a, b -> a[0].id <=> b[0].id }
             .map { rows -> [ rows.collect { row -> row[0].id }, rows.collect { row -> row[1] } ] }
 
-        ch_multiqc_config = Channel.fromPath("${projectDir}/assets/multiqc_config.yml", checkIfExists: true)
+        ch_multiqc_config = channel.fromPath("${projectDir}/assets/multiqc_config.yml", checkIfExists: true)
         MULTIQC(
             ch_multiqc_files,
             ch_multiqc_salmon,

@@ -17,9 +17,9 @@ workflow sciRNAseq3_nogather_workflow {
 
     main:
         // Define channels
-        out_whitelist = Channel.empty()
-        out_samplesheet = Channel.empty()
-        ch_versions = Channel.empty()
+        out_whitelist = channel.empty()
+        out_samplesheet = channel.empty()
+        ch_versions = channel.empty()
 
         if (params.perform_demultiplexing) {
             log.info "Starting demultiplexing with sci-rocket"

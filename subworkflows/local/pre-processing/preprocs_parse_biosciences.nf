@@ -26,8 +26,8 @@ workflow parse_workflow {
         ch_samplesheet
 
     main:
-        def ch_versions = Channel.empty()
-        def ch_splitpipe_stats = Channel.empty()
+        def ch_versions = channel.empty()
+        def ch_splitpipe_stats = channel.empty()
 
         // Demultiplex the fastq files based on the sample wells
         if (params.perform_demultiplexing && params.splitpipe_demultiplex_script == null) {

@@ -20,8 +20,8 @@ workflow tenx_genomics_workflow {
         ch_samplesheet
 
     main:
-        def ch_versions = Channel.empty()
-        def ch_cellranger_outs = Channel.empty()
+        def ch_versions = channel.empty()
+        def ch_cellranger_outs = channel.empty()
 
         // Only run Cell Ranger pipeline if perform_cellranger is set to true
         if (params.perform_cellranger) {

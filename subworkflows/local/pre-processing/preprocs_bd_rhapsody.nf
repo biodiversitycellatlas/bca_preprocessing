@@ -23,7 +23,7 @@ workflow bd_rhapsody_workflow {
     take:
         ch_samplesheet
     main:
-        def ch_versions = Channel.empty()
+        def ch_versions = channel.empty()
 
         // Enhanced Beads reads start with 0-3 variable bases, the V1 beads have a fixed layout
         if (params.protocol == 'bd_rhapsody_enhancedbeads') {

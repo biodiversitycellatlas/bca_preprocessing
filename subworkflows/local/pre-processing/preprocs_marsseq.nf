@@ -20,8 +20,8 @@ workflow marsseq_workflow {
 
     main:
         // Define channels
-        out_samplesheet = Channel.empty()
-        ch_versions = Channel.empty()
+        out_samplesheet = channel.empty()
+        ch_versions = channel.empty()
 
         if (params.perform_demultiplexing) {
             log.info "MARS-seq '${params.protocol}': rebuilding reads, the batch barcode moves in front of the cell barcode and UMI."

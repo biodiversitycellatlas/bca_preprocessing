@@ -29,20 +29,20 @@ workflow mapping_starsolo_workflow {
 
     main:
         // Initialize reporting channels
-        def ch_starsolo_bam         = Channel.empty()
-        def ch_filtered_mtx         = Channel.empty()
-        def ch_velocyto_filtered    = Channel.empty()
-        def ch_secondderiv_knee     = Channel.empty()
-        def ch_secondderiv_stats    = Channel.empty()
-        def ch_secondderiv_cutoff   = Channel.empty()
-        def ch_versions             = Channel.empty()
+        def ch_starsolo_bam         = channel.empty()
+        def ch_filtered_mtx         = channel.empty()
+        def ch_velocyto_filtered    = channel.empty()
+        def ch_secondderiv_knee     = channel.empty()
+        def ch_secondderiv_stats    = channel.empty()
+        def ch_secondderiv_cutoff   = channel.empty()
+        def ch_versions             = channel.empty()
 
         // Check if star index is provided, if not create it
         def star_index_ch
         if (prebuilt_star_index != null) {
             star_index_ch = prebuilt_star_index
         } else if (params.star_index && file(params.star_index).exists() && remap_geneext == 'false') {
-            star_index_ch = Channel.value(file(params.star_index))
+            star_index_ch = channel.value(file(params.star_index))
         } else {
             // Build a single index for the whole run; the samples' cDNA reads are only
             // gathered so the index can size --sjdbOverhang on the longest read
@@ -57,7 +57,7 @@ workflow mapping_starsolo_workflow {
 
         // Confirm bc_whitelist is a safe value channel
         def bc_whitelist_ch = bc_whitelist instanceof List
-            ? Channel.value(bc_whitelist)
+            ? channel.value(bc_whitelist)
             : bc_whitelist.ifEmpty([]).first()
 
         // Run STARsolo alignment

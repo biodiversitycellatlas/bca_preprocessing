@@ -41,17 +41,17 @@ workflow post_mapping_workflow {
 
     main:
         // Initialize reporting channels
-        def ch_sat_imgs      = Channel.empty()
-        def ch_sat_res_imgs  = Channel.empty()
-        def ch_sat_logs      = Channel.empty()
-        def ch_featurecounts = Channel.empty()
-        def ch_antisense     = Channel.empty()
-        def ch_barcode_reads = Channel.empty()
-        def ch_pavian_sankey = Channel.empty()
-        def ch_kraken_report = Channel.empty()
-        def ch_geneext_report = Channel.empty()
-        def ch_geneext_log    = Channel.empty()
-        def ch_versions       = Channel.empty()
+        def ch_sat_imgs      = channel.empty()
+        def ch_sat_res_imgs  = channel.empty()
+        def ch_sat_logs      = channel.empty()
+        def ch_featurecounts = channel.empty()
+        def ch_antisense     = channel.empty()
+        def ch_barcode_reads = channel.empty()
+        def ch_pavian_sankey = channel.empty()
+        def ch_kraken_report = channel.empty()
+        def ch_geneext_report = channel.empty()
+        def ch_geneext_log    = channel.empty()
+        def ch_versions       = channel.empty()
 
         def prev_dir = (params.previous_outdir ?: params.outdir).toString()
 
@@ -61,11 +61,11 @@ workflow post_mapping_workflow {
         // Conditionally bypass MERGE_REF_GTF when no additional features are provided
         def ref_gtf_ch
         if (params.ref_gtf_addfeature) {
-            MERGE_REF_GTF(params.ref_gtf, Channel.fromPath(params.ref_gtf_addfeature), '')
+            MERGE_REF_GTF(params.ref_gtf, channel.fromPath(params.ref_gtf_addfeature), '')
             ref_gtf_ch = MERGE_REF_GTF.out.gtf
             ch_versions = ch_versions.mix(MERGE_REF_GTF.out.versions)
         } else {
-            ref_gtf_ch = Channel.value(file(params.ref_gtf))
+            ref_gtf_ch = channel.value(file(params.ref_gtf))
         }
 
         // The GeneExt-remapped runs were annotated against the extended GTF, so their
@@ -81,21 +81,21 @@ workflow post_mapping_workflow {
                 )
             }
             if (params.ref_gtf_addfeature) {
-                MERGE_REF_GTF_GENEEXT(Channel.value(geneext_gtf), Channel.fromPath(params.ref_gtf_addfeature), '_geneext')
+                MERGE_REF_GTF_GENEEXT(channel.value(geneext_gtf), channel.fromPath(params.ref_gtf_addfeature), '_geneext')
                 ref_gtf_geneext_ch = MERGE_REF_GTF_GENEEXT.out.gtf
                 ch_versions = ch_versions.mix(MERGE_REF_GTF_GENEEXT.out.versions)
             } else {
-                ref_gtf_geneext_ch = Channel.value(geneext_gtf)
+                ref_gtf_geneext_ch = channel.value(geneext_gtf)
             }
 
             // Check if GeneExt produced a report and/or log, and if so, publish them to the dashboard
             def geneext_report = file("${geneext_gtf}.Report.html")
             def geneext_log    = file("${geneext_gtf}.GeneExt.log")
             if (geneext_report.exists()) {
-                ch_geneext_report = Channel.value(geneext_report)
+                ch_geneext_report = channel.value(geneext_report)
             }
             if (geneext_log.exists()) {
-                ch_geneext_log = Channel.value(geneext_log)
+                ch_geneext_log = channel.value(geneext_log)
             }
         }
 
@@ -175,10 +175,10 @@ workflow post_mapping_workflow {
         }
 
     emit:
-        fastqc_results               = Channel.empty()
+        fastqc_results               = channel.empty()
         mapped_samplesheet           = restage_mapping_workflow.out.mapped_metas
         ref_gtf                      = ref_gtf_ch
-        mapping_files                = Channel.empty()
+        mapping_files                = channel.empty()
         starsolo_bam                 = restage_mapping_workflow.out.starsolo_bam
         star_solodir                 = restage_mapping_workflow.out.star_solodir
         starsolo_genefull50_raw      = restage_mapping_workflow.out.starsolo_genefull50_raw

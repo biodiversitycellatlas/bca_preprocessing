@@ -35,10 +35,10 @@ workflow cellcalling_starsolo_workflow {
 
     main:
         // Initialize reporting channels
-        def ch_filtered_mtx       = Channel.empty()
-        def ch_secondderiv_knee   = Channel.empty()
-        def ch_secondderiv_stats  = Channel.empty()
-        def ch_secondderiv_cutoff = Channel.empty()
+        def ch_filtered_mtx       = channel.empty()
+        def ch_secondderiv_knee   = channel.empty()
+        def ch_secondderiv_stats  = channel.empty()
+        def ch_secondderiv_cutoff = channel.empty()
 
         if (params.cellfilter_method in ["second_derivative", "manual_cutoff"]) {
             SECONDDERIV_CELLCALLING(umi_per_cell)
@@ -92,11 +92,11 @@ workflow cellcalling_alevin_workflow {
     main:
         // Initialize channels
         def ch_af_mtx = af_mtx
-        def ch_filtered_mtx       = Channel.empty()
-        def ch_secondderiv_umis   = Channel.empty()
-        def ch_secondderiv_knee   = Channel.empty()
-        def ch_secondderiv_stats  = Channel.empty()
-        def ch_secondderiv_cutoff = Channel.empty()
+        def ch_filtered_mtx       = channel.empty()
+        def ch_secondderiv_umis   = channel.empty()
+        def ch_secondderiv_knee   = channel.empty()
+        def ch_secondderiv_stats  = channel.empty()
+        def ch_secondderiv_cutoff = channel.empty()
 
         if (params.cellfilter_method in ["second_derivative", "manual_cutoff"]) {
             SECONDDERIV_CELLCALLING_ALEVIN(ch_af_mtx)

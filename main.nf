@@ -61,11 +61,11 @@ workflow BCA_PREPROCESSING {
 
     main:
         // Initialize reporting channels
-        def multiqc_report_ch   = Channel.empty()
-        def preprocs_output_ch  = Channel.empty()
+        def multiqc_report_ch   = channel.empty()
+        def preprocs_output_ch  = channel.empty()
 
         // Cell Ranger / split-pipe results, empty in post_mapping where they are not rerun
-        def vendor_results_ch   = Channel.empty()
+        def vendor_results_ch   = channel.empty()
 
         // The mapping results the downstream workflows run on, either freshly mapped or
         // read back from a previous run; both branches emit the same channel names
@@ -211,7 +211,7 @@ workflow {
             }
         }
         .unique()
-        .mix(Channel.of(workflowVersionToYAML()))
+        .mix(channel.of(workflowVersionToYAML()))
         .collectFile(storeDir: params.outdir, name: 'versions.yml', sort: true, newLine: true)
 
     //

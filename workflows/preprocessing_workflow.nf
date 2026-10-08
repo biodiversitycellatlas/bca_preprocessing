@@ -41,7 +41,7 @@ workflow preprocessing_workflow {
         def ch_versions = MERGE_FASTQS.out.versions
 
         // Vendor pipeline results the mapping statistics are read from, as [pipeline, meta, file]
-        def ch_vendor_results = Channel.empty()
+        def ch_vendor_results = channel.empty()
 
         // Download it when provided as an URL(s), multiple URLs are separated by whitespace
         def whitelist_param = params.bc_whitelist?.toString()?.trim()
