@@ -1103,13 +1103,24 @@
                     credit: { name: "Michael Schiffer", url: "https://unsplash.com/michael_schiffer_design" },
                     stats: [
                         { label: "Noise (% UMIs in non-cell barcodes)", value: m.noise_pct },
-                        { label: "% Intronic reads", value: m.intronic_pct },
-                        { label: "% rRNA in unique reads", value: m.rrna_pct },
-                        { label: "% rRNA in multimappers all pos", value: m.rrna_multi_all_pct },
-                        { label: "% rRNA in multimappers primary pos", value: m.rrna_multi_primary_pct },
-                        { label: "% mtDNA in unique reads", value: m.mtdna_unique_pct },
-                        { label: "% mtDNA in multimappers all pos", value: m.mtdna_multi_all_pct },
-                        { label: "% mtDNA in multimappers primary pos", value: m.mtdna_multi_primary_pct },
+                        { label: "% intronic reads (of uniquely mapped reads)", value: m.intronic_pct },
+                        { label: "% rRNA reads (of mapped reads, primary alignment)", value: m.rrna_mapped_pct },
+                        { label: "% rRNA reads (of uniquely mapped reads)", value: m.rrna_unique_pct },
+                        { label: "% rRNA reads (of multimapped reads, primary alignment)", value: m.rrna_multi_primary_pct },
+                        { label: "% rRNA alignments (of multimapped read alignments, all alignments)", value: m.rrna_multi_aln_pct },
+                        { label: "% mtDNA reads (of mapped reads, primary alignment)", value: m.mtdna_mapped_pct },
+                        { label: "% mtDNA reads (of uniquely mapped reads)", value: m.mtdna_unique_pct },
+                        { label: "% mtDNA reads (of multimapped reads, primary alignment)", value: m.mtdna_multi_primary_pct },
+                        { label: "% mtDNA alignments (of multimapped read alignments, all alignments)", value: m.mtdna_multi_aln_pct },
+                        // Rows whose inputs are optional: the called-cell values need the
+                        // filtered matrix, the strand split a stranded run
+                        ...[
+                            { label: "% rRNA reads (of mapped reads, primary alignment, called cells)", value: m.rrna_mapped_cells_pct },
+                            { label: "% mtDNA reads (of mapped reads, primary alignment, called cells)", value: m.mtdna_mapped_cells_pct },
+                            { label: "% mtDNA reads sense to mitochondrial genes (of mtDNA reads)", value: m.mtdna_sense_pct },
+                            { label: "% mtDNA reads antisense to mitochondrial genes (of mtDNA reads)", value: m.mtdna_antisense_pct },
+                            { label: "% mtDNA reads outside mitochondrial genes (of mtDNA reads)", value: m.mtdna_outside_pct },
+                        ].filter(r => r.value != null),
                         // Not counted for unstranded runs, so the row is left out there
                         ...(m.antisense_pct != null
                             ? [{ label: "% Antisense reads (of gene-assigned reads)", value: m.antisense_pct }]
@@ -1753,47 +1764,47 @@
             const combos = [
                 {
                     id: "plot1",
-                    x: "IntronicPercent", xLabel: "% Intronic",
-                    y: "MTPercent", yLabel: "% mtDNA",
-                    title: "% Intronic vs % mtDNA"
+                    x: "IntronicPercent", xLabel: "% intronic reads (of uniquely mapped)",
+                    y: "MTPercent", yLabel: "% mtDNA reads (of mapped)",
+                    title: "% Intronic vs % mtDNA Reads"
                 },
                 {
                     id: "plot2",
-                    x: "IntronicPercent", xLabel: "% Intronic",
-                    y: "rRNAPercent", yLabel: "% rRNA",
-                    title: "% Intronic vs % rRNA"
+                    x: "IntronicPercent", xLabel: "% intronic reads (of uniquely mapped)",
+                    y: "rRNAPercent", yLabel: "% rRNA reads (of mapped)",
+                    title: "% Intronic vs % rRNA Reads"
                 },
                 {
                     id: "plot3",
-                    x: "IntronicPercent", xLabel: "% Intronic",
-                    y: "TotalReads", yLabel: "Total UMIs",
-                    title: "% Intronic vs Total UMIs"
+                    x: "IntronicPercent", xLabel: "% intronic reads (of uniquely mapped)",
+                    y: "MappedReads", yLabel: "Mapped reads",
+                    title: "% Intronic Reads vs Mapped Reads"
                 },
                 {
                     id: "plot4",
-                    x: "MTPercent", xLabel: "% mtDNA",
-                    y: "rRNAPercent", yLabel: "% rRNA",
-                    title: "% mtDNA vs % rRNA"
+                    x: "MTPercent", xLabel: "% mtDNA reads (of mapped)",
+                    y: "rRNAPercent", yLabel: "% rRNA reads (of mapped)",
+                    title: "% mtDNA vs % rRNA Reads"
                 },
                 {
                     id: "plot5",
-                    x: "MTPercent", xLabel: "% mtDNA",
-                    y: "TotalReads", yLabel: "Total UMIs",
-                    title: "% mtDNA vs Total UMIs"
+                    x: "MTPercent", xLabel: "% mtDNA reads (of mapped)",
+                    y: "MappedReads", yLabel: "Mapped reads",
+                    title: "% mtDNA Reads vs Mapped Reads"
                 },
                 {
                     id: "plot6",
-                    x: "rRNAPercent", xLabel: "% rRNA",
-                    y: "TotalReads", yLabel: "Total UMIs",
-                    title: "% rRNA vs Total UMIs"
+                    x: "rRNAPercent", xLabel: "% rRNA reads (of mapped)",
+                    y: "MappedReads", yLabel: "Mapped reads",
+                    title: "% rRNA Reads vs Mapped Reads"
                 }
             ];
 
             /* IsCell marks membership of the cell set the count matrix was filtered on,
                so it is exact. The threshold is only a fallback: it compares a UMI cutoff
-               against per-barcode read counts, which merely approximates that set. */
+               against per-barcode mapped-read counts, which merely approximates that set. */
             const hasIsCell = Object.prototype.hasOwnProperty.call(rawData, "IsCell");
-            const isCell = d => hasIsCell ? Boolean(d.IsCell) : d.TotalReads > threshold;
+            const isCell = d => hasIsCell ? Boolean(d.IsCell) : d.MappedReads > threshold;
 
             /* Every called cell is plotted; the non-cell cloud is thinned by a
                fixed stride when it runs into the hundreds of thousands, since

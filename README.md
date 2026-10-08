@@ -160,7 +160,6 @@ Within each custom configuration file the following variables can be defined:
 | `mapping_software`       | Optional          | Software used to map reads (must be one of the following: `"starsolo"`, `"alevin"` or `"both"`). Default set to `"starsolo"`.                                                                                                                                      |
 | `perform_geneext`        | Optional          | Boolean flag to enable or disable the gene extension step in preprocessing. Default is `false`.                                                                                                                                                                    |
 | `geneext_downstream`     | Optional          | Only with `perform_geneext`: `"geneext_only"` maps and analyses only the runs against the extended annotation, `"both"` also the standard-annotation runs. Default is `"geneext_only"`.                                                                           |
-| `perform_featurecounts`  | Optional          | Boolean flag to enable or disable calculation of mtDNA, rRNA & antisense read percentages. Default is `false`.                                                                                                                                                                     |
 | `perform_kraken`         | Optional          | Boolean flag to enable or disable Kraken2 classification of unmapped reads. Default is `false`.                                                                                                                                                                    |
 
 To modify the behaviour of certain processes or enable external pipelines, additional variables can be added to the configuration file. An overview of the extended custom parameters is listed [here](docs/CONFIGURATION_PARAMETERS.md).
@@ -223,7 +222,7 @@ output_directory/
 ├── cellsweep/              # (Optional) CellSweep ambient RNA removal
 ├── saturation/             # (Optional) Sequencing saturation analysis
 ├── gene_ext/               # (Optional) Extended GTF file and outputs from GeneExt
-├── rRNA_mtDNA/             # (Optional) mtDNA, rRNA and antisense results from FeatureCounts
+├── rRNA_mtDNA/             # mtDNA, rRNA and antisense reads (runs with a BAM)
 ├── kraken/                 # (Optional) Kraken2 taxonomic classification of unmapped reads
 │
 ├── CellRanger_pipeline/    # (Optional) External Cell Ranger outputs

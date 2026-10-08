@@ -8,5 +8,4 @@ dependencies:
   - pandas
   - scipy
   - matplotlib
-  - pysam
   - pip

@@ -79,9 +79,53 @@ _SD_MIN_UMIS: int = 100
 # string) is dropped from the embedded copy -- nothing reads it, and it is the
 # single widest column.  The published *_metrics.csv / *_metrics.json keep it.
 _PERCELL_COLUMNS: List[str] = [
-    "IntronicPercent", "MTPercent", "rRNAPercent", "TotalReads", "IsCell",
+    "IntronicPercent", "MTPercent", "rRNAPercent", "MappedReads", "IsCell",
 ]
 _PERCELL_PCT_COLUMNS: List[str] = ["IntronicPercent", "MTPercent", "rRNAPercent"]
+
+# ── rRNA / mtDNA metrics ─────────────────────────────────────────────────────
+# Rows of *_mt_rrna_metrics.txt the report shows, by payload key: the current row
+# name and the name an earlier pipeline version gave the same quantity.  The
+# legacy name is None where the old row measured something else -- the mtDNA
+# percentage of mapped reads used to count alignment records -- so an old file
+# shows N/A there rather than a wrong value under the new label.
+_MT_RRNA_ROWS: Dict[str, Tuple[str, Optional[str]]] = {
+    "rrna_mapped_pct": (
+        "Percentage of rRNA reads (of mapped reads, primary alignment)", None),
+    "rrna_unique_pct": (
+        "Percentage of rRNA reads (of uniquely mapped reads)",
+        "Percentage of rRNA reads (of uniquely mapped reads)"),
+    "rrna_multi_primary_pct": (
+        "Percentage of rRNA reads (of multimapped reads, primary alignment)",
+        "Percentage of rRNA in multimapped reads (primary alignment)"),
+    "rrna_multi_aln_pct": (
+        "Percentage of rRNA alignments (of multimapped read alignments, all alignments)",
+        "Percentage of rRNA in multimapped reads (all alignments)"),
+    "mtdna_mapped_pct": (
+        "Percentage of mtDNA reads (of mapped reads, primary alignment)", None),
+    "mtdna_unique_pct": (
+        "Percentage of mtDNA reads (of uniquely mapped reads)", None),
+    "mtdna_multi_primary_pct": (
+        "Percentage of mtDNA reads (of multimapped reads, primary alignment)",
+        "Percentage of mtDNA in multimapped reads (primary alignment)"),
+    "mtdna_multi_aln_pct": (
+        "Percentage of mtDNA alignments (of multimapped read alignments, all alignments)",
+        "Percentage of mtDNA in multimapped reads (all alignments)"),
+}
+# Rows that only exist when their inputs did (a called-cell barcode list, a
+# stranded run); the card leaves them out rather than showing N/A.
+_MT_RRNA_OPTIONAL_ROWS: Dict[str, str] = {
+    "rrna_mapped_cells_pct":
+        "Percentage of rRNA reads (of mapped reads, primary alignment, called cells)",
+    "mtdna_mapped_cells_pct":
+        "Percentage of mtDNA reads (of mapped reads, primary alignment, called cells)",
+    "mtdna_sense_pct":
+        "Percentage of mtDNA reads sense to mitochondrial genes (of mtDNA reads)",
+    "mtdna_antisense_pct":
+        "Percentage of mtDNA reads antisense to mitochondrial genes (of mtDNA reads)",
+    "mtdna_outside_pct":
+        "Percentage of mtDNA reads outside mitochondrial genes (of mtDNA reads)",
+}
 
 # ── GeneExt ──────────────────────────────────────────────────────────────────
 # GeneExt writes a standalone HTML report next to the extended GTF with every
@@ -483,19 +527,41 @@ def parse_starsolo_summary(path: Optional[str]) -> Dict[str, str]:
 
 
 def parse_mt_rrna_metrics(path: Optional[str]) -> Dict[str, str]:
-    """Parse an MT/rRNA metrics file (``key,value`` lines) into a dict."""
+    """Parse an MT/rRNA metrics file (``key,value`` CSV rows) into a dict.
+
+    Read as CSV: metric names carry commas ("of mapped reads, primary alignment")
+    and are quoted.  Files of earlier versions, unquoted, read the same way.
+    """
     data: Dict[str, str] = {}
     if not path or not os.path.exists(path):
         return data
     try:
-        with open(path, "r") as fh:
-            for line in fh:
-                if "," in line:
-                    key, val = line.strip().split(",", 1)
-                    data[key.strip()] = val.strip()
+        with open(path, "r", newline="") as fh:
+            for rec in csv.reader(fh):
+                if len(rec) >= 2:
+                    data[rec[0].strip()] = ",".join(rec[1:]).strip()
     except Exception:
         pass
     return data
+
+
+def mt_rrna_values(stats: Dict[str, str]) -> Dict[str, Optional[str]]:
+    """The rRNA / mtDNA percentages the report shows, keyed as in the payload.
+
+    ``_MT_RRNA_ROWS`` are always present (``"N/A"`` when missing), falling back to
+    the legacy row name where the quantity is unchanged.  ``_MT_RRNA_OPTIONAL_ROWS``
+    are ``None`` unless the file holds a number for them.
+    """
+    values: Dict[str, Optional[str]] = {}
+    for key, (name, legacy) in _MT_RRNA_ROWS.items():
+        raw = stats.get(name)
+        if raw is None and legacy:
+            raw = stats.get(legacy)
+        values[key] = to_pct(raw)
+    for key, name in _MT_RRNA_OPTIONAL_ROWS.items():
+        pct = to_pct(stats.get(name))
+        values[key] = None if pct == "N/A" else pct
+    return values
 
 
 def parse_starsolo_intronic(path: Optional[str]) -> Any:
@@ -801,7 +867,7 @@ def build_per_cell_payload(
     order, which is unrelated to any metric, so the stride is an unbiased sample.
 
     Cells are identified by ``IsCell`` -- membership of the filtered matrix --
-    falling back to ``TotalReads > umi_threshold``, matching what the report does.
+    falling back to ``MappedReads > umi_threshold``, matching what the report does.
 
     Returns ``(columns, sampling)``, where *sampling* records the non-cell counts
     before and after thinning so the plot legends can say what is shown, or
@@ -817,6 +883,16 @@ def build_per_cell_payload(
     if not isinstance(raw, dict) or not raw:
         return None, None
 
+    # Files from earlier pipeline versions name the read column TotalReads and hold
+    # the percentages as 0-1 fractions; bring them to the current layout
+    legacy = "TotalReads" in raw and "MappedReads" not in raw
+    if legacy:
+        raw = dict(raw)
+        raw["MappedReads"] = raw.pop("TotalReads")
+        for name in _PERCELL_PCT_COLUMNS:
+            if isinstance(raw.get(name), list):
+                raw[name] = [v * 100 if isinstance(v, (int, float)) else v for v in raw[name]]
+
     columns = {k: v for k, v in raw.items()
                if k in _PERCELL_COLUMNS and isinstance(v, list)}
     if not columns:
@@ -826,7 +902,7 @@ def build_per_cell_payload(
         return None, None
 
     is_cell_col = columns.get("IsCell")
-    total_col   = columns.get("TotalReads")
+    total_col   = columns.get("MappedReads")
     threshold   = safe_float(umi_threshold)
     if is_cell_col is not None:
         cell_flags = [bool(v) for v in is_cell_col[:n_rows]]
@@ -1451,9 +1527,9 @@ def main() -> None:
     global_cols = [
         "Sample", "Mapper", "% Mapped Reads", "N cells", "Saturation",
         "Reads Needed for Target Saturation", "Noise (% UMIs non-cell barcodes)",
-        "Median Transcripts Per Cell", "% Intronic Reads", "% rRNA in Unique reads",
-        "% rRNA in multimappers all pos", "% mtDNA in Unique reads",
-        "% mtDNA in multimappers all pos",
+        "Median Transcripts Per Cell", "% intronic reads (of uniquely mapped reads)",
+        "% rRNA reads (of mapped reads)", "% rRNA reads (of uniquely mapped reads)",
+        "% mtDNA reads (of mapped reads)", "% mtDNA reads (of mapped reads, called cells)",
     ]
     global_rows:        List[List]         = []
     samples_json_list:  List[Dict]         = []
@@ -1626,15 +1702,12 @@ def main() -> None:
             if sd_cutoff is None:
                 sd_cutoff = sd_knee.get("threshold_umi")
 
-        rrna_pct           = to_pct(get_val(mt_stats, "Percentage of rRNA reads (of uniquely mapped reads)"))
-        rrna_multi_all     = to_pct(get_val(mt_stats, "Percentage of rRNA in multimapped reads (all alignments)"))
-        rrna_multi_primary = to_pct(get_val(mt_stats, "Percentage of rRNA in multimapped reads (primary alignment)"))
-        mtdna_unique       = to_pct(get_val(mt_stats, "Percentage of mtDNA reads (of mapped reads)"))
-        mtdna_multi_all    = to_pct(get_val(mt_stats, "Percentage of mtDNA in multimapped reads (all alignments)"))
-        mtdna_multi_primary = to_pct(get_val(mt_stats, "Percentage of mtDNA in multimapped reads (primary alignment)"))
+        # Library-level rows describe every read in the BAM; the called-cell ones only
+        # exist when the filtered matrix's barcodes reached CALC_READ_METRICS
+        mt_rrna = mt_rrna_values(mt_stats)
 
-        # None rather than "N/A" when the file is absent, so the card leaves the row
-        # out for runs that never counted antisense reads (featureCounts off, or unstranded)
+        # None rather than "N/A" when the file is absent, so the card leaves the row out for
+        # runs without antisense metrics (no STARsolo BAM, unstranded, no CellReads.stats)
         antisense_pct: Optional[str] = None
         if files.get("antisense"):
             antisense_stats = parse_mt_rrna_metrics(files["antisense"])
@@ -1645,8 +1718,9 @@ def main() -> None:
         global_rows.append([
             s_id, "STARsolo" if using_star else "alevin-fry",
             pct_unique, fmt(n_cells), saturation, reads_07_sat_val, noise_pct,
-            fmt(median_umis), intronic_pct, rrna_pct, rrna_multi_all,
-            mtdna_unique, mtdna_multi_all,
+            fmt(median_umis), intronic_pct, mt_rrna["rrna_mapped_pct"],
+            mt_rrna["rrna_unique_pct"], mt_rrna["mtdna_mapped_pct"],
+            mt_rrna["mtdna_mapped_cells_pct"] or "N/A",
         ])
 
         # ── Cell filtering ───────────────────────────────────────────────────
@@ -1689,12 +1763,7 @@ def main() -> None:
                 "pct_unmapped_other":   pct_other,
                 "noise_pct":            noise_pct,
                 "intronic_pct":         intronic_pct,
-                "rrna_pct":             rrna_pct,
-                "rrna_multi_all_pct":     rrna_multi_all,
-                "rrna_multi_primary_pct": rrna_multi_primary,
-                "mtdna_unique_pct":     mtdna_unique,
-                "mtdna_multi_all_pct":  mtdna_multi_all,
-                "mtdna_multi_primary_pct": mtdna_multi_primary,
+                **mt_rrna,
                 "antisense_pct":        antisense_pct,
                 "n_cells":              fmt(n_cells),
                 "saturation":           saturation,

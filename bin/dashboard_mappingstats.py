@@ -70,6 +70,22 @@ def parse_command_line_arguments(
 
 
 # ---------------------------------------------------------------------------
+# Read-region columns
+# ---------------------------------------------------------------------------
+# STARsolo flags a read's region (exonic, intronic, mitochondrial, ...) only when it
+# has a unique genomic alignment, so these share that denominator. For STARsolo
+# they are summed over the called cells (CellReads.stats rows of the filtered
+# barcodes); sci-rocket writes the same columns from its own per-sample totals.
+# "mtDNA" names where the read maps -- the mitochondrial genome -- not the molecule.
+COL_EXONIC = "% exonic reads (of uniquely mapped reads, called cells)"
+COL_INTRONIC = "% intronic reads (of uniquely mapped reads, called cells)"
+COL_INTERGENIC = "% intergenic reads (of uniquely mapped reads, called cells)"
+COL_MTDNA = "% mtDNA reads (of uniquely mapped reads, called cells)"
+COL_EXONIC_AS = "% exonic antisense reads (of uniquely mapped reads, called cells)"
+COL_INTRONIC_AS = "% intronic antisense reads (of uniquely mapped reads, called cells)"
+
+
+# ---------------------------------------------------------------------------
 # Generic helpers
 # ---------------------------------------------------------------------------
 
@@ -452,12 +468,12 @@ def parse_scirocket_run(js_path: Path) -> List[Dict[str, object]]:
         total_genome = exonic + intronic + intergenic + exonic_as + intronic_as
 
         if total_genome > 0:
-            row["% exonic reads"] = convert_to_pct(exonic / total_genome)
-            row["% Intronic reads"] = convert_to_pct(intronic / total_genome)
-            row["% intergenic reads"] = convert_to_pct(intergenic / total_genome)
-            row["% mtDNA in Unique reads"] = convert_to_pct(mito / total_genome)
-            row["% exonicAS reads"] = convert_to_pct(exonic_as / total_genome)
-            row["% intronicAS reads"] = convert_to_pct(intronic_as / total_genome)
+            row[COL_EXONIC] = convert_to_pct(exonic / total_genome)
+            row[COL_INTRONIC] = convert_to_pct(intronic / total_genome)
+            row[COL_INTERGENIC] = convert_to_pct(intergenic / total_genome)
+            row[COL_MTDNA] = convert_to_pct(mito / total_genome)
+            row[COL_EXONIC_AS] = convert_to_pct(exonic_as / total_genome)
+            row[COL_INTRONIC_AS] = convert_to_pct(intronic_as / total_genome)
 
         rows.append(row)
 
@@ -1011,12 +1027,12 @@ def process_star_samples(
 
         creads_map: Mapping[str, str] = {
             "pct_noise": "Noise (% UMIs in non-cell barcodes)",
-            "pct_exonic_reads": "% exonic reads",
-            "pct_intronic_reads": "% Intronic reads",
-            "pct_intergenic_reads": "% intergenic reads",
-            "pct_mitochondrial_reads": "% mtDNA in Unique reads",
-            "pct_exonicAS_reads": "% exonicAS reads",
-            "pct_intronicAS_reads": "% intronicAS reads",
+            "pct_exonic_reads": COL_EXONIC,
+            "pct_intronic_reads": COL_INTRONIC,
+            "pct_intergenic_reads": COL_INTERGENIC,
+            "pct_mitochondrial_reads": COL_MTDNA,
+            "pct_exonicAS_reads": COL_EXONIC_AS,
+            "pct_intronicAS_reads": COL_INTRONIC_AS,
         }
         for key, col_name in creads_map.items():
             if key in creads:
@@ -1050,13 +1066,12 @@ TSV_FIELDS: List[str] = [
     "Saturation",
     "Reads for 0.7 saturation",
     "Noise (% UMIs in non-cell barcodes)",
-    "% exonic reads",
-    "% Intronic reads",
-    "% intergenic reads",
-    "% mtDNA in Unique reads",
-    "% exonicAS reads",
-    "% intronicAS reads",
-    "% rRNA in Unique reads",
+    COL_EXONIC,
+    COL_INTRONIC,
+    COL_INTERGENIC,
+    COL_MTDNA,
+    COL_EXONIC_AS,
+    COL_INTRONIC_AS,
     "Mean Reads per Cell",
     "Median UMI Counts per Cell",
     "Median Genes per Cell",

@@ -217,13 +217,15 @@
             }
         },
         "featurecounts_options": {
-            "title": "FeatureCounts options",
+            "title": "Read metrics options",
             "type": "object",
             "description": "",
             "default": "",
             "properties": {
                 "perform_featurecounts": {
-                    "type": "boolean"
+                    "type": "boolean",
+                    "description": "Deprecated: the mtDNA, rRNA and antisense read metrics always run for a STARsolo BAM; this parameter has no effect.",
+                    "hidden": true
                 },
                 "grep_rrna": {
                     "type": "string",

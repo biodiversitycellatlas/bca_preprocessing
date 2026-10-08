@@ -23,12 +23,11 @@ workflow reporting_workflow {
     take:
         samplesheet
         samplesheet_file
-        ref_gtf
         run_config
         star_logs
         star_summaries
         star_full_logs
-        starsolo_bam
+        barcode_reads
         star_solodir
         star_filtered_mtx
         saturation_logs
@@ -61,19 +60,20 @@ workflow reporting_workflow {
         // Declare channels
         def ch_star_logs = star_logs
 
-        // Join BAM, SoloDir, and Logs before per-cell metrics. The cutoff and the
-        // filtered matrix are both optional: the module prefers the filtered matrix's
-        // barcodes, falls back to the cutoff, and then to STARsolo's nUMImin.
-        starsolo_bam
+        // Join the per-barcode read counts (CALC_READ_METRICS, one per STARsolo BAM),
+        // SoloDir, and Logs before per-cell metrics. The cutoff and the filtered matrix
+        // are both optional: the module prefers the filtered matrix's barcodes, falls
+        // back to the cutoff, and then to STARsolo's nUMImin.
+        barcode_reads
             .join(star_solodir)
             .join(ch_star_logs)
             .join(secondderiv_cutoff, remainder: true)
             .join(star_filtered_mtx, remainder: true)
             // remainder keeps samples without those inputs, but can also emit rows for
-            // samples that have them and no BAM; those are dropped here
+            // samples that have them and no read counts; those are dropped here
             .filter { row -> row.size() == 6 && row[1] != null }
-            .multiMap { meta, bam, solodir, logs, cutoff, filtered ->
-                bam_ch:      [meta, bam]
+            .multiMap { meta, counts, solodir, logs, cutoff, filtered ->
+                counts_ch:   [meta, counts]
                 solodir_ch:  [meta, solodir]
                 logs_ch:     [meta, logs]
                 cutoff_ch:   [meta, cutoff ?: []]
@@ -83,12 +83,11 @@ workflow reporting_workflow {
 
         // Run per-cell metrics on starsolo outputs.
         PERCELL_METRICS(
-            ch_percell_inputs.bam_ch,
+            ch_percell_inputs.counts_ch,
             ch_percell_inputs.solodir_ch,
             ch_percell_inputs.logs_ch,
             ch_percell_inputs.cutoff_ch,
-            ch_percell_inputs.filtered_ch,
-            ref_gtf.first()
+            ch_percell_inputs.filtered_ch
         )
         percell_json = PERCELL_METRICS.out.percell_json
 

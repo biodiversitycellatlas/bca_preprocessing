@@ -119,12 +119,11 @@ workflow BCA_PREPROCESSING {
             reporting_workflow(
                 mapping_out.mapped_samplesheet,
                 SAVE_RUN_CONFIG.out.samplesheet,
-                mapping_out.ref_gtf,
                 SAVE_RUN_CONFIG.out.run_config,
                 mapping_out.star_final_log,
                 mapping_out.star_summaries,
                 mapping_out.star_log,
-                mapping_out.starsolo_bam,
+                mapping_out.barcode_reads,
                 mapping_out.star_solodir,
                 mapping_out.starsolo_genefull50_filtered,
                 mapping_out.saturation_logs,

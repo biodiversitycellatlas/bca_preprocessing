@@ -6,12 +6,11 @@ process PERCELL_METRICS {
     conda "${moduleDir}/environment.yml"
 
     input:
-    tuple val(meta),   path(star_bam)
+    tuple val(meta),   path(barcode_reads)     // CALC_READ_METRICS' per-barcode reads; the BAM is not read
     tuple val(_meta2), path(star_solodir)
     tuple val(_meta3), path(star_log)
     tuple val(_meta4), path(secondderiv_cutoff)
     tuple val(_meta5), path(filtered_matrix_dir)
-    path (ref_gtf)
 
     output:
     path("*_metrics.json"), emit: percell_json
@@ -22,10 +21,6 @@ process PERCELL_METRICS {
     def cfg_name = "GeneFull_Ex50pAS"
     def cutoff_file = secondderiv_cutoff ?: ''
     def cell_barcodes = filtered_matrix_dir ? "${filtered_matrix_dir}/barcodes.tsv" : ''
-    def mt_contigs = (params.mt_contig ?: '').toString().trim()
-    if (!mt_contigs) {
-        error "PERCELL_METRICS requires params.mt_contig to name at least one mitochondrial contig"
-    }
     """
     # The second-derivative cutoff is the one the matrices were filtered on, so it takes
     # precedence over STARsolo's nUMImin whenever that method produced a cutoff file.
@@ -59,9 +54,7 @@ process PERCELL_METRICS {
 
     per-cell_images.py \\
         --solo-output ${star_solodir} \\
-        --bam ${star_bam} \\
-        --mt-contig ${mt_contigs} \\
-        --gtf ${ref_gtf} \\
+        --read-counts ${barcode_reads} \\
         --outdir . \\
         --min-reads \${cell_thres} \\
         \${cell_bc_arg}

@@ -46,6 +46,7 @@ workflow post_mapping_workflow {
         def ch_sat_logs      = Channel.empty()
         def ch_featurecounts = Channel.empty()
         def ch_antisense     = Channel.empty()
+        def ch_barcode_reads = Channel.empty()
         def ch_pavian_sankey = Channel.empty()
         def ch_kraken_report = Channel.empty()
         def ch_geneext_report = Channel.empty()
@@ -119,7 +120,7 @@ workflow post_mapping_workflow {
         def ch_secondderiv_cutoff = cellcalling_starsolo_workflow.out.secondderiv_cutoff
             .mix(cellcalling_alevin_workflow.out.secondderiv_cutoff)
 
-        // The saturation curve is fitted per cell and featureCounts is annotation-specific,
+        // The saturation curve is fitted per cell and the read metrics are annotation-specific,
         // so the two annotations are inspected separately, as during mapping
         if (params.star_generateBAM) {
 
@@ -127,13 +128,17 @@ workflow post_mapping_workflow {
             def ch_summary   = restage_mapping_workflow.out.star_summaries
             def ch_final_log = restage_mapping_workflow.out.star_final_log
             def ch_sd_stats  = cellcalling_starsolo_workflow.out.secondderiv_stats
+            def ch_filtered  = cellcalling_starsolo_workflow.out.filtered_matrix
+            def ch_cellreads = restage_mapping_workflow.out.star_cellreads
 
             bam_inspection_workflow(
                 ch_bam.filter       { meta, _bam  -> !meta.geneext },
                 ref_gtf_ch,
                 ch_summary.filter   { meta, _csv  -> !meta.geneext },
                 ch_final_log.filter { meta, _log  -> !meta.geneext },
-                ch_sd_stats.filter  { meta, _json -> !meta.geneext }
+                ch_sd_stats.filter  { meta, _json -> !meta.geneext },
+                ch_filtered.filter  { meta, _mtx  -> !meta.geneext },
+                ch_cellreads.filter { meta, _tsv  -> !meta.geneext }
             )
 
             ch_sat_imgs      = bam_inspection_workflow.out.saturation_imgs
@@ -141,6 +146,7 @@ workflow post_mapping_workflow {
             ch_sat_logs      = bam_inspection_workflow.out.saturation_logs
             ch_featurecounts = bam_inspection_workflow.out.featurecount_txt
             ch_antisense     = bam_inspection_workflow.out.antisense_txt
+            ch_barcode_reads = bam_inspection_workflow.out.barcode_reads
             ch_pavian_sankey = bam_inspection_workflow.out.pavian_sankey
             ch_kraken_report = bam_inspection_workflow.out.kraken_report
             ch_versions      = ch_versions.mix(bam_inspection_workflow.out.versions)
@@ -151,7 +157,9 @@ workflow post_mapping_workflow {
                     ref_gtf_geneext_ch,
                     ch_summary.filter   { meta, _csv  -> meta.geneext },
                     ch_final_log.filter { meta, _log  -> meta.geneext },
-                    ch_sd_stats.filter  { meta, _json -> meta.geneext }
+                    ch_sd_stats.filter  { meta, _json -> meta.geneext },
+                    ch_filtered.filter  { meta, _mtx  -> meta.geneext },
+                    ch_cellreads.filter { meta, _tsv  -> meta.geneext }
                 )
 
                 ch_sat_imgs      = ch_sat_imgs.mix(bam_inspection_geneext_workflow.out.saturation_imgs)
@@ -159,6 +167,7 @@ workflow post_mapping_workflow {
                 ch_sat_logs      = ch_sat_logs.mix(bam_inspection_geneext_workflow.out.saturation_logs)
                 ch_featurecounts = ch_featurecounts.mix(bam_inspection_geneext_workflow.out.featurecount_txt)
                 ch_antisense     = ch_antisense.mix(bam_inspection_geneext_workflow.out.antisense_txt)
+                ch_barcode_reads = ch_barcode_reads.mix(bam_inspection_geneext_workflow.out.barcode_reads)
                 ch_pavian_sankey = ch_pavian_sankey.mix(bam_inspection_geneext_workflow.out.pavian_sankey)
                 ch_kraken_report = ch_kraken_report.mix(bam_inspection_geneext_workflow.out.kraken_report)
                 ch_versions      = ch_versions.mix(bam_inspection_geneext_workflow.out.versions)
@@ -195,6 +204,7 @@ workflow post_mapping_workflow {
         af_umipercell                = cellcalling_alevin_workflow.out.umi_per_cell
         featurecount_txt             = ch_featurecounts
         antisense_txt                = ch_antisense
+        barcode_reads                = ch_barcode_reads
         pavian_sankey                = ch_pavian_sankey
         kraken_report                = ch_kraken_report
         geneext_report               = ch_geneext_report
