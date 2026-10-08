@@ -11,7 +11,6 @@
 include { SAMTOOLS_INDEX                                    } from '../../../modules/local/tools/samtools/samtools_index/main'
 include { SATURATION_TABLE                                  } from '../../../modules/local/tools/10x_saturate/saturation_table/main'
 include { SATURATION_PLOT                                   } from '../../../modules/local/tools/10x_saturate/plot_curve/main'
-include { SAMTOOLS_VIEW_MAPPED                              } from '../../../modules/local/tools/samtools/samtools_view_mapped/main'
 include { SAMTOOLS_VIEW_UNMAPPED                            } from '../../../modules/local/tools/samtools/samtools_view_unmapped/main'
 include { CALC_READ_METRICS                                 } from '../../../modules/local/custom/read_metrics/main'
 include { KRAKEN_CREATE_DB                                  } from '../../../modules/local/tools/kraken/kraken_create_db/main'
@@ -21,7 +20,7 @@ include { PAVIAN                                            } from '../../../mod
 
 /*
 ~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~
-    SUBWORKFLOW TO RUN ALEVIN-FRY MAPPING
+    SUBWORKFLOW TO PERFORM POST-PROCESSING OF BAM FILES
 ~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~
 */
 workflow bam_inspection_workflow {
@@ -31,8 +30,8 @@ workflow bam_inspection_workflow {
         summary_csv
         log_final_file
         secondderiv_stats
-        filtered_matrix     // tuple(meta, filtered matrix dir); restricts the called-cell metrics
-        cellreads_stats     // tuple(meta, GeneFull_Ex50pAS/CellReads.stats); source of the antisense metrics
+        filtered_matrix
+        cellreads_stats
 
     main:
         // Initialize reporting channels
@@ -47,22 +46,19 @@ workflow bam_inspection_workflow {
 
         // Calculate saturation curve if perform_10x_saturate is true
         if (params.perform_10x_saturate) {
-            SAMTOOLS_VIEW_MAPPED(bam_file)
 
             // Join channels on sample ID before 10x_saturate
-            SAMTOOLS_VIEW_MAPPED.out.filtered_mapped_bam
+            bam_file
+                .join(SAMTOOLS_INDEX.out.bam_index)
                 .join(summary_csv)
                 .join(log_final_file)
-                .join(SAMTOOLS_VIEW_MAPPED.out.filtered_mapped_bai)
-                .join(SAMTOOLS_VIEW_MAPPED.out.mapreads)
                 .join(secondderiv_stats, remainder: true)
-                .filter { row -> row.size() == 7 && row[1] != null }
-                .multiMap { meta, bam, summary, log_final, bai, mapreads, sd_stats ->
+                .filter { row -> row.size() == 6 && row[1] != null }
+                .multiMap { meta, bam, bai, summary, log_final, sd_stats ->
                     bam_ch:         [meta, bam]
+                    bai_ch:         [meta, bai]
                     summary_ch:     [meta, summary]
                     log_final_ch:   [meta, log_final]
-                    bai_ch:         [meta, bai]
-                    reads_ch:       [meta, mapreads]
                     sd_stats_ch:    [meta, sd_stats ?: []]
                 }
                 .set { ch_saturation_inputs }
@@ -72,7 +68,6 @@ workflow bam_inspection_workflow {
                 ch_saturation_inputs.summary_ch,
                 ch_saturation_inputs.log_final_ch,
                 ch_saturation_inputs.bai_ch,
-                ch_saturation_inputs.reads_ch,
                 ch_saturation_inputs.sd_stats_ch
             )
 
@@ -84,17 +79,11 @@ workflow bam_inspection_workflow {
             ch_sat_logs     = SATURATION_PLOT.out.logs
 
             ch_versions = ch_versions.mix(
-                SAMTOOLS_VIEW_MAPPED.out.versions,
                 SATURATION_TABLE.out.versions,
                 SATURATION_PLOT.out.versions
             )
         }
 
-        // Percentages of mtDNA and rRNA reads, per library, per called cell and per barcode,
-        // in one pass over the BAM, and the antisense share of gene reads from STARsolo's
-        // CellReads.stats (stranded runs only). Always run: PERCELL_METRICS reads its
-        // per-barcode counts from here instead of scanning the BAM a second time.
-        //
         // Join each BAM with, where they exist, the filtered matrix (called cells) and
         // CellReads.stats. remainder keeps BAMs without them (bam_only runs), but can
         // also emit rows for a matrix without a BAM; those are dropped here
@@ -105,14 +94,12 @@ workflow bam_inspection_workflow {
             .map { meta, bam, filtered, cellreads -> [meta, bam, filtered ?: [], cellreads ?: []] }
             .set { ch_metrics_inputs }
 
-        // The added features are the rRNA reference, so every read on their contigs
-        // counts as rRNA. Read from params rather than taken as a subworkflow input,
-        // since ref_gtf already arrives merged with this file and the module needs
-        // the two apart to tell the added contigs from the rest.
         def ch_rrna_gtf = params.ref_gtf_addfeature
             ? Channel.value(file(params.ref_gtf_addfeature))
             : Channel.value([])
 
+        // Percentages of mtDNA and rRNA reads, per library, per called cell and per barcode,
+        // and the antisense share of gene reads from STARsolo's CellReads.stats (stranded runs only).
         CALC_READ_METRICS(ch_metrics_inputs, ref_gtf.first(), ch_rrna_gtf)
         ch_versions = ch_versions.mix(CALC_READ_METRICS.out.versions)
 

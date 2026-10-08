@@ -4,7 +4,7 @@ process SATURATION_TABLE {
     label 'process_single_mem2'
     label 'error_retry'
 
-    // Memory tracks the size of the filtered BAM being read, overrides process_single_mem's flat assignments.
+    // Memory tracks the size of the BAM being read, overrides process_single_mem's flat assignments.
     // Coefficients live in params.dynamic_memory; remove the entry to fall back to the plain label.
     memory { BcaResources.scaledMemory(
         params.dynamic_memory?.SATURATION_TABLE, [bam_file], task.attempt, 36) }
@@ -16,9 +16,8 @@ process SATURATION_TABLE {
     tuple val(meta),   path(bam_file)
     tuple val(_meta2), path(star_summary_file)
     tuple val(_meta3), path(star_log_final_file)
-    tuple val(_meta4), path(samtools_bai)
-    tuple val(_meta5), path(samtools_mapreads)
-    tuple val(_meta6), path(secondderiv_stats)
+    tuple val(_meta4), path(bam_index)
+    tuple val(_meta5), path(secondderiv_stats)
 
     output:
     tuple val(meta), path("saturation_output.tsv"), emit: saturation_table
@@ -30,13 +29,17 @@ process SATURATION_TABLE {
     """
     echo -e "\\n\\n==================  SATURATION TABLE =================="
     echo "BAM file: ${bam_file}"
-    echo "BAM index: ${samtools_bai}"
-    echo "Mapped reads: ${samtools_mapreads}"
+    echo "BAM index: ${bam_index}"
     echo "Summary file: ${star_summary_file}"
     echo "Log final file: ${star_log_final_file}"
 
-    # Read the mapped reads from the file
-    MAPREADS=\$( cat ${samtools_mapreads} )
+    # Mapped reads, counted once per read: uniquely mapped plus multimapped. This is the
+    # number of primary mapped records in the BAM, which gettags.py keeps for the tags.
+    MAPREADS=\$( awk -F'|' '/Uniquely mapped reads number|Number of reads mapped to multiple loci/ { gsub(/[ \\t]/, "", \$2); s += \$2 } END { print s + 0 }' ${star_log_final_file} )
+    if [ "\${MAPREADS}" -eq 0 ]; then
+        echo "[ERROR] no mapped reads in ${star_log_final_file}; cannot compute the mapping rate" >&2
+        exit 1
+    fi
 
     echo "Mapped reads: \${MAPREADS}"
 
