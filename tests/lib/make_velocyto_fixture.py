@@ -1,7 +1,8 @@
 #!/usr/bin/env python3
 """
 Build a synthetic STARsolo ``Solo.out`` tree carrying velocity matrices, plus an
-alevin-fry USA quant directory, for tests/checks/velocity_matrix.sh.
+alevin-fry USA quant directory, for tests/checks/velocity_matrix.sh and
+tests/checks/alevin_usa.sh.
 
 Every count is known by construction, and -- crucially -- the three velocity
 layers hold *different* values for the same gene/cell. A subset or a layer
@@ -15,7 +16,8 @@ The counts follow one rule:
     ambiguous[g, c] =            (g + 1)
 
 so a value identifies its layer, its gene and its cell on sight, and the three
-layers can never be confused with one another.
+layers can never be confused with one another. In the alevin-fry matrix the
+spliced (S), unspliced (U) and ambiguous (A) blocks hold the same three layers.
 
 The GeneFull_Ex50pAS matrix is written with per-cell totals that fall away
 steeply across the barcodes, so a UMI cutoff selects a known prefix of cells.
@@ -46,8 +48,13 @@ def barcode(i: int) -> str:
 
 
 def gene(i: int) -> str:
-    """A distinguishable gene ID."""
-    return f"GENE{i:04d}"
+    """A distinguishable gene ID.
+
+    One of them ends in ``-A``, as real IDs can (``HLA-A``): splitting the USA
+    columns by suffix would take its spliced column for another gene's ambiguous
+    one, where alevin-fry's positional layout is unaffected.
+    """
+    return f"GENE{i:04d}-A" if i == 3 else f"GENE{i:04d}"
 
 
 def layer_value(layer: str, g: int, c: int) -> int:
@@ -59,6 +66,15 @@ def layer_value(layer: str, g: int, c: int) -> int:
     if layer == "ambiguous":
         return g + 1
     raise ValueError(f"unknown layer: {layer}")
+
+
+# alevin-fry USA block -> the layer it holds in the fixture
+USA_BLOCK_LAYER = {"S": "spliced", "U": "unspliced", "A": "ambiguous"}
+
+
+def usa_sum(blocks: str, g: int, c: int) -> int:
+    """The alevin-fry count of gene *g*, cell *c* with the USA *blocks* summed (e.g. ``SUA``)."""
+    return sum(layer_value(USA_BLOCK_LAYER[b], g, c) for b in blocks)
 
 
 def write_lines(path: str, names: List[str]) -> None:
@@ -104,14 +120,15 @@ def write_genefull(dirpath: str, barcodes: List[str], features: List[str]) -> No
 def write_alevin_usa(dirpath: str, barcodes: List[str], features: List[str]) -> None:
     """Write an alevin-fry USA quant directory holding the same counts.
 
-    alevin-fry writes cells x columns with three suffixed columns per gene, all
-    ``-S`` first, then all ``-U``, then all ``-A`` -- the layout the collapse and
-    velocity scripts both have to unpick.
+    alevin-fry writes cells x columns in three blocks: the spliced counts under
+    the bare gene IDs, then the unspliced under ``<gene>-U``, then the ambiguous
+    under ``<gene>-A`` (alevin-fry's ``quant.rs``; there is no ``-S``) -- the
+    layout the collapse, cell-calling and velocity scripts all have to unpick.
     """
     os.makedirs(dirpath, exist_ok=True)
 
     columns = (
-        [f"{g}-S" for g in features]
+        list(features)
         + [f"{g}-U" for g in features]
         + [f"{g}-A" for g in features]
     )

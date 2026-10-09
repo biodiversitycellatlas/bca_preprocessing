@@ -122,9 +122,9 @@ workflow QC_mapping_workflow {
         // Safe bc_whitelist: emit empty string when no whitelist is produced by preprocessing
         def bc_whitelist_safe = bc_whitelist.ifEmpty("")
 
-        // Alevin takes the whitelist as a path input, which cannot be an empty string, so protocols running without a whitelist (e.g. MARS-seq) stage nothing instead
+        // Alevin takes the whitelist as a list of files, one per barcode segment in segment order, and stages nothing for protocols running without one (e.g. MARS-seq)
         def bc_whitelist_alevin = bc_whitelist_safe
-            .map { wl -> wl?.toString()?.trim() ? wl : [] }
+            .map { wl -> wl?.toString()?.trim() ? wl.toString().tokenize().collect { f -> file(f) } : [] }
 
         // Quality Control
         FASTQC(ch_samples)

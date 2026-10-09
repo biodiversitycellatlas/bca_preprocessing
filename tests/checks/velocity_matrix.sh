@@ -5,7 +5,7 @@
 # axis, and every failure mode here is silent. Subsetting them on a UMI cutoff of
 # their own instead of the GeneFull_Ex50pAS cell call would give a plausible
 # matrix describing the wrong cells; transposing one and not the others, or
-# mapping alevin-fry's -S block onto the unspliced layer, gives an object of
+# mapping alevin-fry's spliced block onto the unspliced layer, gives an object of
 # exactly the right shape carrying the wrong numbers. None of that raises.
 #
 # tests/lib/make_velocyto_fixture.py therefore writes counts that identify their
@@ -42,8 +42,8 @@ Cases:
   help              the tools start and print usage
   subset_barcodes   the subset keeps exactly the called cells, in order
   subset_values     each layer's counts survive the subset unswapped
-  h5ad_layers       the AnnData object carries the three layers and their sum
-  alevin_unspliced  --counts U returns exactly the -U block
+  h5ad_layers       the AnnData object carries each mapper's layers and the total
+  alevin_unspliced  --counts U returns exactly the unspliced block
   absent            a Solo.out without Velocyto/ fails loudly, not silently
 EOF
 }
@@ -104,7 +104,7 @@ import sys
 LIB, W, A = sys.argv[1], sys.argv[2], sys.argv[3:]
 sys.path.insert(0, LIB)
 import numpy as np, pandas as pd, scipy.io as sio
-from make_velocyto_fixture import layer_value, barcode, gene, N_GENES, N_CELLS, N_CALLED_CELLS
+from make_velocyto_fixture import layer_value, usa_sum, barcode, gene, N_GENES, N_CELLS, N_CALLED_CELLS
 
 def read_lines(path):
     with open(path) as fh:
@@ -116,7 +116,9 @@ def read_mtx(path):
 ok, msg = ($expr)
 print(('PASS' if ok else 'FAIL') + '\t' + str(msg))
 " "$TESTS_DIR/lib" "$WORKDIR" "$@" 2>&1)"; then
-        local status="${out%%$'\t'*}" msg="${out#*$'\t'}"
+        # The verdict is the last line: anything printed before it (a library warning on stderr) is not part of it
+        local last="${out##*$'\n'}"
+        local status="${last%%$'\t'*}" msg="${last#*$'\t'}"
         if [[ "$status" == "PASS" ]]; then
             record PASS "$name" "${detail:-$msg}"
         else
@@ -260,32 +262,61 @@ else
 
     # The layer a count lands in is the entire point; a transposed read or a
     # mis-split USA block would still produce three layers of the right shape.
-    assert "h5ad_layers.values" \
+    assert "h5ad_layers.starsolo_values" \
         "(all(
-            __import__('anndata').read_h5ad(path).layers[l].toarray()[c][g] == layer_value(l, g, c)
-            for path, ncells in ((A[0], N_CALLED_CELLS), (A[1], N_CELLS))
+            __import__('anndata').read_h5ad(A[0]).layers[l].toarray()[c][g] == layer_value(l, g, c)
             for l in ('spliced', 'unspliced', 'ambiguous')
-            for g in range(N_GENES) for c in range(ncells)),
+            for g in range(N_GENES) for c in range(N_CALLED_CELLS)),
           'a layer holds a count belonging to another layer, gene or cell')" \
-        "each count lands in the right layer for both mappers" \
-        "$STAR_H5AD" "$ALEVIN_H5AD"
+        "STARsolo: each Velocyto matrix lands in its own layer" \
+        "$STAR_H5AD"
 
-    assert "h5ad_layers.x_is_sum" \
+    # alevin-fry's velocity convention: spliced = S + A, unspliced = U, with A
+    # also kept on its own. Gene 3's ID ends in '-A', so a split by suffix
+    # instead of position would put its counts in the wrong layer or gene.
+    assert "h5ad_layers.alevin_values" \
+        "(all(
+            __import__('anndata').read_h5ad(A[0]).layers[l].toarray()[c][g] == usa_sum(blocks, g, c)
+            for l, blocks in (('spliced', 'SA'), ('unspliced', 'U'), ('ambiguous', 'A'))
+            for g in range(N_GENES) for c in range(N_CELLS)),
+          'a layer does not hold the USA blocks it is defined as')" \
+        "alevin-fry: spliced = S+A, unspliced = U, ambiguous = A" \
+        "$ALEVIN_H5AD"
+
+    assert "h5ad_layers.alevin_genes" \
+        "(list(__import__('anndata').read_h5ad(A[0]).var_names) == [gene(i) for i in range(N_GENES)],
+          list(__import__('anndata').read_h5ad(A[0]).var_names))" \
+        "alevin-fry genes are the bare IDs, in reference order" \
+        "$ALEVIN_H5AD"
+
+    # X is every count once for both mappers: Velocyto's three disjoint matrices,
+    # and alevin-fry's three blocks (not its layers, whose spliced already holds A)
+    assert "h5ad_layers.x_is_total" \
         "(np.array_equal(
             __import__('anndata').read_h5ad(A[0]).X.toarray(),
             sum(__import__('anndata').read_h5ad(A[0]).layers[l].toarray()
-                for l in ('spliced', 'unspliced', 'ambiguous'))),
-          'X is not the sum of the three layers')" \
-        "X is the sum of the three layers" \
-        "$STAR_H5AD"
+                for l in ('spliced', 'unspliced', 'ambiguous')))
+          and all(__import__('anndata').read_h5ad(A[1]).X.toarray()[c][g] == usa_sum('SUA', g, c)
+                  for g in range(N_GENES) for c in range(N_CELLS)),
+          'X is not the total count')" \
+        "X is S + U + A for both mappers" \
+        "$STAR_H5AD" "$ALEVIN_H5AD"
+
+    assert "h5ad_layers.definitions" \
+        "(dict(__import__('anndata').read_h5ad(A[1]).uns['velocity_layers']) ==
+            {'spliced': 'alevin-fry S+A', 'unspliced': 'alevin-fry U', 'ambiguous': 'alevin-fry A'}
+          and set(__import__('anndata').read_h5ad(A[0]).uns['velocity_layers']) == {'spliced', 'unspliced', 'ambiguous'},
+          dict(__import__('anndata').read_h5ad(A[1]).uns['velocity_layers']))" \
+        "uns['velocity_layers'] records what each layer holds" \
+        "$STAR_H5AD" "$ALEVIN_H5AD"
 fi
 
 # --------------------------------------------------------------------------
 # Case: alevin_unspliced
 #
-# alevin-fry's counterpart of the Velocyto unspliced matrix. The -S block is
-# written first, so a collapse that ignored the suffix would return it instead
-# and every value would still look like a plausible count.
+# alevin-fry's counterpart of the Velocyto unspliced matrix. The spliced block is
+# written first, so a collapse that picked the wrong block would return it
+# instead and every value would still look like a plausible count.
 # --------------------------------------------------------------------------
 
 UNSPLICED_OUT="$WORKDIR/alevin_unspliced"
@@ -299,14 +330,14 @@ fi
 assert "alevin_unspliced.values" \
     "(all(read_mtx(A[0] + '/quants_mat.mtx')[c][g] == layer_value('unspliced', g, c)
           for g in range(N_GENES) for c in range(N_CELLS)),
-      'the collapsed matrix does not hold the -U block')" \
+      'the collapsed matrix does not hold the unspliced block')" \
     "exactly the unspliced block, not the spliced one" \
     "$UNSPLICED_OUT"
 
 assert "alevin_unspliced.genes" \
     "(read_lines(A[0] + '/quants_mat_cols.txt') == [gene(i) for i in range(N_GENES)],
       'gene names are not the plain, unsuffixed IDs')" \
-    "USA suffixes stripped from the gene names" \
+    "the gene names are the bare IDs" \
     "$UNSPLICED_OUT"
 
 # --------------------------------------------------------------------------

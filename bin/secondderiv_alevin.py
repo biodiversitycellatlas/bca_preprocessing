@@ -6,8 +6,9 @@ alevin-fry writes its counts as a *cells x genes* matrix in ``quants_mat.mtx``
 (the transpose of STARsolo's layout), with ``quants_mat_rows.txt`` naming the
 cell barcodes and ``quants_mat_cols.txt`` naming the gene columns.  In USA mode
 -- which this pipeline always runs, since ``alevin-fry quant`` is given a
-3-column ``t2g_3col.tsv`` -- every gene occupies three columns, suffixed ``-S``,
-``-U`` and ``-A`` for its spliced, unspliced and ambiguous counts.
+3-column ``t2g_3col.tsv`` -- every gene occupies three columns: its spliced,
+unspliced and ambiguous counts, in three equal blocks named ``<gene>``,
+``<gene>-U`` and ``<gene>-A`` (see ``alevin_usa.py``).
 
 Two subcommands, so the USA-aware matrix loader has a single definition:
 
@@ -32,21 +33,23 @@ The filtered matrix itself keeps every USA column -- only its *cells* are
 selected.  That leaves it a faithful subset of alevin-fry's own output, usable
 anywhere the unfiltered matrix is, with the block selection applied once further
 downstream.
+
+A matrix that is not a USA column set is an error: alevin-fry always runs in
+USA mode here, and counting every column instead would count each gene up to
+three times in the gene statistics.
 """
 
 import argparse
 import json
 import os
-import re
 import sys
-from typing import List, Optional, Tuple
+from typing import List, Tuple
 
 import numpy as np
 import scipy.io as sio
 import scipy.sparse as sp
 
-# Suffixes alevin-fry appends to the spliced / unspliced / ambiguous column blocks of a USA-mode count matrix.
-_USA_SUFFIX_RE = re.compile(r"-([SUA])$")
+from alevin_usa import sum_blocks, usa_genes
 
 _MATRIX_FILE = "quants_mat.mtx"
 _ROWS_FILE = "quants_mat_rows.txt"
@@ -62,7 +65,7 @@ def parse_args() -> argparse.Namespace:
 
     def add_counts(p: argparse.ArgumentParser) -> None:
         p.add_argument(
-            "--counts", default="SUA", choices=["SUA", "SA", "S"],
+            "--counts", default="SUA", choices=["SUA", "SA", "S", "UA", "U"],
             help="USA blocks that count towards a cell's UMI total; must match "
                  "params.alevin_usa_counts (default: SUA)",
         )
@@ -120,68 +123,22 @@ def _read_lines(path: str) -> List[str]:
         return [line.strip() for line in fh if line.strip()]
 
 
-def collapse_usa(
-    mat: sp.csr_matrix, columns: List[str], blocks: str
-) -> Optional[Tuple[sp.csr_matrix, List[str]]]:
-    """Sum the requested USA blocks of each gene into one column.
-
-    Returns ``(cells x genes, gene_names)``, or ``None`` when *columns* is not a
-    USA column set -- detected by requiring that stripping the suffixes yields
-    exactly one third as many distinct names, so a non-USA reference, or a gene
-    name legitimately ending in ``-S``, is left alone rather than mangled.
-
-    Kept in step with ``collapse_alevin_usa.py``, which applies the same
-    selection to the matrix that is analysed downstream.
-    """
-    if len(columns) % 3 != 0:
-        return None
-
-    matches = [_USA_SUFFIX_RE.search(name) for name in columns]
-    if not all(matches):
-        return None
-
-    stripped = [_USA_SUFFIX_RE.sub("", name) for name in columns]
-    gene_names = list(dict.fromkeys(stripped))
-    if len(gene_names) != len(columns) // 3:
-        return None
-
-    gene_index = {name: i for i, name in enumerate(gene_names)}
-    keep = [i for i, match in enumerate(matches) if match.group(1) in blocks]
-    if not keep:
-        raise SystemExit(f"Error: no {blocks} columns found among {len(columns)} USA columns.")
-
-    # (n_columns x n_genes) 0/1 aggregation matrix, carrying only the selected
-    # blocks: one row per kept column, marking the gene that column belongs to.
-    aggregator = sp.csr_matrix(
-        (
-            np.ones(len(keep), dtype=mat.dtype),
-            (keep, [gene_index[stripped[i]] for i in keep]),
-        ),
-        shape=(len(columns), len(gene_names)),
-    )
-    return (mat @ aggregator).tocsr(), gene_names
-
-
 def gene_level(
     mat: sp.csr_matrix, columns: List[str], blocks: str
 ) -> Tuple[sp.csr_matrix, List[str]]:
     """The ``cells x genes`` matrix the cutoff and the statistics are derived from.
 
     Both need the blocks summed per gene: the UMI totals so that they are on the
-    same basis as the analysed matrix, and the gene counts so that a gene
-    detected as spliced *and* unspliced is not counted twice.
+    same basis as the analysed matrix (``collapse_alevin_usa.py`` sums the same
+    blocks), and the gene counts so that a gene detected as spliced *and*
+    unspliced is not counted twice.
     """
-    collapsed = collapse_usa(mat, columns, blocks)
-    if collapsed is not None:
-        return collapsed
+    try:
+        gene_names = usa_genes(columns)
+    except ValueError as err:
+        raise SystemExit(f"Error: {_COLS_FILE} is not a USA column set: {err}")
 
-    if blocks != "SUA":
-        print(
-            f"Warning: {len(columns)} columns are not a USA column set; "
-            f"counting every column and ignoring --counts {blocks}",
-            file=sys.stderr,
-        )
-    return mat, columns
+    return sum_blocks(mat, len(gene_names), blocks).tocsr(), gene_names
 
 
 def umis_per_cell(mat: sp.csr_matrix) -> np.ndarray:

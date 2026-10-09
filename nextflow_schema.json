@@ -84,7 +84,14 @@
                 "alevin_usa_counts": {
                     "type": "string",
                     "default": "SUA",
-                    "enum": ["SUA", "SA", "S", "UA", "U"]
+                    "enum": ["SUA", "SA", "S", "UA", "U"],
+                    "description": "alevin-fry spliced (S), unspliced (U) and ambiguous (A) counts summed into each gene's count. Only SUA matches STARsolo's GeneFull_Ex50pAS; SA matches STARsolo's Gene."
+                },
+                "alevin_resolution": {
+                    "type": "string",
+                    "default": "cr-like",
+                    "enum": ["cr-like", "cr-like-em"],
+                    "description": "alevin-fry UMI resolution. cr-like discards UMIs that stay ambiguous between genes, as Cell Ranger and STARsolo's matrix.mtx do; cr-like-em splits them by expectation-maximisation."
                 },
                 "skip_mapping_rate_check": {
                     "type": "boolean",

@@ -5,7 +5,7 @@
 ##
 ## Assumes the output directory contains three subfolders:
 ##   <sample_id>_run             -> alevin (map) output
-##   <sample_id>_out_permit_knee -> permit list / knee step output
+##   <sample_id>_out_permit      -> permit list step output
 ##   <sample_id>_counts          -> alevin-fry quantification output
 ##
 ## Usage:
@@ -18,7 +18,7 @@ library(alevinQC)
 
 args <- commandArgs(trailingOnly = TRUE)
 quant_dir  <- normalizePath(args[1])  # e.g. BCA..._counts
-permit_dir <- normalizePath(args[2])  # e.g. BCA..._out_permit_knee
+permit_dir <- normalizePath(args[2])  # e.g. BCA..._out_permit
 map_dir    <- normalizePath(args[3])  # e.g. BCA..._run
 sample_id  <- args[4]
 report_dir <- if (length(args) >= 5) normalizePath(args[5]) else map_dir

@@ -51,10 +51,11 @@ def downcast_counts(data):
     readers take ``downcast=True`` for a caller that wants it.
 
     Counts do not need 64 bits. int32 holds 2.1e9, against a per-cell-per-gene
-    count that tops out in the tens of thousands. alevin-fry's counts are
-    fractional -- ``quant -r cr-like-em`` splits multi-mapping UMIs by
-    expectation-maximisation -- and float32 represents every integer below
-    16,777,216 exactly and any value to ~7 significant digits, i.e. a relative
+    count that tops out in the tens of thousands. alevin-fry's counts can be
+    fractional -- with ``alevin_resolution = "cr-like-em"``, ``quant`` splits
+    multi-mapping UMIs by expectation-maximisation -- and float32 represents
+    every integer below 16,777,216 exactly and any value to ~7 significant
+    digits, i.e. a relative
     error under 6e-8. On an EM-split count of 3.43 that is an absolute error
     around 2e-7, some seven orders of magnitude below the Poisson noise on the
     count itself, and float32 is the precision the downstream scanpy steps

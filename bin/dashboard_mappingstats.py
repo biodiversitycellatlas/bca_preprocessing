@@ -32,6 +32,8 @@ from typing import Callable, Dict, Iterable, List, Mapping, Optional, Tuple
 
 import pandas as pd
 
+from alevin_usa import usa_genes
+
 
 # ---------------------------------------------------------------------------
 # Argument parsing
@@ -484,10 +486,6 @@ def parse_scirocket_run(js_path: Path) -> List[Dict[str, object]]:
 # alevin-fry helpers
 # ---------------------------------------------------------------------------
 
-# Suffixes alevin-fry appends to the spliced / unspliced / ambiguous column
-# blocks of a USA-mode count matrix.
-_USA_SUFFIX_RE = re.compile(r"-[SUA]$")
-
 
 def pick_column(df: pd.DataFrame, candidates: List[str]) -> Optional[pd.Series]:
     """Return the first existing column from candidates in df, or None."""
@@ -541,10 +539,9 @@ def count_alevin_genes(
     unspliced, ambiguous), so that value is three times the gene count.
 
     ``quants_mat_cols.txt`` names those columns and is authoritative, so it is
-    preferred when available. The USA collapse is applied only when stripping
-    the ``-S``/``-U``/``-A`` suffixes yields exactly one third as many distinct
-    names, so a non-USA reference -- or a gene legitimately ending in ``-S`` --
-    is never mis-collapsed. ``quant.json`` is the fallback.
+    preferred when available: a USA column set (``alevin_usa.usa_genes``) gives
+    its first third, anything else its distinct names. ``quant.json`` is the
+    fallback.
 
     This is the size of the reference, not the number of genes with non-zero
     counts, and is reported under "Total Genes in Reference" accordingly.
@@ -553,11 +550,10 @@ def count_alevin_genes(
         try:
             names = [ln.strip() for ln in cols_path.read_text().splitlines() if ln.strip()]
             if names:
-                if len(names) % 3 == 0:
-                    stripped = {_USA_SUFFIX_RE.sub("", n) for n in names}
-                    if len(stripped) == len(names) // 3:
-                        return len(stripped)
-                return len(set(names))
+                try:
+                    return len(usa_genes(names))
+                except ValueError:
+                    return len(set(names))
         except Exception as e:  # noqa: BLE001
             print(f"[WARNING] Could not read {cols_path}: {e}")
 
@@ -709,7 +705,7 @@ def parse_alevinfry_sample(sample_root: Path) -> Dict[str, object]:
         row["N reads/sample"] = total_reads
 
     # salmon's num_mapped counts mapped fragments, multimappers included (they
-    # are resolved downstream by cr-like-em), so this is not comparable to
+    # are resolved downstream by alevin-fry quant), so this is not comparable to
     # STARsolo's uniquely-mapped count and does not go in that column.
     if mapped_reads is not None:
         row["N mapped reads"] = mapped_reads

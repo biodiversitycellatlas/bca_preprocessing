@@ -81,8 +81,9 @@ workflow cellcalling_starsolo_workflow {
 ~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~
     SUBWORKFLOW TO CALL CELLS ON ALEVIN-FRY'S QUANTIFIED MATRIX
         alevin-fry has no UMI-per-cell curve of its own, so the module derives one from
-        the matrix before applying the cutoff. The filter runs after alevin-fry's knee
-        rather than replacing it.
+        the matrix before applying the cutoff. alevin-fry then keeps every whitelisted
+        barcode (an unfiltered permit list), so the cutoff is found on the whole curve,
+        as for STARsolo; without a usable whitelist it runs after alevin-fry's knee.
 ~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~
 */
 workflow cellcalling_alevin_workflow {

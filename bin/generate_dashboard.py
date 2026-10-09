@@ -24,6 +24,8 @@ import re
 import sys
 from typing import Any, Dict, List, Optional, Tuple
 
+from alevin_usa import usa_genes
+
 
 # ---------------------------------------------------------------------------
 # Constants
@@ -50,9 +52,6 @@ _CELLSWEEP_ROOTS:  List[str] = ["cell_filtering/cellsweep", "cellsweep"]
 
 # Candidate locations for Kraken sankey HTML files.
 _SANKEY_ROOTS: List[str] = ["kraken", "taxonomy"]
-
-# Suffixes alevin-fry appends to the spliced / unspliced / ambiguous column blocks of a USA-mode count matrix.
-_USA_SUFFIX_RE = re.compile(r"-[SUA]$")
 
 # ── Payload budgets ──────────────────────────────────────────────────────────
 # The report embeds every curve it draws as JSON inside the HTML, so its size is
@@ -646,10 +645,9 @@ def count_alevin_genes(quant: Dict[str, Any], cols_path: Optional[str]) -> Any:
     unspliced, ambiguous), so that value is three times the gene count.
 
     ``quants_mat_cols.txt`` names those columns and is authoritative, so it is
-    preferred when available.  The USA collapse is applied only when stripping
-    the ``-S``/``-U``/``-A`` suffixes yields exactly one third as many distinct
-    names, so a non-USA reference -- or a gene legitimately ending in ``-S`` --
-    is never mis-collapsed.  ``quant.json`` is the fallback.
+    preferred when available: a USA column set (``alevin_usa.usa_genes``) gives
+    its first third, anything else its distinct names.  ``quant.json`` is the
+    fallback.
 
     Note this is the size of the reference, not the number of genes with
     non-zero counts; the dashboard labels it accordingly.
@@ -659,11 +657,10 @@ def count_alevin_genes(quant: Dict[str, Any], cols_path: Optional[str]) -> Any:
             with open(cols_path, "r") as fh:
                 names = [line.strip() for line in fh if line.strip()]
             if names:
-                if len(names) % 3 == 0:
-                    stripped = {_USA_SUFFIX_RE.sub("", n) for n in names}
-                    if len(stripped) == len(names) // 3:
-                        return len(stripped)
-                return len(set(names))
+                try:
+                    return len(usa_genes(names))
+                except ValueError:
+                    return len(set(names))
         except Exception:
             sys.stderr.write(f"Warning: could not read {cols_path}\n")
 
@@ -1626,7 +1623,7 @@ def main() -> None:
                     pass
 
             # salmon's num_mapped counts mapped *fragments*, including
-            # multimappers (resolved downstream by cr-like-em) -- it is not
+            # multimappers (resolved downstream by alevin-fry quant) -- it is not
             # STARsolo's uniquely-mapped count. The dashboard labels these
             # fields per mapper so the two are not read as the same quantity.
             n_input_reads = total_reads

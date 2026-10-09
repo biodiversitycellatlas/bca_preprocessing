@@ -4,15 +4,16 @@ Collapse an alevin-fry USA count matrix to one column per gene.
 
 In USA mode -- which this pipeline always runs, since ``alevin-fry quant`` is
 given a 3-column ``t2g_3col.tsv`` -- every gene occupies three columns of
-``quants_mat.mtx``, suffixed ``-S``, ``-U`` and ``-A`` for its spliced,
-unspliced and ambiguous counts. Handed to a downstream tool unchanged, that
-matrix presents each gene three times as three correlated features, which
-distorts the highly-variable-gene selection and PCA that Scrublet, scDblFinder
-and the ambient-RNA callers all rely on.
+``quants_mat.mtx``: its spliced, unspliced and ambiguous counts, in three
+equal blocks named ``<gene>``, ``<gene>-U`` and ``<gene>-A`` (see
+``alevin_usa.py``). Handed to a downstream tool unchanged, that matrix presents
+each gene three times as three correlated features, which distorts the
+highly-variable-gene selection and PCA that Scrublet, scDblFinder and the
+ambient-RNA callers all rely on.
 
-This sums the requested blocks per gene and strips the suffixes, so the result
-is a gene-level matrix whose feature names are plain gene IDs -- directly
-comparable to STARsolo's ``features.tsv``.
+This sums the requested blocks per gene, so the result is a gene-level matrix
+whose feature names are plain gene IDs -- directly comparable to STARsolo's
+``features.tsv``.
 
 Which blocks to sum is the choice of what counts as expression:
 
@@ -21,8 +22,8 @@ Which blocks to sum is the choice of what counts as expression:
        therefore the only setting under which the two mappers' matrices are
        comparable.
   SA   spliced + ambiguous, the conventional single-cell count, which discards
-       intronic signal.
-  S    spliced only. The counterpart of STARsolo's Gene.
+       intronic signal. The counterpart of STARsolo's Gene.
+  S    spliced only.
   UA   unspliced + ambiguous.
   U    unspliced only -- the intronic matrix, for RNA velocity. The counterpart
        of the unspliced matrix in STARsolo's Velocyto feature.
@@ -30,22 +31,23 @@ Which blocks to sum is the choice of what counts as expression:
 Barcodes are never touched: cells stay in their original order, and no cell or
 gene is dropped, so the matrix keeps its full feature axis whichever blocks
 were summed.
+
+A matrix that is not a USA column set is an error, not something to copy
+through: alevin-fry always runs in USA mode here, so such a matrix can only
+mean an upstream bug, and passing it on would hand every downstream step each
+gene three times without anything failing.
 """
 
 import argparse
 import os
-import re
-import shutil
 import sys
-from typing import List, Optional, Tuple
+from typing import List, Tuple
 
 import numpy as np
 import scipy.io as sio
 import scipy.sparse as sp
 
-# Suffixes alevin-fry appends to the spliced / unspliced / ambiguous column
-# blocks of a USA-mode count matrix.
-_USA_SUFFIX_RE = re.compile(r"-([SUA])$")
+from alevin_usa import sum_blocks, usa_genes
 
 _MATRIX_FILE = "quants_mat.mtx"
 _ROWS_FILE = "quants_mat_rows.txt"
@@ -103,69 +105,18 @@ def load_matrix(dirpath: str) -> Tuple[sp.csr_matrix, List[str], List[str]]:
     return mat, barcodes, columns
 
 
-def collapse_usa(
-    mat: sp.csr_matrix, columns: List[str], blocks: str
-) -> Optional[Tuple[sp.csr_matrix, List[str]]]:
-    """Sum the *blocks* of each gene into a single column.
-
-    Returns ``(cells x genes, gene_names)``, or ``None`` when *columns* is not a
-    USA column set -- detected by requiring that stripping the suffixes yields
-    exactly one third as many distinct names, so a non-USA reference, or a gene
-    name legitimately ending in ``-S``, is left alone rather than mangled.
-
-    Genes keep the order in which they first appear, which for alevin-fry's
-    ``-S``-first layout is the reference's own gene order.
-    """
-    if len(columns) % 3 != 0:
-        return None
-
-    matches = [_USA_SUFFIX_RE.search(name) for name in columns]
-    if not all(matches):
-        return None
-
-    stripped = [_USA_SUFFIX_RE.sub("", name) for name in columns]
-    gene_names = list(dict.fromkeys(stripped))
-    if len(gene_names) != len(columns) // 3:
-        return None
-
-    gene_index = {name: i for i, name in enumerate(gene_names)}
-    keep = [i for i, match in enumerate(matches) if match.group(1) in blocks]
-    if not keep:
-        raise SystemExit(f"Error: no {blocks} columns found among {len(columns)} USA columns.")
-
-    # (n_columns x n_genes) 0/1 aggregation matrix, carrying only the selected
-    # blocks: one row per kept column, marking the gene that column belongs to.
-    aggregator = sp.csr_matrix(
-        (
-            np.ones(len(keep), dtype=mat.dtype),
-            (keep, [gene_index[stripped[i]] for i in keep]),
-        ),
-        shape=(len(columns), len(gene_names)),
-    )
-    return (mat @ aggregator).tocsr(), gene_names
-
-
 def main() -> None:
     args = parse_args()
     mat, barcodes, columns = load_matrix(args.dir)
 
+    try:
+        gene_names = usa_genes(columns)
+    except ValueError as err:
+        raise SystemExit(f"Error: {os.path.join(args.dir, _COLS_FILE)} is not a USA column set: {err}")
+
+    gene_mat = sum_blocks(mat, len(gene_names), args.counts).tocsr()
+
     os.makedirs(args.outdir, exist_ok=True)
-    collapsed = collapse_usa(mat, columns, args.counts)
-
-    if collapsed is None:
-        # Not a USA matrix, so there is nothing to collapse and no block to
-        # select: copy it through unchanged rather than guess at its layout.
-        print(
-            f"Warning: {len(columns)} columns in {args.dir} are not a USA column set; "
-            f"copying the matrix through unchanged and ignoring --counts {args.counts}",
-            file=sys.stderr,
-        )
-        for name in (_MATRIX_FILE, _ROWS_FILE, _COLS_FILE):
-            shutil.copyfile(os.path.join(args.dir, name), os.path.join(args.outdir, name))
-        return
-
-    gene_mat, gene_names = collapsed
-
     sio.mmwrite(os.path.join(args.outdir, _MATRIX_FILE), gene_mat)
     write_lines(os.path.join(args.outdir, _ROWS_FILE), barcodes)
     write_lines(os.path.join(args.outdir, _COLS_FILE), gene_names)

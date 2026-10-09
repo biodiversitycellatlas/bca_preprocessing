@@ -112,6 +112,10 @@ workflow filtering_workflow {
 
         def ch_all_matrices = ch_starsolo_raw.mix(ch_starsolo_filtered, ch_alevin_fry)
 
+        // Check the cell filtering method: unless this pipeline re-calls cells, alevin-fry's
+        // full matrix is already the mapper's own cell call (its permit list is then its knee)
+        def alevin_full_is_cell_called = !(params.cellfilter_method in ["second_derivative", "manual_cutoff"])
+
         /*
          * RNA velocity outputs. These are a terminal deliverable, deliberately kept out of
          * ch_all_matrices: everything after that funnel branches on meta.datatype, so mixing
@@ -135,8 +139,11 @@ workflow filtering_workflow {
             })
 
             // The USA matrix carries all three blocks, so the velocity object is built from it
-            // directly rather than from the collapsed output
-            VELOCITY_H5AD_ALEVIN(ch_alevin_dirs)
+            // directly rather than from the collapsed output. Like STARsolo's, it is built for
+            // the called cells only: the full matrix holds every whitelisted barcode.
+            VELOCITY_H5AD_ALEVIN(ch_alevin_dirs.filter { meta, _dir ->
+                meta.datatype == 'filtered' || (meta.datatype == 'full' && alevin_full_is_cell_called)
+            })
 
             ch_velocity_h5ad = VELOCITY_H5AD_STARSOLO.out.h5ad.mix(VELOCITY_H5AD_ALEVIN.out.h5ad)
 
@@ -146,10 +153,6 @@ workflow filtering_workflow {
                 VELOCITY_H5AD_ALEVIN.out.versions
             )
         }
-
-        // Check the cell filtering method: unless this pipeline re-calls cells, alevin-fry's
-        // full matrix is already the mapper's own cell call
-        def alevin_full_is_cell_called = !(params.cellfilter_method in ["second_derivative", "manual_cutoff"])
 
         /*
          * Three views of the same matrices, each holding at most one entry per

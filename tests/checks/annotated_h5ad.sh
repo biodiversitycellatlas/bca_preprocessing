@@ -160,7 +160,9 @@ def rewrite(src, out):
 ok, msg = ($expr)
 print(('PASS' if ok else 'FAIL') + '\t' + str(msg))
 " "$TESTS_DIR/lib" "$PROJECT_ROOT/bin" "$WORKDIR" "$@" 2>&1)"; then
-        local status="${out%%$'\t'*}" msg="${out#*$'\t'}"
+        # The verdict is the last line: anything printed before it (a library warning on stderr) is not part of it
+        local last="${out##*$'\n'}"
+        local status="${last%%$'\t'*}" msg="${last#*$'\t'}"
         if [[ "$status" == "PASS" ]]; then
             record PASS "$name" "${detail:-$msg}"
         else
