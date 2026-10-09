@@ -47,15 +47,18 @@ Within each custom configuration file the following variables can be defined:
 | `seqspec_file`           | Optional          | Path to the seqspec file.                                                                                                                                                                                                         |
 | `mt_contig`              | Optional          | Name(s) of the mitochondrial contig(s) in the reference annotation, used to calculate mtDNA content. Multiple contigs can be given separated by whitespace, in which case reads on any of them count as mitochondrial. Default set to `"chrM M MT"`. |
 | `grep_rrna`              | Optional          | String used to grep ribosomal RNA (rRNA) reads from annotations. Default set to `"rRNA"`                                                                                                                                          |
-| `mapping_software`       | Optional          | Software used to map reads (must be one of the following: `"starsolo"`, `"alevin"` or `"both"`). Default set to `"starsolo"`.                                                                                                     |
+| `mapping_software`       | Optional          | Software used to map reads (must be one of the following: `"starsolo"`, `"alevin"`, `"both"`/`"alevin_starsolo"` or `"alevin_subsampled_starsolo"`). Default set to `"starsolo"`. alevin-fry is set up to be comparable to STARsolo; see [alevin-fry settings](CONFIGURATION_PARAMETERS.md#alevin-fry-settings). |
+| `alevin_resolution`      | Optional          | alevin-fry's UMI resolution, `"cr-like"` (default; discards gene-ambiguous UMIs, as STARsolo's matrix does) or `"cr-like-em"`. |
 | `cellfilter_method`      | Optional          | How cells are called: `"star_solocellfilter"` (each mapper's own cell filter), `"second_derivative"` or `"manual_cutoff"` (a per-sample threshold from the samplesheet). Default set to `"second_derivative"`, which re-calls cells for both mappers and recomputes every cell-dependent statistic in the report on the retained cells. See [Cell calling](CONFIGURATION_PARAMETERS.md#cell-calling). |
 | `run_method`             | Optional          | One of `"standard"`, `"geneext_only"`, `"external_pipeline_only"` or `"post_mapping"`. Default set to `"standard"`. Use `"post_mapping"` to redo everything after mapping on a finished run — for instance to re-call cells with a different `expected_cells` or a manual cutoff — without mapping again. See [Re-running after mapping](CONFIGURATION_PARAMETERS.md#re-running-after-mapping). |
 | `previous_outdir`        | Optional          | Only with `run_method = "post_mapping"`: the finished run's results directory to read the mapping results back from. Defaults to `outdir`.                                                                                        |
 | `perform_geneext`        | Optional          | Boolean flag to enable or disable the gene extension step in preprocessing. Default is `false`.                                                                                                                                   |
 | `geneext_downstream`     | Optional          | Only with `perform_geneext`: `"geneext_only"` maps and analyses only the runs against the extended annotation (by GeneExt), `"both"` also the standard-annotation runs. Default is `"geneext_only"`. See [Which runs GeneExt adds](CONFIGURATION_PARAMETERS.md#which-runs-geneext-adds). |
-| `perform_featurecounts`  | Optional          | Boolean flag to enable or disable calculation of mtDNA, rRNA & antisense read percentages. Default is `false`.                                                                                                                                     |
 | `perform_kraken`         | Optional          | Boolean flag to enable or disable Kraken2 classification of unmapped reads. Default is `false`.                                                                                                                                   |
 | `ambient_rna_remover`    | Optional          | Software used to remove ambient RNA: `"cellsweep"` or `"none"`. Default is `"cellsweep"`.                                                                                                                                         |
+| `perform_metacells`      | Optional          | Boolean flag to group the called cells into Metacell2 metacells and build the interactive `filtering_report.html`. Default is `false`. See [Metacells and the filtering report](CONFIGURATION_PARAMETERS.md#metacells-and-the-filtering-report). |
+| `gene_annotation`        | Optional          | TSV with protein domains (PFAM) per gene, transcript or protein id, e.g. an eggNOG-mapper annotation. It enables filtering genes by domain in the report.                                                                        |
+| `metacell_selection`     | Optional          | The `metacell_selection.json` exported from `filtering_report.html`. Rerun with `-resume` to write the filtered UMI matrices to `<outdir>/metacell_filtering/`.                                                                    |
 | `kraken_db_path`         | Optional          | Path to the Kraken2 database used for taxonomic classification of unmapped reads, if empty, a default database will be installed.                                                                                                 |
 | `perform_cellranger`     | Optional          | Boolean flag to enable or disable the CellRanger pipeline. Default is `false`.                                                                                                                                                    |
 | `splitpipe_installation` | Optional          | Path to the split-pipe installation folder, that can be used as a control.                                                                                                                                                        |
@@ -90,3 +93,22 @@ nextflow run -profile <institution_config>,conda -c </path/to/custom_parameters.
 # Submit pipeline to SLURM queue
 sbatch submit_nextflow.sh main.nf
 ```
+
+
+### Filtering metacells (two passes)
+
+With `perform_metacells = true` the run ends with `<outdir>/filtering_report.html`. Open it and,
+for each sample, set the cell-level filters (mitochondrial %, doublet %, ambient fraction,
+blacklist) and the gene-level filters (minimum UMIs, PFAM domains). Opening a tab with a sample
+selected applies that level's settings; *Apply settings to all samples* copies them to the rest. Then download
+`metacell_selection.json` from the *Export selection* tab. It holds the samples whose settings are
+applied at both levels. Rerun the same command
+with `-resume` and the selection:
+
+```
+nextflow run -profile <institution_config>,conda -c </path/to/custom_parameters.config> -w </path/to/workdir> \
+    -resume --metacell_selection metacell_selection.json
+```
+
+Only the filtering step runs. The filtered matrices for downstream analysis are written to
+`<outdir>/metacell_filtering/<sample>/<sample>_final/`.

@@ -114,6 +114,80 @@ workflow PIPELINE_INITIALISATION {
     }
 
     //
+    // 'perform_featurecounts' is retired: CALC_READ_METRICS runs for every STARsolo BAM,
+    // since PERCELL_METRICS takes its per-barcode counts from it
+    //
+    if (params.perform_featurecounts != null) {
+        log.warn(
+            "'perform_featurecounts' is deprecated and has no effect: the mtDNA, rRNA and antisense\n" +
+            "read metrics now run for every STARsolo BAM. Remove it from your configuration."
+        )
+    }
+
+    //
+    // Fail fast on metacell options that would fail late or silently do nothing
+    //
+    // The metacells are grouped at the very end of a run, and the selection is applied on
+    // a rerun, so a misnamed column or a stale selection would otherwise only surface
+    // hours in -- or, for the annotation, not at all: an unmatched column reads as "no
+    // gene has a domain" and the report just hides its PFAM panel.
+    //
+    if (params.perform_metacells) {
+        if (!(params.run_method in ["standard", "post_mapping"])) {
+            error("'perform_metacells' needs the filtered matrices, which only run_method 'standard' or 'post_mapping' produce.")
+        }
+        if (!(params.mc2_target_metacell_size instanceof Number) || params.mc2_target_metacell_size < 2) {
+            error("'mc2_target_metacell_size' = '${params.mc2_target_metacell_size}' must be a number of cells, at least 2.")
+        }
+        if (!(params.metacell_gene_mode in ["drop", "flag"])) {
+            error("Unknown 'metacell_gene_mode' = '${params.metacell_gene_mode}'. Use one of: drop, flag.")
+        }
+        if (params.gene_annotation) {
+            def annotation = file(params.gene_annotation)
+            if (!annotation.exists()) {
+                error("'gene_annotation' = '${params.gene_annotation}' does not exist.")
+            }
+            def header  = annotation.withReader { reader -> reader.readLine() } ?: ""
+            def columns = header.split("\t").collect { col -> col.trim().replaceFirst(/^#/, "") }
+            def absent  = [params.gene_annotation_id_col, params.gene_annotation_pfam_col].findAll { col -> !(col in columns) }
+            if (absent) {
+                error(
+                    "'gene_annotation' has no column(s) ${absent.join(', ')} in its header (${columns.join(', ')}).\n" +
+                    "Set 'gene_annotation_id_col' and 'gene_annotation_pfam_col' to the identifier and domain columns."
+                )
+            }
+        }
+        if (!params.perform_doublet_detection) {
+            log.warn("'perform_metacells' is set without 'perform_doublet_detection': the filtering report will have no doublet percentages to filter on.")
+        }
+        if (!params.mt_contig?.toString()?.trim()) {
+            log.warn("'mt_contig' is empty: no gene is flagged mitochondrial, so every mito percentage in the filtering report will be 0.")
+        }
+    }
+
+    if (params.metacell_selection) {
+        if (!params.perform_metacells) {
+            error("'metacell_selection' is applied to the metacells, so it needs 'perform_metacells' (and -resume, to reuse them).")
+        }
+        def selection_file = file(params.metacell_selection)
+        if (!selection_file.exists()) {
+            error("'metacell_selection' = '${params.metacell_selection}' does not exist.")
+        }
+        def selection = null
+        try {
+            selection = new groovy.json.JsonSlurper().parse(selection_file)
+        } catch (Exception e) {
+            error("'metacell_selection' = '${params.metacell_selection}' is not valid JSON: ${e.message}")
+        }
+        if (!(selection instanceof Map) || selection.schema != "bca_metacell_selection" || selection.schema_version != 1) {
+            error(
+                "'metacell_selection' = '${params.metacell_selection}' is not a selection exported from\n" +
+                "filtering_report.html (expected schema 'bca_metacell_selection', version 1)."
+            )
+        }
+    }
+
+    //
     // Fail fast on an unknown run method or cell-calling method
     //
     def valid_run_methods = ["standard", "geneext_only", "external_pipeline_only", "post_mapping"]

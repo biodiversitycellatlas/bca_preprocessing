@@ -12,7 +12,7 @@ process ALEVIN_FRY {
 
     input:
     tuple val(meta), path(fastq_cDNA), path(fastq_BC_UMI), path(fastq_indices), path(input_file)
-    path(bc_whitelist)
+    path(bc_whitelist, stageAs: 'whitelist_?/*')  // in barcode-segment order; empty without a whitelist
     path(splici_index_reference)
     path(salmon_index)
 
@@ -43,6 +43,26 @@ process ALEVIN_FRY {
           " --min ${params.min_mapping_rate} --poll ${params.mapping_rate_poll_secs ?: 60}" +
           " --report ./${meta.id}_run/aux_info/meta_info.json --"
         : ''
+
+    // Count reads on the strand STARsolo counts (--soloStrand), so both mappers see the same molecules
+    def expected_ori = [Forward: 'fw', Reverse: 'rc', Unstranded: 'both'][params.star_soloStrand]
+    if (!expected_ori) {
+        error "star_soloStrand '${params.star_soloStrand}' has no alevin-fry orientation; use Forward, Reverse or Unstranded."
+    }
+
+    // Permit list. When the pipeline re-calls cells itself, alevin-fry keeps every barcode on
+    // the whitelist (--unfiltered-pl), so its 'full' matrix is a raw matrix like STARsolo's and
+    // the cell call is made on the whole curve. With star_solocellfilter, alevin-fry's own knee
+    // is the cell call, since the pipeline uses its 'full' matrix as called cells.
+    def whitelists = (bc_whitelist instanceof List ? bc_whitelist : [bc_whitelist]).findAll { it }
+    def recalls_cells = params.cellfilter_method in ['second_derivative', 'manual_cutoff']
+    def knee_reason = !recalls_cells ? "cellfilter_method '${params.cellfilter_method}' uses alevin-fry's own knee as the cell call"
+        : !whitelists ? "no barcode whitelist for protocol '${params.protocol}'"
+        : ''
+
+    // A whitelist given in parts (one per barcode segment) is expanded into every combination
+    // of the parts, in segment order, up to this many barcodes; beyond it the knee is used
+    def max_permit_barcodes = 10000000
     """
     echo -e "\\n\\n==================  ALEVIN-FRY =================="
     echo "Sample ID: ${meta}"
@@ -51,6 +71,8 @@ process ALEVIN_FRY {
     echo "cDNA read: ${fastq_cDNA}"
     echo "CB/UMI read: ${fastq_BC_UMI}"
     echo "Geometry (bc / umi / read): ${bc_geom} / ${umi_geom} / ${read_geom}"
+    echo "Expected orientation: ${expected_ori} (star_soloStrand ${params.star_soloStrand})"
+    echo "Resolution: ${params.alevin_resolution}"
 
 
     echo -e "\\n\\n-------------  Salmon Alevin -------------------"
@@ -59,7 +81,7 @@ process ALEVIN_FRY {
         -l A \\
         -1 ${fastq_BC_UMI} \\
         -2 ${fastq_cDNA} \\
-        -p 32 \\
+        -p ${task.cpus} \\
         --bc-geometry "${bc_geom}" \\
         --umi-geo "${umi_geom}" \\
         --read-geo "${read_geom}" \\
@@ -67,26 +89,56 @@ process ALEVIN_FRY {
         --justAlign
 
     echo -e "\\n\\n-------------  generate permit -------------------"
+    permit_args="-k"
+    knee_reason="${knee_reason}"
+    if [ -z "\$knee_reason" ]; then
+        whitelists=(${whitelists.join(' ')})
+        n_barcodes=1
+        for wl in "\${whitelists[@]}"; do
+            n_barcodes=\$(( n_barcodes * \$(zcat -f "\$wl" | tr -d '\\r' | awk 'NF' | wc -l) ))
+        done
+
+        if [ "\$n_barcodes" -le ${max_permit_barcodes} ]; then
+            # One barcode per line, the segments' combinations in segment order
+            zcat -f "\${whitelists[0]}" | tr -d '\\r' | awk 'NF { print \$1 }' > permit_whitelist.txt
+            for wl in "\${whitelists[@]:1}"; do
+                awk 'NR == FNR { if (NF) seg[++n] = \$1; next }
+                     { for (i = 1; i <= n; i++) print \$0 seg[i] }' <(zcat -f "\$wl" | tr -d '\\r') permit_whitelist.txt > permit_whitelist.tmp
+                mv permit_whitelist.tmp permit_whitelist.txt
+            done
+            echo "Unfiltered permit list: \$(wc -l < permit_whitelist.txt) barcodes from \${#whitelists[@]} whitelist file(s)"
+            # Every barcode with a read, as in STARsolo's raw matrix: the low end is where the
+            # ambient-RNA step finds its empty droplets (alevin-fry's own default is 10 reads)
+            permit_args="--unfiltered-pl permit_whitelist.txt --min-reads 1"
+        else
+            knee_reason="the whitelist expands to \$n_barcodes barcodes, more than ${max_permit_barcodes}"
+        fi
+    fi
+    if [ -n "\$knee_reason" ]; then
+        echo "Knee permit list: \$knee_reason"
+    fi
+
     alevin-fry generate-permit-list \\
         -i ./${meta.id}_run \\
-        -d both \\
-        --output-dir ./${meta.id}_out_permit_knee \\
-        -k
+        -d ${expected_ori} \\
+        --output-dir ./${meta.id}_out_permit \\
+        \$permit_args
 
     echo -e "\\n\\n-------------  collate -------------------"
     alevin-fry collate \\
-        -i ./${meta.id}_out_permit_knee \\
-        -t 16 \\
+        -i ./${meta.id}_out_permit \\
+        -t ${task.cpus} \\
         -r ./${meta.id}_run
 
     echo -e "\\n\\n-------------  quant -------------------"
     alevin-fry quant \\
         -m ${splici_index_reference}/*t2g_3col.tsv \\
-        -i ./${meta.id}_out_permit_knee  \\
+        -i ./${meta.id}_out_permit \\
         -o ./${meta.id}_counts \\
-        -t 16 \\
-        -r cr-like-em \\
-        --use-mtx
+        -t ${task.cpus} \\
+        -r ${params.alevin_resolution}
+
+    rm -f permit_whitelist.txt
 
     cat <<-END_VERSIONS > versions.yml
     "${task.process}":

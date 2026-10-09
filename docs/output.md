@@ -19,10 +19,11 @@ them. Which directories appear depends on the options you enabled — see
 11. [AnnData conversion](#anndata-conversion) — `anndata/`
 12. [Ambient RNA removal](#ambient-rna-removal) — `cellsweep/`
 13. [Doublet detection](#doublet-detection) — `doublet_filtering/`
-14. [Optional analyses](#optional-analyses) — `saturation/`, `rRNA_mtDNA/`, `gene_ext/`, `kraken/`
-15. [Summary reports](#summary-reports) — `summary_results/`, `dashboard.html`
-16. [External pipelines](#external-pipelines)
-17. [Which matrix should I use?](#which-matrix-should-i-use)
+14. [Metacells and filtering](#metacells-and-filtering) — `metacells/`, `filtering_report.html`, `metacell_filtering/`
+15. [Optional analyses](#optional-analyses) — `saturation/`, `rRNA_mtDNA/`, `gene_ext/`, `kraken/`
+16. [Summary reports](#summary-reports) — `summary_results/`, `dashboard.html`
+17. [External pipelines](#external-pipelines)
+18. [Which matrix should I use?](#which-matrix-should-i-use)
 
 ---
 
@@ -61,6 +62,8 @@ the `_geneext_` runs.
 ```
 output_directory/
 ├── dashboard.html                  # Portable HTML dashboard — start here
+├── filtering_report.html           # (Optional) Interactive metacell filtering report
+├── versions.yml                    # Software versions of every process that ran
 │
 ├── pipeline_info/                  # Run configuration, samplesheet, execution traces
 ├── genome/                         # Generated reference indices
@@ -77,9 +80,11 @@ output_directory/
 │
 ├── cellsweep/                      # (Optional) CellSweep ambient RNA removal
 ├── doublet_filtering/              # (Optional) Scrublet, scDblFinder and consensus calls
+├── metacells/                      # (Optional) Metacell2 metacells and their QC summaries
+├── metacell_filtering/             # (Optional) Filtered UMI matrices from the report's selection
 │
 ├── saturation/                     # (Optional) Sequencing saturation analysis
-├── rRNA_mtDNA/                     # (Optional) rRNA, mtDNA and antisense read percentages
+├── rRNA_mtDNA/                     # rRNA, mtDNA and antisense reads (runs with a BAM)
 ├── gene_ext/                       # (Optional) GeneExt extended annotation, report and log
 ├── kraken/                         # (Optional) Taxonomic classification of unmapped reads
 │
@@ -118,6 +123,10 @@ directory accumulate rather than replace.
 
 The run configuration and samplesheet are also embedded in `dashboard.html`, so a dashboard
 found on its own remains self-describing.
+
+The software versions are in `versions.yml` at the top of the output directory: one entry
+per process that ran, listing the tools it used, plus a `Workflow` entry with the pipeline and
+Nextflow versions. It is rewritten at the end of every run, so it describes the most recent one.
 
 </details>
 
@@ -158,6 +167,10 @@ matching the first barcode against the split-well definition within a Hamming di
 **`demultiplex/demux_spipe/`** — Parse Biosciences, when demultiplexing with split-pipe instead
 of the built-in demultiplexer.
 
+**`demultiplex/<sample>/`** — OAK, written by `OAK_DEMUX`: the reads of one aliquot, selected
+on its i7 (optional) and i5 index, as `<sample>_S1_L001_{R1,R2,I1,I2}_001.fastq.gz`, plus
+`<sample>_oak_demux.log` with the read counts of the input and after each index step.
+
 **`demux_reads/`** — sci-RNA-seq3, written by `SCIROCKET_DEMUX`:
 
 | File | Description |
@@ -182,7 +195,7 @@ reports.
 <summary><code>fastqc/</code></summary>
 
 Standard FastQC output for the raw FASTQ files: one `*_fastqc.html` and one `*_fastqc.zip` per
-input file. The HTML reports are also aggregated into the MultiQC report in `summary_results/`.
+input file. The zips are also aggregated into the MultiQC report in `summary_results/`.
 
 These are run on the **raw** input files, before any protocol-specific read manipulation.
 
@@ -237,8 +250,9 @@ pipeline calls cells on. See [Cell calling](#cell-calling).
 | ---- | ----------- |
 | `<id>_run/` | `salmon alevin` mapping output. |
 | `<id>_run/aux_info/meta_info.json` | Mapping-rate statistics. |
+| `<id>_out_permit/` | alevin-fry permit list: every whitelisted barcode with a read (`--unfiltered-pl`), or alevin-fry's knee where that does not apply. See [alevin-fry settings](CONFIGURATION_PARAMETERS.md#alevin-fry-settings). |
 | `<id>_counts/` | alevin-fry quantification output. |
-| `<id>_counts/alevin/` | The count matrix in USA mode: `quants_mat.mtx`, `quants_mat_cols.txt`, `quants_mat_rows.txt`. |
+| `<id>_counts/alevin/` | The count matrix in USA mode: `quants_mat.mtx` (cells × columns), `quants_mat_rows.txt` (barcodes) and `quants_mat_cols.txt` (the gene IDs, then the same IDs with `-U`, then with `-A`). |
 | `<id>_counts/quant.json` | Quantification summary. |
 | `<id>_counts/cell_meta.tsv` | Per-cell summary statistics. |
 | `<id>_counts/alevin/filtered_secondderiv/` | The pipeline's cell-called matrix. See [Cell calling](#cell-calling). |
@@ -255,8 +269,8 @@ pipeline calls cells on. See [Cell calling](#cell-calling).
 > | `alevin_usa_counts` | Sums | STARsolo equivalent |
 > | ------------------- | ---- | ------------------- |
 > | `SUA` (default) | S + U + A | `GeneFull_Ex50pAS` |
-> | `S` | S only | `Gene` |
-> | `SA` | S + A | *(none)* |
+> | `SA` | S + A | `Gene` |
+> | `S` | S only | *(none)* |
 > | `UA` | U + A | *(none)* |
 > | `U` | U only | `Velocyto/` unspliced |
 >
@@ -331,14 +345,20 @@ This is the counterpart of STARsolo's `unspliced.mtx`.
 
 **Both mappers** — `anndata/<analytical_run>/velocity/<id>_<datatype>_velocity.h5ad`
 
-A velocity-ready AnnData object, which is what scVelo, velocyto and CellRank actually expect:
+A velocity-ready AnnData object of the called cells (`filtered`; alevin-fry's `full` under
+`cellfilter_method = "star_solocellfilter"`, where that is its cell call), which is what
+scVelo, velocyto and CellRank actually expect. Each mapper's layers follow its own
+convention, recorded in `adata.uns["velocity_layers"]`:
 
-| Field | Contents |
-| ----- | -------- |
-| `adata.layers["spliced"]` | The spliced matrix. |
-| `adata.layers["unspliced"]` | The unspliced (intronic) matrix. |
-| `adata.layers["ambiguous"]` | The ambiguous matrix. |
-| `adata.X` | The sum of the three layers. |
+| Field | STARsolo | alevin-fry |
+| ----- | -------- | ---------- |
+| `adata.layers["spliced"]` | Velocyto spliced | S + A, as alevin-fry's velocity tutorial and pyroe define it |
+| `adata.layers["unspliced"]` | Velocyto unspliced (the intronic matrix) | U |
+| `adata.layers["ambiguous"]` | Velocyto ambiguous | A, for reference: already inside `spliced` |
+| `adata.X` | The sum of the three layers | S + U + A |
+
+Compare the two mappers' `spliced` and `unspliced` layers; their ambiguous classes are
+defined differently.
 
 > [!IMPORTANT]
 > The velocity matrices take their cell set from the `GeneFull_Ex50pAS` cell call rather than a
@@ -371,7 +391,7 @@ Count matrices converted to `.h5ad` for downstream analysis in scanpy. `<datatyp
 | ---------- | ------ |
 | `raw` | STARsolo unfiltered matrix (all barcodes). |
 | `filtered` | Cell-called matrix. |
-| `full` | alevin-fry full matrix (the alevin-fry counterpart of `raw`). |
+| `full` | alevin-fry full matrix (the alevin-fry counterpart of `raw`): every barcode on alevin-fry's permit list. |
 
 These are the **last** step of the filtering workflow, not the first: ambient RNA removal
 (which uses `raw`/`full`, since it models the empty droplets that cell calling removes) and
@@ -453,6 +473,66 @@ matrix.
 
 </details>
 
+## Metacells and filtering
+
+Present when `perform_metacells = true`. Each analytical run's cell-called AnnData object is
+grouped into Metacell2 metacells, and `filtering_report.html` turns your choices into a
+selection. See
+[Metacells and the filtering report](CONFIGURATION_PARAMETERS.md#metacells-and-the-filtering-report).
+
+<details markdown="1">
+<summary><code>metacells/</code></summary>
+
+| Path | Description |
+| ---- | ----------- |
+| `gene_table/gene_table.tsv` | One row per GTF gene: `gene_id`, `gene_name`, `chrom`, `biotype`, `is_mito` (on `mt_contig`), `is_rrna` (biotype matches `grep_rrna`) and `pfam` (domains from `gene_annotation`). |
+| `gene_table/gene_table_stats.json` | How many genes are mitochondrial or rRNA, and how many annotation rows resolved to a gene. |
+| `<id>/<id>_mc2_cells.h5ad` | Every called cell. `X` holds the raw counts, `obs["metacell"]` its group, plus per-cell `total_umis`, `pct_mito`, `pct_rrna`, the doublet call, CellSweep's `alpha_hat` and `layers["cellsweep"]` when available. `uns["mc_fingerprint"]` identifies the assignment. |
+| `<id>/<id>_mc2_metacells.h5ad` | One row per group, with summed raw UMIs over every gene and the group's QC in `obs`: cells, UMIs, mito %, doublet %, mean `alpha_hat`, UMAP coordinates and top markers. |
+| `<id>/<id>_mc_summary.json` | The report's input for this sample. For a sample with too few cells it holds `status: skipped` and the reason, and the two h5ad files are absent. |
+
+Besides the metacells (named as Metacell2 names them, e.g. `M12.34`), `obs["metacell"]` uses two
+pseudo-groups: `__outliers__` for cells Metacell2 left out of every metacell, and `__excluded__`
+for cells it never grouped (outside `mc2_min_cell_umis`/`mc2_max_cell_umis`).
+
+</details>
+
+<details markdown="1">
+<summary><code>filtering_report.html</code></summary>
+
+A single HTML file covering every analytical run, selected with a dropdown. Plotly loads from
+its CDN, so the first view needs an internet connection.
+
+| Tab | Contents |
+| --- | -------- |
+| Cell-level filtering | Histograms of mitochondrial %, doublet % and mean ambient fraction per metacell, with a draggable threshold line, Metacell2's UMAP (click or lasso to blacklist) beside the current blacklist, and a sortable metacell table. |
+| Gene-level filtering | Ranked total UMIs per gene and their histogram, with a draggable minimum on both, PFAM domains by tick-box, preset or regular expression, mitochondrial genes, a gene blacklist beside the genes those settings exclude, and a sortable table of all genes with their status. |
+| Export selection | *Apply settings to all samples* and *Reset all samples to defaults*, then three steps: a table of every sample with the status of its two levels (*Applied* or *Pending*) and what it keeps, the download of `metacell_selection.json`, and the rerun that applies it. Below them, *Load selection* continues from an earlier export. |
+
+Each sample has its own cell- and gene-level settings. A level is *pending* until you open its
+tab with the sample selected, which applies it, or copy another sample's settings with *Apply
+settings to all samples* (which leaves each sample's blacklists alone). Only samples with both
+levels applied go into the selection.
+
+The report remembers your choices in the browser between visits. *Reset all samples to
+defaults* clears them.
+
+</details>
+
+<details markdown="1">
+<summary><code>metacell_filtering/&lt;analytical_run&gt;/&lt;id&gt;_final/</code></summary>
+
+Written by the `-resume --metacell_selection metacell_selection.json` rerun.
+
+| Path | Description |
+| ---- | ----------- |
+| `matrix.mtx`, `barcodes.tsv`, `features.tsv` | The kept cells × kept genes, raw UMIs, in the 10x orientation. |
+| `<id>_final.h5ad` | The same cells, with `obs["metacell"]`, the per-cell QC and annotations, and `layers["cellsweep"]` when present. Under `metacell_gene_mode = "flag"` every gene is kept, with `var["pass_filter"]` and `var["exclusion_reasons"]`. |
+| `<id>_final_metacells.h5ad` | The kept metacells × genes, summed raw UMIs. |
+| `<id>_filter_summary.json` | What was kept and from what (cells, metacells, genes, UMIs), with the rules the selection recorded. |
+
+</details>
+
 ## Optional analyses
 
 <details markdown="1">
@@ -475,22 +555,79 @@ Both images appear in the dashboard's Saturation tab.
 <details markdown="1">
 <summary><code>rRNA_mtDNA/</code></summary>
 
-Produced when `perform_featurecounts = true`.
+Produced for every STARsolo run when `star_generateBAM = true`, by one pass over its BAM
+(`CALC_READ_METRICS`).
 
 | File | Description |
 | ---- | ----------- |
-| `<id>_mt_rrna_metrics.txt` | Percentage of reads assigned to mitochondrial and ribosomal RNA features, reported separately for uniquely mapped reads and for multimappers (all alignments, and primary alignments only). |
-| `<id>_antisense_metrics.txt` | Reads assigned to exons on the sense and the antisense strand, and the antisense percentage of the two together. Not produced when `star_soloStrand = "Unstranded"`. |
+| `<id>_mt_rrna_metrics.txt` | mtDNA and rRNA read counts and percentages, for the whole library and for the called cells, plus the split of mtDNA reads by strand. A CSV file whose metric names are quoted, because they contain commas. |
+| `<id>_antisense_metrics.txt` | Uniquely mapped reads sense and antisense to genes, from STARsolo's `CellReads.stats`, and the antisense percentage of the two together, also split into exonic and intronic. For the whole library and for the called cells. Not produced when `star_soloStrand = "Unstranded"`, or without `CellReads.stats`. |
+| `<id>_barcode_reads.tsv.gz` | Mapped, mtDNA and rRNA reads (primary alignment) of every barcode, from the same pass. A gzipped TSV with the columns `CB`, `MappedReads`, `MTReads` and `rRNAReads`. The per-cell metrics are computed from it. |
 
-High rRNA is usually a library preparation issue; high mtDNA usually indicates cell stress or
-damage during dissociation. Both are surfaced in the dashboard's Mapping tab and in the
-per-cell metrics.
+**Reads and alignments.** STAR writes one BAM record per alignment, so a read mapped to six
+loci has six records. Every metric named "reads" counts each read once, at its primary
+alignment. Only the rows named "alignments (all alignments)" count every record. Those rows are
+diagnostics: they show where multimapper alignments land, such as rRNA repeats and nuclear
+copies of mtDNA (NUMTs).
 
-STARsolo counts only the strand set by `star_soloStrand`, so reads on the opposite strand of
-a gene do not appear in any of its outputs. For the antisense percentage, featureCounts is run
-twice over the existing BAM, once per strand, using uniquely mapped reads only. A read
-overlapping genes on both strands is counted on both. The percentage appears in the Quality
-Metrics card of the dashboard's Mapping tab.
+**mtDNA reads** are reads whose primary alignment is on a contig listed in `mt_contig`, i.e.
+on the mitochondrial genome. The name describes where the read maps, not the molecule it came
+from. In RNA-seq nearly all of these reads come from mitochondrially encoded transcripts. This
+is the read-level counterpart of `percent.mt` / `pct_counts_mt`.
+
+**rRNA reads** are reads overlapping any feature whose biotype contains "rRNA" (rRNA, Mt_rRNA,
+rRNA_pseudogene, …), plus every read on a contig of `ref_gtf_addfeature`. Mt_rRNA (MT-RNR1/2)
+is polyadenylated and is often most of the rRNA signal in poly(A)-captured libraries. A read on
+it is both an mtDNA and an rRNA read, so the two percentages overlap and must not be summed.
+
+The metrics, each as a count and a percentage:
+
+| Denominator | Meaning |
+| ----------- | ------- |
+| `of mapped reads, primary alignment` | The headline value. Nuclear rRNA comes from multi-copy arrays and multimaps, so this is the fraction of reads that are rRNA. |
+| `of uniquely mapped reads` | Uniquely mapped reads only (NH = 1). A lower bound for rRNA. For mtDNA, the gap to the mapped-reads value shows how much of the signal is ambiguous with NUMTs. |
+| `of multimapped reads, primary alignment` | Multimappers only, each at its primary alignment. |
+| `of multimapped read alignments, all alignments` | Every alignment of every multimapper (diagnostic). |
+| `…, called cells` | The mapped and uniquely mapped values again, restricted to the barcodes of the filtered matrix. This is the cell set from cell calling, before doublet removal and CellSweep. `N/A` when no filtered matrix exists. |
+
+Rows without a scope cover the whole BAM: empty droplets, ambient RNA and barcodes outside the
+whitelist included. The two scopes can differ a lot. In single-nucleus data mitochondrial
+transcripts concentrate in the ambient fraction, so a library value well above the called-cell
+value points to ambient contamination.
+
+**mtDNA reads by origin.** The mtDNA reads are split into those sense to a mitochondrial gene,
+antisense to one, and outside every mitochondrial gene, as percentages of the mtDNA reads. The
+genes are the exon rows of the main annotation on `mt_contig`. Transcripts land sense to the
+genes. Fragments of mtDNA itself land on both strands about equally and also cover
+untranscribed stretches. The mitochondrial genome is transcribed from both strands almost end
+to end (L-strand transcripts, 7S RNA from the control region), so this is not a measurement of
+DNA contamination but an upper bound on it. The useful comparison is the antisense share here
+against the genome-wide antisense share in `<id>_antisense_metrics.txt` (the exonic one is the
+closer match, since the mitochondrial split counts exons only): a markedly higher
+value on the mitochondrial genome suggests DNA-derived reads. In poly(dT)-primed protocols DNA
+is captured only through internal priming, so values near the genome-wide background are
+expected. When `star_soloStrand = "Unstranded"`, only the share outside the genes is reported.
+
+**Reads vs UMIs.** These are read percentages. They include PCR duplicates, so they differ from
+UMI-based fractions such as the metacell report's mitochondrial UMI percentage, or a
+`percent.mt` threshold set downstream.
+
+High rRNA is usually a library preparation issue. High mtDNA in called cells usually indicates
+stressed or damaged cells. In single-nucleus data it indicates cytoplasmic or ambient
+contamination instead, since nuclei hold no mitochondria. Both are surfaced in the dashboard's
+Mapping tab and in the per-cell metrics.
+
+**Antisense reads.** STARsolo counts the strand set by `star_soloStrand`, and flags every
+uniquely mapped read as exonic, intronic, exonicAS or intronicAS against the `GeneFull_Ex50pAS`
+gene model (`CellReads.stats`, written with `soloCellReadStats Standard`, with or without
+`perform_velocity`). The antisense percentage is `(exonicAS + intronicAS)` over all four, so it
+uses the same alignments, gene model and strand as the count matrix and needs no pass over the
+BAM. The library value sums every barcode, `CBnotInPasslist` included; the called-cell value
+sums the filtered matrix's barcodes. `GeneFull_Ex50pAS` leaves fully exonic antisense reads out
+of the matrix; intronic antisense reads can still be counted in it. A high antisense share
+points to a wrong `star_soloStrand`, to internal priming on the opposite strand, or to
+DNA-derived reads. The library value appears in the Quality Metrics card of the dashboard's
+Mapping tab, and the metacell report shows the called-cell value.
 
 </details>
 
@@ -582,10 +719,10 @@ Seven tabs, plus one that appears only when the run produced an extended annotat
 
 | Tab | Content |
 | --- | ------- |
-| **Mapping** | Read counts, Q30 rates, uniquely/multi/unmapped percentages, intronic fraction, rRNA and mtDNA percentages, cells, saturation, median UMIs and genes. Includes a cross-sample overview table. |
+| **Mapping** | Read counts, Q30 rates, uniquely/multi/unmapped percentages, intronic read percentage, rRNA and mtDNA read percentages (library and called cells, and mtDNA reads by strand; see `rRNA_mtDNA/`), cells, saturation, median UMIs and genes. Includes a cross-sample overview table. |
 | **Cell Calling** | Barcode-rank knee curves and second-derivative curves per sample, with the chosen cutoff marked, alongside `expected_cells` and the cutoffs each method would have chosen. |
 | **Saturation** | Saturation and residual curves. |
-| **Per-Cell Visualizations** | Per-cell scatter over intronic %, mitochondrial %, rRNA %, total reads and cell/non-cell status. |
+| **Per-Cell Visualizations** | Per-cell scatter over intronic %, mtDNA %, rRNA %, mapped reads and cell/non-cell status. |
 | **Taxonomic Classification** | The Kraken 2 Sankey diagram. |
 | **Cell Filtering** | CellSweep ambient-contribution histogram, top ambient genes and UMAP comparison. |
 | **Gene Extension** | Only with `perform_geneext = true`. How many genes GeneExt extended and by how much, the 3′-extension length distribution, the MACS2 peak-filtering flow and coverage threshold, the `--maxdist` that was applied and any annotation fixes GeneExt made. |
@@ -618,14 +755,27 @@ bin/generate_dashboard.py --result-dir /path/to/output_directory --output dashbo
 
 | Path | Description |
 | ---- | ----------- |
-| `mapping_stats.tsv` | One row per analytical run with the headline mapping and quantification statistics. |
+| `mapping_stats.tsv` | One row per analytical run with the headline mapping and quantification statistics. The read-region columns (exonic, intronic, intergenic, antisense, mtDNA) are percentages of uniquely mapped reads. For STARsolo they are summed over the called cells from `CellReads.stats`; for sci-rocket they come from its per-sample totals. |
 | `multiqc_report.html` | MultiQC report aggregating FastQC, STAR (`Log.final.out`), Kraken2 and Salmon (alevin-fry mapping) outputs. |
 | `multiqc_data/` | The underlying MultiQC data tables. |
 | `R_images/UMI_dist_*.png` | UMI distribution plots (runs that mapped with STARsolo). |
 | `R_images/cells_genes_*.png` | Cell and gene count plots (runs that mapped with STARsolo). |
-| `per-cell_metrics/<id>_metrics.csv` | Per-cell metrics table: barcode, total reads, intronic %, mitochondrial %, rRNA %, cell/non-cell status. |
+| `per-cell_metrics/<id>_metrics.csv` | Per-cell metrics table, one row per barcode. The columns are described below. |
 | `per-cell_metrics/<id>_metrics.json` | The same metrics as embedded in the dashboard. |
 | `per-cell_metrics/*.png` | Per-cell metric plots. |
+
+The per-cell read columns come from `rRNA_mtDNA/<id>_barcode_reads.tsv.gz`, so they use the same
+definitions as `rRNA_mtDNA/`, and the called cells add up to its called-cell rows. Percentages
+run from 0 to 100.
+
+| Column | Meaning |
+| ------ | ------- |
+| `MappedReads` | Reads with this barcode, each counted once at its primary alignment. |
+| `MTPercent` | mtDNA reads, as a % of `MappedReads`. |
+| `rRNAPercent` | rRNA reads, as a % of `MappedReads`. |
+| `IntronicPercent` | Reads STARsolo flags intronic, as a % of the barcode's uniquely mapped reads (`CellReads.stats`, `intronic / genomeU`). This is the same classification as the dashboard's library-level intronic percentage. |
+| `UnsplicedPercent` | Only with `perform_velocity`. Unspliced UMIs as a % of all Velocyto UMIs (spliced + unspliced + ambiguous). Velocyto classifies each UMI once against the transcript models of the `Gene` feature, so this is a UMI-level cross-check of `IntronicPercent`, not expected to equal it. |
+| `IsCell` | 1 for a barcode of the filtered matrix. |
 
 </details>
 
@@ -664,6 +814,9 @@ The pipeline deliberately produces several matrices. For a standard analysis:
    runs, so you can check that the extension improved gene detection.
 5. **For RNA velocity**, start from `anndata/<sample>_starsolo/velocity/` instead — it carries
    the same cells with the splicing breakdown as layers. Requires `perform_velocity = true`.
+6. **If you filtered metacells** with `filtering_report.html`, use
+   `metacell_filtering/<sample>_starsolo/<sample>_starsolo_final/`. It holds the cells and genes
+   the selection kept, with each cell's metacell attached.
 
 Use the exonic-only `Gene/` matrix rather than `GeneFull_Ex50pAS/` only if you specifically want
 to exclude intronic reads. For single-nucleus data, `GeneFull_Ex50pAS` is usually the

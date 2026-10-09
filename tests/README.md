@@ -21,11 +21,14 @@ bash tests/run_tests.sh --list
 tests/
 ├── run_tests.sh                # entry point; discovers and runs the checks
 ├── checks/                     # one file per check, discovered automatically
+│   ├── alevin_usa.sh
 │   ├── annotated_h5ad.sh
 │   ├── conda_envs.sh
 │   ├── containers.sh
 │   ├── dashboard_geneext.sh
 │   ├── dynamic_resources.sh
+│   ├── metacell_filtering.sh
+│   ├── mt_rrna_metrics.sh
 │   ├── nextflow_versions.sh
 │   ├── resource_efficiency.sh
 │   └── velocity_matrix.sh
@@ -37,6 +40,8 @@ tests/
     ├── make_annotation_fixture.py # generates both mappers' triplets plus doublet
     │                              # and CellSweep annotations to merge
     ├── make_geneext_fixture.py    # generates a synthetic GeneExt report and log
+    ├── make_metacell_fixture.py   # generates a sample with a planted metacell assignment
+    ├── report_harness.js          # runs filtering_report.html's script to export a selection
     ├── make_trace_fixture.py      # generates synthetic runs with a known exponent
     └── make_velocyto_fixture.py   # generates synthetic Velocyto and USA matrices
 ```
@@ -283,6 +288,85 @@ bash tests/run_tests.sh dashboard_geneext
 bash tests/run_tests.sh dashboard_geneext -- --keep    # keep the generated dashboards
 ```
 
+## `metacell_filtering`
+
+Checks the metacell filtering loop end to end:
+
+- [`bin/run_metacells.py`](../bin/run_metacells.py) summarises each metacell.
+- [`bin/filtering_report.html`](../bin/filtering_report.html) turns the user's choices into a
+  selection.
+- [`bin/apply_metacell_filter.py`](../bin/apply_metacell_filter.py) writes the matrices that
+  selection asks for.
+
+Every link can fail silently:
+
+- A mitochondrial percentage computed after the mitochondrial genes were excluded from the
+  grouping reads 0 everywhere.
+- A CellSweep annotation lifted by position lands on the wrong cells.
+- A selection applied to a regrouped sample keeps a plausible set of the wrong cells.
+
+[`lib/make_metacell_fixture.py`](lib/make_metacell_fixture.py) therefore plants the assignment,
+so Metacell2 is not needed for most cases. It also plants every number the report shows:
+
+- the ambient object's barcodes are shuffled among empty droplets;
+- the domain annotation is keyed by versioned transcript and protein ids;
+- one gene is named `</script><script>alert(1)` and another like the report's placeholder.
+
+Where a JavaScript runtime is found, [`lib/report_harness.js`](lib/report_harness.js) runs the
+report's own script in a stubbed DOM. It applies a set of choices and exports the selection,
+which the apply cases then check. So what is tested is what the page really downloads,
+including a download → load round trip. Without a runtime, those cases are skipped and an
+equivalent selection is built in Python.
+
+`mc2_smoke` runs the real Metacell2 grouping twice with the same seed and expects the same
+fingerprint. It is skipped where `metacells` cannot be imported. metacells publishes no
+Windows wheels, so on Windows run it from WSL or a Linux node.
+
+```bash
+bash tests/run_tests.sh metacell_filtering
+bash tests/run_tests.sh metacell_filtering -- --python /path/to/env/bin/python --node node --keep
+```
+
+## `mt_rrna_metrics`
+
+Checks the read-level mtDNA and rRNA metrics of
+[`bin/calculate_read_metrics.py`](../bin/calculate_read_metrics.py) (CALC_READ_METRICS) and
+[`bin/per-cell_images.py`](../bin/per-cell_images.py) (PERCELL_METRICS).
+
+A BAM holds one record per alignment. A count of records therefore weights every
+multimapper by its `NH`, and the percentages stay plausible while measuring the wrong thing.
+The check writes a small SAM by hand, so that every expected number can be counted on paper.
+It contains:
+
+- a nuclear multimapper with a secondary alignment on chrM;
+- an mtDNA multimapper on mitochondrial rRNA;
+- reads sense, antisense and outside the mitochondrial genes;
+- an rRNA read on an added rRNA contig;
+- reads from a called and an uncalled barcode.
+
+The cases assert exact values for:
+
+- the library-level rows;
+- the split of mtDNA reads by strand;
+- the called-cell rows;
+- the antisense rows, from a hand-written `CellReads.stats`, and their absence for an
+  unstranded run;
+- the per-barcode reads (`barcode_reads.tsv.gz`), and that the called barcodes add up to the
+  called-cell rows;
+- the per-cell table: mapped reads, mtDNA %, rRNA %, intronic % from `CellReads.stats`,
+  and unspliced % from Velocyto. `per-cell_images.py` reads the per-barcode reads of the
+  stranded run, as `PERCELL_METRICS` reads `CALC_READ_METRICS`', so the case also checks
+  that the two scripts fit together.
+
+The check needs samtools, to build the fixture BAM, and a Python with pysam, which has no
+Windows build, so on Windows run it from WSL. The per-cell case also needs pandas, scipy and
+matplotlib; it no longer needs pysam itself. Each case is skipped when its tools are missing.
+
+```bash
+bash tests/run_tests.sh mt_rrna_metrics
+bash tests/run_tests.sh mt_rrna_metrics -- --python /path/to/env/bin/python --keep
+```
+
 ## `velocity_matrix`
 
 Checks the intronic / RNA-velocity outputs produced under `perform_velocity = true`:
@@ -294,15 +378,17 @@ Checks the intronic / RNA-velocity outputs produced under `perform_velocity = tr
 Every failure mode here is silent. Subsetting the velocity matrices on a UMI cutoff of
 their own rather than the `GeneFull_Ex50pAS` cell call gives a perfectly plausible matrix
 describing the wrong cells. Transposing one layer and not the others, or mapping
-alevin-fry's `-S` block onto the unspliced layer, gives an object of exactly the right
+alevin-fry's spliced block onto the unspliced layer, gives an object of exactly the right
 shape carrying the wrong numbers. None of it raises.
 
 [`lib/make_velocyto_fixture.py`](lib/make_velocyto_fixture.py) therefore writes counts
 that identify their own layer, gene and cell on sight — `spliced` in the hundreds,
 `unspliced` in the tens, `ambiguous` in the units — so a swapped layer cannot pass. It
 emits both mappers' layouts: STARsolo's genes × cells matrices and alevin-fry's cells ×
-columns USA matrix, whose `-S`-first ordering is what a suffix-blind split would return
-instead of the unspliced block.
+columns USA matrix in alevin-fry's real column layout (bare gene IDs, then `-U`, then
+`-A`). One gene ID ends in `-A`, which a split by suffix would mistake for another gene's
+ambiguous column. The alevin-fry h5ad is checked against alevin-fry's velocity convention
+(`spliced` = S + A, `unspliced` = U).
 
 The `h5ad_layers` cases are skipped where `anndata` is not importable; the rest need only
 numpy, pandas and scipy.
@@ -310,6 +396,26 @@ numpy, pandas and scipy.
 ```bash
 bash tests/run_tests.sh velocity_matrix
 bash tests/run_tests.sh velocity_matrix -- --keep    # keep the generated matrices
+```
+
+## `alevin_usa`
+
+Checks every script that reads alevin-fry's USA matrix through
+[`bin/alevin_usa.py`](../bin/alevin_usa.py): the collapse
+([`collapse_alevin_usa.py`](../bin/collapse_alevin_usa.py)) for every `alevin_usa_counts`
+value, the cell-calling helper
+([`secondderiv_alevin.py`](../bin/secondderiv_alevin.py)) `umis` and `filter`, and the gene
+count in both dashboards. It reuses the velocity fixture, so every expected count is the
+sum of known S, U and A values.
+
+The failures it guards against were silent: a collapse that did not recognise the layout
+copied the matrix through with three columns per gene, and cell calling then counted every
+column, so `alevin_usa_counts` had no effect and genes were counted up to three times in
+the statistics. A matrix that is not in the USA layout (plain gene columns, or `-S`/`-U`/`-A`
+names) must now fail without writing output. Needs only numpy, pandas and scipy.
+
+```bash
+bash tests/run_tests.sh alevin_usa
 ```
 
 ## Adding a check

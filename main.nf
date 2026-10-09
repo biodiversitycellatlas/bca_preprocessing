@@ -27,6 +27,7 @@ include { QC_mapping_workflow       } from './workflows/mapping_workflow'
 include { post_mapping_workflow     } from './workflows/post_mapping_workflow'
 include { filtering_workflow        } from './workflows/filtering_workflow'
 include { reporting_workflow        } from './workflows/reporting_workflow'
+include { metacell_workflow         } from './workflows/metacell_workflow'
 
 include { PIPELINE_INITIALISATION   } from './subworkflows/local/utils_nfcore_bca_pipeline'
 include { PIPELINE_COMPLETION       } from './subworkflows/local/utils_nfcore_bca_pipeline'
@@ -57,7 +58,7 @@ include { MULTIQC                   } from './modules/local/tools/multiqc/main'
 workflow BCA_PREPROCESSING {
 
     take:
-        samplesheet     // channel: samplesheet read in from --input
+        samplesheet
 
     main:
         // Initialize reporting channels
@@ -155,7 +156,18 @@ workflow BCA_PREPROCESSING {
 
             multiqc_report_ch = reporting_workflow.out.multiqc_report
             ch_versions = ch_versions.mix(filtering_workflow.out.versions, reporting_workflow.out.versions)
-
+            
+            // Metacells and the interactive filtering report; with --metacell_selection
+            // (and -resume) also the filtered UMI matrices the report's selection asks for
+            if (params.perform_metacells) {
+                metacell_workflow(
+                    filtering_workflow.out.h5ad,
+                    mapping_out.ref_gtf,
+                    mapping_out.featurecount_txt,
+                    mapping_out.antisense_txt
+                )
+                ch_versions = ch_versions.mix(metacell_workflow.out.versions)
+            }
         }
 
     emit:

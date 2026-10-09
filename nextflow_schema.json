@@ -256,6 +256,93 @@
                 }
             }
         },
+        "metacell_options": {
+            "title": "Metacell and filtering report options",
+            "type": "object",
+            "description": "Metacell2 grouping, the interactive filtering report, and applying its selection.",
+            "default": "",
+            "properties": {
+                "perform_metacells": {
+                    "type": "boolean",
+                    "description": "Group called cells into Metacell2 metacells and build filtering_report.html."
+                },
+                "mc2_target_metacell_size": {
+                    "type": "integer",
+                    "default": 96,
+                    "minimum": 2
+                },
+                "mc2_random_seed": {
+                    "type": "integer",
+                    "default": 42
+                },
+                "mc2_min_cell_umis": {
+                    "type": "number",
+                    "default": 200
+                },
+                "mc2_max_cell_umis": {
+                    "type": "number"
+                },
+                "mc2_max_excluded_genes_fraction": {
+                    "type": "number"
+                },
+                "mc2_excluded_gene_patterns": {
+                    "type": "string"
+                },
+                "mc2_lateral_gene_patterns": {
+                    "type": "string"
+                },
+                "mc2_min_cells": {
+                    "type": "integer",
+                    "default": 300
+                },
+                "mc2_skip_subsampled": {
+                    "type": "boolean",
+                    "default": true
+                },
+                "gene_annotation": {
+                    "type": "string",
+                    "format": "file-path",
+                    "description": "TSV with a header giving protein domains (PFAM) per gene, transcript or protein id."
+                },
+                "gene_annotation_id_col": {
+                    "type": "string",
+                    "default": "gene_id"
+                },
+                "gene_annotation_pfam_col": {
+                    "type": "string",
+                    "default": "pfam"
+                },
+                "mcfilter_max_mito_pct": {
+                    "type": "number",
+                    "default": 20
+                },
+                "mcfilter_max_doublet_pct": {
+                    "type": "number",
+                    "default": 50
+                },
+                "mcfilter_max_alpha_hat": {
+                    "type": "number"
+                },
+                "mcfilter_min_gene_umis": {
+                    "type": "number",
+                    "default": 10
+                },
+                "mcfilter_pfam_presets": {
+                    "type": "string",
+                    "default": "^Ribosomal;^Histone"
+                },
+                "metacell_selection": {
+                    "type": "string",
+                    "format": "file-path",
+                    "description": "selection.json exported from filtering_report.html; rerun with -resume to apply it."
+                },
+                "metacell_gene_mode": {
+                    "type": "string",
+                    "default": "drop",
+                    "enum": ["drop", "flag"]
+                }
+            }
+        },
         "taxonomic_classification_options": {
             "title": "Taxonomic classification options",
             "type": "object",
@@ -399,6 +486,9 @@
         },
         {
             "$ref": "#/$defs/filtering_options"
+        },
+        {
+            "$ref": "#/$defs/metacell_options"
         },
         {
             "$ref": "#/$defs/taxonomic_classification_options"
