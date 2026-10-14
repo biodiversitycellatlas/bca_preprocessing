@@ -9,6 +9,7 @@ process SCIROCKET_DEMUX {
 
     input:
     tuple val(meta), path(fastq_cDNA), path(fastq_BC_UMI), path(fastq_indices), path(input_file)
+    path(barcodes, stageAs: 'barcodes/*')
 
     output:
     path("demux_reads/${meta.id}_R1.fastq.gz"),       emit: samples_R1
@@ -33,7 +34,7 @@ process SCIROCKET_DEMUX {
     echo "Sample ID: ${meta.id}"
     echo "FASTQ cDNA: ${fastq_cDNA}"
     echo "FASTQ BC & UMI: ${fastq_BC_UMI}"
-    echo "Barcode whitelist: ${params.bc_whitelist}"
+    echo "Barcode whitelist: ${barcodes}"
     echo "Samples file: ${input_file}"
 
     mkdir -p demux_reads/
@@ -41,7 +42,7 @@ process SCIROCKET_DEMUX {
     scirocket_demux_rocket.py \\
          --experiment_name ${meta.id} \\
          --samples ${input_file} \\
-         --barcodes ${params.bc_whitelist} \\
+         --barcodes ${barcodes} \\
          --r1 ${fastq_BC_UMI} --r2 ${fastq_cDNA} \\
          --out demux_reads/
 

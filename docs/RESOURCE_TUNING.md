@@ -91,7 +91,7 @@ they scale with it instead of using a fixed amount of resources:
 | `MTX_TO_H5AD` | Matrix size, plus CellSweep's denoised matrix where it ran | ~3 GB small, up to 96 GB |
 | `MTX_TO_10X` | Matrix size | ~3 GB small, up to 48 GB |
 | `DOUBLET_FILTER` | Matrix size | ~3 GB small, up to 48 GB |
-| `SATURATION_TABLE` | Filtered BAM size | ~13 GB small, up to 128 GB |
+| `SATURATION_TABLE` | STARsolo BAM size | ~13 GB small, up to 128 GB |
 | `SUBSET_VELOCYTO_MATRICES` | Velocyto matrix size | ~3 GB small, up to 48 GB |
 | `VELOCITY_H5AD` | Velocyto or USA matrix size | ~3 GB small, up to 48 GB |
 

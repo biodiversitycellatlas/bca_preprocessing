@@ -14,7 +14,7 @@ examples/
 
 ## Running a test
 
-Run the commands from the repository root, because the paths in the configs and samplesheets are relative to it.
+The commands below are run from the repository root, but any launch directory works. The configs point at their files through `${projectDir}`, and the samplesheets list their FASTQs relative to the samplesheet's own folder. Only the `-c` path has to lead to the config, e.g. `-c /path/to/bca_preprocessing/examples/10x/conf/spis_10x_parameters.config`.
 
 Add the `test` profile to your usual profiles. It caps every process at 2 CPUs, 4 GB of memory and 1 hour ([conf/test.config](../conf/test.config)), and it turns off retries, so a failure on the toy data shows up straight away.
 

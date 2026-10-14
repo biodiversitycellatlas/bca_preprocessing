@@ -10,7 +10,6 @@
 
 include { UTILS_NFSCHEMA_PLUGIN     } from '../../nf-core/utils_nfschema_plugin'
 include { paramsSummaryMap          } from 'plugin/nf-schema'
-include { samplesheetToList         } from 'plugin/nf-schema'
 include { completionEmail           } from '../../nf-core/utils_nfcore_pipeline'
 include { completionSummary         } from '../../nf-core/utils_nfcore_pipeline'
 include { imNotification            } from '../../nf-core/utils_nfcore_pipeline'
@@ -69,7 +68,7 @@ workflow PIPELINE_INITIALISATION {
     UTILS_NFSCHEMA_PLUGIN (
         workflow,
         validate_params,
-        null
+        "${projectDir}/nextflow_schema.json"
     )
 
     //
@@ -242,9 +241,18 @@ workflow PIPELINE_INITIALISATION {
     }
 
     //
-    // Create channel from input file provided through params.input
+    // Fail fast on a samplesheet that is not given or not there
     //
+    // Checked here as well as by the schema, since validation can be switched off. The
+    // samplesheet path itself is read against the launch directory, like every parameter.
+    //
+    if (!params.input) {
+        error("No samplesheet given: set 'input' to the path of the samplesheet (CSV).")
+    }
     def samples_file = file(params.input)
+    if (!samples_file.exists()) {
+        error("'input' = '${params.input}' does not exist (relative paths are read from the launch directory, ${workflow.launchDir}).")
+    }
 
     //
     // Fail fast on a 'post_mapping' run with nothing to pick up
@@ -300,46 +308,86 @@ workflow PIPELINE_INITIALISATION {
         )
     }
 
-    channel
-    .fromPath(params.input)
-    .splitCsv(header: true, sep: ',')
-    .map { row ->
-        // Concat metadata into a Map object
-        def meta = [
-            id             : row.sample,
-            expected_cells : row.expected_cells ? row.expected_cells.toInteger() : null,
-            manual_cutoff  : row.manual_cutoff ? row.manual_cutoff.toInteger() : null,
-            p5             : row.p5 ? row.p5 : '',
-            p7             : row.p7 ? row.p7 : '',
-            rt             : row.rt ? row.rt : '',
-        ]
+    //
+    // Resolve the FASTQs of every row, and fail fast on the ones that are not there
+    //
+    // A relative path is read against the samplesheet's own folder, so a samplesheet can sit
+    // next to its data and the run be launched from anywhere. Samplesheets written before
+    // that were read against the launch directory, so a path only found there is still used,
+    // with a warning. A FASTQ that is named but missing used to be dropped silently, leaving
+    // the sample with fewer reads or none; 'post_mapping' reads only the sample names, so it
+    // does not need the FASTQs to still be there.
+    //
+    def needs_fastqs   = params.run_method != "post_mapping"
+    def sheet_dir      = samples_file.parent
+    def problems       = []
+    def from_launchdir = []
 
-        // Assign each FASTQ to its own variable (or null if missing)
-        def fastq_cDNA   = row.fastq_cDNA   ? [file(row.fastq_cDNA)]   : []
-        def fastq_BC_UMI = row.fastq_BC_UMI ? [file(row.fastq_BC_UMI)] : []
-        def fastq_indices = row.fastq_indices ? [file(row.fastq_indices)] : []
-
-        // Returng tuple
-        [ meta.id, meta, fastq_cDNA, fastq_BC_UMI, fastq_indices, samples_file ]
+    def resolved_rows = samplesheet_rows.withIndex().collect { row, idx ->
+        def line   = idx + 2    // line 1 is the header
+        def sample = row.sample?.toString()?.trim()
+        if (!sample) {
+            problems << "line ${line}: no 'sample'"
+        }
+        def fastqs = ['fastq_cDNA', 'fastq_BC_UMI', 'fastq_indices'].collectEntries { col ->
+            def value = row[col]?.toString()?.trim()
+            if (!value) {
+                if (needs_fastqs && col != 'fastq_indices') {
+                    problems << "line ${line} (${sample}): no '${col}'"
+                }
+                return [col, []]
+            }
+            def resolved = resolveSamplesheetPath(value, sheet_dir)
+            if (!resolved.files && needs_fastqs) {
+                problems << "line ${line} (${sample}): '${col}' = '${value}' not found (looked for ${resolved.tried.join(' and ')})"
+            }
+            if (resolved.from_launchdir) {
+                from_launchdir << value
+            }
+            [col, resolved.files]
+        }
+        [sample, row, fastqs]
     }
-    // Group by sample ID
-    .groupTuple(by: 0)
 
-    .map { sample_id, metas, fastq_cDNAs, fastq_BC_UMIs, fastq_indices_list, samples_files ->
-
-        def meta = metas[0]
-
-        // Filter out empty lists, flatten valid files only
-        def merged_fastq_cDNA = fastq_cDNAs.findResults { it }.flatten().findAll { it.exists() }
-        def merged_fastq_BC_UMI = fastq_BC_UMIs.findResults { it }.flatten().findAll { it.exists() }
-        def merged_fastq_indices = fastq_indices_list.findResults { it }.flatten()
-
-        samples_file = samples_files[0]
-
-        // Return tuple for merging FASTQs
-        tuple(meta, merged_fastq_cDNA, merged_fastq_BC_UMI, merged_fastq_indices, samples_file)
+    if (problems) {
+        error(
+            "The samplesheet ${samples_file} names FASTQs that cannot be used:\n  " +
+            problems.join("\n  ") + "\n" +
+            "Relative paths are read against the samplesheet's folder, ${sheet_dir}."
+        )
     }
-    .set { ch_samplesheet }
+    if (from_launchdir) {
+        log.warn(
+            "${from_launchdir.size()} FASTQ path(s) in ${samples_file} were not found next to the samplesheet,\n" +
+            "only relative to the launch directory (e.g. '${from_launchdir[0]}'). Relative paths are now read\n" +
+            "against the samplesheet's folder, ${sheet_dir}; update the samplesheet, or use absolute paths."
+        )
+    }
+
+    // One entry per sample: the rows of a sample (e.g. its lanes) are merged, with the
+    // metadata of its first row
+    def samples = resolved_rows
+        .groupBy { entry -> entry[0] }
+        .collect { sample, entries ->
+            def row  = entries[0][1]
+            def meta = [
+                id             : sample,
+                expected_cells : row.expected_cells ? row.expected_cells.toInteger() : null,
+                manual_cutoff  : row.manual_cutoff ? row.manual_cutoff.toInteger() : null,
+                p5             : row.p5 ? row.p5 : '',
+                p7             : row.p7 ? row.p7 : '',
+                rt             : row.rt ? row.rt : '',
+            ]
+            [
+                meta,
+                entries.collectMany { entry -> entry[2].fastq_cDNA },
+                entries.collectMany { entry -> entry[2].fastq_BC_UMI },
+                entries.collectMany { entry -> entry[2].fastq_indices },
+                samples_file
+            ]
+        }
+
+    def ch_samplesheet = channel.fromList(samples)
 
     emit:
     samplesheet = ch_samplesheet
@@ -364,7 +412,7 @@ workflow PIPELINE_COMPLETION {
     multiqc_report  //  string: Path to MultiQC report
 
     main:
-    summary_params = paramsSummaryMap(workflow, parameters_schema: "nextflow_schema.json")
+    summary_params = paramsSummaryMap(workflow, parameters_schema: "${projectDir}/nextflow_schema.json")
     def multiqc_reports = multiqc_report.toList()
 
     //
@@ -406,8 +454,9 @@ workflow PIPELINE_COMPLETION {
 // Up to Nextflow 25.10, '--perform_kraken false' arrives as a boolean and '--min_mapping_rate 20'
 // as a number. From 26.04 every command-line value is text, and text is true whatever it says,
 // so the first would switch Kraken on and the second would fail the range check. A -params-file
-// or a -c config file keeps the types on every version. 'true' needs no check, since as text it
-// still reads as true.
+// or a -c config file keeps the types on every version. For a parameter the schema types as a
+// boolean or number, text fails the schema validation as well, so 'true' is caught too; for one
+// it does not know, 'true' as text still reads as true and needs no check.
 //
 def checkCommandLineParamTypes() {
     def given = (workflow.commandLine ?: '').tokenize(' ')
@@ -415,12 +464,16 @@ def checkCommandLineParamTypes() {
         .collect { token -> token.substring(2).tokenize('=')[0] }
         .unique()
 
-    def string_params = schemaStringParams()
+    def param_types = schemaParamTypes()
     def mistyped = given.findAll { name ->
         def value = params.containsKey(name) ? params.get(name) : null
-        value instanceof CharSequence &&
-            !(name in string_params) &&
-            value.toString().trim() ==~ /(?i)false|-?\d+(\.\d+)?/
+        if (!(value instanceof CharSequence)) {
+            return false
+        }
+        def types = param_types[name]
+        types == null
+            ? value.toString().trim() ==~ /(?i)false|-?\d+(\.\d+)?/
+            : !('string' in types) && value.toString().trim() ==~ /(?i)true|false|-?\d+(\.\d+)?/
     }
 
     if (mistyped) {
@@ -466,33 +519,54 @@ def schemaHelpText(show_hidden) {
 }
 
 //
-// Names of the parameters nextflow_schema.json declares as strings, which may look like a number
+// The types nextflow_schema.json declares for each parameter, as a list (a parameter may allow
+// several, e.g. ["boolean", "string"])
 //
-def schemaStringParams() {
+def schemaParamTypes() {
     def schema_file = file("${projectDir}/nextflow_schema.json")
     if (!schema_file.exists()) {
-        return []
+        return [:]
     }
     def schema = new groovy.json.JsonSlurper().parseText(schema_file.text)
     def groups = ((schema['$defs'] ?: schema['definitions'] ?: [:]) as Map).values().toList() + [schema]
-    return groups
-        .collectMany { group -> ((group['properties'] ?: [:]) as Map).findAll { _name, spec -> spec['type'] == 'string' }.keySet().toList() }
-        .unique()
+    return groups.collectEntries { group ->
+        ((group['properties'] ?: [:]) as Map).collectEntries { name, spec -> [name, [spec['type']].flatten()] }
+    }
 }
 
 //
-// Validate channels from input samplesheet
+// Resolve one samplesheet path to the files it names
 //
-def validateInputSamplesheet(input) {
-    def (metas, fastqs) = input[1..2]
+// An absolute path or a URI (s3://, https://, ...) is used as it is, and '~/' is expanded to
+// the home directory, which file() does not do. A relative path is read against the
+// samplesheet's folder first and then, for samplesheets written before that, against the
+// launch directory. A glob (e.g. the index reads 'name_I*') gives every file it matches, and
+// one matching nothing counts as missing.
+//
+def resolveSamplesheetPath(String value, sheet_dir) {
+    def is_glob = value ==~ /.*[*?\[{].*/
+    def lookup  = { String path -> is_glob ? (files(path) as List) : [file(path)].findAll { f -> f.exists() } }
 
-    // Check that multiple runs of the same sample are of the same datatype i.e. single-end / paired-end
-    def endedness_ok = metas.collect{ meta -> meta.single_end }.unique().size == 1
-    if (!endedness_ok) {
-        error("Please check input samplesheet -> Multiple runs of a sample must be of the same datatype i.e. single-end or paired-end: ${metas[0].id}")
+    if (value.startsWith('~/')) {
+        def in_home = System.getProperty('user.home') + value.substring(1)
+        return [files: lookup.call(in_home), tried: [in_home], from_launchdir: false]
+    }
+    if (value ==~ /^[a-zA-Z][a-zA-Z0-9+.-]*:\/\/.*/ || value.startsWith('/')) {
+        return [files: lookup.call(value), tried: [value], from_launchdir: false]
     }
 
-    return [ metas[0], fastqs ]
+    def next_to_sheet = sheet_dir.resolve(value).toUriString()
+    def found = lookup.call(next_to_sheet)
+    if (found) {
+        return [files: found, tried: [next_to_sheet], from_launchdir: false]
+    }
+
+    def in_launchdir = workflow.launchDir.resolve(value).toString()
+    if (in_launchdir == next_to_sheet) {
+        return [files: [], tried: [next_to_sheet], from_launchdir: false]
+    }
+    found = lookup.call(in_launchdir)
+    return [files: found, tried: [next_to_sheet, in_launchdir], from_launchdir: found as boolean]
 }
 
 

@@ -1,13 +1,15 @@
 process VELOCITY_H5AD {
     publishDir path: { "${params.outdir}/anndata/${meta.id}/velocity" }, mode: 'copy', saveAs: { filename -> filename == 'versions.yml' ? null : filename }
     tag "${meta.id} | ${meta.mapping_method} | ${meta.datatype}"
-    label 'process_single_mem2'
 
-    // Memory tracks the size of the matrices being read, overrides process_single_mem2's flat
-    // assignment. Coefficients live in params.dynamic_memory; remove the entry to fall back to
-    // the plain label.
+    // Memory tracks the size of the matrices being read. Coefficients live in
+    // params.dynamic_memory; without an entry the request is process_single_mem2's 10 GB.
+    // Deliberately no resource label, since a withLabel setting would take precedence over
+    // these: cpus and time are process_single_mem2's.
+    cpus   1
+    time   { 30.m * task.attempt }
     memory { BcaResources.scaledMemory(
-        params.dynamic_memory?.VELOCITY_H5AD, [matrix_dir], task.attempt, 12) }
+        params.dynamic_memory?.VELOCITY_H5AD, [matrix_dir], task.attempt, 10) }
 
     container 'oras://community.wave.seqera.io/library/scanpy:1.12--45f1dccaf83880df'
     conda "${moduleDir}/environment.yml"

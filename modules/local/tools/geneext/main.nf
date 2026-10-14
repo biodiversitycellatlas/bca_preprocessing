@@ -8,6 +8,7 @@ process GENE_EXT {
     input:
     path(bam_file)
     path(bam_index)
+    path(ref_gtf, stageAs: 'ref_input/*')   // own folder, so it cannot clash with geneext.gtf
 
     output:
     path("geneext.gtf")                 , emit: gtf
@@ -21,14 +22,14 @@ process GENE_EXT {
     echo -e "\\n\\n==================  GENE EXTENSION =================="
     echo "BAM file: ${bam_file}"
     echo "BAM index: ${bam_index}"
-    echo "Original GTF: ${params.ref_gtf}"
+    echo "Original GTF: ${ref_gtf}"
 
     # Remove temporary directory if it exists
     if [ -d "tmp" ]; then rm -r tmp; fi
 
     # Run GeneExt
     python ${projectDir}/submodules/GeneExt/geneext.py \\
-        -g ${params.ref_gtf} \\
+        -g ${ref_gtf} \\
         -b ${bam_file} \\
         -o geneext.gtf \\
         -t tmp_geneext \\

@@ -1,11 +1,14 @@
 process STARSOLO_INDEX {
     publishDir path: { "${params.outdir}/genome/star_index_${ref_gtf.simpleName}${index_suffix}" }, mode: 'copy', saveAs: { filename -> filename == 'versions.yml' ? null : filename }
-    label 'process_single_mem2'
 
-    // Memory tracks the size of the reference being indexed, overrides process_single_mem2's flat assignments. 
-    // Coefficients live in params.dynamic_memory; remove the entry to fall back to the plain label.
+    // Memory tracks the size of the reference being indexed. Coefficients live in
+    // params.dynamic_memory; without an entry the request is process_single_mem2's 10 GB.
+    // Deliberately no resource label, since a withLabel setting would take precedence over
+    // these: cpus and time are process_single_mem2's.
+    cpus   1
+    time   { 30.m * task.attempt }
     memory { BcaResources.scaledMemory(
-        params.dynamic_memory?.STARSOLO_INDEX, [ref_fasta, ref_gtf], task.attempt, 64) }
+        params.dynamic_memory?.STARSOLO_INDEX, [ref_fasta, ref_gtf], task.attempt, 10) }
 
     conda "${moduleDir}/environment.yml"
     container "oras://community.wave.seqera.io/library/htslib_samtools_star_gawk:f196f82abbbc8871"

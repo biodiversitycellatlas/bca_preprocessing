@@ -184,12 +184,17 @@ workflow filtering_workflow {
 
         if (params.perform_doublet_detection) {
 
-            // Resolve the Demuxafy .sif image once per run: reuse params.demuxafy_sif if provided, otherwise download it
-            DOWNLOAD_DEMUXAFY_SIF()
-
-            // Mount the .sif straight from the task work directory
-            def ch_demuxafy_sif = DOWNLOAD_DEMUXAFY_SIF.out.sif_file
-                .map { it.toRealPath().toString() }
+            // Resolve the Demuxafy .sif image once per run: use params.demuxafy_sif where it is
+            // if provided, otherwise download it and mount it straight from the task work directory.
+            // The tools take the image as an absolute path, since they run it from their own work directory.
+            def ch_demuxafy_sif
+            if (params.demuxafy_sif) {
+                ch_demuxafy_sif = channel.value(file(params.demuxafy_sif, checkIfExists: true).toRealPath().toString())
+            } else {
+                DOWNLOAD_DEMUXAFY_SIF()
+                ch_demuxafy_sif = DOWNLOAD_DEMUXAFY_SIF.out.sif_file
+                    .map { sif -> sif.toRealPath().toString() }
+            }
 
             MTX_TO_10X(ch_cell_called_matrices)
 

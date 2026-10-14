@@ -15,6 +15,9 @@ process BDRHAP_PIPELINE {
 
     script:
     def run_name = meta.id
+    // The workflow belongs to the BD Rhapsody installation and references files next to it, so it
+    // is run where it is rather than staged; made absolute, since the task runs in its own work directory
+    def rhapsody_cwl = "${file(params.rhapsody_installation)}/rhapsody_pipeline_2.2.1.cwl"
     """
     echo -e "\\n\\n===============  BD Rhapsody pipeline  ==============="
     echo "Run name: ${run_name}"
@@ -24,7 +27,7 @@ process BDRHAP_PIPELINE {
     cwltool \\
         --outdir ${run_name} \\
         --singularity \\
-        ${params.rhapsody_installation}/rhapsody_pipeline_2.2.1.cwl \\
+        ${rhapsody_cwl} \\
         ${input_yaml}
 
     cat <<-END_VERSIONS > versions.yml

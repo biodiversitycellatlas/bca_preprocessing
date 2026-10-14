@@ -118,14 +118,16 @@ In the table below, the available variables are summarized:
 | -------------- | ----------------- | ----------------------------------------------------------------------------------------------------------------------------------------------------------------------- |
 | sample | **Required** | Must be unique unless you want the FASTQ files to be merged after demultiplexing. |
 | fastq_cDNA | **Required** | Path to the FASTQ file containing cDNA. Uncompressed (`.fastq`/`.fq`) and gzipped (`.fastq.gz`/`.fq.gz`) files are both accepted, and may be mixed within a sample. |
-| fastq_CB_UMI | **Required** | Path to the FASTQ file containing the cell barcode & UMI. Uncompressed and gzipped files are both accepted. |
+| fastq_BC_UMI | **Required** | Path to the FASTQ file containing the cell barcode & UMI. Uncompressed and gzipped files are both accepted. |
 | fastq_indices | Optional | Path to the FASTQ index file(s), to provide both I1 and I2, use an asterisk to the path like /path/name_I\*. Uncompressed and gzipped files are both accepted. |
 | expected_cells | **Required** | Number of expected cells |
 | p5 | Optional | Required for sci-RNA-seq3 and OAK (i5 barcode of the aliquot) |
 | p7 | Optional | Required for sci-RNA-seq3; optional for OAK (i7 barcode of the aliquot) |
 | rt | Optional | Only required for sci-RNA-seq3 & Parse Biosciences (group-well definition) |
 
-To illustrate how the samplesheet would be filled across the different sequencing techniques, the table below is given, as well as an example samplesheet published [here](conf/example_samplesheet.csv). The names within the parenthesis of the p5 and rt column indicate the official names, often referenced like this in the official documentation of this protocol.
+Relative FASTQ paths are read from the samplesheet's own folder; absolute paths and cloud URIs (`s3://`, ...) are used as they are, and `~/` is expanded to the home directory. See [How paths are resolved](docs/CONFIGURATION_PARAMETERS.md#how-paths-are-resolved).
+
+To illustrate how the samplesheet would be filled across the different sequencing techniques, the table below is given, as well as an example samplesheet published [here](examples/example_samplesheet.csv). The names within the parenthesis of the p5 and rt column indicate the official names, often referenced like this in the official documentation of this protocol.
 
 | sample                    | fastq_cDNA | fastq_BC_UMI | fastq_indices | expected_cells | p5  | p7  | rt         |
 | ------------------------- | ---------- | ------------ | ------------- | -------------- | --- | --- | ---------- |
@@ -148,7 +150,7 @@ Within each custom configuration file the following variables can be defined:
 | Variable                 | Required/Optional | Description                                                                                                                                                                                                                                                        |
 | ------------------------ | ----------------- | ------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------ |
 | `input`                  | **Required**      | Path to the samplesheet.                                                                                                                                                                                                                                           |
-| `outdir`                 | **Required**      | Path to the results/output directory; must exist before running.                                                                                                                                                                                                   |
+| `outdir`                 | **Required**      | Path to the results/output directory; created if missing.                                                                                                                                                                                                           |
 | `protocol`               | **Required**      | Specifies the sequencing technology used (must be one of the following: `"oak_v1"`, `"10xv1"`, `"10xv2"`, `"10xv3"`, `"10xv4"`, `"parse_biosciences_WT_mini"` or `"parse_biosciences_WT"`, `"bd_rhapsody_v1"`, `"bd_rhapsody_enhancedbeads"`, `"sciRNAseq3"` , `"ultima_genomics"`, `"marsseq_v1"`, `"marsseq_v2"` or `"seqspec"`). |
 | `bc_whitelist`           | **Required**      | Path or link to the barcode whitelist file(s), multiple ones separated by whitespace. If links are given, they are automatically downloaded (and unzipped if applicable) for any protocol. Not used by `"marsseq_v1"`/`"marsseq_v2"`, which run without a whitelist. |
 | `ref_fasta`              | **Required**      | Path to the genome FASTA file used for mapping reads.                                                                                                                                                                                                              |
@@ -168,7 +170,7 @@ To modify the behaviour of certain processes or enable external pipelines, addit
 
 ### Pre-requisites:
 
-- [ ] Created a samplesheet in CSV format (see [conf/example_samplesheet.csv](conf/example_samplesheet.csv))
+- [ ] Created a samplesheet in CSV format (see [examples/example_samplesheet.csv](examples/example_samplesheet.csv))
 - [ ] Edited ([`conf/custom_parameters.config`](conf/custom_parameters.config)) or created a new custom configuration file
 - [ ] Conda & Nextflow available in base environment
 

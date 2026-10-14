@@ -5,6 +5,10 @@ process CR_PIPELINE_MKREF {
 
     container "quay.io/nf-core/cellranger:9.0.1"
 
+    input:
+    path fasta
+    path gtf        // ref_gtf_alt, or ref_gtf without one
+
     output:
     path "*",           emit: reference
     path "versions.yml", emit: versions
@@ -18,11 +22,11 @@ process CR_PIPELINE_MKREF {
     """
     echo -e "\\n\\n=============== CellRanger pipeline - create REF  ==============="
 
-    GTF_FILE="${params.ref_gtf_alt ?: params.ref_gtf}"
+    GTF_FILE="${gtf}"
 
     cellranger mkref \\
         --genome cellranger_ref \\
-        --fasta=${params.ref_fasta} \\
+        --fasta=${fasta} \\
         --genes=\$GTF_FILE
 
     cat <<-END_VERSIONS > versions.yml

@@ -98,20 +98,20 @@ workflow QC_mapping_workflow {
         // Conditionally bypass MERGE_REF_GTF/FASTA when no additional features are provided
         def ref_gtf_ch
         if (params.ref_gtf_addfeature) {
-            MERGE_REF_GTF(params.ref_gtf, channel.fromPath(params.ref_gtf_addfeature), '')
+            MERGE_REF_GTF(file(params.ref_gtf, checkIfExists: true), file(params.ref_gtf_addfeature, checkIfExists: true), '')
             ref_gtf_ch = MERGE_REF_GTF.out.gtf
             ch_versions = ch_versions.mix(MERGE_REF_GTF.out.versions)
         } else {
-            ref_gtf_ch = channel.value(file(params.ref_gtf))
+            ref_gtf_ch = channel.value(file(params.ref_gtf, checkIfExists: true))
         }
 
         def ref_fasta_ch
         if (params.ref_fasta_addfeature) {
-            MERGE_REF_FASTA(params.ref_fasta, channel.fromPath(params.ref_fasta_addfeature))
+            MERGE_REF_FASTA(file(params.ref_fasta, checkIfExists: true), file(params.ref_fasta_addfeature, checkIfExists: true))
             ref_fasta_ch = MERGE_REF_FASTA.out.fasta
             ch_versions = ch_versions.mix(MERGE_REF_FASTA.out.versions)
         } else {
-            ref_fasta_ch = channel.value(file(params.ref_fasta))
+            ref_fasta_ch = channel.value(file(params.ref_fasta, checkIfExists: true))
         }
 
         // The GeneExt reference, set once GeneExt has run, so both mappers re-map against
@@ -119,12 +119,9 @@ workflow QC_mapping_workflow {
         def ref_gtf_geneext_ch   = null
         def ref_fasta_geneext_ch = null
 
-        // Safe bc_whitelist: emit empty string when no whitelist is produced by preprocessing
-        def bc_whitelist_safe = bc_whitelist.ifEmpty("")
-
-        // Alevin takes the whitelist as a list of files, one per barcode segment in segment order, and stages nothing for protocols running without one (e.g. MARS-seq)
-        def bc_whitelist_alevin = bc_whitelist_safe
-            .map { wl -> wl?.toString()?.trim() ? wl.toString().tokenize().collect { f -> file(f) } : [] }
+        // Both mappers take the whitelist as a list of files, one per barcode segment in segment
+        // order, and stage nothing for protocols running without one (e.g. MARS-seq)
+        def bc_whitelist_safe = bc_whitelist.ifEmpty([])
 
         // Quality Control
         FASTQC(ch_samples)
@@ -219,8 +216,10 @@ workflow QC_mapping_workflow {
                 ? mapping_starsolo_workflow.out.starsolo_bam
                 : mapping_starsolo_geneext_input_workflow.out.starsolo_bam
 
-            // Collect ALL BAMs from all samples before running geneext
-            geneext_workflow(ch_geneext_input_bam)
+            // Collect ALL BAMs from all samples before running geneext. GeneExt extends the
+            // base annotation: ref_gtf_addfeature is appended to its output below, so handing
+            // it the merged GTF would add those features twice.
+            geneext_workflow(ch_geneext_input_bam, file(params.ref_gtf, checkIfExists: true))
 
             // GeneExt's own run statistics, summarised in the dashboard
             ch_geneext_report = geneext_workflow.out.report
@@ -231,7 +230,7 @@ workflow QC_mapping_workflow {
 
                 // Same conditional bypass for geneext GTF
                 if (params.ref_gtf_addfeature) {
-                    MERGE_REF_GTF_GENEEXT(geneext_workflow.out.ref_gtf, channel.fromPath(params.ref_gtf_addfeature), '_geneext')
+                    MERGE_REF_GTF_GENEEXT(geneext_workflow.out.ref_gtf, file(params.ref_gtf_addfeature, checkIfExists: true), '_geneext')
                     ref_gtf_geneext_ch = MERGE_REF_GTF_GENEEXT.out.gtf
                 } else {
                     // Geneext always extends from the geneext output, no bypass possible here
@@ -304,7 +303,7 @@ workflow QC_mapping_workflow {
             def ch_alevin = apply_suffix(ch_samples, "_alevinfry")
             ch_mapped_ss = ch_mapped_ss.mix(ch_alevin)
             // Same reference as the standard STARsolo run, so the two mappers are compared like for like
-            mapping_alevin_workflow(ch_alevin, bc_whitelist_alevin, ref_gtf_ch, ref_fasta_ch, 'false')
+            mapping_alevin_workflow(ch_alevin, bc_whitelist_safe, ref_gtf_ch, ref_fasta_ch, 'false')
 
             ch_mapping_files       = ch_mapping_files.mix(mapping_alevin_workflow.out.mapping_files)
             ch_alevin_meta_info    = ch_alevin_meta_info.mix(mapping_alevin_workflow.out.af_meta_info)
@@ -326,7 +325,7 @@ workflow QC_mapping_workflow {
         if (runs.alevin_geneext) {
             def ch_alevin_geneext = apply_suffix(ch_samples, "_geneext_alevinfry")
             ch_mapped_ss = ch_mapped_ss.mix(ch_alevin_geneext)
-            mapping_alevin_geneext_workflow(ch_alevin_geneext, bc_whitelist_alevin, ref_gtf_geneext_ch, ref_fasta_geneext_ch, 'true')
+            mapping_alevin_geneext_workflow(ch_alevin_geneext, bc_whitelist_safe, ref_gtf_geneext_ch, ref_fasta_geneext_ch, 'true')
 
             ch_mapping_files       = ch_mapping_files.mix(mapping_alevin_geneext_workflow.out.mapping_files)
             ch_alevin_meta_info    = ch_alevin_meta_info.mix(mapping_alevin_geneext_workflow.out.af_meta_info)

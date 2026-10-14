@@ -9,7 +9,7 @@
             "title": "Input/output options",
             "type": "object",
             "fa_icon": "fas fa-terminal",
-            "description": "Define where the pipeline should find input data and save output data.",
+            "description": "Define where the pipeline should find input data and save output data. Relative paths are read from the launch directory; relative FASTQ paths in the samplesheet are read from the samplesheet's folder.",
             "required": ["input", "outdir", "protocol", "ref_fasta", "ref_gtf"],
             "properties": {
                 "input": {
@@ -20,33 +20,65 @@
                     "mimetype": "text/csv",
                     "pattern": "^\\S+\\.csv$",
                     "description": "Path to comma-separated file containing information about the samples in the experiment.",
-                    "help_text": "You will need to create a design file with information about the samples in your experiment before running the pipeline. Use this parameter to specify its location. It has to be a comma-separated file with 3 columns, and a header row.",
+                    "help_text": "You will need to create a design file with information about the samples in your experiment before running the pipeline. Use this parameter to specify its location. It has to be a comma-separated file with a header row and at least the columns 'sample', 'fastq_cDNA' and 'fastq_BC_UMI'. Relative FASTQ paths are read from the samplesheet's folder.",
                     "fa_icon": "fas fa-file-csv"
                 },
                 "outdir": {
                     "type": "string",
                     "format": "directory-path",
-                    "description": "The output directory where the results will be saved. You have to use absolute paths to storage on Cloud infrastructure.",
+                    "description": "The output directory where the results will be saved, created if missing. You have to use absolute paths to storage on Cloud infrastructure.",
                     "fa_icon": "fas fa-folder-open",
-                    "default": "../outdir"
+                    "default": "../output"
                 },
                 "protocol": {
-                    "type": "string"
+                    "type": "string",
+                    "description": "Sequencing technology, which selects the pre-processing and the read layout in conf/seqtech_parameters.config.",
+                    "enum": [
+                        "10xv1", "10xv2", "10xv3", "10xv4", "ultima_genomics", "oak_v1",
+                        "parse_biosciences_WT_mini", "parse_biosciences_WT",
+                        "bd_rhapsody_v1", "bd_rhapsody_enhancedbeads",
+                        "sciRNAseq3", "marsseq_v1", "marsseq_v2", "seqspec"
+                    ]
                 },
                 "ref_fasta": {
-                    "type": "string"
+                    "type": "string",
+                    "format": "file-path",
+                    "exists": true,
+                    "description": "Genome FASTA."
                 },
                 "ref_gtf": {
-                    "type": "string"
+                    "type": "string",
+                    "format": "file-path",
+                    "exists": true,
+                    "description": "Gene annotation GTF."
                 },
                 "ref_gtf_alt": {
-                    "type": "string"
+                    "type": "string",
+                    "format": "file-path",
+                    "exists": true,
+                    "description": "Alternative GTF for the Cell Ranger and split-pipe references; defaults to 'ref_gtf'."
+                },
+                "ref_fasta_addfeature": {
+                    "type": "string",
+                    "format": "file-path",
+                    "exists": true,
+                    "description": "Extra sequences (e.g. rRNA) appended to 'ref_fasta' for mapping."
+                },
+                "ref_gtf_addfeature": {
+                    "type": "string",
+                    "format": "file-path",
+                    "exists": true,
+                    "description": "Extra annotation (e.g. rRNA) appended to 'ref_gtf' for mapping."
                 },
                 "bc_whitelist": {
-                    "type": "string"
+                    "type": "string",
+                    "description": "Barcode whitelist(s): one or more URLs or paths separated by whitespace, one per barcode segment in segment order. URLs are downloaded."
                 },
                 "bc_whitelist_parse_splitwells": {
-                    "type": "string"
+                    "type": "string",
+                    "format": "file-path",
+                    "exists": true,
+                    "description": "Well whitelist the Parse Biosciences demultiplexing splits the reads on."
                 },
                 "run_method": {
                     "type": "string",
@@ -59,10 +91,14 @@
                     "description": "Results directory the 'post_mapping' run method reads the published mapping results back from. Defaults to 'outdir'."
                 },
                 "seqspec_file": {
-                    "type": "string"
+                    "type": "string",
+                    "format": "file-path",
+                    "exists": true,
+                    "description": "seqspec file with the read layout, for protocol 'seqspec'."
                 },
                 "bcl2fastq": {
-                    "type": "string"
+                    "type": "string",
+                    "description": "Extra bcl2fastq options; set per protocol in conf/seqtech_parameters.config."
                 }
             }
         },
@@ -74,7 +110,8 @@
             "properties": {
                 "mapping_software": {
                     "type": "string",
-                    "default": "starsolo"
+                    "default": "starsolo",
+                    "enum": ["starsolo", "alevin", "both", "alevin_starsolo", "alevin_subsampled_starsolo"]
                 },
                 "cellfilter_method": {
                     "type": "string",
@@ -123,21 +160,53 @@
                     "minimum": 1,
                     "description": "How often a running mapper is checked, in seconds."
                 },
+                "subsample_nreads": {
+                    "type": "integer",
+                    "default": 100000000,
+                    "minimum": 1,
+                    "description": "Reads per sample for the 'alevin_subsampled_starsolo' STARsolo runs."
+                },
                 "star_index": {
-                    "type": "string"
+                    "type": "string",
+                    "format": "directory-path",
+                    "exists": true,
+                    "description": "Prebuilt STARsolo index to map against; built in the run when unset."
                 },
                 "mt_contig": {
                     "type": "string",
                     "default": "chrM M MT"
                 },
+                "star_generateBAM": {
+                    "type": "boolean",
+                    "default": true,
+                    "description": "Write the STARsolo BAM, needed for the read metrics, saturation and Kraken."
+                },
+                "star_limitBAMsortRAM": {
+                    "type": "integer",
+                    "default": 0,
+                    "minimum": 0,
+                    "description": "STAR --limitBAMsortRAM in bytes; 0 derives it from the task memory minus the genome index."
+                },
+                "star_limitGenomeGenerateRAM": {
+                    "type": "integer",
+                    "minimum": 0,
+                    "description": "STAR --limitGenomeGenerateRAM in bytes; derived from the task memory when unset."
+                },
+                "star_soloStrand": {
+                    "type": "string",
+                    "default": "Forward",
+                    "enum": ["Forward", "Reverse", "Unstranded"]
+                },
                 "star_genomeSAsparseD": {
-                    "type": "string"
+                    "type": "integer",
+                    "minimum": 1
                 },
                 "star_soloFeatures": {
                     "type": "string"
                 },
                 "star_outFilterScoreMin": {
-                    "type": "string"
+                    "type": "integer",
+                    "minimum": 0
                 },
                 "star_outSAMattributes": {
                     "type": "string"
@@ -164,7 +233,8 @@
                     "type": "string"
                 },
                 "star_genomeSAindexNbases": {
-                    "type": "string"
+                    "type": "integer",
+                    "minimum": 1
                 },
                 "star_solocellfilter": {
                     "type": "string"
@@ -180,6 +250,40 @@
                 },
                 "alevin_read_geometry": {
                     "type": "string"
+                }
+            }
+        },
+        "preprocessing_options": {
+            "title": "Pre-processing options",
+            "type": "object",
+            "description": "Protocol-specific pre-processing; the defaults per protocol are in conf/seqtech_parameters.config.",
+            "default": "",
+            "properties": {
+                "perform_demultiplexing": {
+                    "type": "boolean",
+                    "default": true
+                },
+                "oak_demux_max_mismatches": {
+                    "type": "integer",
+                    "minimum": 0,
+                    "description": "OAK: Hamming distance allowed between a read's index and the aliquot's i7/i5 barcodes."
+                },
+                "marsseq_read1_design": {
+                    "type": "string"
+                },
+                "marsseq_read2_design": {
+                    "type": "string"
+                },
+                "perform_10x_saturate": {
+                    "type": "boolean",
+                    "default": true,
+                    "description": "Compute the sequencing saturation curves with 10x_saturate."
+                },
+                "saturation_target": {
+                    "type": "number",
+                    "default": 0.7,
+                    "minimum": 0,
+                    "maximum": 1
                 }
             }
         },
@@ -200,7 +304,10 @@
                     "description": "Only consulted with 'perform_geneext': 'geneext_only' maps, reports and analyses downstream only the runs on the extended annotation; 'both' also the standard-annotation runs, for a comparison."
                 },
                 "geneext_gtf": {
-                    "type": "string"
+                    "type": "string",
+                    "format": "file-path",
+                    "exists": true,
+                    "description": "Extended annotation 'post_mapping' re-uses; defaults to gene_ext/geneext.gtf under 'previous_outdir'."
                 },
                 "geneext_bam_only": {
                     "type": "boolean",
@@ -248,11 +355,34 @@
             "properties": {
                 "ambient_rna_remover": {
                     "type": "string",
-                    "default": "cellsweep"
+                    "default": "cellsweep",
+                    "enum": ["cellsweep", "none"]
                 },
                 "h5ad_compression": {
                     "type": "string",
-                    "default": "gzip"
+                    "default": "gzip",
+                    "enum": ["gzip", "lzf", "none"]
+                },
+                "perform_doublet_detection": {
+                    "type": "boolean",
+                    "default": true,
+                    "description": "Call consensus doublets and annotate them."
+                },
+                "perform_doublet_filtering": {
+                    "type": "boolean",
+                    "default": false,
+                    "description": "Remove the consensus doublets from the UMI matrix instead of annotating them (needs 'perform_doublet_detection')."
+                },
+                "doublet_consensus_method": {
+                    "type": "string",
+                    "default": "AnySinglet",
+                    "description": "Combine_Results.R method; AnySinglet calls a doublet only if all tools agree."
+                },
+                "demuxafy_sif": {
+                    "type": "string",
+                    "format": "file-path",
+                    "exists": true,
+                    "description": "Demuxafy Singularity image; downloaded (~7.5 GB) when unset."
                 }
             }
         },
@@ -268,7 +398,7 @@
                 },
                 "mc2_target_metacell_size": {
                     "type": "integer",
-                    "default": 96,
+                    "default": 48,
                     "minimum": 2
                 },
                 "mc2_random_seed": {
@@ -302,6 +432,7 @@
                 "gene_annotation": {
                     "type": "string",
                     "format": "file-path",
+                    "exists": true,
                     "description": "TSV with a header giving protein domains (PFAM) per gene, transcript or protein id."
                 },
                 "gene_annotation_id_col": {
@@ -334,6 +465,7 @@
                 "metacell_selection": {
                     "type": "string",
                     "format": "file-path",
+                    "exists": true,
                     "description": "selection.json exported from filtering_report.html; rerun with -resume to apply it."
                 },
                 "metacell_gene_mode": {
@@ -353,7 +485,10 @@
                     "type": "boolean"
                 },
                 "kraken_db_path": {
-                    "type": "string"
+                    "type": "string",
+                    "format": "directory-path",
+                    "exists": true,
+                    "description": "Existing Kraken2 database; the PlusPF 16 GB database is downloaded when unset."
                 }
             }
         },
@@ -367,13 +502,27 @@
                     "type": "boolean"
                 },
                 "splitpipe_installation": {
+                    "type": "string",
+                    "format": "directory-path",
+                    "exists": true
+                },
+                "splitpipe_conda_env": {
+                    "type": "string",
+                    "description": "Conda environment with split-pipe: a name, an environment file or a prefix directory."
+                },
+                "splitpipe_demultiplex_script": {
+                    "type": "string",
+                    "format": "file-path",
+                    "exists": true,
+                    "description": "split-pipe's demultiplexing script; the pipeline's own demultiplexer runs when unset."
+                },
+                "splitpipe_kit": {
                     "type": "string"
                 },
                 "rhapsody_installation": {
-                    "type": "string"
-                },
-                "splitpipe_conda_env": {
-                    "type": "string"
+                    "type": "string",
+                    "format": "directory-path",
+                    "exists": true
                 }
             }
         },
@@ -384,6 +533,21 @@
             "description": "Less common options for the pipeline, typically set in a config file.",
             "help_text": "These options are common to all nf-core pipelines and allow you to customise some of the core preferences for how the pipeline runs.\n\nTypically these options would be set in a Nextflow config file loaded for all pipeline runs, such as `~/.nextflow/config`.",
             "properties": {
+                "help": {
+                    "type": ["boolean", "string"],
+                    "description": "Display the help message.",
+                    "hidden": true
+                },
+                "help_full": {
+                    "type": "boolean",
+                    "description": "Display the full help message, hidden parameters included.",
+                    "hidden": true
+                },
+                "show_hidden": {
+                    "type": "boolean",
+                    "description": "Display hidden parameters in the help message.",
+                    "hidden": true
+                },
                 "version": {
                     "type": "boolean",
                     "description": "Display version and exit.",
@@ -397,7 +561,8 @@
                     "hidden": true
                 },
                 "code_dir": {
-                    "type": "string"
+                    "type": "string",
+                    "hidden": true
                 },
                 "publish_dir_mode": {
                     "type": "string",
@@ -414,6 +579,7 @@
                 },
                 "validate_params": {
                     "type": "boolean",
+                    "default": true,
                     "description": "Boolean whether to validate parameters against the schema at runtime",
                     "fa_icon": "fas fa-check-square",
                     "hidden": true
@@ -450,6 +616,29 @@
                 },
                 "hook_url": {
                     "type": "string"
+                },
+                "gpu_cluster_options": {
+                    "type": "string",
+                    "description": "Cluster options added with -profile gpu.",
+                    "hidden": true
+                },
+                "dynamic_memory": {
+                    "type": "object",
+                    "description": "Input-size dependent memory requests per process, see docs/RESOURCE_TUNING.md.",
+                    "hidden": true
+                },
+                "seqtech_parameters": {
+                    "type": "object",
+                    "description": "Per-protocol defaults, set in conf/seqtech_parameters.config.",
+                    "hidden": true
+                },
+                "schema_before_text": {
+                    "type": "string",
+                    "hidden": true
+                },
+                "schema_after_text": {
+                    "type": "string",
+                    "hidden": true
                 }
             }
         },
@@ -463,10 +652,12 @@
                     "type": "boolean"
                 },
                 "fastp_length_required": {
-                    "type": "string"
+                    "type": "integer",
+                    "minimum": 0
                 },
                 "fastp_qualified_quality_phred": {
-                    "type": "string"
+                    "type": "integer",
+                    "minimum": 0
                 }
             }
         }
@@ -477,6 +668,9 @@
         },
         {
             "$ref": "#/$defs/mapping_options"
+        },
+        {
+            "$ref": "#/$defs/preprocessing_options"
         },
         {
             "$ref": "#/$defs/gene_extension_options"

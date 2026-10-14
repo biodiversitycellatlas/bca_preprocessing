@@ -1,0 +1,52 @@
+{
+    "$schema": "https://json-schema.org/draft/2020-12/schema",
+    "$id": "https://raw.githubusercontent.com/biodiversitycellatlas/bca_preprocessing/main/assets/schema_input.json",
+    "title": "biodiversitycellatlas/bca_preprocessing pipeline - params.input schema",
+    "description": "Schema for the samplesheet provided with params.input. The FASTQ paths are not checked for existence here: relative paths are read from the samplesheet's folder, which PIPELINE_INITIALISATION resolves and checks.",
+    "type": "array",
+    "items": {
+        "type": "object",
+        "properties": {
+            "sample": {
+                "type": ["string", "integer"],
+                "pattern": "^\\S+$",
+                "errorMessage": "Sample name must be provided and cannot contain spaces"
+            },
+            "fastq_cDNA": {
+                "type": "string",
+                "pattern": "^\\S+\\.f(ast)?q(\\.gz)?$",
+                "errorMessage": "The cDNA FASTQ must be given, cannot contain spaces and must end in '.fastq.gz', '.fq.gz', '.fastq' or '.fq'"
+            },
+            "fastq_BC_UMI": {
+                "type": "string",
+                "pattern": "^\\S+\\.f(ast)?q(\\.gz)?$",
+                "errorMessage": "The barcode/UMI FASTQ must be given, cannot contain spaces and must end in '.fastq.gz', '.fq.gz', '.fastq' or '.fq'"
+            },
+            "fastq_indices": {
+                "type": "string",
+                "pattern": "^\\S+$",
+                "errorMessage": "The index FASTQ(s) cannot contain spaces; a glob such as 'name_I*' is allowed"
+            },
+            "expected_cells": {
+                "type": "integer",
+                "minimum": 1,
+                "errorMessage": "Expected cells must be a positive whole number"
+            },
+            "manual_cutoff": {
+                "type": "integer",
+                "minimum": 1,
+                "errorMessage": "The manual cutoff must be a positive whole number of UMIs"
+            },
+            "p5": {
+                "type": ["string", "integer"]
+            },
+            "p7": {
+                "type": ["string", "integer"]
+            },
+            "rt": {
+                "type": ["string", "integer"]
+            }
+        },
+        "required": ["sample", "fastq_cDNA", "fastq_BC_UMI", "expected_cells"]
+    }
+}

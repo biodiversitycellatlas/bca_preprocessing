@@ -32,7 +32,10 @@ workflow parse_workflow {
         // Demultiplex the fastq files based on the sample wells
         if (params.perform_demultiplexing && params.splitpipe_demultiplex_script == null) {
             log.info "Running Parse Biosciences demultiplexing using default script."
-            PARSEBIO_CUSTOM_DEMUX(ch_samplesheet)
+            if (!params.bc_whitelist_parse_splitwells) {
+                error("The Parse Biosciences demultiplexing splits the reads on the wells in 'bc_whitelist_parse_splitwells', which is not set.")
+            }
+            PARSEBIO_CUSTOM_DEMUX(ch_samplesheet, file(params.bc_whitelist_parse_splitwells, checkIfExists: true))
             demux_samplesheet = PARSEBIO_CUSTOM_DEMUX.out.splitted_files
             ch_versions = ch_versions.mix(PARSEBIO_CUSTOM_DEMUX.out.versions)
 
@@ -49,7 +52,7 @@ workflow parse_workflow {
 
         // Only run Parse pipeline if the path is defined and exists
         if (params.splitpipe_installation && file(params.splitpipe_installation).exists()) {
-            PARSEBIO_PIPELINE_MKREF()
+            PARSEBIO_PIPELINE_MKREF(file(params.ref_fasta, checkIfExists: true), file(params.ref_gtf_alt ?: params.ref_gtf, checkIfExists: true))
 
             // Use .first() to reuse the reference output for all split samples
             PARSEBIO_PIPELINE(demux_samplesheet, PARSEBIO_PIPELINE_MKREF.out.reference.first())

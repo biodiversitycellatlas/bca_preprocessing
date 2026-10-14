@@ -11,7 +11,7 @@ include { SALMON_SPLICI                 } from '../../../modules/local/tools/sal
 include { SALMON_INDEX                  } from '../../../modules/local/tools/salmon_alevin/salmon_index/main'
 include { ALEVIN_FRY                    } from '../../../modules/local/tools/salmon_alevin/alevin-fry/main'
 include { ALEVIN_QC                     } from '../../../modules/local/tools/alevinQC/main'
-include { cellcalling_alevin_workflow   } from '../post-processing/cellcalling'
+include { cellcalling_workflow          } from '../post-processing/cellcalling'
 
 
 /*
@@ -46,13 +46,23 @@ workflow mapping_alevin_workflow {
         // Quality control report for Alevin-fry outputs
         ALEVIN_QC(ALEVIN_FRY.out.mapping_files)
 
-        // Re-call cells on a UMI cutoff, if selected
-        cellcalling_alevin_workflow(ALEVIN_FRY.out.af_mtx)
+        // Re-call cells on a UMI cutoff, if selected. The matrix is both what the cutoff filters
+        // and what the UMI curve is derived from; alevin-fry has no CellReads.stats, no cell call
+        // of its own to fall back on, and no Velocyto matrices.
+        cellcalling_workflow(
+            'alevin-fry',
+            ALEVIN_FRY.out.af_mtx,
+            ALEVIN_FRY.out.af_mtx,
+            channel.empty(),
+            channel.empty(),
+            channel.empty()
+        )
 
         def ch_versions = SALMON_SPLICI.out.versions.mix(
             SALMON_INDEX.out.versions,
             ALEVIN_FRY.out.versions,
-            ALEVIN_QC.out.versions
+            ALEVIN_QC.out.versions,
+            cellcalling_workflow.out.versions
         )
 
     emit:
@@ -61,11 +71,11 @@ workflow mapping_alevin_workflow {
         af_quant_json      = ALEVIN_FRY.out.af_quant_json
         af_cell_meta       = ALEVIN_FRY.out.af_cell_meta
         af_mtx             = ALEVIN_FRY.out.af_mtx
-        af_filtered_mtx    = cellcalling_alevin_workflow.out.filtered_matrix
-        af_umipercell      = cellcalling_alevin_workflow.out.umi_per_cell
-        secondderiv_knee   = cellcalling_alevin_workflow.out.secondderiv_knee
-        secondderiv_stats  = cellcalling_alevin_workflow.out.secondderiv_stats
-        secondderiv_cutoff = cellcalling_alevin_workflow.out.secondderiv_cutoff
+        af_filtered_mtx    = cellcalling_workflow.out.filtered_matrix
+        af_umipercell      = cellcalling_workflow.out.umi_per_cell
+        secondderiv_knee   = cellcalling_workflow.out.secondderiv_knee
+        secondderiv_stats  = cellcalling_workflow.out.secondderiv_stats
+        secondderiv_cutoff = cellcalling_workflow.out.secondderiv_cutoff
         qc_reports         = ALEVIN_QC.out.alevinQC_report
         versions           = ch_versions
 }

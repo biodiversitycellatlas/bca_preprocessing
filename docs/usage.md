@@ -14,13 +14,13 @@ In the case of Parse Biosciences data, the column of p5 should be filled with th
         'C4' specifies a single well.
         Multiple selections are joined by commas (no space), e.g. 'A1-A6,B1:D3,C4'
 
-In the table below, the variables are summarized, with an example samplesheet listed [here](conf/example_samplesheet.csv).
+In the table below, the variables are summarized, with an example samplesheet listed [here](../examples/example_samplesheet.csv).
 
 | Variable       | Required/Optional | Description                                                                                                                                                             |
 | -------------- | ----------------- | ----------------------------------------------------------------------------------------------------------------------------------------------------------------------- |
 | sample         | **Required**      | Must be unique unless you want the FASTQ files to be merged after demultiplexing.                                                                                       |
 | fastq_cDNA     | **Required**      | Path to the FASTQ file containing cDNA. Uncompressed (`.fastq`/`.fq`) and gzipped (`.fastq.gz`/`.fq.gz`) files are both accepted, and may be mixed within a sample.      |
-| fastq_CB_UMI   | **Required**      | Path to the FASTQ file containing the cell barcode & UMI. Uncompressed and gzipped files are both accepted.                                                              |
+| fastq_BC_UMI   | **Required**      | Path to the FASTQ file containing the cell barcode & UMI. Uncompressed and gzipped files are both accepted.                                                              |
 | expected_cells | **Required**      | Number of expected cells                                                                                                                                                |
 | manual_cutoff  | Optional          | Per-sample UMI threshold used to call cells. Required for every sample when `cellfilter_method = "manual_cutoff"`, ignored otherwise. See [Cell calling](CONFIGURATION_PARAMETERS.md#cell-calling). |
 | p5             | Optional          | Only required for sci-RNA-seq3 (p5-associated barcode from [sci-RNA-seq3 barcode whitelist file](assets/sciRNAseq3_bwl.txt), Parse Biosciences (group-well definition) & OAK (i5 barcode sequence of the aliquot) |
@@ -39,7 +39,7 @@ Within each custom configuration file the following variables can be defined:
 | Variable                 | Required/Optional | Description                                                                                                                                                                                                                       |
 | ------------------------ | ----------------- | --------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------- |
 | `input`                  | **Required**      | Path to the samplesheet.                                                                                                                                                                                                          |
-| `outdir`                 | **Required**      | Path to the results/output directory; must exist before running.                                                                                                                                                                  |
+| `outdir`                 | **Required**      | Path to the results/output directory; created if missing.                                                                                                                                                                          |
 | `protocol`               | **Required**      | Specifies the sequencing technology used (must be one of the following: `"oak_v1"`, `"10xv1"`, `"10xv2"`, `"10xv3"`, `"10xv4"`, `"parse_biosciences_WT_mini"` or `"parse_biosciences_WT"`, `"bd_rhapsody_v1"`, `"bd_rhapsody_enhancedbeads"`, `"sciRNAseq3"` , `"ultima_genomics"`, `"marsseq_v1"`, `"marsseq_v2"` or `"seqspec"`). |
 | `ref_fasta`              | **Required**      | Path to the genome FASTA file used for mapping reads.                                                                                                                                                                             |
 | `ref_gtf`                | **Required**      | Path to the GTF/GFF file formatted for STARsolo.                                                                                                                                                                                  |
@@ -75,7 +75,7 @@ To modify the behaviour of certain processes, additional variables can be added 
 
 ### Pre-requisites:
 
-- [ ] Created a samplesheet in CSV format (see [conf/example_samplesheet.csv](conf/example_samplesheet.csv))
+- [ ] Created a samplesheet in CSV format (see [examples/example_samplesheet.csv](../examples/example_samplesheet.csv))
 - [ ] Edited ([`conf/custom_parameters.config`](conf/custom_parameters.config)) or created a new custom configuration file
 - [ ] Conda & Nextflow available in base environment
 

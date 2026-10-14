@@ -9,7 +9,7 @@
 */
 include { STARSOLO_INDEX                                    } from '../../../modules/local/tools/star/starsolo_genome_generate/main'
 include { STARSOLO_ALIGN                                    } from '../../../modules/local/tools/star/starsolo_align/main'
-include { cellcalling_starsolo_workflow                     } from '../post-processing/cellcalling'
+include { cellcalling_workflow                              } from '../post-processing/cellcalling'
 
 
 /*
@@ -41,7 +41,12 @@ workflow mapping_starsolo_workflow {
         def star_index_ch
         if (prebuilt_star_index != null) {
             star_index_ch = prebuilt_star_index
-        } else if (params.star_index && file(params.star_index).exists() && remap_geneext == 'false') {
+        } else if (params.star_index && remap_geneext == 'false') {
+            // A given index that is not there is a mistake, not a request to build one: the
+            // build takes hours and is published under outdir, not at 'star_index'
+            if (!file(params.star_index).exists()) {
+                error("'star_index' = '${params.star_index}' does not exist (relative paths are read from the launch directory, ${workflow.launchDir}).\nUnset it to build an index in this run.")
+            }
             star_index_ch = channel.value(file(params.star_index))
         } else {
             // Build a single index for the whole run; the samples' cDNA reads are only
@@ -55,18 +60,20 @@ workflow mapping_starsolo_workflow {
             ch_versions = ch_versions.mix(STARSOLO_INDEX.out.versions)
         }
 
-        // Confirm bc_whitelist is a safe value channel
-        def bc_whitelist_ch = bc_whitelist instanceof List
-            ? channel.value(bc_whitelist)
-            : bc_whitelist.ifEmpty([]).first()
+        // The whitelist reaches every sample: a value channel holding the list of files
+        def bc_whitelist_ch = bc_whitelist instanceof List ? channel.value(bc_whitelist) : bc_whitelist
+
+        // Protocol 'seqspec' reads its barcode layout from the seqspec file, staged into the task
+        def seqspec = params.protocol == 'seqspec' ? file(params.seqspec_file, checkIfExists: true) : []
 
         // Run STARsolo alignment
-        STARSOLO_ALIGN(data_output, bc_whitelist, bam_only, star_index_ch)
+        STARSOLO_ALIGN(data_output, bc_whitelist_ch, bam_only, star_index_ch, seqspec)
         ch_versions = ch_versions.mix(STARSOLO_ALIGN.out.versions)
 
         // Re-call cells on a UMI cutoff, or keep STARsolo's own filtered matrix
         if (!bam_only) {
-            cellcalling_starsolo_workflow(
+            cellcalling_workflow(
+                'starsolo',
                 STARSOLO_ALIGN.out.genefull50_raw_dir,
                 STARSOLO_ALIGN.out.umi_per_cell,
                 STARSOLO_ALIGN.out.cellreads_stats,
@@ -74,12 +81,12 @@ workflow mapping_starsolo_workflow {
                 STARSOLO_ALIGN.out.velocyto_raw_dir
             )
 
-            ch_filtered_mtx       = cellcalling_starsolo_workflow.out.filtered_matrix
-            ch_velocyto_filtered  = cellcalling_starsolo_workflow.out.velocyto_filtered
-            ch_secondderiv_knee   = cellcalling_starsolo_workflow.out.secondderiv_knee
-            ch_secondderiv_stats  = cellcalling_starsolo_workflow.out.secondderiv_stats
-            ch_secondderiv_cutoff = cellcalling_starsolo_workflow.out.secondderiv_cutoff
-            ch_versions           = ch_versions.mix(cellcalling_starsolo_workflow.out.versions)
+            ch_filtered_mtx       = cellcalling_workflow.out.filtered_matrix
+            ch_velocyto_filtered  = cellcalling_workflow.out.velocyto_filtered
+            ch_secondderiv_knee   = cellcalling_workflow.out.secondderiv_knee
+            ch_secondderiv_stats  = cellcalling_workflow.out.secondderiv_stats
+            ch_secondderiv_cutoff = cellcalling_workflow.out.secondderiv_cutoff
+            ch_versions           = ch_versions.mix(cellcalling_workflow.out.versions)
         }
 
         // 'bam_only' forces the BAM on regardless of star_generateBAM: it is the only

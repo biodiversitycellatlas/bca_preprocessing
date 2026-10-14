@@ -1,13 +1,16 @@
 process SATURATION_TABLE {
     publishDir path: { "${params.outdir}/saturation/${meta.id}" }, mode: 'copy', saveAs: { filename -> filename == 'versions.yml' ? null : filename }
     tag "${meta.id}"
-    label 'process_single_mem2'
     label 'error_retry'
 
-    // Memory tracks the size of the BAM being read, overrides process_single_mem's flat assignments.
-    // Coefficients live in params.dynamic_memory; remove the entry to fall back to the plain label.
+    // Memory tracks the size of the BAM being read. Coefficients live in
+    // params.dynamic_memory; without an entry the request is process_single_mem2's 10 GB.
+    // Deliberately no resource label, since a withLabel setting would take precedence over
+    // these: cpus and time are process_single_mem2's.
+    cpus   1
+    time   { 30.m * task.attempt }
     memory { BcaResources.scaledMemory(
-        params.dynamic_memory?.SATURATION_TABLE, [bam_file], task.attempt, 36) }
+        params.dynamic_memory?.SATURATION_TABLE, [bam_file], task.attempt, 10) }
 
     conda "${moduleDir}/environment.yml"
     container "oras://community.wave.seqera.io/library/pysam_samtools_bc_python_pruned:82a1e27e868113f0"

@@ -1,11 +1,13 @@
 process DOUBLET_FILTER {
     publishDir path: { "${params.outdir}/doublet_filtering/${meta.id}/${meta.datatype}" }, mode: 'copy', saveAs: { filename -> filename == 'versions.yml' ? null : filename }
     tag "${meta.id} | ${meta.mapping_method} | ${meta.datatype}"
-    label 'process_low'
 
-    // Memory tracks the size of the matrix being sliced, overrides process_low's flat
-    // assignments. Coefficients live in params.dynamic_memory; remove the entry to fall
-    // back to the plain label.
+    // Memory tracks the size of the matrix being sliced. Coefficients live in
+    // params.dynamic_memory; without an entry the request is process_low's 12 GB.
+    // Deliberately no resource label, since a withLabel setting would take precedence over
+    // these: cpus and time are process_low's.
+    cpus   { 2 * task.attempt }
+    time   { 4.h * task.attempt }
     memory { BcaResources.scaledMemory(
         params.dynamic_memory?.DOUBLET_FILTER, [mtx, barcodes, features], task.attempt, 12) }
 

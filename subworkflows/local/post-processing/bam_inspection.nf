@@ -95,7 +95,7 @@ workflow bam_inspection_workflow {
             .set { ch_metrics_inputs }
 
         def ch_rrna_gtf = params.ref_gtf_addfeature
-            ? channel.value(file(params.ref_gtf_addfeature))
+            ? channel.value(file(params.ref_gtf_addfeature, checkIfExists: true))
             : channel.value([])
 
         // Percentages of mtDNA and rRNA reads, per library, per called cell and per barcode,

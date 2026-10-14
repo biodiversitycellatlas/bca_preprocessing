@@ -24,6 +24,7 @@ include { GENE_EXT                                          } from '../../../mod
 workflow geneext_workflow {
     take:
         ch_starsolo_bam
+        ref_gtf
 
     main:
         // Cap every sample at the same number of reads, so no one sample is overrepresented
@@ -55,7 +56,7 @@ workflow geneext_workflow {
         SAMTOOLS_MERGE(bams_to_merge)
 
         // Run gene extension using GeneExt
-        GENE_EXT(SAMTOOLS_MERGE.out.merged_bam, SAMTOOLS_MERGE.out.merged_bai)
+        GENE_EXT(SAMTOOLS_MERGE.out.merged_bam, SAMTOOLS_MERGE.out.merged_bai, ref_gtf)
         ch_versions = ch_versions.mix(SAMTOOLS_MERGE.out.versions, GENE_EXT.out.versions)
 
     emit:

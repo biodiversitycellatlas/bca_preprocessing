@@ -53,6 +53,8 @@ Cases:
   recommendation_sanity   no recommendation is below what was observed
   single_run_fallback     one run yields flat recommendations, never a fit
   coverage_guard          a partly observed tier is never lowered
+  dynamic_memory          no input-size scaled module carries a resource label,
+                          and the generated config never overrides its memory
   emitted_config          the generated config is valid Nextflow (needs nextflow)
 EOF
 }
@@ -449,6 +451,73 @@ if [[ -n "$MULTI_CONFIG" ]] && grep -q "were not exercised by these runs" "$MULT
     fi
 else
     record FAIL "coverage_guard" "no partial-coverage annotation in the emitted config"
+fi
+
+# --------------------------------------------------------------------------
+# Case: dynamic_memory
+#
+# A withLabel (or withName) memory setting takes precedence over a directive in the
+# module, so a module that sizes its memory from its input loses that sizing the
+# moment it carries a resource label -- which is how eight of them ran at their
+# label's flat value without anyone noticing. The same goes for a withName block in
+# the tuned config, so the tool must never write memory for such a process.
+# --------------------------------------------------------------------------
+
+DYN_OUT="$WORKDIR/dynamic_memory.txt"
+if "$PYTHON" - "$PROJECT_ROOT" "${MULTI_CONFIG:-}" >"$DYN_OUT" 2>&1 <<'PYEOF'
+import importlib.util
+import os
+import re
+import sys
+
+root, config = sys.argv[1], sys.argv[2]
+spec = importlib.util.spec_from_file_location(
+    "re_mod", os.path.join(root, "bin", "resource_efficiency.py"))
+mod = importlib.util.module_from_spec(spec)
+spec.loader.exec_module(mod)
+mod.adopt_resource_labels(mod.parse_base_config(os.path.join(root, "conf", "base.config")))
+labels = mod.scan_module_labels(root)
+
+dynamic = sorted(name for name, info in labels.items() if info.dynamic_memory)
+if not dynamic:
+    print("FAIL\tno module calling BcaResources.scaledMemory() was found")
+    raise SystemExit(0)
+labelled = sorted(f"{name} ({labels[name].tier})" for name in dynamic
+                  if labels[name].tier != mod.DEFAULT_TIER)
+if labelled:
+    print("FAIL\tresource label overrides the scaled memory of: " + "; ".join(labelled))
+else:
+    print(f"PASS\t{len(dynamic)} scaled modules, none with a resource label")
+
+if not config or not os.path.exists(config):
+    print("FAIL\tno emitted config to inspect")
+    raise SystemExit(0)
+text = open(config, encoding="utf-8").read()
+blocks = re.findall(r"withName:'\.\*:([A-Za-z0-9_]+)'\s*\{([^}]*)\}", text)
+seen = [name for name, _ in blocks if mod.resolve_label(name, labels)[0] in dynamic]
+leaked = [name for name, body in blocks
+          if mod.resolve_label(name, labels)[0] in dynamic and "memory" in body]
+if leaked:
+    print("FAIL\tthe tuned config sets memory for scaled processes: " + ", ".join(leaked))
+elif not seen:
+    print("FAIL\tthe fixture emitted no withName block for a scaled process, nothing was tested")
+else:
+    print(f"PASS\t{len(seen)} withName block(s) for scaled processes, none sets memory")
+PYEOF
+then
+    n=0
+    while IFS=$'\t' read -r status detail; do
+        n=$((n + 1))
+        case "$n" in
+            1) name="dynamic_memory.unlabelled" ;;
+            2) name="dynamic_memory.tuned_config" ;;
+            *) name="dynamic_memory.extra_$n" ;;
+        esac
+        record "$status" "$name" "$detail"
+    done <"$DYN_OUT"
+    [[ "$n" -ge 2 ]] || record FAIL "dynamic_memory" "$(tail -3 "$DYN_OUT" | tr '\n' ' ')"
+else
+    record FAIL "dynamic_memory" "$(tail -3 "$DYN_OUT" | tr '\n' ' ')"
 fi
 
 # --------------------------------------------------------------------------

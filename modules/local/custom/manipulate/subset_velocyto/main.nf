@@ -1,11 +1,13 @@
 process SUBSET_VELOCYTO_MATRICES {
     publishDir path: { "${params.outdir}/mapping_STARsolo/${meta.id}/${meta.id}_Solo.out/Velocyto/filtered_secondderiv" }, mode: 'copy', saveAs: { filename -> filename == 'versions.yml' ? null : filename }
-    label 'process_single_mem2'
     tag "${meta.id}"
 
-    // Memory tracks the size of the three matrices being read, overrides process_single_mem2's
-    // flat assignment. Coefficients live in params.dynamic_memory; remove the entry to fall
-    // back to the plain label.
+    // Memory tracks the size of the three matrices being read. Coefficients live in
+    // params.dynamic_memory; without an entry the request is process_single_mem2's 10 GB.
+    // Deliberately no resource label, since a withLabel setting would take precedence over
+    // these: cpus and time are process_single_mem2's.
+    cpus   1
+    time   { 30.m * task.attempt }
     memory { BcaResources.scaledMemory(
         params.dynamic_memory?.SUBSET_VELOCYTO_MATRICES, [velocyto_raw_dir], task.attempt, 10) }
 

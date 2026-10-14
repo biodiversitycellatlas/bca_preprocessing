@@ -8,8 +8,8 @@ This pipeline handles the analysis of single-cell RNA sequencing data, including
 quality control, demultiplexing, mapping, and reporting.
 
 Pre-requisites:
-- Created a samplesheet in CSV format (see conf/example_samplesheet.csv)
-- Configured the custom config file (config/custom.config)
+- Created a samplesheet in CSV format (see examples/example_samplesheet.csv)
+- Configured the custom config file (conf/custom_parameters.config)
 - Conda & Nextflow available in base environment
 
 Run:
@@ -74,7 +74,7 @@ workflow BCA_PREPROCESSING {
         def run_downstream      = false
 
         // Save run configurations
-        SAVE_RUN_CONFIG(samplesheet.first())
+        SAVE_RUN_CONFIG(samplesheet.first().map { row -> row[4] })
 
         // versions.yml of every process that ran, merged into one file at the end
         def ch_versions = SAVE_RUN_CONFIG.out.versions

@@ -7,13 +7,16 @@ def setting(Map seqtech, String key, Object fallback = null) {
 process STARSOLO_ALIGN {
     publishDir path: { "${params.outdir}/mapping_STARsolo/${meta.id}" }, mode: 'copy', saveAs: { filename -> filename == 'versions.yml' ? null : filename }
     tag "${meta.id}"
-    label 'process_high2'
 
-    // Memory tracks the size of the FASTQs being read, overrides process_high2's flat assignments.
-    // Coefficients live in params.dynamic_memory; remove the entry to fall back to the plain label.
+    // Memory tracks the size of the FASTQs being read, never below what the genome index
+    // needs. Coefficients live in params.dynamic_memory; without an entry the request is
+    // process_high2's 32 GB. Deliberately no resource label, since a withLabel setting would
+    // take precedence over these: cpus and time are process_high2's.
+    cpus   { 8 * task.attempt }
+    time   { 7.h * task.attempt }
     memory { BcaResources.scaledMemory(
         params.dynamic_memory?.STARSOLO_ALIGN,
-        [fastq_cDNA, fastq_BC_UMI], task.attempt, 128, genome_index_files) }
+        [fastq_cDNA, fastq_BC_UMI], task.attempt, 32, genome_index_files) }
 
     // Exit 42 from bin/mapping_rate_guard.sh (mapping rate below params.min_mapping_rate)
     // aborts the pipeline or drops the sample; other exit codes follow conf/base.config.
@@ -24,9 +27,10 @@ process STARSOLO_ALIGN {
 
     input:
     tuple val(meta), path(fastq_cDNA), path(fastq_BC_UMI), path(fastq_indices), path(input_file)
-    val bc_whitelist
+    path(bc_whitelist, stageAs: 'whitelist_?/*')  // in barcode-segment order; empty without a whitelist
     val bam_only
     path genome_index_files
+    path(seqspec, stageAs: 'seqspec/*')          // the seqspec file for protocol 'seqspec', empty otherwise
 
     output:
     tuple val(meta), path("*"),                                 emit: starsolo_files
@@ -78,7 +82,8 @@ process STARSOLO_ALIGN {
     def star_outSAMunmapped_effective  = bam_only ? 'None' : star_outSAMunmapped
 
     // Convert empty bc_whitelist to None
-    def safe_bc_whitelist = (bc_whitelist && bc_whitelist != "") ? bc_whitelist : 'None'
+    def whitelists = (bc_whitelist instanceof List ? bc_whitelist : [bc_whitelist]).findAll { wl -> wl }
+    def safe_bc_whitelist = whitelists ? whitelists.join(' ') : 'None'
 
     // Detect CRAM or BAM by inspecting the first file in the list.
     def first_file     = fastq_cDNA instanceof List ? fastq_cDNA[0] : fastq_cDNA
@@ -144,10 +149,10 @@ process STARSOLO_ALIGN {
     echo "outSAMtype_option: ${outSAMtype_option}"
     echo "Mapping-rate check: ${mapping_guard_note}"
 
-    if [[ -n \"${params.seqspec_file}\" && \"${params.protocol}\" == *\"seqspec\"* ]];
+    if [[ -n \"${seqspec}\" ]];
     then
         # Barcode structure information from seqspec file
-        bc_struct=\$(seqspec index -m rna -t starsolo -s file ${params.seqspec_file})
+        bc_struct=\$(seqspec index -m rna -t starsolo -s file ${seqspec})
         SOLO_TYPE_STRING="--soloType CB_UMI_Simple \${bc_struct}"
     else
         # Use predefined barcode structure information based on protocol

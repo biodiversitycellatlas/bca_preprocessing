@@ -8,8 +8,8 @@
 ~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~
 */
 include { restage_mapping_workflow                                          } from '../subworkflows/local/post-processing/restage_mapping'
-include { cellcalling_starsolo_workflow                                     } from '../subworkflows/local/post-processing/cellcalling'
-include { cellcalling_alevin_workflow                                       } from '../subworkflows/local/post-processing/cellcalling'
+include { cellcalling_workflow as cellcalling_starsolo_workflow             } from '../subworkflows/local/post-processing/cellcalling'
+include { cellcalling_workflow as cellcalling_alevin_workflow               } from '../subworkflows/local/post-processing/cellcalling'
 include { bam_inspection_workflow                                           } from '../subworkflows/local/post-processing/bam_inspection'
 include { bam_inspection_workflow as bam_inspection_geneext_workflow        } from '../subworkflows/local/post-processing/bam_inspection'
 
@@ -61,11 +61,11 @@ workflow post_mapping_workflow {
         // Conditionally bypass MERGE_REF_GTF when no additional features are provided
         def ref_gtf_ch
         if (params.ref_gtf_addfeature) {
-            MERGE_REF_GTF(params.ref_gtf, channel.fromPath(params.ref_gtf_addfeature), '')
+            MERGE_REF_GTF(file(params.ref_gtf, checkIfExists: true), file(params.ref_gtf_addfeature, checkIfExists: true), '')
             ref_gtf_ch = MERGE_REF_GTF.out.gtf
             ch_versions = ch_versions.mix(MERGE_REF_GTF.out.versions)
         } else {
-            ref_gtf_ch = channel.value(file(params.ref_gtf))
+            ref_gtf_ch = channel.value(file(params.ref_gtf, checkIfExists: true))
         }
 
         // The GeneExt-remapped runs were annotated against the extended GTF, so their
@@ -81,7 +81,7 @@ workflow post_mapping_workflow {
                 )
             }
             if (params.ref_gtf_addfeature) {
-                MERGE_REF_GTF_GENEEXT(channel.value(geneext_gtf), channel.fromPath(params.ref_gtf_addfeature), '_geneext')
+                MERGE_REF_GTF_GENEEXT(channel.value(geneext_gtf), file(params.ref_gtf_addfeature, checkIfExists: true), '_geneext')
                 ref_gtf_geneext_ch = MERGE_REF_GTF_GENEEXT.out.gtf
                 ch_versions = ch_versions.mix(MERGE_REF_GTF_GENEEXT.out.versions)
             } else {
@@ -102,6 +102,7 @@ workflow post_mapping_workflow {
         // Re-call cells. One invocation covers the standard and the GeneExt-remapped runs,
         // since the cutoff is derived per sample from that run's own UMI curve.
         cellcalling_starsolo_workflow(
+            'starsolo',
             restage_mapping_workflow.out.starsolo_genefull50_raw,
             restage_mapping_workflow.out.star_umipercell,
             restage_mapping_workflow.out.star_cellreads,
@@ -109,8 +110,18 @@ workflow post_mapping_workflow {
             restage_mapping_workflow.out.starsolo_velocyto_raw
         )
 
-        cellcalling_alevin_workflow(restage_mapping_workflow.out.af_mtx)
-        ch_versions = ch_versions.mix(cellcalling_starsolo_workflow.out.versions)
+        cellcalling_alevin_workflow(
+            'alevin-fry',
+            restage_mapping_workflow.out.af_mtx,
+            restage_mapping_workflow.out.af_mtx,
+            channel.empty(),
+            channel.empty(),
+            channel.empty()
+        )
+        ch_versions = ch_versions.mix(
+            cellcalling_starsolo_workflow.out.versions,
+            cellcalling_alevin_workflow.out.versions
+        )
 
         // Both mappers emit the same second-derivative artefacts, so the reporting channels carry them together
         def ch_secondderiv_knee = cellcalling_starsolo_workflow.out.secondderiv_knee

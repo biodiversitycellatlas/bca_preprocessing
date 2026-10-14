@@ -1,14 +1,16 @@
 process MTX_TO_H5AD {
     publishDir path: { "${params.outdir}/anndata/${meta.id}/${meta.datatype}" }, mode: 'copy', saveAs: { filename -> filename == 'versions.yml' ? null : filename }
     tag "${meta.id} | ${meta.mapping_method} | ${meta.datatype}"
-    label 'process_single_mem2'
 
     // Memory tracks the size of the matrix being read -- both of them, where CellSweep's
-    // denoised counts are merged in -- and overrides process_low's flat assignments.
-    // Coefficients live in params.dynamic_memory; remove the entry to fall back to the
-    // plain label.
+    // denoised counts are merged in. Coefficients live in params.dynamic_memory; without an
+    // entry the request is process_single_mem2's 10 GB. Deliberately no resource label,
+    // since a withLabel setting would take precedence over these: cpus and time are
+    // process_single_mem2's.
+    cpus   1
+    time   { 30.m * task.attempt }
     memory { BcaResources.scaledMemory(
-        params.dynamic_memory?.MTX_TO_H5AD, [mtx, barcodes, features, cellsweep_h5ad], task.attempt, 12) }
+        params.dynamic_memory?.MTX_TO_H5AD, [mtx, barcodes, features, cellsweep_h5ad], task.attempt, 10) }
 
     container 'oras://community.wave.seqera.io/library/scanpy:1.12--45f1dccaf83880df'
     conda "${moduleDir}/environment.yml"

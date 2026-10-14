@@ -1,3 +1,4 @@
+// Downloads Demuxafy.sif; only runs without params.demuxafy_sif, which filtering_workflow.nf uses where it is
 process DOWNLOAD_DEMUXAFY_SIF {
     publishDir path: { "${params.outdir}/containers/demuxafy" }, mode: 'copy', overwrite: false, saveAs: { filename -> filename == 'versions.yml' ? null : filename }
     tag "demuxafy_sif"
@@ -14,31 +15,24 @@ process DOWNLOAD_DEMUXAFY_SIF {
     """
     echo -e "\\n\\n==================  DOWNLOAD DEMUXAFY SIF =================="
 
-    if [ -z "${params.demuxafy_sif}" ] || [ "${params.demuxafy_sif}" = "null" ]; then
-        echo "No demuxafy_sif provided. Downloading Demuxafy.sif (~7.5GB, this can take 15-30 min)..."
-        wget -q -O Demuxafy.sif '${sif_url}'
-        wget -q -O Demuxafy.sif.md5 '${md5_url}'
+    echo "No demuxafy_sif provided. Downloading Demuxafy.sif (~7.5GB, this can take 15-30 min)..."
+    wget -q -O Demuxafy.sif '${sif_url}'
+    wget -q -O Demuxafy.sif.md5 '${md5_url}'
 
-        # Guard against an HTML page being saved instead of the actual files
-        if grep -qi '<html' Demuxafy.sif.md5 || head -c 1024 Demuxafy.sif | grep -qi '<html'; then
-            echo "ERROR: Download returned an HTML page instead of Demuxafy.sif; check the download URLs or provide --demuxafy_sif" >&2
-            exit 1
-        fi
-
-        expected_md5=\$(grep -o '[a-f0-9]\\{32\\}' Demuxafy.sif.md5 | head -1)
-        actual_md5=\$(md5sum Demuxafy.sif | awk '{print \$1}')
-        if [ "\$expected_md5" != "\$actual_md5" ]; then
-            echo "ERROR: MD5 checksum mismatch for Demuxafy.sif (expected \$expected_md5, got \$actual_md5)" >&2
-            exit 1
-        fi
-
-        # Record where the image ends up, so it can be passed to --demuxafy_sif on a later run.
-        echo "${params.outdir}/containers/demuxafy/Demuxafy.sif" > demuxafy_sif_path.txt
-    else
-        echo "Using existing Demuxafy.sif: ${params.demuxafy_sif}"
-        echo "${params.demuxafy_sif}" > demuxafy_sif_path.txt
-        # If params.demuxafy_sif is provided, copy it to the work directory
-        cp "${params.demuxafy_sif}" Demuxafy.sif
+    # Guard against an HTML page being saved instead of the actual files
+    if grep -qi '<html' Demuxafy.sif.md5 || head -c 1024 Demuxafy.sif | grep -qi '<html'; then
+        echo "ERROR: Download returned an HTML page instead of Demuxafy.sif; check the download URLs or provide --demuxafy_sif" >&2
+        exit 1
     fi
+
+    expected_md5=\$(grep -o '[a-f0-9]\\{32\\}' Demuxafy.sif.md5 | head -1)
+    actual_md5=\$(md5sum Demuxafy.sif | awk '{print \$1}')
+    if [ "\$expected_md5" != "\$actual_md5" ]; then
+        echo "ERROR: MD5 checksum mismatch for Demuxafy.sif (expected \$expected_md5, got \$actual_md5)" >&2
+        exit 1
+    fi
+
+    # Record where the image ends up, so it can be passed to --demuxafy_sif on a later run.
+    echo "${params.outdir}/containers/demuxafy/Demuxafy.sif" > demuxafy_sif_path.txt
     """
 }

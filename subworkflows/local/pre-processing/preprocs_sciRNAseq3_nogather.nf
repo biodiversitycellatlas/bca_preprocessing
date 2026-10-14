@@ -14,6 +14,7 @@ include { FASTP                 } from '../../../modules/local/tools/fastp/main'
 workflow sciRNAseq3_nogather_workflow {
     take:
         ch_samplesheet
+        bc_whitelist
 
     main:
         // Define channels
@@ -23,7 +24,10 @@ workflow sciRNAseq3_nogather_workflow {
 
         if (params.perform_demultiplexing) {
             log.info "Starting demultiplexing with sci-rocket"
-            SCIROCKET_DEMUX(ch_samplesheet)
+            if (!params.bc_whitelist) {
+                error("sci-rocket demultiplexes on the barcodes in 'bc_whitelist', which is not set.")
+            }
+            SCIROCKET_DEMUX(ch_samplesheet, bc_whitelist)
             out_samplesheet = SCIROCKET_DEMUX.out.demux_samplesheet
             out_whitelist = SCIROCKET_DEMUX.out.bc_whitelist
             ch_versions = ch_versions.mix(SCIROCKET_DEMUX.out.versions)

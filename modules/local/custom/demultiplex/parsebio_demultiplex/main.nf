@@ -8,6 +8,7 @@ process PARSEBIO_CUSTOM_DEMUX {
 
     input:
     tuple val(meta), path(fastq_cDNA), path(fastq_BC_UMI), path(fastq_indices), path(input_file)
+    path(whitelist, stageAs: 'splitwells_whitelist/*')
 
     output:
     tuple val(meta), path("*group*_R1*"), path("*group*_R2*"), path(fastq_indices), path(input_file), emit: splitted_files
@@ -25,7 +26,7 @@ process PARSEBIO_CUSTOM_DEMUX {
         --sample_id ${meta.id} \\
         --fq1 ${fastq_cDNA} \\
         --fq2 ${fastq_BC_UMI} \\
-        --whitelist ${params.bc_whitelist_parse_splitwells} \\
+        --whitelist ${whitelist} \\
         --group ${meta.id} ${meta.rt} \\
         --output . \\
         --barcode_start 50 \\

@@ -43,21 +43,27 @@ workflow preprocessing_workflow {
         // Vendor pipeline results the mapping statistics are read from, as [pipeline, meta, file]
         def ch_vendor_results = channel.empty()
 
-        // Download it when provided as an URL(s), multiple URLs are separated by whitespace
-        def whitelist_param = params.bc_whitelist?.toString()?.trim()
-        def whitelist_is_url = whitelist_param &&
-            whitelist_param.tokenize().every { it ==~ /(?i)^(https?|ftp):\/\/.+/ }
+        // The barcode whitelist as a list of files, one per barcode segment in segment order,
+        // and empty without one (e.g. MARS-seq). 'bc_whitelist' gives one or more URLs or
+        // paths, separated by whitespace: URLs are downloaded, paths are staged into the
+        // tasks, so a relative path is read against the launch directory like any parameter.
+        def whitelist_tokens = params.bc_whitelist?.toString()?.trim()?.tokenize() ?: []
+        def whitelist_urls   = whitelist_tokens.findAll { token -> token ==~ /(?i)^(https?|ftp):\/\/.+/ }
+        if (whitelist_urls && whitelist_urls.size() != whitelist_tokens.size()) {
+            error("'bc_whitelist' mixes URLs and paths ('${params.bc_whitelist}'): give either URLs or paths, so the segments stay in order.")
+        }
 
         def resolved_whitelist
-        if (whitelist_is_url) {
-            DOWNLOAD_WHITELIST(whitelist_param)
+        if (whitelist_urls) {
+            DOWNLOAD_WHITELIST(whitelist_urls.join(' '))
             ch_versions = ch_versions.mix(DOWNLOAD_WHITELIST.out.versions)
-
-            // Keep the whitespace-separated format
-            resolved_whitelist = DOWNLOAD_WHITELIST.out.whitelist
-                .map { files -> [files].flatten()*.toString().join(' ') }
+            resolved_whitelist = DOWNLOAD_WHITELIST.out.whitelist.map { files -> [files].flatten() }
         } else {
-            resolved_whitelist = params.bc_whitelist
+            def missing = whitelist_tokens.findAll { token -> !file(token).exists() }
+            if (missing) {
+                error("'bc_whitelist' names file(s) that do not exist: ${missing.join(', ')} (relative paths are read from the launch directory, ${workflow.launchDir}).")
+            }
+            resolved_whitelist = channel.value(whitelist_tokens.collect { token -> file(token) })
         }
 
         // Check for protocol and run appropriate pre-processing workflow
@@ -89,9 +95,10 @@ workflow preprocessing_workflow {
             ch_vendor_results = oak_workflow.out.cellranger_outs.map { meta, outs -> ['cellranger', meta, outs] }
 
         } else if (params.protocol == 'sciRNAseq3') {
-            sciRNAseq3_nogather_workflow(merged_samplesheet)
+            sciRNAseq3_nogather_workflow(merged_samplesheet, resolved_whitelist)
             data_output_ch   = sciRNAseq3_nogather_workflow.out.data_output
-            bc_whitelist_ch  = sciRNAseq3_nogather_workflow.out.bc_whitelist.map { tup -> tup*.toString().join(' ') }
+            // The mappers take one whitelist for every sample: the first sample's from sci-rocket
+            bc_whitelist_ch  = sciRNAseq3_nogather_workflow.out.bc_whitelist.map { tup -> [tup].flatten() }.ifEmpty([]).first()
             ch_versions = ch_versions.mix(sciRNAseq3_nogather_workflow.out.versions)
 
         } else if (params.protocol in ['marsseq_v1', 'marsseq_v2']) {
@@ -99,10 +106,13 @@ workflow preprocessing_workflow {
             data_output_ch = marsseq_workflow.out.data_output
             ch_versions = ch_versions.mix(marsseq_workflow.out.versions)
 
-            // MARS-seq has no barcode whitelist; an empty value makes STARsolo use '--soloCBwhitelist None'
-            bc_whitelist_ch  = resolved_whitelist ?: ""
+            // MARS-seq has no barcode whitelist; an empty list makes STARsolo use '--soloCBwhitelist None'
+            bc_whitelist_ch  = resolved_whitelist
 
-        } else if (params.seqspec_file && file(params.seqspec_file).exists() && params.protocol == 'seqspec') {
+        } else if (params.protocol == 'seqspec') {
+            if (!params.seqspec_file || !file(params.seqspec_file).exists()) {
+                error("'protocol' = 'seqspec' reads the read layout from 'seqspec_file', which is ${params.seqspec_file ? "'${params.seqspec_file}' and does not exist" : 'not set'}.")
+            }
             seqspec_workflow(merged_samplesheet)
             data_output_ch = seqspec_workflow.out.data_output
             bc_whitelist_ch  = resolved_whitelist
