@@ -43,6 +43,9 @@ logger = logging.getLogger("MtxIO")
 
 _INT32_MAX = np.iinfo(np.int32).max
 
+# What the columns of a 10x/STARsolo features.tsv hold, in order
+FEATURE_COLUMNS = ["gene_id", "gene_name", "feature_type"]
+
 
 def downcast_counts(data):
     """
@@ -102,7 +105,7 @@ def read_features(path):
     The feature axis as a DataFrame, keeping every column the file carries.
 
     STARsolo's ``features.tsv`` is gene_id / gene_name / feature_type; alevin-fry's
-    ``quants_mat_cols.txt`` is a single column of gene names. Column 0 is the
+    ``quants_mat_cols.txt`` is a single column of gene IDs. Column 0 is the
     identifier in both cases.
     """
     return pd.read_csv(path, header=None, sep="\t")
@@ -159,6 +162,12 @@ def read_triplet_anndata(mtx, barcodes, features, sample_id=None, downcast=False
     The same triplet as an AnnData object: cells x genes, unique var names, and
     ``obs['sample_id']`` when a sample id is given.
 
+    The var names are the gene IDs. Every further column of the features file is
+    carried into ``var`` under its 10x name -- ``gene_name`` and ``feature_type``
+    for STARsolo -- so the published object can still be searched by symbol.
+    ``gene_name`` is always present, blank where the file has no symbols
+    (alevin-fry), so both mappers publish the same var columns.
+
     Assembled in AnnData's orientation directly, so a matrix that arrived as
     genes x cells is never transposed through a second full copy.
     """
@@ -171,12 +180,21 @@ def read_triplet_anndata(mtx, barcodes, features, sample_id=None, downcast=False
         mtx, len(feature_df), len(barcode_list), downcast=downcast
     )
 
+    var = pd.DataFrame(index=pd.Index(feature_df[0].astype(str).values, name=None))
+    for i in feature_df.columns[1:]:
+        name = FEATURE_COLUMNS[i] if i < len(FEATURE_COLUMNS) else f"feature_{i}"
+        # By position: feature_df is indexed 0..n-1, var by gene ID, so a Series
+        # would align on the index and come out all NaN
+        var[name] = feature_df[i].fillna("").astype(str).to_numpy()
+    if "gene_name" not in var:
+        var["gene_name"] = ""
+
     adata = ad.AnnData(
         X=sp.csr_matrix(
             (data, (cell_index, gene_index)), shape=(len(barcode_list), len(feature_df))
         ),
         obs=pd.DataFrame(index=pd.Index(barcode_list, name=None)),
-        var=pd.DataFrame(index=pd.Index(feature_df[0].astype(str).values, name=None)),
+        var=var,
     )
     adata.var_names_make_unique()
 

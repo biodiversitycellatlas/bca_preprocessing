@@ -384,6 +384,14 @@ if run_logged "$BCA_TEST_LOGDIR/annotated_h5ad_plain.log" \
                       f'{a.n_obs} x {a.n_vars}, layers {list(a.layers)}'))(read_h5ad(A[0])))" \
         "cells x genes, no annotations without inputs" \
         "$PLAIN"
+
+    # The symbols in features.tsv column 2 are the only way to find a gene by name.
+    assert "h5ad_var" \
+        "((lambda a: (list(a.var['gene_name']) == [g + '_sym' for g in genes()]
+                      and set(a.var['feature_type']) == {'Gene Expression'},
+                      f'var columns {list(a.var.columns)}'))(read_h5ad(A[0])))" \
+        "gene symbols and feature type carried from features.tsv" \
+        "$PLAIN"
 else
     record FAIL "h5ad_plain" "see annotated_h5ad_plain.log"
 fi
@@ -488,6 +496,15 @@ if run_logged "$BCA_TEST_LOGDIR/annotated_h5ad_merge_alevin.log" \
             read_h5ad(A[0]), read_h5ad(A[1])))" \
         "one published object for both quantification methods" \
         "$ANNOTATED" "$ANNOTATED_AF"
+
+    # alevin-fry's feature file carries IDs only: the column is still there, blank,
+    # so both mappers publish the same var columns.
+    assert "h5ad_alevin.var" \
+        "((lambda a: (list(a.var_names) == genes() and 'gene_name' in a.var
+                      and list(a.var['gene_name']) == [''] * N_GENES,
+                      f'var columns {list(a.var.columns)}'))(read_h5ad(A[0])))" \
+        "gene_name present and blank without symbols" \
+        "$ANNOTATED_AF"
 else
     record FAIL "h5ad_alevin" "see annotated_h5ad_merge_alevin.log"
 fi

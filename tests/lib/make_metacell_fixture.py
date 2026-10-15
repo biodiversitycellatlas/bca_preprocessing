@@ -60,6 +60,12 @@ GENES = [
     ("GENE011", "__REPORT_DATA_PLACEHOLDER__", "chr5", "protein_coding"),
 ]
 GENE_IDS = [g[0] for g in GENES]
+
+# var['gene_name'] of the cell-called object, as MTX_TO_H5AD carries it over from
+# features.tsv: the GTF's names, except a blank the gene table fills, a name the gene
+# table lacks (LOC5-AS1 has none in the GTF) and one the two disagree on
+GIVEN_NAMES = {"GENE003": "", "LOC5-AS1": "Loc5as1", "GENE004": "H2a.z"}
+
 MITO_GENES = ["MT-CO1", "MT-ND1"]
 RRNA_GENES = ["RRNA1"]
 ZERO_GENE = "GENE009"
@@ -95,6 +101,15 @@ FC_RRNA_FRACTION = 0.0456
 FC_MT_BAM_FRACTION = 0.0321
 FC_RRNA_BAM_FRACTION = 0.0654
 FC_ANTISENSE_FRACTION = 0.0789
+
+
+def given_names():
+    return [GIVEN_NAMES.get(g[0], g[1]) for g in GENES]
+
+
+def expected_names():
+    """run_metacells.py's var['gene_name']: the matrix's own name, the gene table's where it has none."""
+    return [given or g[1] for given, g in zip(given_names(), GENES)]
 
 
 def group_sizes():
@@ -260,7 +275,7 @@ def main(outdir):
 
     X = counts()
     bcs = barcodes()
-    var = pd.DataFrame(index=pd.Index(GENE_IDS))
+    var = pd.DataFrame({"gene_name": given_names()}, index=pd.Index(GENE_IDS))
 
     # The cell-called object, as MTX_TO_H5AD writes it, plus the planted assignment
     obs = pd.DataFrame(index=pd.Index(bcs))

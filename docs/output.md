@@ -403,6 +403,7 @@ carries not only the counts but everything that was called on them:
 |-------|--------------|
 | `X` | always — the counts, with the consensus doublets already removed under `perform_doublet_filtering` |
 | `obs["sample_id"]` | always |
+| `var["gene_name"]`, `var["feature_type"]` | always — the gene symbol and feature type from STARsolo's `features.tsv`; `var_names` are the gene IDs. alevin-fry's feature file has IDs only, so there `gene_name` is blank and `feature_type` absent |
 | `obs["doublet_status"]` | `perform_doublet_detection` — `singlet` / `doublet`. The empty droplets of a `raw`/`full` matrix were never evaluated and read `singlet` |
 | `layers["cellsweep"]` | `ambient_rna_remover = "cellsweep"`, `raw`/`full` only — the denoised counts, aligned to `X` |
 | `obs["is_empty"]`, `obs["celltype"]`, `obs["alpha_hat"]` | as above — empty-droplet call, Leiden grouping, per-cell ambient fraction |
@@ -487,7 +488,7 @@ selection. See
 | ---- | ----------- |
 | `gene_table/gene_table.tsv` | One row per GTF gene: `gene_id`, `gene_name`, `chrom`, `biotype`, `is_mito` (on `mt_contig`), `is_rrna` (biotype matches `grep_rrna`) and `pfam` (domains from `gene_annotation`). |
 | `gene_table/gene_table_stats.json` | How many genes are mitochondrial or rRNA, and how many annotation rows resolved to a gene. |
-| `<id>/<id>_mc2_cells.h5ad` | Every called cell. `X` holds the raw counts, `obs["metacell"]` its group, plus per-cell `total_umis`, `pct_mito`, `pct_rrna`, the doublet call, CellSweep's `alpha_hat` and `layers["cellsweep"]` when available. `uns["mc_fingerprint"]` identifies the assignment. |
+| `<id>/<id>_mc2_cells.h5ad` | Every called cell. `X` holds the raw counts, `obs["metacell"]` its group, plus per-cell `total_umis`, `pct_mito`, `pct_rrna`, the doublet call, CellSweep's `alpha_hat` and `layers["cellsweep"]` when available. `var["is_mito"]`, `var["is_rrna"]` and `var["pfam"]` come from the gene table; `var["gene_name"]` keeps the matrix's own symbol and takes the gene table's only where the matrix has none (all of alevin-fry's). A gene the two name differently is logged. `uns["mc_fingerprint"]` identifies the assignment. |
 | `<id>/<id>_mc2_metacells.h5ad` | One row per group, with summed raw UMIs over every gene and the group's QC in `obs`: cells, UMIs, mito %, doublet %, mean `alpha_hat`, UMAP coordinates and top markers. |
 | `<id>/<id>_mc_summary.json` | The report's input for this sample. For a sample with too few cells it holds `status: skipped` and the reason, and the two h5ad files are absent. |
 

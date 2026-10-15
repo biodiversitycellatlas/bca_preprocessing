@@ -314,6 +314,17 @@ assert "cells_h5ad" \
     "X raw, CellSweep's layer and QC on their own cells" \
     "$OUT/S1_starsolo_mc2_cells.h5ad"
 
+# The matrix's symbols survive, the gene table fills only the blank, and the one name
+# the two disagree on is reported rather than silently replaced
+assert "gene_names" \
+    "((lambda a, log: (list(a.var['gene_name']) == F.expected_names()
+                       and '1 filled from the gene table, 1 named differently' in log
+                       and 'GENE004: H2a.z / H2a' in log,
+                       f\"var gene_name {list(a.var['gene_name'])}\"))(
+        read_h5ad(A[0]), open(A[1]).read()))" \
+    "the matrix's names kept, blanks filled, the disagreement logged" \
+    "$OUT/S1_starsolo_mc2_cells.h5ad" "$BCA_TEST_LOGDIR/metacell_filtering_run_S1_starsolo.log"
+
 assert "fingerprint" \
     "((lambda a, s, s2: (a.uns['mc_fingerprint'] == s['sample']['fingerprint'] == s2['sample']['fingerprint']
                          == qcs.fingerprint(a.obs_names[::-1], a.obs['metacell'].astype(str)[::-1], a.var_names)

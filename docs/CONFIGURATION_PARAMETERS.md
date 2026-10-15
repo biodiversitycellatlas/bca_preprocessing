@@ -36,6 +36,7 @@ Within each custom configuration file the following variables can be defined:
 | `seqspec_file`         | Optional          | Path to the seqspec file. |
 | `subsample_nreads`     | Optional          | The size (number of reads) of the subset used to map to STARsolo, in case the parameter `mapping_software = alevin_subsampled_starsolo`. Default set to `100000000` reads. |
 | `alevin_usa_counts`    | Optional          | Which of alevin-fry's USA blocks are summed into each gene's count before ambient-RNA removal and doublet detection: `"SUA"` (spliced + unspliced + ambiguous), `"SA"`, `"S"`, `"UA"` or `"U"`. Default set to `"SUA"`. See [USA counts](#usa-counts). |
+| `alevin_resolution`    | Optional          | alevin-fry's UMI resolution: `"cr-like"` discards UMIs that stay ambiguous between genes, as Cell Ranger and STARsolo's `matrix.mtx` do; `"cr-like-em"` splits them between the genes by expectation-maximisation, giving fractional counts. Default set to `"cr-like"`. See [alevin-fry settings](#alevin-fry-settings). |
 | `perform_velocity`     | Optional          | Boolean flag to additionally produce intronic counts for RNA velocity: STARsolo's `Velocyto` feature (spliced/unspliced/ambiguous) and alevin-fry's unspliced block, plus a velocity-ready `.h5ad` per mapper. Default is `false`. See [RNA velocity](#rna-velocity). |
 
 
@@ -78,8 +79,8 @@ The geometries use salmon's custom geometry syntax, `"<read>[<ranges>]"`, with 1
 
 | Variable               | Required/Optional | Description |
 |------------------------|-------------------|-------------|
-| `perform_featurecounts`  | Optional        | Boolean flag to enable or disable calculation of mtDNA, rRNA and antisense read percentages. Antisense reads are counted with featureCounts on the strand opposite to `star_soloStrand`, and are skipped when it is `"Unstranded"`. Default is `false`. |
-| `mt_contig`            | Optional          | Name(s) of the mitochondrial contig(s) in the reference annotation, used to calculate mtDNA content. Multiple contigs can be given separated by whitespace, in which case reads on any of them count as mitochondrial. Default set to `"chrM M MT"`. |
+| `perform_featurecounts`  | Optional        | **Deprecated, no effect.** The mtDNA, rRNA and antisense read percentages are now computed for every STARsolo run with a BAM (`star_generateBAM = true`), in the same pass that gives the per-cell metrics their read counts. Setting it logs a warning. |
+| `mt_contig`            | Optional          | Name(s) of the mitochondrial contig(s) in the reference annotation, used to calculate mtDNA content. Multiple contigs can be given separated by whitespace, in which case reads on any of them count as mitochondrial. The genes on these contigs are also the mitochondrial genes of the metacell report and of CellSweep's MT filter before clustering. Default set to `"chrM M MT"`. |
 | `grep_rrna`            | Optional          | String used to grep ribosomal RNA (rRNA) reads from annotations. Default set to `"rRNA"`|
 
 

@@ -258,13 +258,24 @@ def _uns_safe(d):
     return {k: ("" if v is None else v) for k, v in d.items()}
 
 
+def _given_names(adata):
+    """The symbols the input object carries in ``var['gene_name']``, '' where it has none."""
+    if "gene_name" not in adata.var.columns:
+        return np.full(adata.n_vars, "", dtype=object)
+    # object first: the column may come back categorical, which fillna('') would reject
+    return adata.var["gene_name"].astype(object).fillna("").astype(str).to_numpy()
+
+
 def annotate_cells(adata, info, groups, umap, fp, mode, params):
     qc = qcs.per_cell_qc(adata.X, info["is_mito"].to_numpy(), info["is_rrna"].to_numpy())
     adata.obs[qcs.METACELL_COL] = pd.Categorical(groups, categories=qcs.group_order(groups))
     for col in qc.columns:
         adata.obs[col] = qc[col].to_numpy()
 
-    adata.var["gene_name"] = info["gene_name"].to_numpy()
+    # The matrix's own symbols (STARsolo's features.tsv, from the GTF it was counted
+    # against) are kept; the gene table only fills the blanks -- all of alevin-fry's
+    given = _given_names(adata)
+    adata.var["gene_name"] = np.where(given != "", given, info["gene_name"].to_numpy())
     adata.var["is_mito"] = info["is_mito"].to_numpy()
     adata.var["is_rrna"] = info["is_rrna"].to_numpy()
     adata.var["pfam"] = [",".join(d) for d in info["pfam"]]
@@ -379,6 +390,17 @@ def main():
     if how["match_rate"] < 0.5:
         logger.warning("Fewer than half the features matched the gene table: mito flags and domains "
                        "will be missing for the rest. Is this the GTF the sample was counted against?")
+
+    given, table_names = _given_names(adata), info["gene_name"].to_numpy()
+    differ = np.flatnonzero((given != "") & (table_names != "") & (given != table_names))
+    logger.info(
+        f"Gene names: {int(((given == '') & (table_names != '')).sum())} filled from the gene table, "
+        f"{len(differ)} named differently there (the matrix's name is kept)"
+    )
+    if len(differ):
+        examples = ", ".join(f"{adata.var_names[j]}: {given[j]} / {table_names[j]}" for j in differ[:3])
+        logger.warning(f"{len(differ)} genes are named differently in the matrix and the gene table "
+                       f"(e.g. {examples}). Is this the GTF the sample was counted against?")
 
     umap = None
     try:
