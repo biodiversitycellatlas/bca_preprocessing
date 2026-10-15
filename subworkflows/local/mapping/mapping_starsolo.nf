@@ -56,7 +56,7 @@ workflow mapping_starsolo_workflow {
                 .collect()
             def index_suffix = remap_geneext == 'true' ? '_geneext' : ''
             STARSOLO_INDEX(all_cdna_ch, ref_gtf, ref_fasta, index_suffix)
-            star_index_ch = STARSOLO_INDEX.out.index.first()
+            star_index_ch = STARSOLO_INDEX.out.index
             ch_versions = ch_versions.mix(STARSOLO_INDEX.out.versions)
         }
 

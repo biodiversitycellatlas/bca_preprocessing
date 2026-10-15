@@ -87,11 +87,11 @@ workflow metacell_workflow {
 
         // Built once from the reference annotation and shared by every sample
         MC_GENE_TABLE(
-            ref_gtf.first(),
+            ref_gtf,
             params.gene_annotation ? file(params.gene_annotation, checkIfExists: true) : []
         )
 
-        METACELL2(ch_mc_input, MC_GENE_TABLE.out.gene_table.first())
+        METACELL2(ch_mc_input, MC_GENE_TABLE.out.gene_table)
 
         // Sorted, so the collected inputs hash the same on every -resume
         def thresholds = [

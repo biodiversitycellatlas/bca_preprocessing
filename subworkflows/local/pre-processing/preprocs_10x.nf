@@ -27,8 +27,8 @@ workflow tenx_genomics_workflow {
         if (params.perform_cellranger) {
             CR_PIPELINE_MKREF(file(params.ref_fasta, checkIfExists: true), file(params.ref_gtf, checkIfExists: true))
 
-            // Use .first() to allow the reference index to be reused for all samples
-            CR_PIPELINE(ch_samplesheet, CR_PIPELINE_MKREF.out.reference.first())
+            // The reference process has single-value inputs only, so it runs once and its output is reused by every sample
+            CR_PIPELINE(ch_samplesheet, CR_PIPELINE_MKREF.out.reference)
             ch_cellranger_outs = CR_PIPELINE.out.outs
             ch_versions = ch_versions.mix(CR_PIPELINE_MKREF.out.versions, CR_PIPELINE.out.versions)
         }

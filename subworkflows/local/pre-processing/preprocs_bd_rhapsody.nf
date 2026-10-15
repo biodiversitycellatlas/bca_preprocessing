@@ -50,8 +50,8 @@ workflow bd_rhapsody_workflow {
             BDRHAP_PIPELINE_MKREF(BDRHAP_STAR_INDEX.out.index, file(params.ref_gtf))
 
             // The BD Rhapsody pipeline handles the bead layout itself, so it gets the untrimmed reads
-            // Use .first() to treat the reference as a reusable Value Channel
-            BDRHAP_PIPELINE_YAML(ch_samplesheet, BDRHAP_PIPELINE_MKREF.out.reference.first())
+            // The reference process has single-value inputs only, so it runs once and its output is reused by every sample
+            BDRHAP_PIPELINE_YAML(ch_samplesheet, BDRHAP_PIPELINE_MKREF.out.reference)
 
             // Reference, yaml and fastq files are emitted together, keeping them in sync per sample
             BDRHAP_PIPELINE(BDRHAP_PIPELINE_YAML.out.pipeline_input)

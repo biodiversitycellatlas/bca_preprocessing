@@ -54,8 +54,8 @@ workflow parse_workflow {
         if (params.splitpipe_installation && file(params.splitpipe_installation).exists()) {
             PARSEBIO_PIPELINE_MKREF(file(params.ref_fasta, checkIfExists: true), file(params.ref_gtf, checkIfExists: true))
 
-            // Use .first() to reuse the reference output for all split samples
-            PARSEBIO_PIPELINE(demux_samplesheet, PARSEBIO_PIPELINE_MKREF.out.reference.first())
+            // The reference process has single-value inputs only, so it runs once and its output is reused by every sample
+            PARSEBIO_PIPELINE(demux_samplesheet, PARSEBIO_PIPELINE_MKREF.out.reference)
             ch_versions = ch_versions.mix(PARSEBIO_PIPELINE_MKREF.out.versions, PARSEBIO_PIPELINE.out.versions)
 
             // The two split-pipe reports the mapping statistics are read from
