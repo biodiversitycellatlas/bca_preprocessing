@@ -630,14 +630,6 @@
                     "type": "object",
                     "description": "Per-protocol defaults, set in conf/seqtech_parameters.config.",
                     "hidden": true
-                },
-                "schema_before_text": {
-                    "type": "string",
-                    "hidden": true
-                },
-                "schema_after_text": {
-                    "type": "string",
-                    "hidden": true
                 }
             }
         },

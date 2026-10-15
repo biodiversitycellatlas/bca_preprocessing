@@ -11,11 +11,16 @@ size -- within one run across samples of differing depth, and across runs on
 differently sized datasets -- which is what makes the recommendations
 extrapolate rather than merely average.
 
-Resources in this pipeline come exclusively from the ``withLabel:`` tiers in
-``conf/base.config``; no module sets ``cpus``/``memory``/``time`` directly. The
-process -> label mapping is therefore recovered by scanning ``modules/**/main.nf``,
-and the emitted config retunes those tiers, lifting any process that would
-otherwise inflate a tier it shares into its own ``withName:`` block.
+Resources in this pipeline come from the ``withLabel:`` tiers in
+``conf/base.config``, except for the modules that size their memory from their
+input (``memory { BcaResources.scaledMemory(...) }``). Those carry no resource label
+and set ``cpus``/``time`` themselves, because a ``withLabel`` setting would take
+precedence over the module's own directive. The process -> label mapping is
+recovered by scanning ``modules/**/main.nf``, and the emitted config retunes the
+tiers, lifting any process that would otherwise inflate a tier it shares into its
+own ``withName:`` block. Such a block never sets ``memory`` for a dynamically sized
+process -- ``withName`` would override the scaling just the same -- and points at
+``--dynamic`` instead.
 
 Usage modes
 -----------
@@ -190,6 +195,7 @@ _DURATION_TOKEN_RE = re.compile(r"([0-9]*\.?[0-9]+)\s*(ms|s|m|h|d)", re.IGNORECA
 _PROCESS_DECL_RE = re.compile(r"^\s*process\s+([A-Za-z_][A-Za-z0-9_]*)\s*\{")
 _LABEL_RE = re.compile(r"""^\s*label\s*:?\s*['"]([A-Za-z0-9_]+)['"]""")
 _SECTION_RE = re.compile(r"^\s*(input|output|script|shell|exec|when|stub)\s*:")
+_DYNAMIC_MEMORY_RE = re.compile(r"BcaResources\.scaledMemory\s*\(")
 
 
 # ---------------------------------------------------------------------------
@@ -468,10 +474,14 @@ def fit_loglog(points: Sequence[Tuple[float, float, str]]) -> Optional[FitResult
 class ProcessLabels:
     """Labels declared by one ``process`` block in a module file."""
 
-    def __init__(self, name: str, labels: List[str], source: str) -> None:
+    def __init__(self, name: str, labels: List[str], source: str,
+                 dynamic_memory: bool = False) -> None:
         self.name = name
         self.labels = labels
         self.source = source
+        # True when the module sizes its memory from its input through
+        # BcaResources.scaledMemory(), so a flat memory override must never be emitted.
+        self.dynamic_memory = dynamic_memory
 
     @property
     def tier(self) -> str:
@@ -533,25 +543,28 @@ def scan_module_labels(pipeline_dir: str) -> Dict[str, ProcessLabels]:
 
         current: Optional[str] = None
         labels: List[str] = []
+        dynamic = False
         for line in lines:
             decl = _PROCESS_DECL_RE.match(line)
             if decl:
                 if current:
-                    found[current] = ProcessLabels(current, labels, path)
-                current, labels = decl.group(1), []
+                    found[current] = ProcessLabels(current, labels, path, dynamic)
+                current, labels, dynamic = decl.group(1), [], False
                 continue
             if current is None:
                 continue
-            # Labels are declared in the directive block, before input:/script:.
+            # Labels and directives are declared in the directive block, before input:/script:.
             if _SECTION_RE.match(line):
-                found[current] = ProcessLabels(current, labels, path)
-                current, labels = None, []
+                found[current] = ProcessLabels(current, labels, path, dynamic)
+                current, labels, dynamic = None, [], False
                 continue
             label = _LABEL_RE.match(line)
             if label:
                 labels.append(label.group(1))
+            if _DYNAMIC_MEMORY_RE.search(line):
+                dynamic = True
         if current:
-            found[current] = ProcessLabels(current, labels, path)
+            found[current] = ProcessLabels(current, labels, path, dynamic)
 
     return found
 
@@ -1258,11 +1271,12 @@ def backfill_requests(tasks: Sequence[TaskRecord],
     It is an approximation in three ways, so it is recorded as inferred and reported
     as such rather than passed off as measured: it cannot see ``task.attempt``
     escalation, nor clamping by the site profile, and the handful of modules that
-    carry an explicit ``memory { BcaResources.scaledMemory(...) }`` directive
-    (``STARSOLO_ALIGN``, ``STARSOLO_INDEX``, ``MTX_TO_H5AD``, ``MTX_TO_10X``,
-    ``SATURATION_TABLE``, ``SUBSET_VELOCYTO_MATRICES``, ``VELOCITY_H5AD``) override
-    their label's memory entirely, so their backfilled figure is the tier's flat
-    value rather than the size-scaled one they actually ran with.
+    set their own resources (the ``memory { BcaResources.scaledMemory(...) }``
+    modules -- ``STARSOLO_ALIGN``, ``STARSOLO_INDEX``, ``MTX_TO_H5AD``, ``MTX_TO_10X``,
+    ``DOUBLET_FILTER``, ``SATURATION_TABLE``, ``SUBSET_VELOCYTO_MATRICES``,
+    ``VELOCITY_H5AD``, ``METACELL2`` -- and ``SECONDDERIV_CELLCALLING``) carry no
+    resource label, so their backfilled figure is the bare ``process {}`` default
+    rather than what they actually asked for.
 
     Parameters
     ----------
@@ -1699,14 +1713,21 @@ def render_config(plans: Dict[str, TierPlan],
                   runs: Sequence[RunContext],
                   n_tasks: int,
                   cap_findings: Sequence[CapFinding],
-                  args: argparse.Namespace) -> str:
+                  args: argparse.Namespace,
+                  dynamic_processes: Optional[Set[str]] = None) -> str:
     """Render the tuned ``withLabel``/``withName`` blocks as a Nextflow config.
 
     Every block carries its provenance -- task and run counts, the observed
     maximum, the scaling exponent and whether the basis was a fit or a flat
     statistic -- because a resource number a reader cannot audit will not be
     trusted, and rightly so.
+
+    *dynamic_processes* names the module processes that size their memory from their
+    input. Their ``withName`` blocks carry ``cpus``/``time`` only: a ``memory`` setting
+    there would take precedence over the module's scaled request and flatten it again.
+    Their memory is retuned through ``params.dynamic_memory`` (``--dynamic``) instead.
     """
+    dynamic_processes = dynamic_processes or set()
     stamp = datetime.datetime.now().strftime("%Y-%m-%d %H:%M:%S")
     lines: List[str] = [
         "/*",
@@ -1813,9 +1834,20 @@ def render_config(plans: Dict[str, TierPlan],
         if not plan:
             continue
         for stats in sorted(plan.outliers, key=lambda s: -(s.max_peak_rss or 0.0)):
+            dynamic = (stats.module_process or stats.name) in dynamic_processes
+            directives = emit_directives("        ", stats.rec_cpus,
+                                         None if dynamic else stats.rec_memory,
+                                         stats.rec_time)
+            if dynamic and not directives:
+                lines.append("")
+                lines.append(f"    // {stats.name}: memory is sized from its input "
+                             "(params.dynamic_memory), cpus and time need no change.")
+                continue
             emitted = True
             origin = ("unlabelled, inherits the shared process{} default"
                       if label == DEFAULT_TIER else f"outlier within {label}")
+            if dynamic:
+                origin = "sizes its memory from its input"
             lines.append("")
             lines.append(f"    // {stats.name}: {origin}. "
                          f"{stats.n_tasks} task(s), {stats.n_runs} run(s).")
@@ -1828,8 +1860,11 @@ def render_config(plans: Dict[str, TierPlan],
                 lines.append("    // raised: the scheduler killed at least one attempt.")
             if stats.clamped:
                 lines.append(f"    // clamped to --max-{'/'.join(stats.clamped)}.")
+            if dynamic:
+                lines.append("    // memory left to params.dynamic_memory: a memory setting here would "
+                             "override the input-size scaling. Retune it with --dynamic.")
             lines.append(f"    withName:'.*:{stats.name}' {{")
-            lines += emit_directives("        ", stats.rec_cpus, stats.rec_memory, stats.rec_time)
+            lines += directives
             lines.append("    }")
 
     if not emitted:
@@ -2733,7 +2768,9 @@ def main() -> None:
     write_tsv(tsv_path, ordered)
 
     plans = build_tier_plans(stats_by_name, tiers, module_labels, args)
-    config_text = render_config(plans, tiers, runs, len(all_tasks), cap_findings, args)
+    dynamic_processes = {name for name, info in module_labels.items() if info.dynamic_memory}
+    config_text = render_config(plans, tiers, runs, len(all_tasks), cap_findings, args,
+                                dynamic_processes)
     config_path = os.path.join(args.output, f"resources_tuned_{stamp}.config")
     with open(config_path, "w", encoding="utf-8") as handle:
         handle.write(config_text)
