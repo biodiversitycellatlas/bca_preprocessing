@@ -115,7 +115,7 @@ workflow BCA_PREPROCESSING {
 
             // Filtering raw matrices of ambient RNA
             filtering_workflow(mapping_out.starsolo_genefull50_raw, mapping_out.starsolo_genefull50_filtered, mapping_out.af_mtx, mapping_out.af_filtered_mtx,
-                                mapping_out.starsolo_velocyto_filtered)
+                                mapping_out.starsolo_velocyto_filtered, mapping_out.ref_gtf)
 
             reporting_workflow(
                 mapping_out.mapped_samplesheet,

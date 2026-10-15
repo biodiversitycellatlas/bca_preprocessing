@@ -25,6 +25,7 @@ process CELLSWEEP {
 
     input:
     tuple val(meta), path(mtx), path(barcodes), path(features), path(doublet_results)
+    path(ref_gtf)
 
     output:
     tuple val(meta), path("${meta.id}_cs_filtered.h5ad"), emit: cs_filtered_h5ad
@@ -53,6 +54,8 @@ process CELLSWEEP {
         --cs_full_h5ad ${meta.id}_cs_full.h5ad \\
         --image_prefix ${meta.id}_ \\
         --expected_cells ${meta.expected_cells} \\
+        --gtf ${ref_gtf} \\
+        --mt_contig ${params.mt_contig ?: ''} \\
         --threads ${task.cpus} \\
         ${doublet_arg}
 

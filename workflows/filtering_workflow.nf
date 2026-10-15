@@ -69,6 +69,7 @@ workflow filtering_workflow {
         af_mtx
         af_filtered_mtx
         ch_starsolo_velocyto_filtered
+        ref_gtf
 
     main:
         // Initialize reporting channels
@@ -266,6 +267,9 @@ workflow filtering_workflow {
          * it annotates and projects onto its UMAP, or the matrix STAGE 2 already removed them
          * from and no calls at all. CellSweep's own guidance is to remove doublets first;
          * annotating them is the conservative default here, and removal stays opt-in.
+         *
+         * The reference GTF locates the mitochondrial genes (those on params.mt_contig) for
+         * the MT filter applied before clustering.
          */
         def ch_cellsweep_by_sample = channel.empty()
 
@@ -274,7 +278,8 @@ workflow filtering_workflow {
             CELLSWEEP(
                 params.perform_doublet_filtering
                     ? ch_ambient_matrices.map { row -> (row as List) + [[]] }
-                    : ch_ambient_with_calls
+                    : ch_ambient_with_calls,
+                ref_gtf
             )
 
             ch_cellsweep_by_sample      = CELLSWEEP.out.cs_full_h5ad.map { meta, h5ad -> [sample_key.call(meta), h5ad] }

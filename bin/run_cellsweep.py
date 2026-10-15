@@ -36,13 +36,16 @@ import mtx_io
 from doublet_calls import DOUBLET_COL
 
 
-# Configure Logging
+# Configure Logging. Before importing build_gene_table, whose own basicConfig is then a no-op.
 logging.basicConfig(
     level=logging.INFO,
     format="%(asctime)s [%(levelname)s] %(message)s",
     handlers=[logging.StreamHandler(sys.stdout)]
 )
 logger = logging.getLogger("CellSweep")
+
+import build_gene_table  # noqa: E402
+import metacell_qc_summary as qcs  # noqa: E402
 
 # Principal components used for the Leiden neighbour graph. The clustering needs more
 # cells and genes than this left after filtering, or PCA cannot produce them.
@@ -79,13 +82,39 @@ def detect_empty_droplets(adata, expected_cells, image_prefix):
     return adata
 
 
-def assign_clusters(adata, min_genes, max_mt_percent):
+def mito_genes(var_names, gtf, mt_contigs):
+    """
+    Which features are mitochondrial, aligned to ``var_names``: the genes on
+    ``params.mt_contig``, decided and matched the way the metacell gene table does it.
+    """
+    genes, _aliases = build_gene_table.parse_gtf(gtf)
+    is_mito = build_gene_table.flag_mito(genes, mt_contigs)
+    table = build_gene_table.build_table(genes, is_mito, dict.fromkeys(genes, False), {})
+    info, how = qcs.gene_info(var_names, table)
+
+    flags = info["is_mito"].to_numpy()
+    logger.info(
+        f"{int(flags.sum())} mitochondrial features on {' '.join(mt_contigs) or '(no contig)'} "
+        f"({how['match_rate']:.1%} of features matched a GTF gene)"
+    )
+    if not mt_contigs:
+        logger.warning("No mitochondrial contig given (mt_contig is empty); the MT filter will remove no cells.")
+    elif not flags.any():
+        logger.warning(
+            f"No features found on the mitochondrial contig(s) {mt_contigs}; the MT filter will remove no cells. "
+            "Check mt_contig against the GTF's sequence names."
+        )
+    return flags
+
+
+def assign_clusters(adata, min_genes, max_mt_percent, is_mito):
     """
     Perform clustering to provide CellSweep with biological groups.
     """
     logger.info("Assigning preliminary cell types via Leiden clustering...")
 
     adata_celltype = adata[~adata.obs["is_empty"]].copy()
+    adata_celltype.var["mt"] = is_mito
     n_non_empty = adata_celltype.n_obs
 
     if min_genes is not None:
@@ -95,16 +124,20 @@ def assign_clusters(adata, min_genes, max_mt_percent):
     sc.pp.filter_genes(adata_celltype, min_cells=1)
 
     if max_mt_percent is not None:
-        adata_celltype.var["mt"] = adata_celltype.var_names.str.upper().str.startswith("MT-")
         sc.pp.calculate_qc_metrics(adata_celltype, qc_vars=["mt"], percent_top=None, log1p=False, inplace=True)
         adata_celltype = adata_celltype[adata_celltype.obs.pct_counts_mt < max_mt_percent, :].copy()
+        logger.info(
+            f"MT filter: {n_min_genes - adata_celltype.n_obs} of {n_min_genes} cells "
+            f"at or above {max_mt_percent}% MT excluded from clustering"
+        )
+    n_below_mt = adata_celltype.n_obs
 
     if adata_celltype.n_obs <= N_PCS or adata_celltype.n_vars <= N_PCS:
         raise TooFewCellsError(
             f"{adata_celltype.n_obs} cells x {adata_celltype.n_vars} genes left to cluster, "
             f"more than {N_PCS} of each are needed "
             f"({n_non_empty} non-empty barcodes, {n_min_genes} with >= {min_genes} genes, "
-            f"{adata_celltype.n_obs} below {max_mt_percent}% MT)"
+            f"{n_below_mt} below {max_mt_percent}% MT)"
         )
 
     # Standard Scanpy preprocessing for clustering
@@ -217,6 +250,10 @@ def main():
     parser.add_argument("--alpha_threshold", type=float, default=0.3, help="Max ambient fraction allowed")
     parser.add_argument("--min-genes", type=int, default=10, help="Minimum number of genes")
     parser.add_argument("--max-mt-percent", type=int, default=25, help="Maximum percentage of MT content, scale 0 to 100.")
+    parser.add_argument("--gtf", type=str, required=True,
+                        help="Reference GTF the matrix was counted against; locates the mitochondrial genes")
+    parser.add_argument("--mt_contig", nargs="*", default=[],
+                        help="Mitochondrial contig names (params.mt_contig, space-separated)")
     parser.add_argument("--threads", type=int, default=1, help="Threads for CellSweep")
     parser.add_argument("--doublet_results", type=str, default=None,
                         help="Optional Combine_Results.R '_w_combined_assignments.tsv' output; "
@@ -229,8 +266,12 @@ def main():
     if args.doublet_results and not args.doublet_method:
         parser.error("--doublet_method is required when --doublet_results is given")
 
+    # params.mt_contig may arrive as one quoted argument ("chrM M MT") or as words
+    args.mt_contig = [c for arg in args.mt_contig for c in arg.split()]
+
     # 1. Load Data
     adata = mtx_io.read_triplet_anndata(args.mtx, args.barcodes, args.features, sample_id=args.sample_id)
+    is_mito = mito_genes(adata.var_names, args.gtf, args.mt_contig)
 
     # 1b. Annotate (do not remove) the consensus doublets called upstream
     doublet_barcodes = None
@@ -244,7 +285,7 @@ def main():
 
     # 3. Cluster Cells (biological grouping for CellSweep)
     try:
-        adata = assign_clusters(adata, args.min_genes, args.max_mt_percent)
+        adata = assign_clusters(adata, args.min_genes, args.max_mt_percent, is_mito)
     except TooFewCellsError as e:
         logger.error(
             f"Too few cells for CellSweep in {args.sample_id}: {e}. "
