@@ -1,8 +1,9 @@
 #!/usr/bin/env python3
 """
-Drops cells flagged as consensus doublets (Scrublet + scDblFinder agreement,
-combined via Demuxafy's Combine_Results.R) from a count-matrix triplet, writing a
-new triplet in its place.
+Drops cells flagged as consensus doublets (the Scrublet and scDblFinder calls
+combined via Demuxafy's Combine_Results.R, under the --method given as
+params.doublet_consensus_method) from a count-matrix triplet, writing a new
+triplet in its place.
 
 Works on the matrix rather than on an .h5ad because it sits in the middle of the
 chain: the triplet it emits is what CellSweep denoises and what MTX_TO_H5AD
@@ -30,10 +31,10 @@ logging.basicConfig(
 logger = logging.getLogger("FilterDoublets")
 
 
-def plot_filtering_summary(combined, n_evaluated, n_doublets, image_prefix):
+def plot_filtering_summary(combined, doublets, method, n_evaluated, n_doublets, image_prefix):
     """
-    Two-panel summary: which method(s) called each doublet (overlap = consensus),
-    and the resulting before/after cell counts among the evaluated candidate cells.
+    Two-panel summary: which tool(s) called each doublet and which of those `method`
+    removed, and the resulting before/after cell counts among the evaluated candidate cells.
     """
     scrublet_doublet = combined["scrublet_DropletType"].str.lower() == "doublet"
     scdblfinder_doublet = combined["scDblFinder_DropletType"].str.lower() == "doublet"
@@ -43,7 +44,20 @@ def plot_filtering_summary(combined, n_evaluated, n_doublets, image_prefix):
     scdblfinder_only = int((~scrublet_doublet & scdblfinder_doublet).sum())
     n_remaining = n_evaluated - n_doublets
 
-    fig, (ax1, ax2) = plt.subplots(1, 2, figsize=(12, 6))
+    # Name the removed set from the calls themselves rather than from the method's
+    # rule, so methods beyond AnySinglet (intersection) and AnyDoublet (union) still
+    # get a truthful title. Intersection first: when both sets coincide it reads best.
+    removed = combined["Barcode"].isin(doublets)
+    if removed.equals(scrublet_doublet & scdblfinder_doublet):
+        removed_label = f"overlap = removed by {method}"
+    elif removed.equals(scrublet_doublet | scdblfinder_doublet):
+        removed_label = f"union = removed by {method}"
+    else:
+        removed_label = f"{int(removed.sum())} removed by {method}"
+
+    # Constrained layout, not tight_layout: it accounts for panel A's equal aspect,
+    # which tight_layout does not, and that clipped panel A's two-line title.
+    fig, (ax1, ax2) = plt.subplots(1, 2, figsize=(12, 6), layout="constrained")
 
     # Panel A: schematic (not area-proportional) overlap of per-method doublet calls
     ax1.add_patch(Circle((0.35, 0.5), 0.3, alpha=0.4, color="#1f77b4"))
@@ -57,7 +71,7 @@ def plot_filtering_summary(combined, n_evaluated, n_doublets, image_prefix):
     ax1.set_ylim(0, 1)
     ax1.set_aspect("equal")
     ax1.axis("off")
-    ax1.set_title("Doublets called per method\n(overlap = consensus, removed)")
+    ax1.set_title(f"Doublets called per tool\n({removed_label})")
 
     # Panel B: before vs after cell counts among the evaluated candidate cells
     counts = [n_evaluated, n_remaining]
@@ -66,9 +80,8 @@ def plot_filtering_summary(combined, n_evaluated, n_doublets, image_prefix):
         ax2.text(bar.get_x() + bar.get_width() / 2, bar.get_height(), str(value), ha="center", va="bottom")
     ax2.set_ylabel("Number of cells")
     pct = (n_doublets / n_evaluated * 100) if n_evaluated > 0 else 0.0
-    ax2.set_title(f"{n_doublets} consensus doublets removed ({pct:.1f}%)")
+    ax2.set_title(f"{n_doublets} {method} doublets removed ({pct:.1f}%)")
 
-    plt.tight_layout()
     plt.savefig(f"{image_prefix}doublet_filtering_summary.png", dpi=150)
     plt.close()
 
@@ -131,7 +144,7 @@ def main():
         f.write(f"Doublet_Percentage\t{doublet_pct:.2f}%\n")
         f.write(f"Cells_Remaining\t{len(keep_idx)}\n")
 
-    plot_filtering_summary(combined, n_evaluated, n_doublets, args.image_prefix)
+    plot_filtering_summary(combined, doublets, args.method, n_evaluated, n_doublets, args.image_prefix)
 
     logger.info("Doublet filtering complete.")
 

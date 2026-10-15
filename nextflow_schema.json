@@ -375,7 +375,7 @@
                 "doublet_consensus_method": {
                     "type": "string",
                     "default": "AnySinglet",
-                    "description": "Combine_Results.R method; AnySinglet calls a doublet only if all tools agree."
+                    "description": "Combine_Results.R method; AnySinglet calls a doublet only if all tools agree (intersection), AnyDoublet if any tool calls it (union)."
                 },
                 "demuxafy_sif": {
                     "type": "string",

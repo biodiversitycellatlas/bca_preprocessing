@@ -4,7 +4,8 @@ Reading the consensus doublet calls that ``COMBINE_DOUBLET_RESULTS`` produces.
 
 Demuxafy's ``Combine_Results.R`` writes one row per evaluated barcode and one
 ``<method>_DropletType`` column per consensus method; ``params.doublet_consensus_method``
-picks which one counts (``AnySinglet`` = doublet only where every tool agrees).
+picks which one counts (``AnySinglet`` = doublet only where every tool agrees,
+``AnyDoublet`` = doublet where any tool calls it).
 
 Shared by ``filter_doublets.py``, ``run_cellsweep.py`` and ``mtx_to_h5ad.py``, which
 all have to agree on that column and on which barcodes it names.
