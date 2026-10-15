@@ -224,7 +224,7 @@ The ligation barcode comes in a 9 nt and a 10 nt flavour; the 9 nt version is pa
 when its p5 + p7 + RT combination matches a sample in the samplesheet, which is why those three
 columns are required.
 
-`FASTP` then trims adapters and low-quality bases. The `star_soloTypestring` and
+`FASTP` then trims adapters and low-quality bases, unless `perform_trimming = false`. The `star_soloTypestring` and
 `alevin_*_geometry` values in `conf/seqtech_parameters.config` address this synthetic read, not
 the original one. Setting `perform_demultiplexing = false` skips the rebuild, which also leaves
 the generated whitelists undefined.

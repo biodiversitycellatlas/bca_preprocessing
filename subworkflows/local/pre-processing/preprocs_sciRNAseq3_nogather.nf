@@ -20,6 +20,7 @@ workflow sciRNAseq3_nogather_workflow {
         // Define channels
         out_whitelist = channel.empty()
         out_samplesheet = channel.empty()
+        out_data = channel.empty()
         ch_versions = channel.empty()
 
         if (params.perform_demultiplexing) {
@@ -36,12 +37,18 @@ workflow sciRNAseq3_nogather_workflow {
             out_samplesheet = ch_samplesheet
         }
 
-        // Trimming adapters and low-quality reads
-        FASTP(out_samplesheet)
-        ch_versions = ch_versions.mix(FASTP.out.versions)
+        if (params.perform_trimming) {
+            // Trimming adapters and low-quality reads
+            FASTP(out_samplesheet)
+            out_data = FASTP.out.trimmed_files
+            ch_versions = ch_versions.mix(FASTP.out.versions)
+        } else {
+            log.info "Skipping trimming as perform_trimming is set to false"
+            out_data = out_samplesheet
+        }
 
     emit:
-        data_output     = FASTP.out.trimmed_files
+        data_output     = out_data
         bc_whitelist    = out_whitelist
         versions        = ch_versions
 }

@@ -640,7 +640,9 @@
             "default": "",
             "properties": {
                 "perform_trimming": {
-                    "type": "boolean"
+                    "type": "boolean",
+                    "description": "Trim adapters and low-quality bases with fastp, where applicable (sci-RNA-seq3 and seqspec protocols).",
+                    "default": true
                 },
                 "fastp_length_required": {
                     "type": "integer",

@@ -210,8 +210,8 @@ def main():
     ap.add_argument("--group", nargs=2, metavar=("SAMPLE", "WELLS"),
                     help="Sample name and well range (same row), e.g., MYRUN A1-A6.")
     ap.add_argument("--output", required=True, help="Output directory.")
-    ap.add_argument("--barcode_start", type=int, default=49, help="0-based start index in R2.")
-    ap.add_argument("--barcode_end", type=int, default=57, help="Exclusive end index in R2.")
+    ap.add_argument("--barcode_start", type=int, default=50, help="0-based start index in R2.")
+    ap.add_argument("--barcode_end", type=int, default=58, help="Exclusive end index in R2.")
     ap.add_argument("--max_edit_dist", type=int, default=2, choices=[0, 1, 2], help="Max Hamming distance (≤2).")
     ap.add_argument("--chemistry", choices=["v1", "v2", "v3"], help="Optional: auto-derive bc1 bounds for chemistry.")
     args = ap.parse_args()
