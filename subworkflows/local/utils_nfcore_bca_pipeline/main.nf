@@ -124,6 +124,16 @@ workflow PIPELINE_INITIALISATION {
     }
 
     //
+    // 'ref_gtf_alt' is retired: the Cell Ranger and split-pipe references use 'ref_gtf'
+    //
+    if (params.ref_gtf_alt != null) {
+        log.warn(
+            "'ref_gtf_alt' is deprecated and has no effect: the Cell Ranger and split-pipe\n" +
+            "references are built from 'ref_gtf'. Remove it from your configuration."
+        )
+    }
+
+    //
     // Fail fast on metacell options that would fail late or silently do nothing
     //
     // The metacells are grouped at the very end of a run, and the selection is applied on

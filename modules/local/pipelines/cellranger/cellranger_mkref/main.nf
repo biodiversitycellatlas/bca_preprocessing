@@ -7,7 +7,7 @@ process CR_PIPELINE_MKREF {
 
     input:
     path fasta
-    path gtf        // ref_gtf_alt, or ref_gtf without one
+    path gtf
 
     output:
     path "*",           emit: reference

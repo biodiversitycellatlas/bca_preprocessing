@@ -54,9 +54,8 @@
                 },
                 "ref_gtf_alt": {
                     "type": "string",
-                    "format": "file-path",
-                    "exists": true,
-                    "description": "Alternative GTF for the Cell Ranger and split-pipe references; defaults to 'ref_gtf'."
+                    "description": "Deprecated: the Cell Ranger and split-pipe references are built from 'ref_gtf'; this parameter has no effect.",
+                    "hidden": true
                 },
                 "ref_fasta_addfeature": {
                     "type": "string",
