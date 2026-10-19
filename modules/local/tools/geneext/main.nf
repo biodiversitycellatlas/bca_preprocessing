@@ -1,6 +1,6 @@
 process GENE_EXT {
-    publishDir "${params.outdir}/gene_ext", mode: 'copy'
-    label 'process_high'
+    publishDir path: { "${params.outdir}/gene_ext" }, mode: 'copy', saveAs: { filename -> filename == 'versions.yml' ? null : filename }
+    label 'process_long'
 
     // conda "${projectDir}/submodules/GeneExt/environment.yaml"
     conda "${moduleDir}/environment.yml"
@@ -8,28 +8,37 @@ process GENE_EXT {
     input:
     path(bam_file)
     path(bam_index)
+    path(ref_gtf, stageAs: 'ref_input/*')   // own folder, so it cannot clash with geneext.gtf
 
     output:
-    path("geneext.gtf")
+    path("geneext.gtf")                 , emit: gtf
+    path("geneext.gtf.Report.html")     , emit: report , optional: true
+    path("geneext.gtf.GeneExt.log")     , emit: log    , optional: true
+    path "versions.yml"                 , emit: versions
 
     script:
     def subsamplebam = params.geneext_subsamplebam ? "--subsamplebam ${params.geneext_subsamplebam}" : ""
     """
-    echo "\n\n==================  GENE EXTENSION =================="
+    echo -e "\\n\\n==================  GENE EXTENSION =================="
     echo "BAM file: ${bam_file}"
     echo "BAM index: ${bam_index}"
-    echo "Original GTF: ${params.ref_gtf}"
+    echo "Original GTF: ${ref_gtf}"
 
     # Remove temporary directory if it exists
     if [ -d "tmp" ]; then rm -r tmp; fi
 
     # Run GeneExt
     python ${projectDir}/submodules/GeneExt/geneext.py \\
-        -g ${params.ref_gtf} \\
+        -g ${ref_gtf} \\
         -b ${bam_file} \\
         -o geneext.gtf \\
         -t tmp_geneext \\
         -j 4 \\
         -force ${subsamplebam}
+
+    cat <<-END_VERSIONS > versions.yml
+    "${task.process}":
+        python: \$(python3 --version | sed 's/Python //g')
+    END_VERSIONS
     """
 }

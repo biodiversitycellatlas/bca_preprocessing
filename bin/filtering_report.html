@@ -1,0 +1,2932 @@
+<!DOCTYPE html>
+<html lang="en">
+
+<head>
+    <meta charset="UTF-8" />
+    <title>Biodiversity Cell Atlas – Metacell filtering</title>
+    <meta name="viewport" content="width=device-width, initial-scale=1.0" />
+    <script src="https://cdn.plot.ly/plotly-3.3.0.min.js" charset="utf-8"></script>
+
+    <!-- ==================================================== -->
+    <!-- CSS styling: the BCA style of dashboard_report.html  -->
+    <!-- ==================================================== -->
+    <style>
+        :root {
+            /* BCA chrome, as in dashboard_report.html */
+            --header-color: #239184;
+            --main-bg: #f0f0f0;
+            --box-bg: #ffffff;
+            --text-dark: #1e1e1e;
+            --text-muted: #6b6b6b;
+            --border: #ddd;
+
+            /* Data colours, validated with the dataviz palette check (all pairs, on white).
+               The brand teal stays UI chrome: it is too low in chroma to carry identity. */
+            --series-kept: #2a78d6;
+            --series-kept-track: #cde2fb;
+            --series-excluded: #eb6834;
+            --series-blacklist: #4a3aa7;
+            --series-pseudo: #898781;
+            --threshold: #d03b3b;
+            --grid: #e1e0d9;
+
+            /* Running-total meters: the share included, red / yellow / green */
+            --scale-low: #e98585;
+            --scale-mid: #ecbd3f;
+            --scale-high: #6fc192;
+            --status-pending: #fbedc6;
+            --status-applied: #d2eedc;
+        }
+
+        * {
+            box-sizing: border-box;
+            font-family: system-ui, -apple-system, BlinkMacSystemFont, "Segoe UI", sans-serif;
+        }
+
+        html,
+        body {
+            max-width: 100vw;
+        }
+
+        body {
+            margin: 0;
+            background: var(--main-bg);
+            color: var(--text-dark);
+        }
+
+        main {
+            padding: 16px;
+            display: grid;
+            grid-template-columns: 1fr;
+            gap: 16px;
+        }
+
+        .box {
+            background: var(--box-bg);
+            border-radius: 10px;
+            padding: 16px;
+            box-shadow: 0 4px 10px rgba(0, 0, 0, 0.04);
+            width: 100%;
+            max-width: 100vw;
+            overflow-x: hidden;
+            min-width: 0;
+        }
+
+        .box h3 {
+            margin: 0 0 10px 0;
+            font-size: 16px;
+        }
+
+        .box h4 {
+            margin: 14px 0 6px 0;
+            font-size: 14px;
+        }
+
+        .muted {
+            color: var(--text-muted);
+            font-size: 13px;
+        }
+
+        .hidden {
+            display: none !important;
+        }
+
+        input[type=checkbox] {
+            accent-color: var(--header-color);
+        }
+
+        /**********************************************************************
+        * HEADER
+        **********************************************************************/
+        header {
+            display: flex;
+            justify-content: space-between;
+            align-items: center;
+            padding: 10px 20px;
+            background-color: var(--header-color);
+            color: white;
+        }
+
+        .header-left {
+            display: flex;
+            align-items: center;
+            gap: 16px;
+        }
+
+        .logo {
+            width: 62px;
+            height: 62px;
+            object-fit: contain;
+            border-radius: 8px;
+        }
+
+        .header-text h1 {
+            margin: 0;
+            font-size: 22px;
+        }
+
+        .header-text h2 {
+            margin: 0;
+            font-size: 14px;
+            font-weight: 400;
+            opacity: 0.9;
+        }
+
+        .header-right {
+            display: flex;
+            align-items: center;
+        }
+
+        .github-btn {
+            display: flex;
+            align-items: center;
+            gap: 5px;
+            padding: 5px 12px;
+            background: #ffac3e;
+            border: 2px solid #ffac3e;
+            border-radius: 5px;
+            color: white;
+            text-decoration: none;
+            font-weight: bold;
+            transition: background 0.2s, color 0.2s;
+        }
+
+        .github-btn:hover {
+            background-color: #ffab3ed0;
+            color: white;
+        }
+
+        .github-logo {
+            height: 20px;
+            width: 20px;
+            fill: currentColor;
+            display: block;
+        }
+
+        /**********************************************************************
+        * SAMPLE SELECTOR, outside the boxes as in the dashboard
+        **********************************************************************/
+        .sample-bar {
+            display: flex;
+            flex-wrap: wrap;
+            gap: 8px;
+            align-items: center;
+        }
+
+        .sample-bar select {
+            padding: 6px 10px;
+            border-radius: 6px;
+            border: none;
+            font-size: 14px;
+            background: #ffab3e6c;
+        }
+
+        /**********************************************************************
+        * SUMMARY: sample statistics | filter settings and running totals
+        **********************************************************************/
+        .summary-grid {
+            display: grid;
+            grid-template-columns: 1fr 1fr;
+            gap: 16px;
+        }
+
+        #sample-warnings:not(:empty) {
+            margin-bottom: 12px;
+        }
+
+        .summary-col {
+            min-width: 0;
+        }
+
+        /* Key-value tables in the design of the metacell table (.table-scroll):
+           sticky white header, striped rows, at full width and never scrolled */
+        .table-scroll.kv-wrap {
+            max-height: none;
+        }
+
+        .table-scroll table.kv {
+            width: 100%;
+        }
+
+        .table-scroll .kv th {
+            cursor: default;
+        }
+
+        .table-scroll .kv td:first-child {
+            white-space: normal;
+        }
+
+        .kv th.value,
+        .kv td.value {
+            text-align: right;
+        }
+
+        .kv td.value {
+            font-weight: 600;
+            font-variant-numeric: tabular-nums;
+        }
+
+        .table-scroll .kv td.desc {
+            white-space: normal;
+            color: var(--text-muted);
+        }
+
+        .settings-grid {
+            display: grid;
+            grid-template-columns: 1fr 1fr;
+            gap: 12px;
+            align-items: start;
+        }
+
+        @media (max-width: 1200px) and (min-width: 901px), (max-width: 560px) {
+            .settings-grid {
+                grid-template-columns: 1fr;
+            }
+        }
+
+        .kv tr.off td {
+            color: var(--text-muted);
+            font-weight: 400;
+        }
+
+        .kv .sub {
+            display: block;
+            font-size: 11px;
+            font-weight: 400;
+            color: var(--text-muted);
+        }
+
+        .meter {
+            height: 8px;
+            border: 1px solid var(--border);
+            border-radius: 4px;
+            background: white;
+            overflow: hidden;
+            min-width: 80px;
+        }
+
+        .meter > span {
+            display: block;
+            height: 100%;
+            background: var(--scale-high);
+        }
+
+        .meter.mid > span {
+            background: var(--scale-mid);
+        }
+
+        .meter.low > span {
+            background: var(--scale-low);
+        }
+
+        .footnote {
+            font-size: 11px;
+            color: var(--text-muted);
+            margin-top: 6px;
+        }
+
+        .footnote .reason {
+            font-size: 11px;
+            margin: 0 0 0 8px;
+        }
+
+        #totals-legend {
+            text-align: right;
+        }
+
+        @media (max-width: 900px) {
+            .summary-grid {
+                grid-template-columns: 1fr;
+            }
+        }
+
+        /**********************************************************************
+        * TABS
+        **********************************************************************/
+        .tabs {
+            display: flex;
+            flex-wrap: wrap;
+            border-bottom: 2px solid var(--border);
+        }
+
+        /* The active tab's line lies on the separator, their bottoms flush */
+        .tab {
+            padding: 10px 14px;
+            cursor: pointer;
+            border-bottom: 3px solid transparent;
+            margin-bottom: -2px;
+        }
+
+        .tab.active {
+            border-bottom: 3px solid var(--header-color);
+            font-weight: 600;
+        }
+
+        .tab-content {
+            padding-top: 16px;
+        }
+
+        .tab-pane {
+            display: none;
+            overflow: visible !important;
+        }
+
+        .tab-pane.active {
+            display: block;
+        }
+
+        @media (max-width: 800px) {
+            .tabs {
+                overflow-x: auto;
+                white-space: nowrap;
+            }
+        }
+
+        /**********************************************************************
+        * PANELS AND CONTROLS
+        **********************************************************************/
+        .grid-2 {
+            display: grid;
+            grid-template-columns: 1fr 1fr;
+            gap: 16px;
+        }
+
+        .grid-3 {
+            display: grid;
+            grid-template-columns: repeat(3, 1fr);
+            gap: 16px;
+        }
+
+        @media (max-width: 900px) {
+            .grid-2,
+            .grid-3 {
+                grid-template-columns: 1fr;
+            }
+        }
+
+        .panel {
+            border: 1px solid var(--border);
+            border-radius: 8px;
+            padding: 10px 12px;
+            min-width: 0;
+        }
+
+        .panel > h4:first-child {
+            margin-top: 0;
+        }
+
+        /* A panel without the card line, for maps, lists and tables */
+        .panel.plain {
+            border: none;
+            border-radius: 0;
+            padding: 0;
+        }
+
+        /* A tab's sections: a title, what the section does, and its panels below */
+        .section-head {
+            display: flex;
+            flex-wrap: wrap;
+            align-items: baseline;
+            gap: 2px 12px;
+            margin: 28px 0 12px 0;
+        }
+
+        .section-head h3 {
+            margin: 0;
+            font-size: 18px;
+        }
+
+        .section-head .muted {
+            font-size: 13px;
+        }
+
+        /* A panel's title row: title on the left, its count or action on the right */
+        .panel-head {
+            display: flex;
+            flex-wrap: wrap;
+            align-items: center;
+            gap: 6px 10px;
+            min-height: 26px;
+        }
+
+        .panel-head h4 {
+            margin: 0;
+            font-size: 14px;
+        }
+
+        .panel-head .push {
+            margin-left: auto;
+        }
+
+        .head-actions {
+            display: inline-flex;
+            align-items: center;
+            gap: 8px;
+        }
+
+        .pfam-entry {
+            display: flex;
+            gap: 6px;
+        }
+
+        .pfam-entry button {
+            flex: none;
+        }
+
+        .head-actions input[type=text] {
+            width: 260px;
+            max-width: 100%;
+        }
+
+        .panel-head input[type=text].push {
+            width: 100%;
+            max-width: 280px;
+        }
+
+        .panel-sub {
+            font-size: 12px;
+            color: var(--text-muted);
+            margin: 2px 0 8px 0;
+        }
+
+        .panel hr {
+            border: none;
+            border-top: 1px solid var(--border);
+            margin: 16px 0 12px 0;
+        }
+
+        .panel hr.wide {
+            margin: 28px 0 20px 0;
+        }
+
+        /* "12 metacells excluded": ink text beside the marker of what it counts */
+        .badge {
+            display: inline-flex;
+            align-items: center;
+            gap: 5px;
+            padding: 2px 9px;
+            border-radius: 999px;
+            font-size: 11px;
+            font-weight: 600;
+            white-space: nowrap;
+            background: rgba(235, 104, 52, 0.12);
+        }
+
+        .badge .icons {
+            display: inline-flex;
+            gap: 2px;
+        }
+
+        .badge.blacklist {
+            background: rgba(74, 58, 167, 0.1);
+        }
+
+        .badge.unknown {
+            background: rgba(137, 135, 129, 0.16);
+        }
+
+        .badge:empty {
+            display: none;
+        }
+
+        /* Threshold switch and exact value, above its histogram */
+        .control.threshold-bar {
+            margin: 0 0 6px 0;
+            padding: 6px 10px;
+            border-radius: 6px;
+            background: rgba(35, 145, 132, 0.06);
+        }
+
+        .threshold-bar label {
+            display: inline-flex;
+            align-items: center;
+            gap: 6px;
+            cursor: pointer;
+        }
+
+        .threshold-bar input[type=number] {
+            width: 84px;
+            padding: 4px 6px;
+            border: 1px solid var(--border);
+            border-radius: 6px;
+            font-variant-numeric: tabular-nums;
+        }
+
+        .threshold-bar input[type=number]:disabled {
+            background: #f4f4f4;
+            color: var(--text-muted);
+        }
+
+        /* In place of a plot that has nothing to show */
+        .plot-empty {
+            height: 300px;
+            display: flex;
+            align-items: center;
+            justify-content: center;
+            padding: 16px;
+            text-align: center;
+            font-size: 12px;
+            color: var(--text-muted);
+            border: 1px dashed var(--border);
+            border-radius: 6px;
+            background: #fafafa;
+        }
+
+        .plot-empty:empty {
+            display: none;
+        }
+
+        /* Blacklisted and excluded metacells: one chip each, coloured as in the UMAP.
+           Collapsed, the box shows one row of chips. */
+        .chips {
+            display: flex;
+            flex-wrap: wrap;
+            align-content: flex-start;
+            gap: 8px 6px;   /* a row gap of 8px keeps the second row fully out of the collapsed box */
+            min-height: 40px;
+            max-height: 280px;
+            overflow: auto;
+            padding: 8px;
+            border: 1px solid var(--border);
+            border-radius: 6px;
+        }
+
+        .chips.collapsed {
+            max-height: 40px;
+            overflow: hidden;
+        }
+
+        .chips .muted {
+            font-size: 12px;
+            align-self: center;
+        }
+
+        .chip {
+            display: inline-flex;
+            align-items: center;
+            gap: 6px;
+            height: 22px;
+            padding: 0 9px;
+            border: none;
+            border-radius: 999px;
+            background: rgba(235, 104, 52, 0.14);
+            font-size: 12px;
+            font-weight: 500;
+            cursor: default;
+        }
+
+        button.chip.blacklist {
+            padding-right: 6px;
+            background: rgba(74, 58, 167, 0.12);
+            color: var(--text-dark);
+            cursor: pointer;
+        }
+
+        button.chip.blacklist:hover {
+            background: rgba(74, 58, 167, 0.22);
+        }
+
+        /* A listed gene that is not a gene of this sample */
+        button.chip.blacklist.unknown {
+            background: rgba(137, 135, 129, 0.16);
+            color: var(--text-muted);
+            text-decoration: line-through;
+        }
+
+        .chip .x {
+            font-size: 14px;
+            line-height: 1;
+            color: var(--text-muted);
+        }
+
+        /* "Show all 23" under the collapsed box */
+        button.link-btn {
+            display: block;
+            margin: 4px 0 0 auto;
+            padding: 2px 4px;
+            border: none;
+            background: none;
+            color: var(--header-color);
+            font-size: 12px;
+            font-weight: 600;
+        }
+
+        button.link-btn:hover {
+            text-decoration: underline;
+        }
+
+        .group-toggle {
+            display: flex;
+            align-items: center;
+            gap: 8px;
+            padding: 6px 0;
+            font-size: 13px;
+        }
+
+        .group-toggle .push {
+            margin-left: auto;
+            white-space: nowrap;
+        }
+
+        .plot {
+            width: 100%;
+            height: 300px;
+        }
+
+        .plot.tall {
+            height: 480px;
+        }
+
+        .control {
+            display: flex;
+            flex-wrap: wrap;
+            align-items: center;
+            gap: 8px;
+            margin: 4px 0 8px 0;
+            font-size: 13px;
+        }
+
+        .control input[type=number] {
+            width: 90px;
+            padding: 3px 6px;
+        }
+
+        /* Buttons, as .plot-btn / the Cell Calling buttons of the dashboard */
+        button {
+            padding: 6px 12px;
+            border: 1px solid var(--header-color);
+            border-radius: 6px;
+            background: white;
+            color: var(--text-dark);
+            cursor: pointer;
+            font-weight: 500;
+            font-size: 13px;
+        }
+
+        button.primary,
+        button.active {
+            background: var(--header-color);
+            color: white;
+        }
+
+        button:disabled {
+            background: #ccc;
+            color: #666;
+            cursor: not-allowed;
+            border-color: #999;
+        }
+
+        .btn-row {
+            display: flex;
+            flex-wrap: wrap;
+            gap: 6px;
+            align-items: center;
+            margin: 6px 0;
+        }
+
+        textarea,
+        input[type=text] {
+            width: 100%;
+            padding: 6px;
+            border: 1px solid var(--border);
+            border-radius: 6px;
+            font-family: ui-monospace, Menlo, Consolas, monospace;
+            font-size: 12px;
+        }
+
+        textarea {
+            min-height: 60px;
+        }
+
+        code {
+            font-size: 12px;
+        }
+
+        /**********************************************************************
+        * SCROLLABLE TABLES, as in the dashboard
+        **********************************************************************/
+        .table-scroll {
+            display: block;
+            width: 100%;
+            max-height: 440px;
+            overflow: auto;
+            border: 1px solid var(--border);
+            border-radius: 6px;
+        }
+
+        .table-scroll table {
+            border-collapse: collapse;
+            width: max-content;
+            min-width: 100%;
+            font-size: 12px;
+        }
+
+        .table-scroll th,
+        .table-scroll td {
+            white-space: nowrap;
+            padding: 6px 10px;
+            text-align: left;
+            vertical-align: middle;
+            border-bottom: 1px solid var(--border);
+        }
+
+        .table-scroll th {
+            position: sticky;
+            top: 0;
+            background: white;
+            z-index: 2;
+            cursor: pointer;
+            user-select: none;
+        }
+
+        .table-scroll tbody tr:nth-child(odd) {
+            background-color: rgba(59, 188, 178, 0.15);
+        }
+
+        .table-scroll tbody tr:hover {
+            background-color: rgba(59, 188, 177, 0.35);
+        }
+
+        .table-scroll td.num {
+            text-align: right;
+            font-variant-numeric: tabular-nums;
+        }
+
+        /* A header sits over its column's values: right for numbers, centred over tick boxes */
+        .table-scroll th.num {
+            text-align: right;
+        }
+
+        .table-scroll th.check,
+        .table-scroll td.check {
+            text-align: center;
+        }
+
+        /* The metacell and gene tables, in the style of the domain list: compact rows, light
+           stripes, no hover */
+        .table-scroll.list-table th,
+        .table-scroll.list-table td {
+            padding: 3px 8px;
+        }
+
+        .table-scroll.list-table td {
+            border-bottom: none;
+        }
+
+        .table-scroll.list-table tbody tr,
+        .table-scroll.list-table tbody tr:hover {
+            background-color: transparent;
+        }
+
+        .table-scroll.list-table tbody tr:nth-child(odd),
+        .table-scroll.list-table tbody tr:nth-child(odd):hover {
+            background-color: rgba(59, 188, 178, 0.08);
+        }
+
+        .table-scroll td.pending {
+            color: var(--text-muted);
+            font-style: italic;
+        }
+
+        .table-scroll::-webkit-scrollbar {
+            height: 8px;
+        }
+
+        .table-scroll::-webkit-scrollbar-thumb {
+            background: rgba(0, 0, 0, 0.2);
+            border-radius: 4px;
+        }
+
+        /* Status: the UMAP's marker beside ink text, never coloured text */
+        .ic {
+            display: inline-block;
+            width: 9px;
+            height: 9px;
+            flex: none;
+        }
+
+        .reason {
+            display: inline-flex;
+            align-items: center;
+            gap: 4px;
+            margin-right: 8px;
+            font-size: 12px;
+        }
+
+        .sw {
+            display: inline-block;
+            width: 9px;
+            height: 9px;
+            border-radius: 2px;
+            flex: none;
+        }
+
+        /**********************************************************************
+        * INFO BOXES, as .citation-box in the dashboard
+        **********************************************************************/
+        .citation-box {
+            background-color: rgba(35, 145, 132, 0.08);
+            border-left: 4px solid var(--header-color);
+            padding: 10px 14px;
+            margin: 8px 0;
+            border-radius: 0 6px 6px 0;
+            color: #333;
+            font-size: 13px;
+            line-height: 1.5;
+        }
+
+        .warn-box {
+            background-color: rgba(208, 59, 59, 0.06);
+            border-left: 4px solid var(--threshold);
+            padding: 10px 14px;
+            margin: 8px 0;
+            border-radius: 0 6px 6px 0;
+            color: #333;
+            font-size: 13px;
+            line-height: 1.5;
+        }
+
+        /**********************************************************************
+        * REVIEW STATUS: each level of each sample is set, or still pending
+        **********************************************************************/
+        .pill {
+            display: inline-flex;
+            align-items: center;
+            gap: 5px;
+            padding: 2px 9px;
+            border: none;
+            border-radius: 999px;
+            font-size: 11px;
+            font-weight: 600;
+            white-space: nowrap;
+        }
+
+        .pill.set {
+            background: var(--status-applied);
+            color: var(--text-dark);
+        }
+
+        .pill.pending {
+            background: var(--status-pending);
+            color: var(--text-dark);
+        }
+
+        button.pill:hover {
+            filter: brightness(0.94);
+        }
+
+        /* The export tab: numbered steps */
+        .steps {
+            list-style: none;
+            margin: 0;
+            padding: 0;
+            display: flex;
+            flex-direction: column;
+            gap: 28px;
+        }
+
+        .step {
+            display: grid;
+            grid-template-columns: 30px minmax(0, 1fr);
+            gap: 0 14px;
+        }
+
+        .step-num {
+            width: 28px;
+            height: 28px;
+            border-radius: 50%;
+            background: var(--header-color);
+            color: white;
+            font-weight: 700;
+            font-size: 14px;
+            line-height: 1;
+            font-variant-numeric: tabular-nums;
+            /* The digits sit low in their line box; this lifts them to the circle's centre */
+            box-sizing: border-box;
+            padding-bottom: 2px;
+            display: flex;
+            align-items: center;
+            justify-content: center;
+        }
+
+        .step-num.done {
+            background: rgba(59, 188, 178, 0.18);
+            color: var(--header-color);
+        }
+
+        .step-num.todo {
+            background: white;
+            color: var(--text-muted);
+            box-shadow: inset 0 0 0 2px var(--border);
+        }
+
+        /* A tab's first header, right under the tabs */
+        .section-head.first {
+            margin-top: 0;
+            align-items: center;
+        }
+
+        .section-head .push {
+            margin-left: auto;
+        }
+
+        .step h3 {
+            margin: 3px 0 4px 0;
+            font-size: 16px;
+        }
+
+        .step-text {
+            margin: 0 0 10px 0;
+            font-size: 13px;
+            color: var(--text-muted);
+            line-height: 1.5;
+        }
+
+        .step-note {
+            margin-top: 6px;
+            font-size: 12px;
+            color: var(--text-muted);
+        }
+
+        pre.cmd {
+            margin: 0 0 10px 0;
+            padding: 8px 12px;
+            border: 1px solid var(--border);
+            border-radius: 6px;
+            background: #f7f7f5;
+            font-size: 12px;
+            overflow-x: auto;
+        }
+
+        /**********************************************************************
+        * DOMAIN LIST
+        **********************************************************************/
+        .domain-list {
+            max-height: 300px;
+            overflow: auto;
+            border: 1px solid var(--border);
+            border-radius: 6px;
+        }
+
+        .domain-list label {
+            display: flex;
+            gap: 6px;
+            align-items: center;
+            padding: 3px 8px;
+            font-size: 12px;
+        }
+
+        .domain-list label:nth-child(odd) {
+            background-color: rgba(59, 188, 178, 0.08);
+        }
+
+        .domain-list label .grow {
+            flex: 1;
+            overflow: hidden;
+            text-overflow: ellipsis;
+        }
+
+        .domain-list label .n {
+            color: var(--text-muted);
+            font-variant-numeric: tabular-nums;
+        }
+
+        /**********************************************************************
+        * PLOTLY TEXT, as in the dashboard
+        **********************************************************************/
+        .js-plotly-plot .main-svg text,
+        .js-plotly-plot .main-svg .xtitle,
+        .js-plotly-plot .main-svg .ytitle,
+        .js-plotly-plot .main-svg .g-gtitle text {
+            fill: #1e1e1e !important;
+            color: #1e1e1e !important;
+            opacity: 1 !important;
+            font-family: system-ui, -apple-system, sans-serif !important;
+        }
+
+        .js-plotly-plot .g-xtitle,
+        .js-plotly-plot .g-ytitle {
+            display: block !important;
+            visibility: visible !important;
+        }
+    </style>
+</head>
+
+<body>
+    <header>
+        <div class="header-left">
+            __LOGO_PLACEHOLDER__
+            <div class="header-text">
+                <h1>bca_preprocessing</h1>
+                <h2 id="run-info">Metacell filtering report</h2>
+            </div>
+        </div>
+
+        <div class="header-right">
+            <a href="https://github.com/biodiversitycellatlas/bca_preprocessing" target="_blank" class="github-btn">
+                <svg class="github-logo" viewBox="0 0 16 16" version="1.1" aria-hidden="true">
+                    <path fill-rule="evenodd"
+                        d="M8 0C3.58 0 0 3.58 0 8c0 3.54 2.29 6.53 5.47 7.59.4.07.55-.17.55-.38 0-.19-.01-.82-.01-1.49-2.01.37-2.53-.49-2.69-.94-.09-.23-.48-.94-.82-1.13-.28-.15-.68-.52-.01-.53.63-.01 1.08.58 1.23.82.72 1.21 1.87.87 2.33.66.07-.52.28-.87.51-1.07-1.78-.2-3.64-.89-3.64-3.95 0-.87.31-1.59.82-2.15-.08-.2-.36-1.02.08-2.12 0 0 .67-.21 2.2.82.64-.18 1.32-.27 2-.27.68 0 1.36.09 2 .27 1.53-1.04 2.2-.82 2.2-.82.44 1.1.16 1.92.08 2.12.51.56.82 1.27.82 2.15 0 3.07-1.87 3.75-3.65 3.95.29.25.54.73.54 1.48 0 1.07-.01 1.93-.01 2.2 0 .21.15.46.55.38A8.013 8.013 0 0016 8c0-4.42-3.58-8-8-8z">
+                    </path>
+                </svg>
+                GitHub
+            </a>
+        </div>
+    </header>
+
+    <main>
+        <!-- Sample selection -->
+        <div class="sample-bar">
+            <label for="sample-select">Sample:</label>
+            <select id="sample-select"></select>
+        </div>
+
+        <!-- BOX 1: the sample's statistics, and what the current settings keep -->
+        <section class="box">
+            <div id="sample-warnings"></div>
+
+            <div class="summary-grid">
+                <div class="summary-col">
+                    <h3>Sample statistics</h3>
+                    <div class="table-scroll kv-wrap"><table class="kv" id="stats-table"></table></div>
+                </div>
+                <div class="summary-col">
+                    <h3>Filter settings and running totals</h3>
+                    <div class="settings-grid">
+                        <div class="table-scroll kv-wrap"><table class="kv" id="settings-cells"></table></div>
+                        <div class="table-scroll kv-wrap"><table class="kv" id="settings-genes"></table></div>
+                    </div>
+                    <div class="table-scroll kv-wrap" style="margin-top:12px"><table class="kv" id="totals-table"></table></div>
+                    <div class="footnote" id="totals-legend"></div>
+                </div>
+            </div>
+        </section>
+
+        <!-- BOX 2: Tabs -->
+        <section class="box">
+            <nav class="tabs">
+                <div class="tab active" data-tab="cells">Cell-level filtering</div>
+                <div class="tab" data-tab="genes">Gene-level filtering</div>
+                <div class="tab" data-tab="export">Export selection</div>
+            </nav>
+
+            <div class="tab-content">
+                <!-- ================= CELLS ================= -->
+                <div class="tab-pane active" id="cells">
+                    <div class="section-head first">
+                        <h3>QC thresholds</h3>
+                        <span class="muted">Metacells above an enabled threshold are excluded. Drag the red line, or
+                            click a bar, to move a threshold.</span>
+                    </div>
+                    <div class="grid-3">
+                        <div class="panel" id="panel-mito">
+                            <div class="panel-head">
+                                <h4>Mitochondrial UMIs</h4>
+                                <span class="badge push" id="mito-count"></span>
+                            </div>
+                            <div class="panel-sub">% of each metacell's UMIs</div>
+                            <div class="control threshold-bar">
+                                <label><input type="checkbox" id="mito-on"> Exclude above</label>
+                                <input type="number" id="mito-num" min="0" max="100" step="0.5" aria-label="mito threshold (%)">
+                                <span>%</span>
+                            </div>
+                            <div class="plot" id="plot-mito"></div>
+                        </div>
+                        <div class="panel" id="panel-doublet">
+                            <div class="panel-head">
+                                <h4>Consensus doublets</h4>
+                                <span class="badge push" id="doublet-count"></span>
+                            </div>
+                            <div class="panel-sub">% of each metacell's cells</div>
+                            <div class="control threshold-bar">
+                                <label><input type="checkbox" id="doublet-on"> Exclude above</label>
+                                <input type="number" id="doublet-num" min="0" max="100" step="1" aria-label="doublet threshold (%)">
+                                <span>%</span>
+                            </div>
+                            <div class="plot" id="plot-doublet"></div>
+                            <div class="plot-empty" id="doublet-note"></div>
+                        </div>
+                        <div class="panel" id="panel-ambient">
+                            <div class="panel-head">
+                                <h4>Ambient RNA fraction</h4>
+                                <span class="badge push" id="alpha-count"></span>
+                            </div>
+                            <div class="panel-sub">mean CellSweep &alpha; of each metacell's cells</div>
+                            <div class="control threshold-bar">
+                                <label><input type="checkbox" id="alpha-on"> Exclude above</label>
+                                <input type="number" id="alpha-num" min="0" max="1" step="0.01" aria-label="ambient threshold">
+                            </div>
+                            <div class="plot" id="plot-alpha"></div>
+                            <div class="plot-empty" id="alpha-note"></div>
+                        </div>
+                    </div>
+
+                    <div class="section-head">
+                        <h3>Metacells</h3>
+                    </div>
+                    <div class="grid-2">
+                        <div class="panel plain">
+                            <div class="panel-head">
+                                <h4 id="scatter-title">Metacells</h4>
+                            </div>
+                            <div class="panel-sub">Click a metacell to blacklist it or take it off again; lasso to
+                                blacklist several.</div>
+                            <div class="plot tall" id="plot-scatter"></div>
+                        </div>
+                        <div class="panel plain">
+                            <div class="panel-head">
+                                <h4>Groups without a metacell</h4>
+                            </div>
+                            <div class="panel-sub">Excluded by default, even with every threshold off. Outlier cells
+                                were grouped but fit no metacell; ungrouped cells fell outside Metacell2's UMI range
+                                (<code>mc2_min_cell_umis</code> / <code>mc2_max_cell_umis</code>) and were never
+                                grouped.</div>
+                            <label class="group-toggle"><input type="checkbox" id="exclude-outliers">
+                                <span>Exclude Metacell2's outlier cells (<code>__outliers__</code>)</span>
+                                <span class="muted push" id="outliers-n"></span></label>
+                            <label class="group-toggle"><input type="checkbox" id="exclude-excluded">
+                                <span>Exclude cells Metacell2 did not group (<code>__excluded__</code>)</span>
+                                <span class="muted push" id="excluded-n"></span></label>
+
+                            <hr class="wide">
+                            <div class="panel-head">
+                                <h4>Blacklisted and excluded metacells</h4>
+                                <span class="head-actions push">
+                                    <span class="badge blacklist" id="black-count"></span>
+                                    <span class="badge" id="qc-count"></span>
+                                    <button id="clear-black">Clear blacklist</button>
+                                </span>
+                            </div>
+                            <div class="panel-sub">Click a blacklisted metacell to take it off the blacklist; hover
+                                over an excluded one to see which threshold it fails.</div>
+                            <div class="chips collapsed" id="black-chips"></div>
+                            <button class="link-btn hidden" id="chips-toggle" aria-controls="black-chips"
+                                    aria-expanded="false"></button>
+                        </div>
+                    </div>
+
+                    <div class="panel plain" style="margin-top:24px">
+                        <div class="panel-head">
+                            <h4 id="mc-table-title">All metacells</h4>
+                            <span class="muted" id="mc-shown"></span>
+                            <span class="head-actions push">
+                                <input type="text" id="mc-filter" placeholder="Filter by id, marker or status"
+                                       aria-label="filter metacells">
+                                <button id="mc-excl-only">Excluded only</button>
+                            </span>
+                        </div>
+                        <div class="table-scroll list-table" style="margin-top:8px"><table id="mc-table"></table></div>
+                        <div class="panel-sub" style="margin-top:6px">Click a column header to sort; tick a row to blacklist it.</div>
+                    </div>
+                </div>
+
+                <!-- ================= GENES ================= -->
+                <div class="tab-pane" id="genes">
+                    <div class="section-head first">
+                        <h3>Total UMIs per gene</h3>
+                        <span class="muted">Genes below the minimum are excluded. Drag the red line, or click a
+                            histogram bar, to move the minimum.</span>
+                    </div>
+                    <div class="panel">
+                        <div class="panel-head">
+                            <h4>Minimum total UMIs</h4>
+                            <span class="badge push" id="minumi-count"></span>
+                        </div>
+                        <div class="panel-sub">Summed over this sample's called cells. <span id="minumi-note"></span></div>
+                        <div class="control threshold-bar">
+                            <label for="minumi-num">Exclude genes with fewer than</label>
+                            <input type="number" id="minumi-num" min="0" step="1">
+                            <span>UMIs</span>
+                        </div>
+                        <div class="grid-2">
+                            <div class="plot" id="plot-rank"></div>
+                            <div class="plot" id="plot-genehist"></div>
+                        </div>
+                    </div>
+
+                    <div class="section-head">
+                        <h3>Genes</h3>
+                    </div>
+                    <div class="grid-2">
+                        <div class="panel plain" id="panel-pfam">
+                            <div class="panel-head">
+                                <h4>Protein domains (PFAM)</h4>
+                                <span class="head-actions push">
+                                    <span class="badge blacklist" id="pfam-count"></span>
+                                </span>
+                            </div>
+                            <div id="pfam-missing" class="plot-empty hidden">No domain annotation was given
+                                (gene_annotation), so genes cannot be filtered by domain.</div>
+                            <div id="pfam-body">
+                                <div class="panel-sub">Exclude genes by their domains: type a domain name or a regular
+                                    expression and press Enter to tick every matching domain, or tick domains in the
+                                    list (sorted by their share of this sample's UMIs).</div>
+                                <div class="pfam-entry">
+                                    <input type="text" id="pfam-search" placeholder="Domain name or regular expression, e.g. ^Ribosomal|^Histone"
+                                           aria-label="domain name or regular expression">
+                                    <button class="hidden" id="pfam-add">Exclude matching</button>
+                                </div>
+                                <div class="muted" id="pfam-search-msg"></div>
+                                <div class="domain-list" id="pfam-list" style="margin-top:6px"></div>
+                            </div>
+                        </div>
+                        <div class="panel plain">
+                            <div class="panel-head">
+                                <h4>Mitochondrial genes</h4>
+                            </div>
+                            <div class="panel-sub">Genes on the mitochondrial contig(s) (<code>mt_contig</code>).</div>
+                            <label class="group-toggle"><input type="checkbox" id="gene-mito">
+                                <span>Exclude mitochondrial genes</span>
+                                <span class="muted push" id="mito-genes-n"></span></label>
+
+                            <hr class="wide">
+                            <div class="panel-head">
+                                <h4>Blacklisted and excluded genes</h4>
+                                <span class="head-actions push">
+                                    <span class="badge blacklist" id="manual-count"></span>
+                                    <span class="badge" id="manual-excluded"></span>
+                                    <span class="badge unknown" id="manual-unknown"></span>
+                                    <button id="manual-clear">Clear blacklist</button>
+                                </span>
+                            </div>
+                            <div class="panel-sub">Tick genes in the table below, or domains on the left, to
+                                blacklist them; click a blacklisted gene or domain to take it off.</div>
+                            <div class="chips collapsed" id="manual-chips"></div>
+                            <button class="link-btn hidden" id="manual-toggle" aria-controls="manual-chips"
+                                    aria-expanded="false"></button>
+                        </div>
+                    </div>
+
+                    <div class="panel plain" style="margin-top:24px">
+                        <div class="panel-head">
+                            <h4 id="gene-table-title">All genes</h4>
+                            <span class="muted" id="excluded-title"></span>
+                            <span class="head-actions push">
+                                <input type="text" id="gene-filter" placeholder="Filter by id, name, domain or status"
+                                       aria-label="filter genes">
+                                <button id="gene-excl-only">Excluded only</button>
+                            </span>
+                        </div>
+                        <div class="table-scroll list-table" style="margin-top:8px"><table id="gene-table"></table></div>
+                        <div class="panel-sub" style="margin-top:6px">Click a column header to sort; tick a row to blacklist it.</div>
+                    </div>
+                </div>
+
+                <!-- ================= EXPORT ================= -->
+                <div class="tab-pane" id="export">
+                    <div class="section-head first">
+                        <h3>Export the selection</h3>
+                        <span class="head-actions push">
+                            <button id="apply-all">Apply current settings to all samples</button>
+                            <button id="reset-all">Reset all samples to defaults</button>
+                        </span>
+                    </div>
+                    <ol class="steps">
+                        <li class="step">
+                            <span class="step-num" id="step1-num">1</span>
+                            <div class="step-body">
+                                <h3>Set the filters of every sample</h3>
+                                <p class="step-text">Each sample has its own cell- and gene-level settings. A level
+                                    is applied when you open its tab with the sample selected, or when another
+                                    sample's settings are applied to all samples. Click a pending status to open
+                                    it.</p>
+                                <div class="table-scroll" style="max-height:none"><table id="export-table"></table></div>
+                                <div class="step-note" id="export-progress"></div>
+                            </div>
+                        </li>
+                        <li class="step">
+                            <span class="step-num" id="step2-num">2</span>
+                            <div class="step-body">
+                                <h3>Download the selection</h3>
+                                <p class="step-text" id="export-scope"></p>
+                                <div class="btn-row">
+                                    <button class="primary" id="dl-selection">Download metacell_selection.json</button>
+                                    <span class="muted" id="export-msg"></span>
+                                </div>
+                            </div>
+                        </li>
+                        <li class="step">
+                            <span class="step-num" id="step3-num">3</span>
+                            <div class="step-body">
+                                <h3>Apply it in the pipeline</h3>
+                                <p class="step-text">Rerun the pipeline with the same command, adding:</p>
+                                <pre class="cmd">-resume --metacell_selection metacell_selection.json</pre>
+                                <p class="step-text">Only the filtering step runs. The filtered matrices of each
+                                    sample are written to
+                                    <code>metacell_filtering/&lt;sample&gt;/&lt;sample&gt;_final/</code>.</p>
+                            </div>
+                        </li>
+                    </ol>
+
+                    <div class="section-head">
+                        <h3>Continue from an earlier selection</h3>
+                        <span class="muted">Loading a selection restores the settings of the samples it covers, and
+                            marks them applied.</span>
+                    </div>
+                    <div class="btn-row">
+                        <input type="file" id="load-file" accept=".json,application/json">
+                    </div>
+                    <div id="load-msg"></div>
+                </div>
+            </div>
+        </section>
+    </main>
+
+    <!-- Filled by generate_filtering_report.py, escaped so no value can close this script element -->
+    <script id="report-data" type="application/json">__REPORT_DATA_PLACEHOLDER__</script>
+
+    <script>
+    "use strict";
+
+    /**********************************************************************
+     * DATA
+     **********************************************************************/
+    const D = JSON.parse(document.getElementById("report-data").textContent);
+
+    const SELECTION_SCHEMA = "bca_metacell_selection";
+    // Version 2 gives every sample its own gene rules; version 1 had one set for the run
+    const SELECTION_VERSION = 2;
+    const SELECTION_READS = [1, 2];
+    const OUTLIERS = "__outliers__";
+    const EXCLUDED = "__excluded__";
+
+    // Mirrors the CSS custom properties: Plotly needs the values themselves
+    const COLORS = {
+        kept: "#2a78d6",
+        excluded: "#eb6834",
+        blacklist: "#4a3aa7",
+        pseudo: "#898781",
+        threshold: "#d03b3b",
+        grid: "#e1e0d9",
+    };
+
+    // Exclusion reasons: colour says kept / excluded / blacklisted, the marker says why
+    const REASONS = {
+        mito:         { label: "high mito %",      color: COLORS.excluded,  symbol: "triangle-up" },
+        doublet:      { label: "high doublet %",   color: COLORS.excluded,  symbol: "diamond" },
+        ambient:      { label: "high ambient",     color: COLORS.excluded,  symbol: "square" },
+        blacklist:    { label: "blacklisted",      color: COLORS.blacklist, symbol: "x" },
+        outliers:     { label: "MC2 outliers",     color: COLORS.pseudo,    symbol: "circle" },
+        mc2_excluded: { label: "not grouped",      color: COLORS.pseudo,    symbol: "circle" },
+    };
+
+    const PLOT_CONFIG = { responsive: true, displaylogo: false };
+    const PLOT_LAYOUT = {
+        margin: { l: 55, r: 15, t: 10, b: 50 },
+        paper_bgcolor: "white",
+        plot_bgcolor: "white",
+        font: { size: 11 },
+        xaxis: { gridcolor: COLORS.grid, zeroline: false, linecolor: "#c3c2b7" },
+        yaxis: { gridcolor: COLORS.grid, zeroline: false, linecolor: "#c3c2b7" },
+        bargap: 0.08,
+        showlegend: false,
+        hoverlabel: { bgcolor: "white", bordercolor: "#c3c2b7", font: { color: "#1e1e1e" } },
+    };
+
+    const samples = D.samples || [];
+    const okSamples = samples.filter(s => s.status === "ok");
+
+    /**********************************************************************
+     * HELPERS
+     **********************************************************************/
+    function esc(v) {
+        return String(v == null ? "" : v)
+            .replace(/&/g, "&amp;").replace(/</g, "&lt;").replace(/>/g, "&gt;")
+            .replace(/"/g, "&quot;").replace(/'/g, "&#39;");
+    }
+
+    function fmt(v, digits) {
+        if (v == null || Number.isNaN(v)) return "–";
+        return Number(v).toLocaleString("en-US", { maximumFractionDigits: digits == null ? 1 : digits });
+    }
+
+    function pct(n, d) { return d > 0 ? 100 * n / d : 0; }
+
+    // "1 metacell", "12 metacells"
+    function count(n, word) { return `${fmt(n, 0)} ${word}${n === 1 ? "" : "s"}`; }
+
+    function splitList(text) {
+        return String(text || "").split(/[\s,;]+/).map(t => t.trim()).filter(Boolean);
+    }
+
+    function layout(extra) {
+        const base = JSON.parse(JSON.stringify(PLOT_LAYOUT));
+        for (const k of Object.keys(extra || {})) {
+            if (base[k] && typeof base[k] === "object" && !Array.isArray(base[k]) && typeof extra[k] === "object") {
+                Object.assign(base[k], extra[k]);
+            } else {
+                base[k] = extra[k];
+            }
+        }
+        return base;
+    }
+
+    function vline(x) {
+        return { type: "line", x0: x, x1: x, yref: "paper", y0: 0, y1: 1,
+                 line: { color: COLORS.threshold, width: 2, dash: "dash" } };
+    }
+
+    function hline(y) {
+        return { type: "line", y0: y, y1: y, xref: "paper", x0: 0, x1: 1,
+                 line: { color: COLORS.threshold, width: 2, dash: "dash" } };
+    }
+
+    // The UMAP's markers (Plotly symbol names), drawn for every label, badge and chip
+    const SHAPES = {
+        circle: `<circle cx="5" cy="5" r="4.2"/>`,
+        "triangle-up": `<path d="M5 .6 9.6 9.2H.4z"/>`,
+        diamond: `<path d="M5 0 10 5 5 10 0 5z"/>`,
+        square: `<rect x=".8" y=".8" width="8.4" height="8.4"/>`,
+        x: `<path d="M1.6 1.6 8.4 8.4M8.4 1.6 1.6 8.4" fill="none" stroke-width="2.4"/>`,
+    };
+
+    function icon(symbol, color) {
+        return `<svg class="ic" viewBox="0 0 10 10" aria-hidden="true" fill="${color}" stroke="${color}" ` +
+               `stroke-width="0">${SHAPES[symbol]}</svg>`;
+    }
+
+    const KEPT = { label: "kept", color: COLORS.kept, symbol: "circle" };
+
+    function tag(spec, label) {
+        return `<span class="reason">${icon(spec.symbol, spec.color)}${esc(label || spec.label)}</span>`;
+    }
+
+    function reasonTag(key) { return tag(REASONS[key]); }
+
+    function keptTag() { return tag(KEPT); }
+
+    // One marker per category, as on the cell tab: blacklisting (a gene ticked in the table, or
+    // a ticked domain) in the blacklist's colour, exclusions by a setting in the excluded colour.
+    // Below the minimum is the rank plot's orange dot; mitochondrial is the cell tab's mito ▲.
+    const GENE_REASONS = {
+        min_umi: { label: "below min. UMIs", color: COLORS.excluded,  symbol: "circle" },
+        mito:    { label: "mitochondrial",   color: COLORS.excluded,  symbol: "triangle-up" },
+        pfam:    { label: "domain",          color: COLORS.blacklist, symbol: "diamond" },
+        manual:  { label: "blacklisted",     color: COLORS.blacklist, symbol: "x" },
+    };
+
+    // "pfam:Histone" -> the domain spec, labelled "domain Histone"
+    function geneReason(r) {
+        return r.startsWith("pfam:") ? { spec: GENE_REASONS.pfam, label: "domain " + r.slice(5) }
+                                     : { spec: GENE_REASONS[r], label: GENE_REASONS[r].label };
+    }
+
+    function geneReasonTag(r) { const g = geneReason(r); return tag(g.spec, g.label); }
+
+    // A badge: the markers of what it counts, then its text; empty (and hidden) without text
+    function setBadge(id, specs, text) {
+        document.getElementById(id).innerHTML = text
+            ? `<span class="icons">${specs.map(s => icon(s.symbol, s.color)).join("")}</span>${esc(text)}` : "";
+    }
+
+    // A box of chips, collapsed to one row; its toggle shows only when the chips overflow that row
+    const _expanded = {};
+    function renderChipBox(boxId, toggleId, html, n) {
+        const box = document.getElementById(boxId);
+        const toggle = document.getElementById(toggleId);
+        box.innerHTML = html;
+        box.classList.toggle("collapsed", !_expanded[boxId]);
+        const overflows = box.scrollHeight > box.clientHeight + 1;
+        toggle.classList.toggle("hidden", !_expanded[boxId] && !overflows);
+        toggle.textContent = _expanded[boxId] ? "Show less ▴" : `Show all ${fmt(n, 0)} ▾`;
+        toggle.setAttribute("aria-expanded", String(!!_expanded[boxId]));
+        toggle.onclick = () => { _expanded[boxId] = !_expanded[boxId]; scheduleRender(); };
+    }
+
+    function download(name, text, type) {
+        const blob = new Blob([text], { type: type || "text/plain" });
+        const url = URL.createObjectURL(blob);
+        const a = document.createElement("a");
+        a.href = url;
+        a.download = name;
+        document.body.appendChild(a);
+        a.click();
+        a.remove();
+        setTimeout(() => URL.revokeObjectURL(url), 1000);
+    }
+
+    // Coalesce the many input events of a dragged slider into one redraw per frame
+    let _frame = null;
+    function scheduleRender() {
+        if (_frame) return;
+        _frame = requestAnimationFrame(() => { _frame = null; renderAll(); saveState(); });
+    }
+
+    function renderAll() {
+        renderSummary();
+        renderActive();
+    }
+
+    /**********************************************************************
+     * STATE
+     **********************************************************************/
+    const defaults = D.defaults || {};
+
+    // Every sample has its own settings at both levels. Each level starts pending and is set
+    // once the user changes or confirms it, or applies another sample's settings to all; only
+    // samples with both levels set go into the selection.
+    function defaultSampleState(s) {
+        return {
+            maxMito: defaults.max_mito_pct,
+            maxDoublet: s.doublet_mode === "annotated" ? defaults.max_doublet_pct : null,
+            maxAlpha: s.ambient_available ? defaults.max_alpha_hat : null,
+            includeOutliers: false,
+            includeExcluded: false,
+            blacklist: new Set(),
+            genes: defaultGeneState(),
+            set: { cells: false, genes: false },
+        };
+    }
+
+    function defaultGeneState() {
+        return {
+            minUmis: defaults.min_gene_umis == null ? 0 : defaults.min_gene_umis,
+            pfam: new Set(),       // domain names
+            manual: "",
+            excludeMito: false,
+        };
+    }
+
+    const state = {
+        sample: okSamples.length ? okSamples[0].id : (samples[0] ? samples[0].id : null),
+        tab: "cells",
+        perSample: {},
+    };
+    for (const s of okSamples) state.perSample[s.id] = defaultSampleState(s);
+
+    const sampleById = Object.fromEntries(samples.map(s => [s.id, s]));
+    const current = () => sampleById[state.sample];
+    const sstate = () => state.perSample[state.sample];
+    const gstate = () => sstate().genes;
+    const isReady = (s) => { const st = state.perSample[s.id]; return st.set.cells && st.set.genes; };
+
+    // The browser keeps the choices made in this report between reloads. Keyed on the
+    // fingerprints, so a report of a regrouped run never picks up stale choices.
+    const STORAGE_KEY = "bca_mc_filter:" + okSamples.map(s => s.fingerprint).join("|").slice(0, 400);
+    const SAMPLE_KEYS = ["maxMito", "maxDoublet", "maxAlpha", "includeOutliers", "includeExcluded",
+                         "_last_maxMito", "_last_maxDoublet", "_last_maxAlpha"];
+
+    function serialiseState() {
+        const per = {};
+        for (const [id, st] of Object.entries(state.perSample)) {
+            per[id] = Object.assign({}, st, {
+                blacklist: [...st.blacklist],
+                genes: Object.assign({}, st.genes, { pfam: [...st.genes.pfam] }),
+            });
+        }
+        return JSON.stringify({ perSample: per });
+    }
+
+    function saveState() {
+        try { localStorage.setItem(STORAGE_KEY, serialiseState()); } catch (e) { /* storage unavailable */ }
+    }
+
+    function restoreGenes(target, saved) {
+        Object.assign(target, {
+            minUmis: Number(saved.minUmis) || 0,
+            pfam: new Set(saved.pfam || []),
+            manual: saved.manual || "",
+            excludeMito: !!saved.excludeMito,
+        });
+        absorbPfamRegex(target, saved.pfamRegex);
+    }
+
+    function restoreState() {
+        let saved = null;
+        try { saved = JSON.parse(localStorage.getItem(STORAGE_KEY) || "null"); } catch (e) { saved = null; }
+        if (!saved) return;
+        for (const [id, st] of Object.entries(saved.perSample || {})) {
+            const target = state.perSample[id];
+            if (!target) continue;
+            for (const k of SAMPLE_KEYS) if (k in st) target[k] = st[k];
+            target.blacklist = new Set(st.blacklist || []);
+            // Saved before gene settings were per sample: the run's one set, still pending for each
+            const genes = st.genes || saved.genes;
+            if (genes) restoreGenes(target.genes, genes);
+            if (st.set) target.set = { cells: !!st.set.cells, genes: !!st.set.genes };
+        }
+    }
+
+    // Whether the selection was downloaded since the last change; the export tab's steps follow it
+    let _downloaded = false;
+
+    // Visiting a level's tab with a sample selected applies that sample's settings of that level
+    function applyVisited() {
+        const st = sstate();
+        const level = state.tab;
+        if (!st || !(level in st.set) || st.set[level]) return;
+        st.set[level] = true;
+        _downloaded = false;
+        saveState();
+    }
+
+    // A change to a level's settings applies that level for the selected sample
+    function edited(level) {
+        const st = sstate();
+        if (st) st.set[level] = true;
+        _downloaded = false;
+        scheduleRender();
+    }
+
+    /*
+     * Copy the selected sample's settings to every other sample, and apply them for all.
+     * A blacklist names this sample's own metacells or genes, so each sample keeps its own;
+     * a threshold on a metric only copies between samples that have it.
+     */
+    function applyToAll() {
+        const from = current();
+        const src = sstate();
+        if (!src) return;
+        const others = okSamples.filter(s => s.id !== from.id);
+        if (!others.length || !confirm(`Copy the settings of ${from.id} (thresholds, outlier settings, minimum UMIs, ` +
+                                       `mitochondrial genes and domains) to the ${count(others.length, "other sample")}? ` +
+                                       `Their own settings are replaced; every sample keeps its own blacklists.`)) return;
+        const hasDoublets = (s) => s.doublet_mode === "annotated";
+        const hasAlpha = (s) => s.ambient_available && s.metacells.alpha_hat_mean.some(v => v != null);
+        for (const s of others) {
+            const st = state.perSample[s.id];
+            st.maxMito = src.maxMito;
+            st._last_maxMito = src._last_maxMito;
+            if (hasDoublets(from) && hasDoublets(s)) Object.assign(st, { maxDoublet: src.maxDoublet, _last_maxDoublet: src._last_maxDoublet });
+            if (hasAlpha(from) && hasAlpha(s)) Object.assign(st, { maxAlpha: src.maxAlpha, _last_maxAlpha: src._last_maxAlpha });
+            st.includeOutliers = src.includeOutliers;
+            st.includeExcluded = src.includeExcluded;
+            Object.assign(st.genes, { minUmis: src.genes.minUmis, excludeMito: src.genes.excludeMito,
+                                      pfam: new Set(src.genes.pfam) });
+            st.set = { cells: true, genes: true };
+        }
+        src.set = { cells: true, genes: true };
+        _downloaded = false;
+        scheduleRender();
+    }
+
+    /**********************************************************************
+     * FILTER LOGIC
+     *
+     * keep = passes every threshold AND not blacklisted
+     **********************************************************************/
+    function cellCalls(s, st) {
+        const m = s.metacells;
+        const n = m.id.length;
+        const reasons = new Array(n);
+        const keep = new Array(n);
+        let keptMc = 0, keptCells = 0, keptUmis = 0, totalUmis = 0, realMc = 0;
+
+        for (let i = 0; i < n; i++) {
+            const id = m.id[i];
+            const r = [];
+            if (m.pseudo[i]) {
+                if (id === OUTLIERS && !st.includeOutliers) r.push("outliers");
+                if (id === EXCLUDED && !st.includeExcluded) r.push("mc2_excluded");
+            } else {
+                realMc++;
+                if (st.maxMito != null && m.mito_pct[i] > st.maxMito) r.push("mito");
+                if (st.maxDoublet != null && s.doublet_mode === "annotated" && m.doublet_pct[i] != null &&
+                    m.doublet_pct[i] > st.maxDoublet) r.push("doublet");
+                if (st.maxAlpha != null && m.alpha_hat_mean[i] != null && m.alpha_hat_mean[i] > st.maxAlpha) r.push("ambient");
+            }
+            if (st.blacklist.has(id)) r.push("blacklist");
+            const k = r.length === 0;
+            reasons[i] = r;
+            keep[i] = k;
+            totalUmis += m.umis[i] || 0;
+            if (k) {
+                if (!m.pseudo[i]) keptMc++;
+                keptCells += m.n_cells[i];
+                keptUmis += m.umis[i] || 0;
+            }
+        }
+        return { reasons, keep, keptMc, realMc, keptCells, keptUmis, totalUmis };
+    }
+
+    // "kept", or the reason shown first: the blacklist wins, as the deliberate choice
+    function statusOf(calls, i) {
+        if (calls.keep[i]) return "kept";
+        const r = calls.reasons[i];
+        return r.includes("blacklist") ? "blacklist" : r[0];
+    }
+
+    const _lookups = new Map();
+    function universeLookup(u) {
+        if (!_lookups.has(u)) {
+            const U = D.universes[u];
+            const byKey = new Map();
+            U.ids.forEach((id, j) => byKey.set(id, j));
+            U.names.forEach((nm, j) => { if (nm && !byKey.has(nm)) byKey.set(nm, j); });
+            _lookups.set(u, byKey);
+        }
+        return _lookups.get(u);
+    }
+
+    function geneCalls(s) {
+        const gs = state.perSample[s.id].genes;
+        const U = D.universes[s.universe];
+        const G = s.genes;
+        const n = U.ids.length;
+        const lookup = universeLookup(s.universe);
+
+        const manual = new Set();
+        const unknownManual = [];
+        for (const key of splitList(gs.manual)) {
+            if (lookup.has(key)) manual.add(lookup.get(key)); else unknownManual.push(key);
+        }
+
+        const reasons = new Array(n);
+        let nExcluded = 0, umisExcluded = 0, umisTotal = 0;
+        for (let j = 0; j < n; j++) {
+            const r = [];
+            const total = G.total_umi[j] || 0;
+            if (gs.minUmis > 0 && total < gs.minUmis) r.push("min_umi");
+            if (gs.excludeMito && U.mito[j]) r.push("mito");
+            for (const d of U.pfam[j]) {
+                const name = D.domains[d];
+                if (gs.pfam.has(name)) { r.push("pfam:" + name); break; }
+            }
+            if (manual.has(j)) r.push("manual");
+            reasons[j] = r;
+            umisTotal += total;
+            if (r.length) { nExcluded++; umisExcluded += total; }
+        }
+        return { reasons, nExcluded, umisExcluded, umisTotal, unknownManual };
+    }
+
+    /**********************************************************************
+     * SUMMARY: sample statistics | filter settings and running totals
+     **********************************************************************/
+    function kvRows(rows) {
+        return `<thead><tr><th>Statistic</th><th>Description</th><th class="value">Value</th></tr></thead>` +
+            `<tbody>${rows.map(([k, v, desc]) =>
+            `<tr><td>${esc(k)}</td><td class="desc">${esc(desc || "")}</td>` +
+            `<td class="value">${esc(v)}</td></tr>`).join("")}</tbody>`;
+    }
+
+    // expected_cells is the samplesheet's, absent when the sheet gives none
+    function calledCellsRow(s) {
+        return ["Called cells", fmt(s.n_cells, 0),
+                s.expected_cells != null ? `${fmt(s.expected_cells, 0)} expected` : ""];
+    }
+
+    function renderStats(s) {
+        const fc = s.featurecounts;
+        // Read percentages, so they differ from the UMI percentage above by PCR
+        // duplication as well as by cell set; the label says which reads were counted
+        const fcFrom = fc && fc.from_other_mapper ? ` of ${fc.source_id}` : "";
+        const fcSub = (denominator, scope) => fc
+            ? `% of ${denominator}${scope ? `, ${scope}` : ""}${fcFrom}`
+            : "read metrics not computed (no STARsolo BAM)";
+        const fcVal = (v) => (fc && v != null) ? `${fmt(v, 2)} %` : "–";
+        const m = s.metacells;
+        const groupCells = (id) => { const i = m.id.indexOf(id); return i >= 0 ? m.n_cells[i] : 0; };
+        const grouped = s.n_cells - groupCells(OUTLIERS) - groupCells(EXCLUDED);
+        const p = s.params || {};
+        const gm = s.gene_match || {};
+
+        document.getElementById("stats-table").innerHTML = kvRows([
+            calledCellsRow(s),
+            ["Metacells", fmt(s.n_metacells, 0), `target size ${p.target_metacell_size || "?"} cells`],
+            ["Cells per metacell", s.n_metacells ? fmt(grouped / s.n_metacells, 0) : "–", "mean"],
+            ["Outlier cells", fmt(groupCells(OUTLIERS), 0), "grouped with no metacell"],
+            ["Ungrouped cells", fmt(groupCells(EXCLUDED), 0), "outside Metacell2's UMI range"],
+            ["Mitochondrial UMIs", `${fmt(s.mito_pct, 2)} %`, "UMIs, called cells"],
+            ["mtDNA reads", fcVal(fc && fc.mt_reads_pct), fcSub("mapped reads", fc && fc.mt_reads_scope)],
+            ["rRNA reads", fcVal(fc && fc.rrna_reads_pct), fcSub("mapped reads", fc && fc.rrna_reads_scope)],
+            ["Antisense reads", fcVal(fc && fc.antisense_pct), fcSub("gene-assigned reads", fc && fc.antisense_scope)],
+            ["Genes matched to the annotation", gm.match_rate != null ? `${fmt(100 * gm.match_rate, 1)} %` : "–"],
+        ]);
+    }
+
+    function settingRow(label, value, active) {
+        return `<tr class="${active ? "" : "off"}"><td>${esc(label)}</td><td class="value">${esc(value)}</td></tr>`;
+    }
+
+    // The meter's colour by the share included: below the first bound red, below the
+    // second yellow, otherwise green. The legend under the totals is built from this.
+    const SHARE_SCALE = [{ below: 10, cls: "low" }, { below: 50, cls: "mid" }, { below: Infinity, cls: "high" }];
+    const shareTier = (share) => SHARE_SCALE.find(t => share < t.below).cls;
+
+    function shareLegend() {
+        const sw = (cls, text) => `<span class="reason"><i class="sw" style="background:var(--scale-${cls})"></i>${text}</span>`;
+        const [low, mid] = SHARE_SCALE;
+        return `Bars by percentage included: ${sw("low", `below ${low.below} %`)}${sw("mid", `${low.below}–${mid.below} %`)}` +
+            sw("high", `${mid.below} % or more`);
+    }
+
+    // Included / excluded with a meter: the kept share as fill on a white, outlined track
+    function meterRow(label, kept, total, unit, umiShare) {
+        const share = pct(kept, total);
+        return `<tr><td>${esc(label)}</td>` +
+            `<td class="value">${fmt(kept, 0)} included<span class="sub">${fmt(total - kept, 0)} excluded</span></td>` +
+            `<td style="width:42%"><div class="meter ${shareTier(share)}" role="img" aria-label="${esc(label)}: ${fmt(share, 1)} % ${esc(unit)} included">` +
+            `<span style="width:${share.toFixed(2)}%"></span></div>` +
+            `<span class="sub">${fmt(share, 1)} % included` +
+            (umiShare != null ? ` · ${fmt(umiShare, 1)} % of UMIs kept` : "") + `</span></td></tr>`;
+    }
+
+    function renderSummary() {
+        const s = current();
+        const cellsTable = document.getElementById("settings-cells");
+        const genesTable = document.getElementById("settings-genes");
+        const totals = document.getElementById("totals-table");
+        const stats = document.getElementById("stats-table");
+        const legend = document.getElementById("totals-legend");
+
+        if (!s || s.status !== "ok") {
+            stats.innerHTML = s ? kvRows([calledCellsRow(s), ["Metacells", "none"]]) : "";
+            cellsTable.innerHTML = `<tbody><tr class="off"><td>No metacells to filter for this sample.</td></tr></tbody>`;
+            genesTable.innerHTML = "";
+            totals.innerHTML = "";
+            legend.innerHTML = "";
+            return;
+        }
+
+        renderStats(s);
+
+        const st = sstate();
+        const m = s.metacells;
+        const c = cellCalls(s, st);
+        const hasDoublets = s.doublet_mode === "annotated";
+        const hasAlpha = s.ambient_available && m.alpha_hat_mean.some(v => v != null);
+
+        const cellRows = [
+            settingRow("Mitochondrial UMIs", st.maxMito != null ? `≤ ${fmt(st.maxMito, 1)} %` : "off", st.maxMito != null),
+            settingRow("Doublets", !hasDoublets ? "not available" : (st.maxDoublet != null ? `≤ ${fmt(st.maxDoublet, 1)} %` : "off"),
+                       hasDoublets && st.maxDoublet != null),
+            settingRow("Ambient fraction α", !hasAlpha ? "not available" : (st.maxAlpha != null ? `≤ ${fmt(st.maxAlpha, 3)}` : "off"),
+                       hasAlpha && st.maxAlpha != null),
+            settingRow("Blacklist", count(st.blacklist.size, "metacell"), st.blacklist.size > 0),
+        ];
+
+        const gs = st.genes;
+        const g = geneCalls(s);
+        const nManual = splitList(gs.manual).length;
+
+        const geneRows = [
+            settingRow("Min. total UMIs", gs.minUmis > 0 ? `≥ ${fmt(gs.minUmis, 0)}` : "off", gs.minUmis > 0),
+            settingRow("PFAM domains", gs.pfam.size ? count(gs.pfam.size, "domain") : "off", gs.pfam.size > 0),
+            settingRow("Mitochondrial genes", gs.excludeMito ? "excluded" : "kept", gs.excludeMito),
+            settingRow("Blacklist", count(nManual, "gene"), nManual > 0),
+        ];
+
+        cellsTable.innerHTML = `<thead><tr><th>Cell level</th><th class="value">Setting</th></tr></thead>` +
+            `<tbody>${cellRows.join("")}</tbody>`;
+        genesTable.innerHTML = `<thead><tr><th>Gene level</th><th class="value">Setting</th></tr></thead>` +
+            `<tbody>${geneRows.join("")}</tbody>`;
+
+        // Each UMI share belongs to its own level: the cell filter's over all genes, the gene
+        // filter's over all called cells. The page has no matrix to combine the two.
+        const nGenes = D.universes[s.universe].ids.length;
+        legend.innerHTML = shareLegend();
+        totals.innerHTML =
+            `<thead><tr><th>Running totals</th><th class="value">Count</th><th>Percentage included</th></tr></thead><tbody>` +
+            meterRow("Metacells", c.keptMc, c.realMc, "metacells") +
+            meterRow("Cells", c.keptCells, s.n_cells, "cells", pct(c.keptUmis, c.totalUmis)) +
+            meterRow("Genes", nGenes - g.nExcluded, nGenes, "genes", pct(g.umisTotal - g.umisExcluded, g.umisTotal)) +
+            `</tbody>`;
+    }
+
+    /**********************************************************************
+     * HEADER
+     **********************************************************************/
+    function renderHeader() {
+        const run = D.run || {};
+        // The date alone: the timestamp starts with the local date, YYYY-MM-DD
+        const date = String(run.generated || "").slice(0, 10);
+        document.getElementById("run-info").textContent =
+            ["Metacell filtering report", run.pipeline_version, date].filter(Boolean).join(" · ");
+
+        const sel = document.getElementById("sample-select");
+        sel.innerHTML = samples.map(s =>
+            `<option value="${esc(s.id)}">${esc(s.id)}${s.status === "ok" ? "" : " (no metacells)"}</option>`
+        ).join("");
+        if (state.sample) sel.value = state.sample;
+        sel.onchange = () => { state.sample = sel.value; applyVisited(); renderSample(); renderAll(); };
+    }
+
+    function renderSample() {
+        const s = current();
+        const warn = document.getElementById("sample-warnings");
+        warn.innerHTML = "";
+
+        if (!s) {
+            warn.innerHTML = `<div class="warn-box">No metacell results were produced in this run.</div>`;
+            return;
+        }
+
+        if (s.status !== "ok") {
+            warn.innerHTML = `<div class="warn-box"><b>No metacells for this sample:</b> ${esc(s.reason || "unknown reason")}. ` +
+                             `It cannot be filtered here and is left out of the selection.</div>`;
+            return;
+        }
+
+        const gm = s.gene_match || {};
+        if (gm.match_rate != null && gm.match_rate < 0.5) {
+            warn.innerHTML += `<div class="warn-box">Only ${fmt(100 * gm.match_rate, 1)} % of this sample's genes matched the ` +
+                `annotation, so mitochondrial flags and domains are missing for the rest.</div>`;
+        }
+        const U = D.universes[s.universe];
+        if (U && !U.mito.some(Boolean)) {
+            warn.innerHTML += `<div class="warn-box">No gene of this sample lies on the mitochondrial contig(s), so every ` +
+                `mito percentage is 0. Check <code>mt_contig</code> against the GTF.</div>`;
+        }
+    }
+
+    /**********************************************************************
+     * CELLS TAB
+     **********************************************************************/
+    // A per-metacell threshold: the checkbox switches it, the box holds the exact value, and
+    // the line on the histogram is the direct handle (see histogram()). Returns the setter
+    // the histogram calls when the line is dragged or a bar clicked.
+    function bindThreshold(prefix, key, max, digits) {
+        const on = document.getElementById(prefix + "-on");
+        const num = document.getElementById(prefix + "-num");
+        num.max = max;
+
+        const st = sstate();
+        const value = st[key] != null ? st[key] : (st["_last_" + key] != null ? st["_last_" + key] : max / 2);
+        on.checked = st[key] != null;
+        // Never rewrite a box mid-edit: "1." would be read back as 1 and lose the dot
+        if (document.activeElement !== num) num.value = value;
+        num.disabled = !on.checked;
+
+        const set = (v) => {
+            const s2 = sstate();
+            const clean = Math.round(Math.min(max, Math.max(0, Number(v))) * 10 ** digits) / 10 ** digits;
+            s2[key] = clean;
+            s2["_last_" + key] = clean;
+            edited("cells");
+        };
+        on.onchange = () => {
+            const s2 = sstate();
+            if (on.checked) set(num.value);
+            else { s2[key] = null; edited("cells"); }
+        };
+        num.oninput = () => { if (num.value !== "" && Number.isFinite(Number(num.value))) set(num.value); };
+        return set;
+    }
+
+    // The threshold line's new position from a plotly_relayout event ("shapes[0].x0" ...),
+    // averaging the ends it reports; geometric on a log axis. null when the line did not move.
+    function shapeCoord(ev, axis, log) {
+        const v = [0, 1].map(i => ev && ev[`shapes[0].${axis}${i}`]).filter(x => x != null).map(Number)
+            .filter(Number.isFinite);
+        if (!v.length) return null;
+        return log ? Math.exp(v.reduce((a, x) => a + Math.log(Math.max(x, 1e-9)), 0) / v.length)
+                   : v.reduce((a, x) => a + x, 0) / v.length;
+    }
+
+    function excludedCount(values, threshold, below) {
+        if (threshold == null) return 0;
+        let n = 0;
+        for (const v of values) if (v != null && (below ? v < threshold : v > threshold)) n++;
+        return n;
+    }
+
+    /*
+     * A histogram whose bars say what the threshold does to them: kept in the kept colour,
+     * excluded in the excluded colour, over shared bins so the two stack into one shape.
+     * The threshold line can be dragged, or a bar clicked, to move it; opts.onMove gets the
+     * new value in the plot's x units. opts.below: values *below* the line are excluded.
+     */
+    function histogram(divId, values, threshold, opts) {
+        const el = document.getElementById(divId);
+        const finite = values.filter(v => v != null && Number.isFinite(v));
+        const [lo, hi] = opts.range;
+        const xbins = { start: lo, end: hi, size: (hi - lo) / (opts.nbins || 40) };
+        const isExcluded = (v) => threshold != null && (opts.below ? v < threshold : v > threshold);
+        const unit = opts.unit || "metacells";
+
+        const trace = (vals, name, color) => ({
+            type: "histogram", x: vals, xbins, autobinx: false, name, showlegend: false,
+            marker: { color },
+            hovertemplate: `<b>%{y} ${unit}</b> ${name}<br>${esc(opts.xtitle)}: %{x}<extra></extra>`,
+        });
+        // The legend shows the UMAP's markers rather than bar swatches: one empty marker trace each
+        const key = (spec, name) => ({
+            type: "scatter", mode: "markers", x: [null], y: [null], name, hoverinfo: "skip",
+            marker: { color: spec.color, symbol: spec.symbol, size: 9 },
+        });
+        const excludedSpec = opts.excludedSpec || REASONS.mito;
+        const traces = [trace(finite.filter(v => !isExcluded(v)), "kept", COLORS.kept)];
+        if (threshold != null) {
+            traces.push(trace(finite.filter(isExcluded), "excluded", COLORS.excluded),
+                        key(KEPT, "kept"), key(excludedSpec, "excluded"));
+        }
+
+        Plotly.react(el, traces, layout({
+            barmode: "stack",
+            showlegend: threshold != null,
+            legend: { orientation: "h", x: 1, xanchor: "right", y: 1.12, font: { size: 11 } },
+            margin: { l: 55, r: 15, t: 24, b: 50 },
+            shapes: threshold != null ? [vline(threshold)] : [],
+            xaxis: { title: { text: opts.xtitle }, range: [lo, hi] },
+            yaxis: { title: { text: opts.ytitle || unit } },
+            // No uirevision: editrevision follows it, and would keep a dragged line where the
+            // user dropped it (vertical offset included) instead of where the threshold is
+        }), Object.assign({}, PLOT_CONFIG, { edits: { shapePosition: true } }));
+
+        el._onMove = opts.onMove;
+        if (!el._bound && typeof el.on === "function") {
+            // Dragging the line reports both ends, dragging one end only that end; either way
+            // only x is the threshold, and the redraw puts the line back upright
+            el.on("plotly_relayout", ev => {
+                const x = shapeCoord(ev, "x");
+                if (x != null && el._onMove) el._onMove(x);
+            });
+            el.on("plotly_click", ev => {
+                if (ev && ev.points && ev.points.length && el._onMove) el._onMove(Number(ev.points[0].x));
+            });
+            el._bound = true;
+        }
+    }
+
+    function maxOf(values, floor) {
+        let m = floor;
+        for (const v of values) if (v != null && v > m) m = v;
+        return m;
+    }
+
+    function renderCells() {
+        const s = current();
+        const pane = document.getElementById("cells");
+        if (!s || s.status !== "ok") {
+            pane.querySelectorAll(".plot").forEach(el => Plotly.purge(el));
+            document.getElementById("mc-table").innerHTML = "";
+            document.getElementById("mc-shown").textContent = "";
+            document.getElementById("black-chips").innerHTML = "";
+            document.getElementById("black-count").innerHTML = "";
+            document.getElementById("qc-count").innerHTML = "";
+            document.getElementById("chips-toggle").classList.add("hidden");
+            return;
+        }
+
+        const st = sstate();
+        const m = s.metacells;
+        const calls = cellCalls(s, st);
+        const real = m.id.map((_, i) => !m.pseudo[i]);
+        const pick = (arr) => arr.filter((_, i) => real[i]);
+
+        // Checkbox + exact box + histogram with a draggable line, and the live count beside them;
+        // the panel's exclusions carry the marker its reason has in the UMAP
+        const PANEL_REASON = { mito: "mito", doublet: "doublet", alpha: "ambient" };
+        const thresholdPanel = (prefix, key, values, max, digits, opts) => {
+            const set = bindThreshold(prefix, key, max, digits);
+            const spec = REASONS[PANEL_REASON[prefix]];
+            histogram("plot-" + prefix, values, st[key], Object.assign({ onMove: set, excludedSpec: spec }, opts));
+            const n = excludedCount(values, st[key], false);
+            setBadge(prefix + "-count", [spec], st[key] != null ? `${count(n, "metacell")} excluded` : "");
+        };
+
+        const mitos = pick(m.mito_pct);
+        thresholdPanel("mito", "maxMito", mitos, 100, 1,
+                       { xtitle: "mitochondrial UMIs (%)", range: [0, maxOf(mitos, 5) * 1.05] });
+
+        // A metric this sample lacks: its controls and plot give way to a note saying why
+        const hasDoublets = s.doublet_mode === "annotated";
+        document.getElementById("panel-doublet").querySelector(".control").classList.toggle("hidden", !hasDoublets);
+        document.getElementById("plot-doublet").classList.toggle("hidden", !hasDoublets);
+        document.getElementById("doublet-note").textContent = {
+            annotated: "",
+            removed: "Doublets were removed before grouping (perform_doublet_filtering), so there is nothing to filter on.",
+            absent: "No doublet calls for this sample (detection off, or a caller could not run).",
+        }[s.doublet_mode] || "";
+        if (hasDoublets) {
+            thresholdPanel("doublet", "maxDoublet", pick(m.doublet_pct), 100, 1,
+                           { xtitle: "doublets (%)", range: [0, 100] });
+        } else {
+            Plotly.purge(document.getElementById("plot-doublet"));
+        }
+
+        const hasAlpha = s.ambient_available && m.alpha_hat_mean.some(v => v != null);
+        document.getElementById("panel-ambient").querySelector(".control").classList.toggle("hidden", !hasAlpha);
+        document.getElementById("plot-alpha").classList.toggle("hidden", !hasAlpha);
+        document.getElementById("alpha-note").textContent = hasAlpha ? "" :
+            "No CellSweep estimates for this sample (ambient_rna_remover off, or CellSweep could not run).";
+        if (hasAlpha) {
+            const alphas = pick(m.alpha_hat_mean);
+            const amax = maxOf(alphas, 0.05);
+            thresholdPanel("alpha", "maxAlpha", alphas, Math.min(1, Math.ceil(amax * 100) / 100), 3,
+                           { xtitle: "mean α", range: [0, amax * 1.05] });
+        } else {
+            Plotly.purge(document.getElementById("plot-alpha"));
+        }
+
+        renderScatter(s, st, calls);
+        renderBlacklist(s, st, calls);
+        renderMcTable(s, st, calls);
+
+        // The boxes say "exclude", the state "include": ticked is the default
+        const groupCells = (id) => { const i = m.id.indexOf(id); return i >= 0 ? m.n_cells[i] : 0; };
+        document.getElementById("exclude-outliers").checked = !st.includeOutliers;
+        document.getElementById("exclude-excluded").checked = !st.includeExcluded;
+        document.getElementById("outliers-n").textContent = count(groupCells(OUTLIERS), "cell");
+        document.getElementById("excluded-n").textContent = count(groupCells(EXCLUDED), "cell");
+    }
+
+    // Every real metacell not kept, as in the UMAP: blacklisted (removable) first, then those a
+    // threshold excludes. A blacklisted metacell that also fails a threshold counts as blacklisted.
+    function renderBlacklist(s, st, calls) {
+        const m = s.metacells;
+        const byId = (a, b) => m.id[a].localeCompare(m.id[b], undefined, { numeric: true });
+        const black = [], qc = [];
+        m.id.forEach((_, i) => {
+            if (m.pseudo[i]) return;
+            const status = statusOf(calls, i);
+            if (status === "blacklist") black.push(i); else if (status !== "kept") qc.push(i);
+        });
+        black.sort(byId);
+        qc.sort(byId);
+
+        // The excluded badge carries the marker of each reason present, in the UMAP's order
+        const present = ["mito", "doublet", "ambient"].filter(r => qc.some(i => calls.reasons[i][0] === r));
+        setBadge("black-count", [REASONS.blacklist], black.length ? `${fmt(black.length, 0)} blacklisted` : "");
+        setBadge("qc-count", present.map(r => REASONS[r]), qc.length ? `${fmt(qc.length, 0)} excluded` : "");
+        document.getElementById("clear-black").classList.toggle("hidden", st.blacklist.size === 0);
+
+        const b = REASONS.blacklist;
+        renderChipBox("black-chips", "chips-toggle", black.length + qc.length
+            ? black.map(i => `<button class="chip blacklist" data-id="${esc(m.id[i])}" title="Take ${esc(m.id[i])} off the blacklist">` +
+                             `${icon(b.symbol, b.color)}${esc(m.id[i])}<span class="x" aria-hidden="true">×</span></button>`).join("") +
+              qc.map(i => {
+                  const r = REASONS[calls.reasons[i][0]];
+                  return `<span class="chip" title="${esc(m.id[i])}: ${esc(calls.reasons[i].map(x => REASONS[x].label).join(", "))}">` +
+                         `${icon(r.symbol, r.color)}${esc(m.id[i])}</span>`;
+              }).join("")
+            : `<span class="muted">No metacell is blacklisted or excluded.</span>`,
+            black.length + qc.length);
+    }
+
+    function renderScatter(s, st, calls) {
+        const m = s.metacells;
+        const el = document.getElementById("plot-scatter");
+        const useUmap = m.x.some((v, i) => v != null && !m.pseudo[i]);
+        const hasDoublets = s.doublet_mode === "annotated";
+
+        let xs, ys, xt, yt;
+        if (useUmap) {
+            xs = m.x; ys = m.y; xt = "UMAP 1"; yt = "UMAP 2";
+            document.getElementById("scatter-title").textContent = "Metacell2 UMAP";
+        } else {
+            xs = m.mito_pct;
+            ys = hasDoublets ? m.doublet_pct : m.umis;
+            xt = "mitochondrial UMIs (%)";
+            yt = hasDoublets ? "doublets (%)" : "UMIs";
+            document.getElementById("scatter-title").textContent = "Metacells (QC metrics)";
+        }
+
+        // One trace per status, so the legend is the key for both colour and marker
+        const byStatus = {};
+        m.id.forEach((id, i) => {
+            if (m.pseudo[i] || xs[i] == null || ys[i] == null) return;
+            const status = statusOf(calls, i);
+            (byStatus[status] = byStatus[status] || []).push(i);
+        });
+
+        const order = ["kept", "mito", "doublet", "ambient", "blacklist"];
+        const traces = order.filter(k => byStatus[k]).map(k => {
+            const idx = byStatus[k];
+            const spec = k === "kept" ? { label: "kept", color: COLORS.kept, symbol: "circle" } : REASONS[k];
+            return {
+                type: "scattergl", mode: "markers",
+                name: k === "kept" ? "kept" : (k === "blacklist" ? "blacklisted" : "excluded: " + spec.label),
+                x: idx.map(i => xs[i]), y: idx.map(i => ys[i]),
+                customdata: idx.map(i => m.id[i]),
+                text: idx.map(i =>
+                    `<b>${esc(m.id[i])}</b> · ${m.n_cells[i]} cells, ${fmt(m.umis[i], 0)} UMIs<br>` +
+                    `mito ${fmt(m.mito_pct[i], 2)} %` +
+                    (m.doublet_pct[i] != null ? ` · doublets ${fmt(m.doublet_pct[i], 1)} %` : "") +
+                    (m.alpha_hat_mean[i] != null ? ` · α ${fmt(m.alpha_hat_mean[i], 3)}` : "") +
+                    (calls.reasons[i].length ? `<br>excluded: ${esc(calls.reasons[i].map(r => REASONS[r].label).join(", "))}` : "") +
+                    (m.markers[i] && m.markers[i].length ? `<br>${esc(m.markers[i].join(", "))}` : "")),
+                hovertemplate: "%{text}<extra></extra>",
+                marker: { size: 10, color: spec.color, symbol: spec.symbol, line: { color: "#ffffff", width: 2 } },
+                selectedpoints: null,
+            };
+        });
+
+        Plotly.react(el, traces, layout({
+            showlegend: true,
+            legend: { orientation: "h", y: -0.16, font: { size: 11 } },
+            margin: { l: 55, r: 15, t: 10, b: 80 },
+            xaxis: { title: { text: xt } },
+            yaxis: { title: { text: yt }, type: !useUmap && !hasDoublets ? "log" : "linear" },
+            dragmode: "lasso",
+            // Zoom persists while blacklisting; a lasso selection must not. selectionrevision
+            // follows uirevision by default, so a kept selection would dim every point outside
+            // it long after it was applied. A fresh revision and no selections drop it each redraw.
+            uirevision: s.id,
+            selectionrevision: ++_editRevision,
+            selections: [],
+        }), PLOT_CONFIG);
+
+        if (!el._bound && typeof el.on === "function") {
+            el.on("plotly_click", ev => {
+                if (ev && ev.points && ev.points.length) markMetacells([ev.points[0].customdata], "toggle");
+            });
+            el.on("plotly_selected", ev => {
+                if (ev && ev.points && ev.points.length) markMetacells(ev.points.map(p => p.customdata), "add");
+                else scheduleRender();   // an empty lasso: redraw, so its outline does not linger
+            });
+            el._bound = true;
+        }
+    }
+
+    function markMetacells(ids, op) {
+        const st = sstate();
+        for (const id of ids) {
+            if (op === "add") st.blacklist.add(id);
+            else if (op === "remove") st.blacklist.delete(id);
+            else if (st.blacklist.has(id)) st.blacklist.delete(id);
+            else st.blacklist.add(id);
+        }
+        edited("cells");
+    }
+
+    let _mcSort = { key: "id", dir: 1 };
+    let _mcExclOnly = false;
+    // A sortable column header, with the arrow of the current sort
+    function sortHeader(key, label, num, sort) {
+        const arrow = sort.key === key ? (sort.dir > 0 ? " ▲" : " ▼") : "";
+        return `<th data-sort="${key}"${num ? ` class="num"` : ""}>${esc(label)}${arrow}</th>`;
+    }
+
+    function renderMcTable(s, st, calls) {
+        const m = s.metacells;
+        const filter = (document.getElementById("mc-filter").value || "").toLowerCase();
+        let rows = m.id.map((id, i) => ({
+            i, id, status: statusOf(calls, i), reasons: calls.reasons[i],
+            n_cells: m.n_cells[i], umis: m.umis[i], mito_pct: m.mito_pct[i],
+            median_cell_mito_pct: m.median_cell_mito_pct[i], rrna_pct: m.rrna_pct[i],
+            doublet_pct: m.doublet_pct[i], alpha_hat_mean: m.alpha_hat_mean[i],
+            markers: (m.markers[i] || []).join(", "),
+        })).filter(r => !filter ||
+            r.id.toLowerCase().includes(filter) || r.markers.toLowerCase().includes(filter) ||
+            r.status.toLowerCase().includes(filter) ||
+            r.reasons.map(x => REASONS[x].label).join(" ").toLowerCase().includes(filter));
+        if (_mcExclOnly) rows = rows.filter(r => r.status !== "kept");
+        document.getElementById("mc-table-title").textContent = _mcExclOnly ? "Excluded metacells" : "All metacells";
+        document.getElementById("mc-shown").textContent = filter || _mcExclOnly
+            ? `${fmt(rows.length, 0)} of ${count(m.id.length, "row")}` : count(m.id.length, "row");
+        // The button names the view it switches to
+        document.getElementById("mc-excl-only").textContent = _mcExclOnly ? "All metacells" : "Excluded only";
+
+        const k = _mcSort.key;
+        rows.sort((a, b) => {
+            const va = a[k], vb = b[k];
+            if (va == null) return 1;
+            if (vb == null) return -1;
+            if (k === "id") return _mcSort.dir * String(va).localeCompare(String(vb), undefined, { numeric: true });
+            return _mcSort.dir * (va > vb ? 1 : va < vb ? -1 : 0);
+        });
+
+        // [key, header, numeric]: a numeric column's header is right-aligned over its values
+        const cols = [
+            ["id", "Metacell"], ["status", "Status"], ["n_cells", "Cells", true], ["umis", "UMIs", true],
+            ["mito_pct", "Mito %", true], ["median_cell_mito_pct", "Median cell mito %", true], ["rrna_pct", "rRNA %", true],
+            ["doublet_pct", "Doublet %", true], ["alpha_hat_mean", "Mean α", true], ["markers", "Top markers"],
+        ];
+        const head = `<thead><tr><th class="check">Blacklist</th>` +
+            cols.map(([key, label, num]) => sortHeader(key, label, num, _mcSort)).join("") + `</tr></thead>`;
+        const body = rows.slice(0, 5000).map(r => {
+            const statusCell = r.status === "kept" ? keptTag() : r.reasons.map(reasonTag).join("");
+            return `<tr><td class="check"><input type="checkbox" data-id="${esc(r.id)}" aria-label="blacklist ${esc(r.id)}" ${st.blacklist.has(r.id) ? "checked" : ""}></td>` +
+                `<td>${esc(r.id)}</td><td>${statusCell}</td>` +
+                `<td class="num">${fmt(r.n_cells, 0)}</td><td class="num">${fmt(r.umis, 0)}</td>` +
+                `<td class="num">${fmt(r.mito_pct, 2)}</td><td class="num">${fmt(r.median_cell_mito_pct, 2)}</td>` +
+                `<td class="num">${fmt(r.rrna_pct, 2)}</td><td class="num">${fmt(r.doublet_pct, 1)}</td>` +
+                `<td class="num">${fmt(r.alpha_hat_mean, 3)}</td><td>${esc(r.markers)}</td></tr>`;
+        }).join("");
+        document.getElementById("mc-table").innerHTML = head + `<tbody>${body}</tbody>`;
+    }
+
+    function bindCellsTab() {
+        document.getElementById("clear-black").onclick = () => { if (sstate()) { sstate().blacklist.clear(); edited("cells"); } };
+
+        document.getElementById("exclude-outliers").onchange = (e) => { if (sstate()) { sstate().includeOutliers = !e.target.checked; edited("cells"); } };
+        document.getElementById("exclude-excluded").onchange = (e) => { if (sstate()) { sstate().includeExcluded = !e.target.checked; edited("cells"); } };
+        document.getElementById("mc-filter").oninput = () => scheduleRender();
+        document.getElementById("mc-excl-only").onclick = () => { _mcExclOnly = !_mcExclOnly; scheduleRender(); };
+        document.getElementById("black-chips").addEventListener("click", (e) => {
+            const chip = e.target.closest("button[data-id]");
+            if (chip) markMetacells([chip.dataset.id], "remove");
+        });
+
+        const table = document.getElementById("mc-table");
+        table.addEventListener("change", (e) => {
+            const t = e.target;
+            if (!t.dataset || !t.dataset.id) return;
+            markMetacells([t.dataset.id], t.checked ? "add" : "remove");
+        });
+        table.addEventListener("click", (e) => {
+            const th = e.target.closest("th[data-sort]");
+            if (!th) return;
+            const key = th.dataset.sort;
+            _mcSort = { key, dir: _mcSort.key === key ? -_mcSort.dir : (key === "id" || key === "status" ? 1 : -1) };
+            scheduleRender();
+        });
+    }
+
+    /**********************************************************************
+     * GENES TAB
+     **********************************************************************/
+    function domainStats(s) {
+        const U = D.universes[s.universe];
+        const G = s.genes;
+        const stats = new Map();
+        let total = 0;
+        for (let j = 0; j < U.ids.length; j++) {
+            const t = G.total_umi[j] || 0;
+            total += t;
+            for (const d of U.pfam[j]) {
+                const e = stats.get(d) || { genes: 0, umis: 0 };
+                e.genes++; e.umis += t;
+                stats.set(d, e);
+            }
+        }
+        return { stats, total };
+    }
+
+    let _editRevision = 0;
+
+    let _domainCache = { sample: null, value: null };
+    function cachedDomainStats(s) {
+        if (_domainCache.sample !== s.id) _domainCache = { sample: s.id, value: domainStats(s) };
+        return _domainCache.value;
+    }
+
+    function renderGenes() {
+        const s = current();
+        if (!s || s.status !== "ok" || s.universe == null) {
+            ["plot-rank", "plot-genehist"].forEach(id => Plotly.purge(document.getElementById(id)));
+            document.getElementById("gene-table").innerHTML = "";
+            return;
+        }
+
+        const gs = gstate();
+        const U = D.universes[s.universe];
+        const G = s.genes;
+        const calls = geneCalls(s);
+
+        // Minimum UMIs: an exact box, and the line on either plot as the direct handle
+        const maxTotal = maxOf(G.total_umi, 1);
+        const setMin = (v) => {
+            gstate().minUmis = Math.max(0, Math.min(Math.round(Number(v)), Math.ceil(maxTotal)));
+            edited("genes");
+        };
+        const num = document.getElementById("minumi-num");
+        if (document.activeElement !== num) num.value = gs.minUmis;
+        num.oninput = () => { if (num.value !== "" && Number.isFinite(Number(num.value))) setMin(num.value); };
+        const nBelow = calls.reasons.filter(r => r.includes("min_umi")).length;
+        setBadge("minumi-count", [GENE_REASONS.min_umi], gs.minUmis > 0 ? `${count(nBelow, "gene")} excluded` : "");
+        document.getElementById("minumi-note").textContent =
+            `${fmt(U.n_unexpressed, 0)} more genes with no UMI in any sample are always dropped.`;
+
+        // Ranked total UMIs, split into kept and excluded genes
+        const n = U.ids.length;
+        const order = [...Array(n).keys()].sort((a, b) => (G.total_umi[b] || 0) - (G.total_umi[a] || 0));
+        const kept = { x: [], y: [], t: [] }, excl = { x: [], y: [], t: [] };
+        order.forEach((j, rank) => {
+            const v = G.total_umi[j] || 0;
+            if (v <= 0) return;
+            const target = calls.reasons[j].length ? excl : kept;
+            target.x.push(rank + 1);
+            target.y.push(v);
+            target.t.push(`<b>${fmt(v, 0)} UMIs</b><br>${esc(U.names[j] || U.ids[j])}` +
+                          (calls.reasons[j].length ? `<br>excluded: ${esc(calls.reasons[j].map(r => geneReason(r).label).join(", "))}` : ""));
+        });
+        const rankTrace = (d, name, color) => ({
+            type: "scattergl", mode: "markers", name, x: d.x, y: d.y, text: d.t,
+            hovertemplate: "%{text}<br>rank %{x}<extra></extra>",
+            marker: { size: 4, color },
+        });
+        const rankEl = document.getElementById("plot-rank");
+        Plotly.react(rankEl,
+            [rankTrace(kept, "kept genes", COLORS.kept), rankTrace(excl, "excluded genes", COLORS.excluded)],
+            layout({
+                xaxis: { type: "log", title: { text: "gene rank" } },
+                yaxis: { type: "log", title: { text: "total UMIs" } },
+                shapes: gs.minUmis > 0 ? [hline(gs.minUmis)] : [],
+                // Zoom persists across redraws; a dragged line must not, so edits get a fresh revision
+                uirevision: s.id,
+                editrevision: ++_editRevision,
+            }), Object.assign({}, PLOT_CONFIG, { edits: { shapePosition: true } }));
+        rankEl._onMove = setMin;
+        if (!rankEl._bound && typeof rankEl.on === "function") {
+            // Shape positions on a log axis are in data units, so y is the UMI count itself
+            rankEl.on("plotly_relayout", ev => {
+                const y = shapeCoord(ev, "y", true);
+                if (y != null && rankEl._onMove) rankEl._onMove(y);
+            });
+            rankEl._bound = true;
+        }
+
+        const logTotals = G.total_umi.map(v => Math.log10((v || 0) + 1));
+        histogram("plot-genehist", logTotals, gs.minUmis > 0 ? Math.log10(gs.minUmis + 1) : null, {
+            xtitle: "log10(total UMIs + 1)", unit: "genes", below: true, nbins: 60,
+            range: [0, Math.log10(maxTotal + 1) * 1.02],
+            onMove: (x) => setMin(Math.pow(10, x) - 1),
+            excludedSpec: GENE_REASONS.min_umi,
+        });
+
+        renderPfam(s);
+
+        document.getElementById("gene-mito").checked = gs.excludeMito;
+        document.getElementById("mito-genes-n").textContent = count(U.mito.filter(Boolean).length, "gene");
+        renderGeneBlacklist(s, calls);
+        renderGeneTable(s, calls);
+    }
+
+    function renderPfam(s) {
+        const U = D.universes[s.universe];
+        const hasDomains = U.pfam.some(p => p.length);
+        document.getElementById("pfam-missing").classList.toggle("hidden", hasDomains);
+        document.getElementById("pfam-body").classList.toggle("hidden", !hasDomains);
+        if (!hasDomains) return;
+
+        const gs = gstate();
+        const { stats, total } = cachedDomainStats(s);
+
+        // One field narrows the list as you type; Enter or the button ticks what it matches
+        const matcher = domainMatcher(document.getElementById("pfam-search").value);
+        const entries = [...stats.entries()]
+            .filter(([d]) => !matcher || matcher.test(D.domains[d]))
+            .sort((a, b) => b[1].umis - a[1].umis);
+        const shown = entries.slice(0, 300);
+        document.getElementById("pfam-list").innerHTML = shown.map(([d, e]) => {
+            const name = D.domains[d];
+            return `<label><input type="checkbox" data-domain="${esc(name)}" ${gs.pfam.has(name) ? "checked" : ""}>` +
+                   `<span class="grow">${esc(name)}</span>` +
+                   `<span class="n">${count(e.genes, "gene")} · ${fmt(pct(e.umis, total), 2)} %</span></label>`;
+        }).join("") + (entries.length > shown.length ? `<div class="muted" style="padding:4px 8px">${entries.length - shown.length} more; refine the search</div>` : "");
+
+        // Ticking covers every domain of the run, so the setting carries to samples whose domains differ
+        const nRun = matcher ? D.domains.filter(matcher.test).length : 0;
+        const add = document.getElementById("pfam-add");
+        add.classList.toggle("hidden", nRun === 0);
+        add.textContent = matcher ? `Exclude ${fmt(nRun, 0)} matching` : "Exclude matching";
+        document.getElementById("pfam-search-msg").textContent = !matcher ? "" :
+            (matcher.note ? matcher.note + "; " : "") +
+            `${count(entries.length, "domain")} of this sample match${nRun > entries.length ? `, ${fmt(nRun, 0)} across the run` : ""}`;
+
+        setBadge("pfam-count", [GENE_REASONS.pfam], gs.pfam.size ? `${count(gs.pfam.size, "domain")} blacklisted` : "");
+    }
+
+    // A domain's exact name matches only that domain; anything else is a regular expression
+    // (case-insensitive), or plain text when it is not a valid one
+    function domainMatcher(text) {
+        const t = String(text || "").trim();
+        if (!t) return null;
+        if (D.domains.includes(t)) return { test: (n) => n === t, note: "" };
+        try {
+            const re = new RegExp(t, "i");
+            return { test: (n) => re.test(n), note: "" };
+        } catch (e) {
+            const low = t.toLowerCase();
+            return { test: (n) => n.toLowerCase().includes(low), note: "not a valid regular expression, so matched as text" };
+        }
+    }
+
+    // An expression from an earlier selection or saved state becomes the domains it ticks, so no
+    // rule stays in force that the page does not show
+    function absorbPfamRegex(gs, src) {
+        if (!src) return;
+        try {
+            const re = new RegExp(src);
+            for (const name of D.domains) if (re.test(name)) gs.pfam.add(name);
+        } catch (e) { /* an invalid expression excluded nothing */ }
+    }
+
+    // The genes' counterpart of the metacell box, one category per marker as on the cell tab.
+    // Blacklisted (removable): genes ticked in the table (✕; names matching no gene struck
+    // through) and ticked domains (◆, one chip per domain: a click unticks it). Excluded:
+    // mitochondrial genes (▲) one chip each, and one tag for the genes the minimum alone
+    // excludes (●), as there can be thousands. A gene counts once, in its first category.
+    function renderGeneBlacklist(s, calls) {
+        const U = D.universes[s.universe];
+        const gs = gstate();
+        const listed = splitList(gs.manual);
+        const unknown = new Set(calls.unknownManual);
+        const label = (j) => U.names[j] || U.ids[j];
+        let nManual = 0, nDomain = 0, belowMin = 0;
+        const mito = [];
+        calls.reasons.forEach((r, j) => {
+            if (!r.length) return;
+            if (r.includes("manual")) nManual++;
+            else if (r.some(x => x.startsWith("pfam:"))) nDomain++;
+            else if (r.includes("mito")) mito.push(j);
+            else belowMin++;
+        });
+        mito.sort((a, b) => label(a).localeCompare(label(b), undefined, { numeric: true }));
+
+        const R = GENE_REASONS;
+        const nBlack = nManual + nDomain, nExcl = mito.length + belowMin;
+        setBadge("manual-count", [nManual && R.manual, nDomain && R.pfam].filter(Boolean),
+                 nBlack ? `${fmt(nBlack, 0)} blacklisted` : "");
+        setBadge("manual-excluded", [mito.length && R.mito, belowMin && R.min_umi].filter(Boolean),
+                 nExcl ? `${fmt(nExcl, 0)} excluded` : "");
+        setBadge("manual-unknown", [{ symbol: "circle", color: COLORS.pseudo }],
+                 unknown.size ? `${fmt(unknown.size, 0)} not found` : "");
+        document.getElementById("manual-clear").classList.toggle("hidden", !listed.length && !gs.pfam.size);
+
+        const geneChips = listed.map(t => unknown.has(t)
+            ? `<button class="chip blacklist unknown" data-gene="${esc(t)}" title="${esc(t)} is not a gene of this sample; click to take it off the blacklist">` +
+              `${esc(t)}<span class="x" aria-hidden="true">×</span></button>`
+            : `<button class="chip blacklist" data-gene="${esc(t)}" title="Take ${esc(t)} off the blacklist">` +
+              `${icon(R.manual.symbol, R.manual.color)}${esc(t)}<span class="x" aria-hidden="true">×</span></button>`);
+        const { stats } = cachedDomainStats(s);
+        const domainChips = [...gs.pfam].sort((a, b) => a.localeCompare(b, undefined, { numeric: true })).map(name => {
+            const e = stats.get(D.domains.indexOf(name));
+            const n = e ? e.genes : 0;
+            return `<button class="chip blacklist" data-domain="${esc(name)}" title="Untick the domain ${esc(name)}">` +
+                   `${icon(R.pfam.symbol, R.pfam.color)}${esc(name)} · ${n ? count(n, "gene") : "not in this sample"}` +
+                   `<span class="x" aria-hidden="true">×</span></button>`;
+        });
+        const minTag = belowMin
+            ? [`<span class="chip" title="Genes excluded only by the minimum total UMIs; list them with Excluded only in the table below">` +
+               `${icon(R.min_umi.symbol, R.min_umi.color)}${count(belowMin, "gene")} below min. UMIs</span>`] : [];
+        const mitoChips = mito.map(j => `<span class="chip" title="${esc(U.ids[j])}: mitochondrial">` +
+                                        `${icon(R.mito.symbol, R.mito.color)}${esc(label(j))}</span>`);
+        const chips = geneChips.concat(domainChips, minTag, mitoChips);
+        renderChipBox("manual-chips", "manual-toggle", chips.length
+            ? chips.join("") : `<span class="muted">No gene is blacklisted or excluded.</span>`, chips.length);
+    }
+
+    // Every gene, as the metacell table lists every metacell: tick a gene to blacklist it
+    let _geneSort = { key: "total_umi", dir: -1 };
+    let _geneExclOnly = false;
+    const MAX_GENE_ROWS = 1000;
+    function renderGeneTable(s, calls) {
+        const U = D.universes[s.universe];
+        const G = s.genes;
+        const ambient = G.ambient_hat;
+        const filter = (document.getElementById("gene-filter").value || "").toLowerCase();
+        const n = U.ids.length;
+        const statusText = (j) => calls.reasons[j].length
+            ? calls.reasons[j].map(r => geneReason(r).label).join(" ") : "kept";
+        const text = (j) => [U.ids[j], U.names[j], ...U.pfam[j].map(d => D.domains[d]), statusText(j)]
+            .join(" ").toLowerCase();
+
+        let rows = [...Array(n).keys()];
+        if (_geneExclOnly) rows = rows.filter(j => calls.reasons[j].length);
+        if (filter) rows = rows.filter(j => text(j).includes(filter));
+
+        const value = {
+            id: (j) => U.ids[j], name: (j) => U.names[j] || null, status: statusText,
+            total_umi: (j) => G.total_umi[j], n_cells: (j) => G.n_cells[j],
+            ambient: (j) => ambient ? ambient[j] : null,
+            domains: (j) => U.pfam[j].map(d => D.domains[d]).join(", ") || null,
+        }[_geneSort.key];
+        const textual = ["id", "name", "status", "domains"].includes(_geneSort.key);
+        rows.sort((a, b) => {
+            const va = value(a), vb = value(b);
+            if (va == null) return 1;
+            if (vb == null) return -1;
+            if (textual) return _geneSort.dir * String(va).localeCompare(String(vb), undefined, { numeric: true });
+            return _geneSort.dir * (va - vb);
+        });
+
+        const narrowed = filter || _geneExclOnly;
+        document.getElementById("gene-table-title").textContent = _geneExclOnly ? "Excluded genes" : "All genes";
+        document.getElementById("excluded-title").textContent =
+            (narrowed ? `${fmt(rows.length, 0)} of ${count(n, "gene")}` : count(n, "gene")) +
+            (rows.length > MAX_GENE_ROWS ? ` · the first ${fmt(MAX_GENE_ROWS, 0)} shown` : "");
+        document.getElementById("gene-excl-only").textContent = _geneExclOnly ? "All genes" : "Excluded only";
+
+        const cols = [["id", "Gene ID"], ["status", "Status"], ["name", "Name"], ["total_umi", "Total UMIs", true],
+                      ["n_cells", "Cells", true]].concat(ambient ? [["ambient", "Ambient (CellSweep)", true]] : [],
+                                                         [["domains", "Domains"]]);
+        const head = `<thead><tr><th class="check">Blacklist</th>` +
+            cols.map(([key, label, num]) => sortHeader(key, label, num, _geneSort)).join("") + `</tr></thead>`;
+        const body = rows.slice(0, MAX_GENE_ROWS).map(j => {
+            const r = calls.reasons[j];
+            // A ticked domain blacklists the gene too: shown ticked, and unticked through the domain
+            const viaDomain = !r.includes("manual") && r.find(x => x.startsWith("pfam:"));
+            const box = viaDomain
+                ? `<input type="checkbox" checked disabled aria-label="${esc(U.ids[j])} is blacklisted by a domain" ` +
+                  `title="Blacklisted through the domain ${esc(viaDomain.slice(5))}; untick the domain to keep it">`
+                : `<input type="checkbox" data-gene-idx="${j}" aria-label="blacklist ${esc(U.ids[j])}" ${r.includes("manual") ? "checked" : ""}>`;
+            return `<tr><td class="check">${box}</td>` +
+                `<td>${esc(U.ids[j])}</td><td>${r.length ? r.map(geneReasonTag).join("") : keptTag()}</td>` +
+                `<td>${esc(U.names[j])}</td>` +
+                `<td class="num">${fmt(G.total_umi[j], 0)}</td><td class="num">${fmt(G.n_cells[j], 0)}</td>` +
+                (ambient ? `<td class="num">${fmt(ambient[j], 4)}</td>` : "") +
+                `<td>${esc(U.pfam[j].map(d => D.domains[d]).join(", "))}</td></tr>`;
+        }).join("");
+        document.getElementById("gene-table").innerHTML = head + `<tbody>${body}</tbody>`;
+    }
+
+    // Every handler changes the selected sample's gene settings, read at event time, so a
+    // reset or a change of sample (which swap the object) needs no rebinding
+    function bindGenesTab() {
+        const change = (fn) => { if (sstate()) { fn(gstate()); edited("genes"); } };
+        document.getElementById("gene-mito").onchange = (e) => change(gs => { gs.excludeMito = e.target.checked; });
+        // The blacklist is the ticked genes and the ticked domains
+        document.getElementById("manual-clear").onclick = () => change(gs => { gs.manual = ""; gs.pfam.clear(); });
+        document.getElementById("manual-chips").addEventListener("click", (e) => {
+            const gene = e.target.closest("button[data-gene]");
+            const domain = e.target.closest("button[data-domain]");
+            if (gene) change(gs => { gs.manual = splitList(gs.manual).filter(t => t !== gene.dataset.gene).join("\n"); });
+            else if (domain) change(gs => { gs.pfam.delete(domain.dataset.domain); });
+        });
+        document.getElementById("gene-filter").oninput = () => scheduleRender();
+        document.getElementById("gene-excl-only").onclick = () => { _geneExclOnly = !_geneExclOnly; scheduleRender(); };
+
+        // Ticking a gene blacklists it by id; unticking drops every listed id or name that means it
+        const table = document.getElementById("gene-table");
+        table.addEventListener("change", (e) => {
+            const t = e.target;
+            if (!t.dataset || t.dataset.geneIdx == null) return;
+            const s = current();
+            const j = Number(t.dataset.geneIdx);
+            const id = D.universes[s.universe].ids[j];
+            const lookup = universeLookup(s.universe);
+            change(gs => {
+                const listed = splitList(gs.manual);
+                gs.manual = (t.checked ? listed.concat(listed.includes(id) ? [] : [id])
+                                       : listed.filter(k => lookup.get(k) !== j)).join("\n");
+            });
+        });
+        table.addEventListener("click", (e) => {
+            const th = e.target.closest("th[data-sort]");
+            if (!th) return;
+            const key = th.dataset.sort;
+            const textual = ["id", "name", "status", "domains"].includes(key);
+            _geneSort = { key, dir: _geneSort.key === key ? -_geneSort.dir : (textual ? 1 : -1) };
+            scheduleRender();
+        });
+        // The domain field: typing narrows the list, Enter or the button ticks every matching domain
+        const search = document.getElementById("pfam-search");
+        const tickMatching = () => {
+            const matcher = domainMatcher(search.value);
+            if (!matcher) return;
+            search.value = "";
+            change(gs => { for (const name of D.domains) if (matcher.test(name)) gs.pfam.add(name); });
+        };
+        search.oninput = () => scheduleRender();
+        search.onkeydown = (e) => { if (e.key === "Enter") { e.preventDefault(); tickMatching(); } };
+        document.getElementById("pfam-add").onclick = tickMatching;
+
+        document.getElementById("pfam-list").addEventListener("change", (e) => {
+            const name = e.target.dataset && e.target.dataset.domain;
+            if (name == null) return;
+            change(gs => { if (e.target.checked) gs.pfam.add(name); else gs.pfam.delete(name); });
+        });
+    }
+
+    /**********************************************************************
+     * EXPORT TAB
+     **********************************************************************/
+    /*
+     * The selection exactly as apply_metacell_filter.py reads it: per sample, the fingerprint of
+     * the assignment it was made on, the metacells to keep and the genes to exclude (with why),
+     * and the rules that produced them, which the pipeline records beside its output and this
+     * page reads back. Only samples with both levels set are in it; the pipeline writes no
+     * filtered matrix for a sample a selection leaves out.
+     */
+    function buildSelection() {
+        const out = {
+            schema: SELECTION_SCHEMA,
+            schema_version: SELECTION_VERSION,
+            created: new Date().toISOString(),
+            samples: {},
+        };
+
+        for (const s of okSamples.filter(isReady)) {
+            const st = state.perSample[s.id];
+            const gs = st.genes;
+            const calls = cellCalls(s, st);
+            const gcalls = geneCalls(s);
+            const U = D.universes[s.universe];
+            const excluded = {};
+            gcalls.reasons.forEach((r, j) => { if (r.length) excluded[U.ids[j]] = r; });
+
+            out.samples[s.id] = {
+                fingerprint: s.fingerprint,
+                keep_metacells: s.metacells.id.filter((_, i) => calls.keep[i]),
+                excluded_genes: excluded,
+                cell_rules: {
+                    max_mito_pct: st.maxMito,
+                    max_doublet_pct: st.maxDoublet,
+                    max_alpha_hat: st.maxAlpha,
+                    include_outliers: st.includeOutliers,
+                    include_excluded: st.includeExcluded,
+                    blacklist: [...st.blacklist].sort(),
+                },
+                gene_rules: {
+                    min_total_umis: gs.minUmis,
+                    exclude_mito: gs.excludeMito,
+                    pfam_exclude: [...gs.pfam].sort(),
+                    blacklist: splitList(gs.manual),
+                },
+            };
+        }
+        return out;
+    }
+
+    function renderExport() {
+        const pending = `<td class="num pending">pending</td>`;
+        const pill = (s, level) => {
+            const set = state.perSample[s.id].set[level];
+            const name = level === "cells" ? "cell" : "gene";
+            return `<button class="pill ${set ? "set" : "pending"}" data-goto="${esc(s.id)}" data-level="${level}" ` +
+                   `title="Open the ${name}-level settings of ${esc(s.id)}${set ? "" : ", which applies them"}">` +
+                   `${set ? "Applied" : "Pending"}</button>`;
+        };
+        const rows = samples.map(s => {
+            if (s.status !== "ok") {
+                return `<tr><td>${esc(s.id)}</td><td colspan="6" class="muted">No metacells` +
+                       `${s.reason ? ` (${esc(s.reason)})` : ""}, so it cannot be filtered</td></tr>`;
+            }
+            const st = state.perSample[s.id];
+            const c = cellCalls(s, st);
+            const nG = D.universes[s.universe].ids.length;
+            // A pending level's numbers are only the defaults, so they are not shown as a result
+            const cellCols = st.set.cells
+                ? `<td class="num">${fmt(c.keptMc, 0)} / ${fmt(c.realMc, 0)}</td>` +
+                  `<td class="num">${fmt(c.keptCells, 0)} / ${fmt(s.n_cells, 0)}</td>` +
+                  `<td class="num">${fmt(pct(c.keptUmis, c.totalUmis), 1)} %</td>`
+                : pending.repeat(3);
+            const geneCol = st.set.genes
+                ? `<td class="num">${fmt(nG - geneCalls(s).nExcluded, 0)} / ${fmt(nG, 0)}</td>` : pending;
+            return `<tr><td>${esc(s.id)}</td><td>${pill(s, "cells")}</td><td>${pill(s, "genes")}</td>${cellCols}${geneCol}</tr>`;
+        }).join("");
+        document.getElementById("export-table").innerHTML =
+            `<thead><tr><th>Sample</th><th>Cell level</th><th>Gene level</th><th class="num">Metacells kept</th>` +
+            `<th class="num">Cells kept</th><th class="num">UMIs in kept cells</th><th class="num">Genes kept</th></tr></thead>` +
+            `<tbody>${rows}</tbody>`;
+
+        const ready = okSamples.filter(isReady);
+        const waiting = okSamples.length - ready.length;
+        document.getElementById("export-progress").textContent = okSamples.length
+            ? `${fmt(ready.length, 0)} of ${count(okSamples.length, "sample")} ready` +
+              (waiting ? `; open the pending tabs of the other ${fmt(waiting, 0)} to apply their settings, or leave them out.` : ".")
+            : "";
+        // The numbers say where the user is: steps done, the one to do now, and those still to come.
+        // Step 1 is done when every sample is applied, or once a selection was downloaded anyway.
+        const steps = _downloaded ? ["done", "done", "current"]
+                    : !waiting && ready.length ? ["done", "current", "todo"] : ["current", "todo", "todo"];
+        steps.forEach((st, i) => { document.getElementById(`step${i + 1}-num`).className = `step-num ${st}`; });
+
+        document.getElementById("export-scope").textContent =
+            !okSamples.length ? "No sample has metacells, so there is nothing to select." :
+            !ready.length ? "Apply both levels of at least one sample first: the selection holds only samples whose cell and gene settings are applied." :
+            `The selection holds the ${count(ready.length, "sample")} whose cell and gene settings are applied` +
+            (waiting ? `. The ${count(waiting, "pending sample")} ${waiting === 1 ? "is" : "are"} left out, and the ` +
+                       `pipeline writes no filtered matrix for ${waiting === 1 ? "it" : "them"}.` : ": every sample.");
+        document.getElementById("dl-selection").disabled = ready.length === 0;
+
+        const applyAll = document.getElementById("apply-all");
+        const s = current();
+        applyAll.disabled = okSamples.length < 2 || !s || s.status !== "ok";
+        applyAll.title = applyAll.disabled ? "Needs a selected sample with metacells, and another to copy to"
+            : `Copies the settings of ${s.id} to every other sample; every sample keeps its own blacklists`;
+    }
+
+    function loadSelection(sel) {
+        const problems = [];
+        if (!sel || sel.schema !== SELECTION_SCHEMA) throw new Error("not a metacell selection exported from this report");
+        if (!SELECTION_READS.includes(sel.schema_version)) {
+            throw new Error(`schema_version ${sel.schema_version}; this report reads ${SELECTION_READS.join(" and ")}`);
+        }
+        const v1 = sel.schema_version === 1;
+
+        let restored = 0;
+        for (const [id, e] of Object.entries(sel.samples || {})) {
+            const s = sampleById[id];
+            if (!s || s.status !== "ok") { problems.push(`${id}: not a sample of this report`); continue; }
+            if (e.fingerprint !== s.fingerprint) {
+                problems.push(`${id}: made on a different metacell assignment; its settings were not restored`);
+                continue;
+            }
+            // Earlier selections could also whitelist metacells; this report has a blacklist only
+            if (Array.isArray(e.whitelist) && e.whitelist.length) {
+                problems.push(`${id}: ${e.whitelist.length} whitelisted metacell(s) were dropped, as this report has a blacklist only`);
+            }
+            const cr = e.cell_rules || {};
+            // Version 1 kept the metacell blacklist beside the rules, and one set of gene rules for the run
+            const gr = (v1 ? sel.gene_rules : e.gene_rules) || {};
+            const st = state.perSample[id];
+            Object.assign(st, {
+                maxMito: cr.max_mito_pct == null ? null : Number(cr.max_mito_pct),
+                maxDoublet: cr.max_doublet_pct == null ? null : Number(cr.max_doublet_pct),
+                maxAlpha: cr.max_alpha_hat == null ? null : Number(cr.max_alpha_hat),
+                includeOutliers: !!cr.include_outliers,
+                includeExcluded: !!cr.include_excluded,
+                blacklist: new Set((v1 ? e.blacklist : cr.blacklist) || []),
+                set: { cells: true, genes: true },
+            });
+            restoreGenes(st.genes, {
+                minUmis: gr.min_total_umis,
+                pfam: gr.pfam_exclude,
+                pfamRegex: gr.pfam_regex,
+                manual: ((v1 ? gr.manual : gr.blacklist) || []).join("\n"),
+                excludeMito: gr.exclude_mito,
+            });
+            restored++;
+        }
+        return { restored, problems };
+    }
+
+    function bindExportTab() {
+        const msg = document.getElementById("export-msg");
+        document.getElementById("dl-selection").onclick = () => {
+            const sel = buildSelection();
+            download("metacell_selection.json", JSON.stringify(sel, null, 1), "application/json");
+            _downloaded = true;
+            renderExport();
+            msg.textContent = `Downloaded metacell_selection.json (${count(Object.keys(sel.samples).length, "sample")}).`;
+        };
+        // A status opens that sample on that level's tab
+        document.getElementById("export-table").addEventListener("click", (e) => {
+            const b = e.target.closest("button[data-goto]");
+            if (b) openSample(b.dataset.goto, b.dataset.level);
+        });
+
+        const loadMsg = document.getElementById("load-msg");
+        document.getElementById("load-file").onchange = (e) => {
+            const f = e.target.files && e.target.files[0];
+            if (!f) return;
+            const reader = new FileReader();
+            reader.onload = () => {
+                try {
+                    const res = loadSelection(JSON.parse(reader.result));
+                    _downloaded = false;
+                    loadMsg.innerHTML = `<div class="${res.problems.length ? "warn-box" : "citation-box"}">Restored the settings of ${count(res.restored, "sample")}.` +
+                        (res.problems.length ? "<br>" + res.problems.map(esc).join("<br>") : "") + "</div>";
+                    scheduleRender();
+                } catch (err) {
+                    loadMsg.innerHTML = `<div class="warn-box">Could not load ${esc(f.name)}: ${esc(err.message)}</div>`;
+                }
+                e.target.value = "";
+            };
+            reader.readAsText(f);
+        };
+
+        document.getElementById("apply-all").onclick = () => applyToAll();
+        document.getElementById("reset-all").onclick = () => {
+            if (!confirm("Reset the cell and gene settings and the blacklists of every sample to the defaults, all pending again?")) return;
+            for (const s of okSamples) state.perSample[s.id] = defaultSampleState(s);
+            _downloaded = false;
+            loadMsg.innerHTML = "";
+            msg.textContent = "";
+            scheduleRender();
+        };
+    }
+
+    /**********************************************************************
+     * TABS
+     **********************************************************************/
+    function renderActive() {
+        if (state.tab === "cells") renderCells();
+        else if (state.tab === "genes") renderGenes();
+        else renderExport();
+    }
+
+    function showTab(name) {
+        state.tab = name;
+        applyVisited();
+        document.querySelectorAll(".tab").forEach(t => t.classList.toggle("active", t.dataset.tab === name));
+        document.querySelectorAll(".tab-pane").forEach(p => p.classList.toggle("active", p.id === name));
+        renderActive();
+    }
+
+    function openSample(id, tab) {
+        state.sample = id;
+        document.getElementById("sample-select").value = id;
+        renderSample();
+        renderSummary();
+        showTab(tab);
+        document.querySelector(".tabs").scrollIntoView({ block: "start", behavior: "smooth" });
+    }
+
+    function bindTabs() {
+        document.querySelectorAll(".tab").forEach(tab => {
+            tab.addEventListener("click", () => showTab(tab.dataset.tab));
+        });
+    }
+
+    /**********************************************************************
+     * MAIN
+     **********************************************************************/
+    function main() {
+        restoreState();
+        applyVisited();
+        renderHeader();
+        bindTabs();
+        bindCellsTab();
+        bindGenesTab();
+        bindExportTab();
+        renderSample();
+        renderAll();
+    }
+
+    if (typeof Plotly === "undefined") {
+        document.querySelector("main").insertAdjacentHTML("afterbegin",
+            `<div class="warn-box">Plotly could not be loaded from cdn.plot.ly, so the plots are missing. ` +
+            `The report needs an internet connection the first time it is opened.</div>`);
+        window.Plotly = { react() {}, purge() {}, relayout() {} };
+    }
+    main();
+    </script>
+</body>
+
+</html>

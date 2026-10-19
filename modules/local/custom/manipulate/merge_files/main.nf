@@ -1,6 +1,6 @@
 process MERGE_FASTQS {
     tag "${meta.id}"
-    label 'process_low'
+    label 'process_single2'
 
     conda "${moduleDir}/environment.yml"
 
@@ -8,7 +8,8 @@ process MERGE_FASTQS {
     tuple val(meta), path(fastq_cDNA_list), path(fastq_BC_UMI_list), path(fastq_indices), path(input_file)
 
     output:
-    tuple val(meta), path("${meta.id}_merged_cDNA.fastq.gz"), path("${meta.id}_merged_BC_UMI.fastq.gz"), path("${meta.id}_merged_I*.fastq.gz", arity: '0..2'), path(input_file)
+    tuple val(meta), path("${meta.id}_merged_cDNA.fastq.gz"), path("${meta.id}_merged_BC_UMI.fastq.gz"), path("${meta.id}_merged_I*.fastq.gz", arity: '0..2'), path(input_file), emit: merged_files
+    path "versions.yml", emit: versions
 
     script:
     """
@@ -22,17 +23,37 @@ process MERGE_FASTQS {
 
     echo "Counts: cDNA=\${#CDNA[@]} BC_UMI=\${#BCUMI[@]} Index=\${#IND[@]}"
 
-    if [ \${#CDNA[@]} -eq 1 ]; then
-        ln -s "\${CDNA[0]}" "${meta.id}_merged_cDNA.fastq.gz"
-    else
-        zcat "\${CDNA[@]}" | \$COMPRESSOR -c > "${meta.id}_merged_cDNA.fastq.gz"
-    fi
+    # Inputs may be plain (.fastq/.fq) or gzipped (.fastq.gz/.fq.gz), and a sample may mix both. 
+    # Compression is detected from the gzip magic bytes rather than the file name, so mislabelled extensions are handled too. 
+    # Whatever comes in, the merged output is always gzipped, which is what every downstream module expects.
+    is_gzipped() {
+        [ "\$(od -An -N2 -tx1 "\$1" | tr -d ' \\n')" = "1f8b" ]
+    }
 
-    if [ \${#BCUMI[@]} -eq 1 ]; then
-        ln -s "\${BCUMI[0]}" "${meta.id}_merged_BC_UMI.fastq.gz"
-    else
-        zcat "\${BCUMI[@]}" | \$COMPRESSOR -c >"${meta.id}_merged_BC_UMI.fastq.gz"
-    fi
+    # Stream the plain-text contents of one or more FASTQs to stdout
+    cat_fastqs() {
+        for f in "\$@"; do
+            if is_gzipped "\$f"; then
+                pigz -dc -p ${task.cpus} "\$f"
+            else
+                cat "\$f"
+            fi
+        done
+    }
+
+    # A lone gzipped input is symlinked instead of recompressed.
+    merge_fastqs() {
+        local out=\$1
+        shift
+        if [ "\$#" -eq 1 ] && is_gzipped "\$1"; then
+            ln -s "\$1" "\$out"
+        else
+            cat_fastqs "\$@" | \$COMPRESSOR -c > "\$out"
+        fi
+    }
+
+    merge_fastqs "${meta.id}_merged_cDNA.fastq.gz" "\${CDNA[@]}"
+    merge_fastqs "${meta.id}_merged_BC_UMI.fastq.gz" "\${BCUMI[@]}"
 
     # Index FASTQs (commonly I1 and I2)
     mkdir -p ${meta.id}_merged_indices
@@ -45,20 +66,21 @@ process MERGE_FASTQS {
         I2_LIST=(\$(echo ${fastq_indices} | tr ' ' '\\n' | grep -E 'I2|_R4|_index2' || true))
 
         # I1
-        if [ \${#I1_LIST[@]} -eq 1 ]; then
-            ln -s \${I1_LIST[0]} ${meta.id}_merged_I1.fastq.gz
-        elif [ \${#I1_LIST[@]} -gt 1 ]; then
-            zcat \${I1_LIST[@]} | \$COMPRESSOR -c > ${meta.id}_merged_I1.fastq.gz
+        if [ \${#I1_LIST[@]} -gt 0 ]; then
+            merge_fastqs "${meta.id}_merged_I1.fastq.gz" "\${I1_LIST[@]}"
         fi
 
         # I2
-        if [ \${#I2_LIST[@]} -eq 1 ]; then
-            ln -s \${I2_LIST[0]} ${meta.id}_merged_I2.fastq.gz
-        elif [ \${#I2_LIST[@]} -gt 1 ]; then
-            zcat \${I2_LIST[@]} | \$COMPRESSOR -c > ${meta.id}_merged_I2.fastq.gz
+        if [ \${#I2_LIST[@]} -gt 0 ]; then
+            merge_fastqs "${meta.id}_merged_I2.fastq.gz" "\${I2_LIST[@]}"
         fi
     fi
 
     echo "Merging completed for ${meta.id}"
+
+    cat <<-END_VERSIONS > versions.yml
+    "${task.process}":
+        pigz: \$(pigz --version 2>&1 | sed 's/pigz //')
+    END_VERSIONS
     """
 }

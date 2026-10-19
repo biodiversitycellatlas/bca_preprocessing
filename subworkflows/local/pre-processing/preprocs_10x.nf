@@ -7,7 +7,6 @@
     IMPORT FUNCTIONS / MODULES / SUBWORKFLOWS
 ~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~
 */
-include { DOWNLOAD_DATA } from '../../../modules/local/custom/manipulate/download_files/main'
 include { CR_PIPELINE_MKREF } from '../../../modules/local/pipelines/cellranger/cellranger_mkref/main'
 include { CR_PIPELINE } from '../../../modules/local/pipelines/cellranger/cellranger_count/main'
 
@@ -21,20 +20,23 @@ workflow tenx_genomics_workflow {
         ch_samplesheet
 
     main:
-        // Download data from the specified path, in this case the barcode whitelist
-        DOWNLOAD_DATA()
+        def ch_versions = channel.empty()
+        def ch_cellranger_outs = channel.empty()
 
         // Only run Cell Ranger pipeline if perform_cellranger is set to true
         if (params.perform_cellranger) {
-            CR_PIPELINE_MKREF()
+            CR_PIPELINE_MKREF(file(params.ref_fasta, checkIfExists: true), file(params.ref_gtf, checkIfExists: true))
 
-            // Use .first() to allow the reference index to be reused for all samples
-            CR_PIPELINE(ch_samplesheet, CR_PIPELINE_MKREF.out.first())
+            // The reference process has single-value inputs only, so it runs once and its output is reused by every sample
+            CR_PIPELINE(ch_samplesheet, CR_PIPELINE_MKREF.out.reference)
+            ch_cellranger_outs = CR_PIPELINE.out.outs
+            ch_versions = ch_versions.mix(CR_PIPELINE_MKREF.out.versions, CR_PIPELINE.out.versions)
         }
 
     emit:
         data_output     = ch_samplesheet
-        bc_whitelist    = DOWNLOAD_DATA.out
+        cellranger_outs = ch_cellranger_outs
+        versions        = ch_versions
 }
 
 /*

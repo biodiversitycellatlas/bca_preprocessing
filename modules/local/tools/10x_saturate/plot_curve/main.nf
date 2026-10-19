@@ -1,7 +1,7 @@
 process SATURATION_PLOT {
-    publishDir "${params.outdir}/saturation/${meta.id}", mode: 'copy'
+    publishDir path: { "${params.outdir}/saturation/${meta.id}" }, mode: 'copy', saveAs: { filename -> filename == 'versions.yml' ? null : filename }
     tag "${meta.id}"
-    label 'process_medium'
+    label 'process_single2'
 
     conda "${moduleDir}/environment.yml"
     container "oras://community.wave.seqera.io/library/pysam_samtools_matplotlib_numpy_pruned:b8f551e4a5153343"
@@ -14,14 +14,20 @@ process SATURATION_PLOT {
     path("${meta.id}_saturation.log"),                      emit: logs
     path("${meta.id}_saturation.png"),                      emit: img_saturation
     path("${meta.id}_saturation_residuals.png"),            emit: img_residuals
+    path "versions.yml",                                    emit: versions
 
     script:
     """
-    echo "\n\n==================  SATURATION PLOT =================="
+    echo -e "\\n\\n==================  SATURATION PLOT =================="
     python ${projectDir}/submodules/10x_saturate/scripts/plot_curve.py  \\
         ${saturation_output} \\
         ${meta.id}_saturation.png \\
         --target ${params.saturation_target} \\
         > ${meta.id}_saturation.log 2>&1 || true
+
+    cat <<-END_VERSIONS > versions.yml
+    "${task.process}":
+        python: \$(python3 --version | sed 's/Python //g')
+    END_VERSIONS
     """
 }

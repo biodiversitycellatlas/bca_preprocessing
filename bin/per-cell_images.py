@@ -1,16 +1,29 @@
 #!/usr/bin/env python3
 """
-Compute per-cell intronic, mitochondrial, rRNA metrics and generate comparison plots.
+Compute per-cell intronic, mtDNA and rRNA metrics and generate comparison plots.
+
+The read counts come from ``<id>_barcode_reads.tsv.gz``, written by
+calculate_read_metrics.py (CALC_READ_METRICS) in its pass over the BAM, so this
+script never reads the BAM itself. Every read metric counts a read once, at its
+primary alignment, and matches the called-cell rows of ``_mt_rrna_metrics.txt``:
+
+    MappedReads       reads with a CB tag (primary alignment)
+    MTPercent         % of MappedReads whose primary alignment is on a mitochondrial contig
+    rRNAPercent       % of MappedReads overlapping an rRNA region (any rRNA biotype, plus
+                      the whole of every contig of the added rRNA reference)
+    IntronicPercent   % of uniquely mapped reads STARsolo flags intronic (CellReads.stats)
+    UnsplicedPercent  % of Velocyto UMIs classed unspliced, when Velocyto was run
+
+All percentages are written as 0-100.
 """
 import os
 import argparse
 import json
-from collections import defaultdict
+import sys
 
 import scipy.io
 import numpy as np
 import pandas as pd
-import pysam
 import matplotlib.pyplot as plt
 
 
@@ -20,7 +33,7 @@ def parse_args():
     """
     parser = argparse.ArgumentParser(
         description=(
-            "Compute per-cell intronic, mitochondrial, rRNA metrics "
+            "Compute per-cell intronic, mtDNA and rRNA metrics "
             "and generate comparison plots"
         )
     )
@@ -29,130 +42,108 @@ def parse_args():
         help="Path to STARsolo output directory (e.g. /.../Sample_Solo.out)"
     )
     parser.add_argument(
-        "-m", "--mt-contig", required=True,
-        help="Name of the mitochondrial contig (e.g. OW052000.1)"
-    )
-    parser.add_argument(
-        "-g", "--gtf", required=True,
-        help="Path to the reference GTF file"
-    )
-    parser.add_argument(
-        "-b", "--bam", required=True,
-        help="Path to the BAM file"
+        "-r", "--read-counts", required=True,
+        help=(
+            "Mapped, mtDNA and rRNA reads per barcode (<id>_barcode_reads.tsv.gz "
+            "from calculate_read_metrics.py)"
+        )
     )
     parser.add_argument(
         "-o", "--outdir", required=True,
         help="Path to the output directory"
     )
     parser.add_argument(
-        "-t", "--min-reads", type=int, required=True,
+        "-t", "--min-reads", type=int, default=0,
         help=(
-            "Minimum total reads to call a cell (STARsolo "
-            "cell/non-cell threshold)"
+            "Minimum mapped reads to call a cell. Only used as a fallback when "
+            "--cell-barcodes is not given"
         )
     )
     parser.add_argument(
-        "-w", "--whitelist", required=False,
-        help="Path to an optional text file containing rRNA gene names/IDs (one per row)"
+        "-c", "--cell-barcodes", required=False,
+        help=(
+            "Path to the barcodes.tsv of the filtered count matrix. When given, "
+            "cells are split on membership of that set instead of on --min-reads, "
+            "which makes the plots agree with the matrix that was actually "
+            "filtered"
+        )
     )
     return parser.parse_args()
 
 
-def load_rrna_intervals(gtf_path, whitelist_path=None):
+def load_cell_barcodes(path):
+    """Read the called-cell barcodes from a filtered matrix's ``barcodes.tsv``.
+
+    Returns a set of barcodes, or ``None`` when no usable file was given, in
+    which case the caller falls back to the read threshold.
     """
-    Parse GTF file and return a mapping of chromosome -> rRNA intervals.
+    if not path or not os.path.exists(path):
+        return None
+
+    try:
+        df = pd.read_csv(path, sep="\t", header=None)
+    except pd.errors.EmptyDataError:
+        # A cell filter that kept nothing would have failed upstream, so an empty
+        # file means the list is unusable rather than that there are no cells
+        print(f"Warning: {path} is empty; falling back to the read threshold")
+        return None
+
+    if df.empty:
+        return None
+
+    return set(df.iloc[:, 0].astype(str))
+
+
+def load_cellreads_intronic(solo_dir):
     """
-    # Load whitelist if provided
-    whitelist = set()
-    if whitelist_path and os.path.exists(whitelist_path):
-        with open(whitelist_path) as f:
-            whitelist = {line.strip() for line in f if line.strip()}
+    Per-barcode intronic read percentage from STARsolo's ``CellReads.stats``.
 
-    intervals = defaultdict(list)
-    with open(gtf_path) as gtf:
-        for line in gtf:
-            if line.startswith("#"):
-                continue
-
-            cols = line.strip().split("\t")
-            if len(cols) < 9:
-                continue
-
-            # Fixed GTF column indexing: end is cols[4], attributes are cols[8]
-            chrom = cols[0]
-            ftype = cols[2]
-            start = int(cols[3])
-            end = int(cols[4])
-            attributes = cols[8]
-
-            is_rrna = False
-
-            # Check if feature type is explicitly rRNA
-            if ftype.lower() == "rrna":
-                is_rrna = True
-
-            # Check if attributes contain rRNA biotype (handles both GENCODE 'gene_type' and Ensembl 'gene_biotype')
-            elif 'gene_biotype "rRNA"' in attributes or 'gene_type "rRNA"' in attributes:
-                is_rrna = True
-            elif 'transcript_biotype "rRNA"' in attributes or 'transcript_type "rRNA"' in attributes:
-                is_rrna = True
-
-            # Check if feature matches a user-provided whitelist
-            elif whitelist:
-                for item in whitelist:
-                    if f'"{item}"' in attributes:
-                        is_rrna = True
-                        break
-
-            if is_rrna:
-                # Convert 1-based inclusive to 0-based half-open
-                intervals[chrom].append((start - 1, end))
-
-    return intervals
-
-
-def load_matrices(solo_dir):
+    ``intronic / genomeU``: STARsolo flags reads intronic only when they have a
+    unique genomic alignment, so ``genomeU`` is the denominator, the same one the
+    dashboard and mapping_stats.tsv use for their library- and cell-level values.
+    Returns a Series indexed by barcode, or ``None`` when the file is absent.
     """
-    Load GeneFull_Ex50pAS and Gene matrices and computes intronic percentages.
-    Aligns barcodes safely to prevent IndexErrors.
+    path = os.path.join(solo_dir, "GeneFull_Ex50pAS", "CellReads.stats")
+    if not os.path.exists(path):
+        print(
+            f"Warning: no {path}; the intronic percentage needs soloCellReadStats "
+            "and is skipped for this sample.",
+            file=sys.stderr,
+        )
+        return None
+
+    stats = pd.read_csv(path, sep="\t", index_col=0)
+    if "intronic" not in stats.columns or "genomeU" not in stats.columns:
+        print(f"Warning: 'intronic'/'genomeU' columns not found in {path}", file=sys.stderr)
+        return None
+    # Aggregate row for reads whose barcode is not in the passlist
+    stats = stats.drop(index="CBnotInPasslist", errors="ignore")
+    stats.index = stats.index.astype(str)
+    return compute_percentages(stats["genomeU"].to_numpy(), stats["intronic"].to_numpy(),
+                               index=stats.index)
+
+
+def load_velocyto_unspliced(solo_dir):
     """
-    # File paths
-    full_path = os.path.join(solo_dir, "GeneFull_Ex50pAS/raw/matrix.mtx")
-    gene_path = os.path.join(solo_dir, "Gene/raw/matrix.mtx")
-    full_bc_path = os.path.join(solo_dir, "GeneFull_Ex50pAS/raw/barcodes.tsv")
-    gene_bc_path = os.path.join(solo_dir, "Gene/raw/barcodes.tsv")
+    Per-barcode unspliced UMI percentage from STARsolo's Velocyto matrices,
+    ``unspliced / (spliced + unspliced + ambiguous)``.
 
-    # Load matrix data and sum across features (axis=0)
-    mat_full = scipy.io.mmread(full_path).tocsc()
-    mat_gene = scipy.io.mmread(gene_path).tocsc()
+    Velocyto classifies each UMI once against the transcript models, so this is the
+    UMI-level counterpart of the intronic read percentage. It only covers the Gene
+    feature (annotated genes, sense strand), so the two are not expected to be
+    equal. Returns a Series indexed by barcode, or ``None`` when Velocyto was not run.
+    """
+    vdir = os.path.join(solo_dir, "Velocyto", "raw")
+    paths = {kind: os.path.join(vdir, f"{kind}.mtx") for kind in ("spliced", "unspliced", "ambiguous")}
+    bc_path = os.path.join(vdir, "barcodes.tsv")
+    if not all(os.path.exists(p) for p in [*paths.values(), bc_path]):
+        return None
 
-    counts_full_raw = np.array(mat_full.sum(axis=0)).ravel()
-    counts_gene_raw = np.array(mat_gene.sum(axis=0)).ravel()
-
-    # Read barcodes using your existing helper function
-    bc_full = read_barcodes(full_bc_path)
-    bc_gene = read_barcodes(gene_bc_path)
-
-    # Use Pandas to align gene counts to full counts by barcode string
-    s_full = pd.Series(counts_full_raw, index=bc_full)
-    s_gene = pd.Series(counts_gene_raw, index=bc_gene)
-
-    # Reindex s_gene to match the barcodes of s_full, filling missing ones with 0
-    s_gene_aligned = s_gene.reindex(s_full.index, fill_value=0)
-
-    # Extract back to NumPy arrays
-    counts_full = s_full.values
-    counts_gene = s_gene_aligned.values
-
-    # Avoid division by zero and compute intronic percent
-    intronic = np.zeros_like(counts_full, dtype=float)
-    mask = counts_full > 0
-    intronic[mask] = (
-        counts_full[mask] - counts_gene[mask]
-    ) / counts_full[mask]
-
-    intronic[intronic < 0] = 0
-    return intronic
+    totals = {kind: np.asarray(scipy.io.mmread(p).tocsc().sum(axis=0)).ravel()
+              for kind, p in paths.items()}
+    barcodes = pd.Index(read_barcodes(bc_path)).astype(str)
+    every = totals["spliced"] + totals["unspliced"] + totals["ambiguous"]
+    return compute_percentages(every, totals["unspliced"], index=barcodes)
 
 
 def read_barcodes(barcodes_path):
@@ -165,62 +156,42 @@ def read_barcodes(barcodes_path):
     return df.squeeze().tolist()
 
 
-def scan_bam(
-    bam_path, cb_list, mt_contig, rrna_intervals
-):
+def load_read_counts(path, cb_list):
     """
-    Scan BAM file to count total, mitochondrial, and rRNA reads per barcode.
-    Returns three dicts: total_counts, mt_counts, rrna_counts.
+    Mapped, mtDNA and rRNA reads per barcode from CALC_READ_METRICS'
+    ``<id>_barcode_reads.tsv.gz``, as three arrays aligned to *cb_list*.
+
+    Barcodes absent from the file had no read at a primary alignment and get 0;
+    barcodes outside *cb_list* (not in the raw matrix) are dropped.
     """
-    total = defaultdict(int)
-    mt = defaultdict(int)
-    rrna = defaultdict(int)
-
-    with pysam.AlignmentFile(bam_path, "rb") as bam:
-        for read in bam.fetch(until_eof=True):
-            if read.is_unmapped:
-                continue
-            try:
-                cb = read.get_tag("CB")
-            except KeyError:
-                continue
-            total[cb] += 1
-            if read.reference_name == mt_contig:
-                mt[cb] += 1
-            chrom = read.reference_name
-            if chrom in rrna_intervals:
-                rstart, rend = read.reference_end, read.reference_start
-                for istart, iend in rrna_intervals[chrom]:
-                    # Overlap check
-                    if istart < rstart and iend > rend:
-                        rrna[cb] += 1
-                        break
-                    # Broad check for any overlap
-                    if max(rstart, istart) < min(rend, iend):
-                         rrna[cb] += 1
-                         break
-
-    # Build arrays aligned to barcode list
-    total_arr = np.array([total.get(c, 0) for c in cb_list])
-    mt_arr = np.array([mt.get(c, 0) for c in cb_list])
-    rrna_arr = np.array([rrna.get(c, 0) for c in cb_list])
-    return total_arr, mt_arr, rrna_arr
+    # keep_default_na: a barcode such as "NA" or "-" is a barcode, not a missing value
+    counts = pd.read_csv(path, sep="\t", index_col="CB", dtype={"CB": str}, keep_default_na=False)
+    counts = counts.reindex(cb_list, fill_value=0)
+    return (counts["MappedReads"].to_numpy(),
+            counts["MTReads"].to_numpy(),
+            counts["rRNAReads"].to_numpy())
 
 
-def compute_percentages(total, part):
+def compute_percentages(total, part, index=None):
     """
-    Compute fraction part/total, handling zeros.
+    Compute 100 * part / total, with 0 where total is 0. Returns a Series when
+    *index* is given, otherwise an array.
     """
+    total = np.asarray(total, dtype=float)
+    part = np.asarray(part, dtype=float)
     pct = np.zeros_like(part, dtype=float)
     mask = total > 0
-    pct[mask] = part[mask] / total[mask]
-    return pct
+    pct[mask] = 100.0 * part[mask] / total[mask]
+    return pd.Series(pct, index=index) if index is not None else pct
 
 
 def save_metrics(df, out_dir, prefix):
     """
     Save DataFrame as CSV and JSON for interactive dashboards.
     JSON is saved in column-oriented format (dict of lists) for efficiency.
+
+    ``IsCell`` travels with the metrics so the dashboard splits its interactive
+    plots on the same cell set as the static PNGs.
     """
     csv_path = os.path.join(out_dir, f"{prefix}_metrics.csv")
     json_path = os.path.join(out_dir, f"{prefix}_metrics.json")
@@ -229,11 +200,12 @@ def save_metrics(df, out_dir, prefix):
     df.to_csv(csv_path, index=False)
 
     # Filter out zero-read cells for JSON
-    df_json = df[df["TotalReads"] > 0].copy()
+    df_json = df[df["MappedReads"] > 0].copy()
 
-    # Round floats to 4 decimals to save space
-    float_cols = ["IntronicPercent", "MTPercent", "rRNAPercent"]
-    df_json[float_cols] = df_json[float_cols].round(4)
+    # Round floats to save space. IntronicPercent and UnsplicedPercent are absent
+    # when their inputs were not produced, so the columns are intersected with the frame.
+    float_cols = [c for c in PCT_COLUMNS if c in df_json.columns]
+    df_json[float_cols] = df_json[float_cols].round(2)
 
     # Convert to dictionary of lists {"col": [val, val...]}
     metrics_dict = df_json.to_dict(orient="list")
@@ -246,27 +218,40 @@ def save_metrics(df, out_dir, prefix):
     print(f"Saved optimized JSON to {json_path}")
 
 
+PCT_COLUMNS = ("IntronicPercent", "UnsplicedPercent", "MTPercent", "rRNAPercent")
+
+AXIS_LABELS = {
+    "IntronicPercent": "Intronic reads (% of uniquely mapped reads)",
+    "UnsplicedPercent": "Unspliced UMIs (%, velocyto)",
+    "MTPercent": "mtDNA reads (% of mapped reads)",
+    "rRNAPercent": "rRNA reads (% of mapped reads)",
+    "MappedReads": "Mapped reads",
+}
+
+
 def plot_comparisons(
-    df, out_dir, prefix, min_reads
+    df, out_dir, prefix, cell_label, noncell_label
 ):
     """
-    Generate and save scatter plots for predefined metric pairs.
+    Generate and save scatter plots for predefined metric pairs, split on the
+    ``IsCell`` column.
     """
-    axis_labels = {
-        "IntronicPercent": "Intronic Reads (%)",
-        "MTPercent": "mtDNA (%)",
-        "rRNAPercent": "rRNA (%)",
-        "TotalReads": "Total Reads (Cell Size)",
-    }
     comparisons = [
-        ("IntronicPercent", "MTPercent", "Percentage Intronic vs Mitochondrial Reads Per Cell"),
-        ("IntronicPercent", "rRNAPercent", "Percentage Intronic vs rRNA Reads Per Cell"),
-        ("IntronicPercent", "TotalReads", "Percentage Intronic Reads Per Cell vs Cell Size"),
-        ("MTPercent", "rRNAPercent", "Percentage Mitochondrial vs rRNA Reads Per Cell"),
-        ("MTPercent", "TotalReads", "Percentage Mitochondrial Reads Per Cell vs Cell Size"),
-        ("rRNAPercent", "TotalReads", "Percentage rRNA Reads Per Cell vs Cell Size"),
+        ("IntronicPercent", "MTPercent", "% Intronic vs % mtDNA Reads Per Cell"),
+        ("IntronicPercent", "rRNAPercent", "% Intronic vs % rRNA Reads Per Cell"),
+        ("IntronicPercent", "MappedReads", "% Intronic Reads vs Mapped Reads Per Cell"),
+        ("MTPercent", "rRNAPercent", "% mtDNA vs % rRNA Reads Per Cell"),
+        ("MTPercent", "MappedReads", "% mtDNA Reads vs Mapped Reads Per Cell"),
+        ("rRNAPercent", "MappedReads", "% rRNA Reads vs Mapped Reads Per Cell"),
+        ("IntronicPercent", "UnsplicedPercent", "% Intronic Reads vs % Unspliced UMIs Per Cell"),
     ]
-    low_mask = df["TotalReads"] < min_reads
+    # Pairs involving a metric that could not be computed are dropped rather than
+    # plotted empty: without CellReads.stats that removes the intronic panels, and
+    # without Velocyto the unspliced one.
+    comparisons = [(x, y, title) for x, y, title in comparisons
+                   if x in df.columns and y in df.columns]
+
+    low_mask = ~df["IsCell"].astype(bool)
 
     for x, y, title in comparisons:
         fig, ax = plt.subplots()
@@ -274,16 +259,16 @@ def plot_comparisons(
             df.loc[low_mask, x],
             df.loc[low_mask, y],
             s=5, color="#b6b5b5",
-            label=f"< {min_reads} reads"
+            label=noncell_label
         )
         ax.scatter(
             df.loc[~low_mask, x],
             df.loc[~low_mask, y],
             s=5, color="steelblue",
-            label=f"≥ {min_reads} reads"
+            label=cell_label
         )
-        ax.set_xlabel(axis_labels[x])
-        ax.set_ylabel(axis_labels[y])
+        ax.set_xlabel(AXIS_LABELS[x])
+        ax.set_ylabel(AXIS_LABELS[y])
         ax.set_title(title)
         ax.legend(markerscale=2, fontsize="small", framealpha=0.8)
         fig.tight_layout()
@@ -300,36 +285,59 @@ def main():
     solo_out = args.solo_output.rstrip("/")
     prefix = os.path.basename(solo_out).replace("_Solo.out", "")
 
-    # Load data
-    intronic = load_matrices(solo_out)
-    barcodes = read_barcodes(
-        os.path.join(
-            solo_out, "GeneFull_Ex50pAS/raw/barcodes.tsv"
-        )
-    )
-    rrna_int = load_rrna_intervals(args.gtf, args.whitelist)
+    # Every barcode STARsolo saw, in the raw matrix's order
+    barcodes = [str(bc) for bc in read_barcodes(
+        os.path.join(solo_out, "GeneFull_Ex50pAS/raw/barcodes.tsv")
+    )]
 
-    # Compute read counts
-    total_cnt, mt_cnt, rrna_cnt = scan_bam(
-        args.bam, barcodes, args.mt_contig, rrna_int
-    )
+    # Read counts per barcode, from CALC_READ_METRICS' pass over the BAM
+    total_cnt, mt_cnt, rrna_cnt = load_read_counts(args.read_counts, barcodes)
 
     # Calculate percentages
     mt_pct = compute_percentages(total_cnt, mt_cnt)
     rrna_pct = compute_percentages(total_cnt, rrna_cnt)
 
-    # Build DataFrame
-    df = pd.DataFrame({
-        "Cell": barcodes,
-        "IntronicPercent": intronic,
+    # Called cells come from the filtered matrix when available. The threshold
+    # fallback compares a UMI cutoff against per-barcode read counts, so it only
+    # approximates the cell set; the barcode list is the same one the matrix was
+    # filtered on and needs no such assumption.
+    cell_barcodes = load_cell_barcodes(args.cell_barcodes)
+    if cell_barcodes is not None:
+        is_cell = np.array([bc in cell_barcodes for bc in barcodes])
+        cell_label = f"Called cell (n={int(is_cell.sum())})"
+        noncell_label = "Not called"
+        print(
+            f"Splitting on {len(cell_barcodes)} barcodes from {args.cell_barcodes}; "
+            f"{int(is_cell.sum())} of {len(barcodes)} matched"
+        )
+    else:
+        is_cell = total_cnt >= args.min_reads
+        cell_label = f"≥ {args.min_reads} reads"
+        noncell_label = f"< {args.min_reads} reads"
+        print(f"No cell barcode list given; splitting on {args.min_reads} reads")
+
+    # Build DataFrame. The intronic and unspliced columns are omitted entirely
+    # rather than filled with a placeholder when their inputs were not produced, so
+    # nothing downstream can mistake a stand-in value for a measurement. Barcodes
+    # absent from those inputs had no reads there and get 0, like the other columns.
+    columns = {"Cell": barcodes}
+    intronic = load_cellreads_intronic(solo_out)
+    if intronic is not None:
+        columns["IntronicPercent"] = intronic.reindex(barcodes, fill_value=0.0).to_numpy()
+    unspliced = load_velocyto_unspliced(solo_out)
+    if unspliced is not None:
+        columns["UnsplicedPercent"] = unspliced.reindex(barcodes, fill_value=0.0).to_numpy()
+    columns.update({
         "MTPercent": mt_pct,
         "rRNAPercent": rrna_pct,
-        "TotalReads": total_cnt,
+        "MappedReads": total_cnt,
+        "IsCell": is_cell.astype(int),
     })
+    df = pd.DataFrame(columns)
 
     # Save metrics and plots
     save_metrics(df, args.outdir, prefix)
-    plot_comparisons(df, args.outdir, prefix, args.min_reads)
+    plot_comparisons(df, args.outdir, prefix, cell_label, noncell_label)
 
 
 if __name__ == "__main__":

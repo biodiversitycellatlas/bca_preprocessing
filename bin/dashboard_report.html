@@ -532,6 +532,121 @@
             fill: currentColor;
         }
 
+        /**********************************************************************
+    * GENE EXTENSION TAB
+    **********************************************************************/
+        /* Summary table + peak flow, laid out like the Cell Calling tab */
+        .ge-summary {
+            margin-bottom: 16px;
+        }
+
+        .ge-summary .cellcalling-left > .table-scroll {
+            width: 100%;
+        }
+
+        .ge-summary .ge-flow-panel {
+            width: 100%;
+            box-sizing: border-box;
+        }
+
+        @media (max-width: 900px) {
+            .ge-summary {
+                grid-template-columns: 1fr;
+            }
+        }
+
+        .ge-panels {
+            display: grid;
+            grid-template-columns: 1fr 1fr;
+            gap: 16px;
+            margin-bottom: 16px;
+        }
+
+        @media (max-width: 900px) {
+            .ge-panels {
+                grid-template-columns: 1fr;
+            }
+        }
+
+        .ge-panel {
+            background: white;
+            border: 1px solid var(--border);
+            border-radius: 10px;
+            padding: 12px 14px;
+        }
+
+        .ge-panel h4 {
+            margin: 0 0 4px 0;
+        }
+
+        .ge-panel .ge-sub {
+            margin: 0 0 10px 0;
+            font-size: 0.8rem;
+            color: #777;
+        }
+
+        .ge-flow {
+            display: flex;
+            flex-direction: column;
+            align-items: center;
+            gap: 6px;
+        }
+
+        .ge-flow-node {
+            width: 100%;
+            max-width: 340px;
+            text-align: center;
+            background: #fafafa;
+            border: 2px solid var(--header-color);
+            border-radius: 8px;
+            padding: 10px 12px;
+        }
+
+        .ge-flow-node .n {
+            font-size: 1.4rem;
+            font-weight: 700;
+        }
+
+        .ge-flow-node .l {
+            font-size: 0.72rem;
+            text-transform: uppercase;
+            letter-spacing: 0.4px;
+            color: #777;
+        }
+
+        .ge-flow-arrow {
+            color: #999;
+            font-weight: 700;
+        }
+
+        .ge-warn {
+            background-color: rgba(214, 69, 69, 0.08);
+            border-left: 4px solid #d64545;
+            border-radius: 0 6px 6px 0;
+            padding: 12px 16px;
+            margin-bottom: 16px;
+            font-size: 0.95rem;
+            line-height: 1.5;
+        }
+
+        .ge-meta {
+            font-size: 0.85rem;
+            color: #555;
+            line-height: 1.6;
+        }
+
+        .ge-meta code {
+            background: rgba(0, 0, 0, 0.05);
+            border-radius: 4px;
+            padding: 1px 4px;
+            word-break: break-all;
+        }
+
+        .ge-meta ul {
+            margin: 6px 0 0 18px;
+            padding: 0;
+        }
+
         /* Ensure Plotly text is always visible regardless of global SVG rules */
         .js-plotly-plot .main-svg text {
             fill: #444 !important;
@@ -624,6 +739,7 @@
         <section class="box">
             <nav class="tabs">
                 <div class="tab active" data-tab="mapping">Mapping</div>
+                <div class="tab hidden" data-tab="geneext" id="tab-geneext">Gene Extension</div>
                 <div class="tab" data-tab="cellcalling">Cell Calling</div>
                 <div class="tab" data-tab="saturation">Saturation</div>
                 <div class="tab" data-tab="percell">Per-Cell Visualizations</div>
@@ -639,6 +755,7 @@
                 <div class="tab-pane" id="percell"></div>
                 <div class="tab-pane" id="taxonomic"></div>
                 <div class="tab-pane" id="cellfiltering"></div>
+                <div class="tab-pane" id="geneext"></div>
                 <div class="tab-pane" id="config"></div>
             </div>
         </section>
@@ -669,12 +786,20 @@
   __KNEE_DATA_PLACEHOLDER__
   </script>
 
+    <script id="secondderiv-data" type="application/json">
+  __SECONDDERIV_DATA_PLACEHOLDER__
+  </script>
+
     <script id="saturation-images" type="application/json">
   __SATURATION_IMAGES_PLACEHOLDER__
   </script>
 
     <script id="cellfiltering-data" type="application/json">
   __CELLFILTERING_DATA_PLACEHOLDER__
+  </script>
+
+    <script id="geneext-data" type="application/json">
+  __GENEEXT_DATA_PLACEHOLDER__
   </script>
 
 
@@ -685,18 +810,26 @@
         /**********************************************************************
          * JSON LOADING
          **********************************************************************/
-        function loadEmbeddedJSON(id) {
-            const el = document.getElementById(id);
-            if (!el) return null;
+        /* Parsed blocks are cached: the per-cell and knee payloads are the two
+           largest ones in the document, and these are re-read on every tab and
+           sample switch. */
+        const _jsonCache = new Map();
 
-            try {
-                const txt = el.textContent.trim();
-                if (!txt || txt.startsWith("__")) return null;
-                return JSON.parse(txt);
-            } catch (e) {
-                console.error("Invalid JSON in", id, e);
-                return null;
+        function loadEmbeddedJSON(id) {
+            if (_jsonCache.has(id)) return _jsonCache.get(id);
+
+            let parsed = null;
+            const el = document.getElementById(id);
+            if (el) {
+                try {
+                    const txt = el.textContent.trim();
+                    if (txt && !txt.startsWith("__")) parsed = JSON.parse(txt);
+                } catch (e) {
+                    console.error("Invalid JSON in", id, e);
+                }
             }
+            _jsonCache.set(id, parsed);
+            return parsed;
         }
 
         /**********************************************************************
@@ -706,6 +839,7 @@
         window._currentSample = null;
         window._saturationImages = null;
         window._cellFilteringData = null;
+        window._geneExtData = null;
 
         /**********************************************************************
          * MAIN ENTRY
@@ -720,6 +854,13 @@
 
             const cfData = loadEmbeddedJSON("cellfiltering-data") || {};
             window._cellFilteringData = cfData;
+
+            /* GeneExt runs once per pipeline run rather than per sample, so its tab
+               is shown only when the run actually produced an extended annotation. */
+            const geData = loadEmbeddedJSON("geneext-data") || {};
+            window._geneExtData = geData;
+            const geTab = document.getElementById("tab-geneext");
+            if (geTab && Object.keys(geData).length > 0) geTab.classList.remove("hidden");
 
             if (meta) renderHeader(meta);
             if (global) renderGlobalSummary(global);
@@ -896,13 +1037,16 @@
          * ACTIVE TAB RENDERING
          **********************************************************************/
         function renderActiveTab() {
-            const sample = window._currentSample;
-            if (!sample) return;
-
             const activeTab = document.querySelector(".tab.active");
             if (!activeTab) return;
 
             const tabId = activeTab.dataset.tab;
+
+            /* Run-level, so it does not depend on the selected sample */
+            if (tabId === "geneext") return renderGeneExt();
+
+            const sample = window._currentSample;
+            if (!sample) return;
 
             if (tabId === "mapping") return renderMapping(sample);
             if (tabId === "saturation") return renderSaturation(sample);
@@ -918,6 +1062,22 @@
          **********************************************************************/
         function renderMapping(sample) {
             const m = sample.mapping;
+            const isAlevin = sample.source === "alevin";
+
+            // Labels depend on the mapper:
+            //  - alevin-fry reports salmon's mapped fragments (multimappers
+            //    included, resolved by cr-like-em), not a uniquely-mapped count.
+            //  - alevin-fry's gene count comes from the reference/matrix width, so it is
+            //    the reference size and not the number of genes detected -- unless the
+            //    cells were re-called, which counts them on the retained cells. The
+            //    generator states which of the two the value is.
+            const mappedCountLabel = isAlevin
+                ? "Number of Mapped Reads" : "Number of Uniquely mapped reads";
+            const mappedPctLabel = isAlevin
+                ? "% Mapped Reads" : "% uniquely mapped reads";
+            const totalGenesScope = m.total_genes_scope || (isAlevin ? "reference" : "detected");
+            const totalGenesLabel = totalGenesScope === "reference"
+                ? "Total Genes in Reference" : "Total Genes Detected";
 
             // Define the fields and labels for each card dynamically
             const cards = [
@@ -929,8 +1089,8 @@
                         { label: "Number of Reads / Sample", value: m.n_reads_sample },
                         { label: "Q30 Bases in CB+UMI", value: m.pct_r1_q30 },
                         { label: "Q30 Bases in RNA read", value: m.pct_r2_q30 },
-                        { label: "Number of Uniquely mapped reads", value: m.n_uniquely_mapped },
-                        { label: "% uniquely mapped reads", value: m.pct_uniquely_mapped },
+                        { label: mappedCountLabel, value: m.n_uniquely_mapped },
+                        { label: mappedPctLabel, value: m.pct_uniquely_mapped },
                         { label: "% multi-mapped reads", value: m.pct_multi_mapped },
                         { label: "% multi-mapped reads: too many", value: m.pct_multi_too_many },
                         { label: "% unmapped: too short", value: m.pct_unmapped_short },
@@ -943,11 +1103,28 @@
                     credit: { name: "Michael Schiffer", url: "https://unsplash.com/michael_schiffer_design" },
                     stats: [
                         { label: "Noise (% UMIs in non-cell barcodes)", value: m.noise_pct },
-                        { label: "% Intronic reads", value: m.intronic_pct },
-                        { label: "% rRNA in unique reads", value: m.rrna_pct },
-                        { label: "% mtDNA in unique reads", value: m.mtdna_unique_pct },
-                        { label: "% mtDNA in multimappers all pos", value: m.mtdna_multi_all_pct },
-                        { label: "% mtDNA in multimappers primary pos", value: m.mtdna_multi_primary_pct }
+                        { label: "% intronic reads (of uniquely mapped reads)", value: m.intronic_pct },
+                        { label: "% rRNA reads (of mapped reads, primary alignment)", value: m.rrna_mapped_pct },
+                        { label: "% rRNA reads (of uniquely mapped reads)", value: m.rrna_unique_pct },
+                        { label: "% rRNA reads (of multimapped reads, primary alignment)", value: m.rrna_multi_primary_pct },
+                        { label: "% rRNA alignments (of multimapped read alignments, all alignments)", value: m.rrna_multi_aln_pct },
+                        { label: "% mtDNA reads (of mapped reads, primary alignment)", value: m.mtdna_mapped_pct },
+                        { label: "% mtDNA reads (of uniquely mapped reads)", value: m.mtdna_unique_pct },
+                        { label: "% mtDNA reads (of multimapped reads, primary alignment)", value: m.mtdna_multi_primary_pct },
+                        { label: "% mtDNA alignments (of multimapped read alignments, all alignments)", value: m.mtdna_multi_aln_pct },
+                        // Rows whose inputs are optional: the called-cell values need the
+                        // filtered matrix, the strand split a stranded run
+                        ...[
+                            { label: "% rRNA reads (of mapped reads, primary alignment, called cells)", value: m.rrna_mapped_cells_pct },
+                            { label: "% mtDNA reads (of mapped reads, primary alignment, called cells)", value: m.mtdna_mapped_cells_pct },
+                            { label: "% mtDNA reads sense to mitochondrial genes (of mtDNA reads)", value: m.mtdna_sense_pct },
+                            { label: "% mtDNA reads antisense to mitochondrial genes (of mtDNA reads)", value: m.mtdna_antisense_pct },
+                            { label: "% mtDNA reads outside mitochondrial genes (of mtDNA reads)", value: m.mtdna_outside_pct },
+                        ].filter(r => r.value != null),
+                        // Not counted for unstranded runs, so the row is left out there
+                        ...(m.antisense_pct != null
+                            ? [{ label: "% Antisense reads (of gene-assigned reads)", value: m.antisense_pct }]
+                            : [])
                     ]
                 },
                 {
@@ -961,7 +1138,7 @@
                         { label: "Mean Reads per Cell", value: m.mean_reads_per_cell },
                         { label: "Median UMI Counts per Cell", value: m.median_umis },
                         { label: "Median Genes per Cell", value: m.median_genes },
-                        { label: "Total Genes Detected", value: m.total_genes }
+                        { label: totalGenesLabel, value: m.total_genes }
                     ]
                 }
             ];
@@ -1042,6 +1219,21 @@
         function renderCellCalling(sample) {
             const c = sample.cell_calling;
 
+            // Only present when cellfilter_method = "second_derivative"; this is the
+            // cutoff the count matrices were actually filtered on.
+            const sdCutoff = secondDerivCutoff(sample);
+            const sdRow = sdCutoff == null
+                ? ""
+                : `<tr><td>UMI cutoff from 2nd derivative</td><td>${sdCutoff.toLocaleString()}</td></tr>`;
+
+            // STARsolo's own nUMImin, read out of Log.out. Shown alongside the
+            // second-derivative cutoff so the two cell calls can be compared; the
+            // matrices were filtered on the latter whenever both are present.
+            const starCutoff = c.starsolo_cutoff;
+            const starRow = starCutoff == null
+                ? ""
+                : `<tr><td>UMI cutoff from STARsolo</td><td>${starCutoff.toLocaleString()}</td></tr>`;
+
             document.getElementById("cellcalling").innerHTML = `
         <h3>Cell Calling</h3>
 
@@ -1054,6 +1246,8 @@
                   <tr><td>Expected Number of Cells</td><td>${c.expected_cells.toLocaleString()}</td></tr>
                   <tr><td>Number of Cells</td><td>${c.num_cells.toLocaleString()}</td></tr>
                   <tr><td>UMI cutoff for Cell Calling</td><td>${c.umi_threshold.toLocaleString()}</td></tr>
+                  ${sdRow}
+                  ${starRow}
                 </tbody>
               </table>
             </div>
@@ -1090,20 +1284,59 @@
             renderKneePlot(sample);
         }
 
-        function loadKneeUMIs(sampleId) {
-            const knee = loadEmbeddedJSON("knee-data");
-            return knee ? knee[sampleId] : null;
+        /* The barcode-rank curve, thinned uniformly in log10(rank) by
+           build_knee_payload() in bin/generate_dashboard.py. Every retained point
+           carries its true rank and the cumulative UMI total up to it, so both
+           the rank plot and the second-derivative fallback below are exact at the
+           points they draw. `n_barcodes` / `n_above_min` are the untruncated
+           counts. Reports written before the payload gained its shape embedded a
+           bare array of UMI counts. */
+        function loadKnee(sampleId) {
+            const all = loadEmbeddedJSON("knee-data");
+            const entry = all ? all[sampleId] : null;
+            if (!entry) return null;
+            if (Array.isArray(entry)) {
+                const sorted = [...entry].sort((a, b) => b - a);
+                return {
+                    ranks: sorted.map((_, i) => i + 1),
+                    umis: sorted,
+                    cum: null,
+                    n_barcodes: sorted.length,
+                    n_above_min: null,
+                    min_umis: null
+                };
+            }
+            return entry;
+        }
+
+        /* Pre-computed second-derivative cell calling, emitted by the pipeline when
+           cellfilter_method = "second_derivative". Null for every other method. */
+        function loadSecondDeriv(sampleId) {
+            const data = loadEmbeddedJSON("secondderiv-data");
+            return data ? (data[sampleId] || null) : null;
+        }
+
+        function secondDerivCutoff(sample) {
+            const c = sample.cell_calling || {};
+            if (c.secondderiv_cutoff != null) return c.secondderiv_cutoff;
+            const sd = loadSecondDeriv(sample.sample_id);
+            return sd && sd.threshold_umi != null ? sd.threshold_umi : null;
         }
 
         function renderKneePlot(sample) {
             const sampleId = sample.sample_id;
             const c = sample.cell_calling;
-            const yAll = loadKneeUMIs(sampleId);
+            const knee = loadKnee(sampleId);
 
-            if (!yAll || yAll.length === 0) return;
+            if (!knee || !knee.umis || knee.umis.length === 0) return;
 
-            const xAll = Array.from({ length: yAll.length }, (_, i) => i + 1);
-            const cutoff = c.umi_threshold;
+            const yAll = knee.umis;
+            const xAll = knee.ranks;
+
+            // Split on the threshold the matrices were filtered on
+            const sdCutoff = secondDerivCutoff(sample);
+            const usingSecondDeriv = sdCutoff != null;
+            const cutoff = usingSecondDeriv ? sdCutoff : c.umi_threshold;
 
             // Split by cutoff
             const xAbove = [];
@@ -1142,7 +1375,9 @@
                 }
             ], {
                 title: {
-                    text: "Barcode Rank Plot (STARsolo threshold)",
+                    text: usingSecondDeriv
+                        ? "Barcode Rank Plot (2nd derivative threshold)"
+                        : "Barcode Rank Plot (STARsolo threshold)",
                     font: { family: 'Arial, sans-serif', size: 16, color: '#1e1e1e' }
                 },
                 xaxis: {
@@ -1195,94 +1430,176 @@
 
         function renderSecondDerivative(sample) {
             const sampleId = sample.sample_id;
-            const c = sample.cell_calling;
-            const rawUmis = loadKneeUMIs(sampleId);
 
-            if (!rawUmis || rawUmis.length === 0) {
+            // When the pipeline ran the second-derivative cell calling, show that curve:
+            // it is the one the count matrices were actually filtered on.
+            const sd = loadSecondDeriv(sampleId);
+            if (sd && Array.isArray(sd.logX) && sd.logX.length > 0) {
+                plotSecondDerivative({
+                    logX: sd.logX,
+                    logY: sd.logY,
+                    customdata: sd.customdata,
+                    derivX: sd.derivX,
+                    derivY: sd.derivY,
+                    cutX: sd.threshold_logX,
+                    cutY: sd.threshold_logY,
+                    cutUmis: sd.threshold_umi,
+                    note: sd.status === "ok" ? null : sd.message,
+                    applied: true
+                });
+                return;
+            }
+            if (sd) {
+                document.getElementById("kneeplot").innerHTML =
+                    `<p>${sd.message || "Second-derivative cell calling produced no curve."}</p>`;
+                return;
+            }
+
+            const knee = loadKnee(sampleId);
+
+            if (!knee || !knee.umis || knee.umis.length === 0) {
                 document.getElementById("kneeplot").innerHTML = "<p>No data available</p>";
                 return;
             }
 
-            // --- CONSTANTS ---
-            const UMI_MIN_THRESHOLD = 10;   // Minimum reads
-            const SMOOTHING_WINDOW = 200;   // Window size for moving average
-            const TRIM_EDGE = 15;           // Edge trimming for minima detection
+            // Same defaults as bin/secondderiv_cellcalling.py
+            const MIN_UMIS = 100;
+            const MIN_POINTS = 10;
+            const GRID_POINTS = 2000;
+            const SMOOTH_FRACTION = 0.02;
+            const SEARCH_LO_FACTOR = 0.1;
+            const SEARCH_HI_FACTOR = 10.0;
 
-            // --- DATA PREPARATION ---
-            // Sort descending
-            const sorted = [...rawUmis].sort((a, b) => b - a);
+            /* The curve is thinned, so its retained points are a subset of the
+               barcodes above the UMI floor. `nBarcodes` is how many there really
+               are, which is what sizes the grid and bounds the cutoff rank;
+               `ranks` / `logY` are exact at the points that were kept, because
+               each carries its own rank and cumulative UMI total. */
+            const minUmis = knee.min_umis != null ? knee.min_umis : MIN_UMIS;
+            const kept = [];
+            for (let i = 0; i < knee.umis.length; i++) {
+                if (knee.umis[i] >= minUmis) kept.push(i);
+            }
+            const nBarcodes = knee.n_above_min != null ? knee.n_above_min : kept.length;
 
-            // Apply initial UMI filter
-            const filtered = sorted.filter(v => v >= UMI_MIN_THRESHOLD);
-
-            if (filtered.length < (TRIM_EDGE * 2)) {
-                document.getElementById("kneeplot").innerHTML = "<p>Not enough data points > 10 UMIs</p>";
+            if (nBarcodes < MIN_POINTS || kept.length < 2) {
+                document.getElementById("kneeplot").innerHTML =
+                    `<p>Too few barcodes above ${minUmis} UMIs for reliable cutoff detection (${nBarcodes} found).</p>`;
                 return;
             }
 
-            // Prepare math arrays
-            const ranks = filtered.map((_, i) => i + 1);
-            let cumSum = [];
-            let curr = 0;
-            for (let val of filtered) { curr += val; cumSum.push(curr); }
-
+            const ranks = kept.map(i => knee.ranks[i]);
+            const umisKept = kept.map(i => knee.umis[i]);
             const logX = ranks.map(r => Math.log10(r));
-            const logY = cumSum.map(c => Math.log10(c));
+            /* Cumulative totals come from the generator when it has them; the
+               legacy bare-array payload carries the whole curve, so summing the
+               retained values there is the same thing. */
+            const logY = [];
+            if (knee.cum) {
+                for (const i of kept) logY.push(Math.log10(knee.cum[i]));
+            } else {
+                let running = 0;
+                for (const v of umisKept) { running += v; logY.push(Math.log10(running)); }
+            }
+            const n = ranks.length;
 
-            // --- DERIVATIVE CALCULATIONS ---
-            // 1st Derivative
-            let d1 = [];
-            for (let i = 0; i < logX.length - 1; i++) {
-                d1.push((logY[i + 1] - logY[i]) / (logX[i + 1] - logX[i]));
+            const nGrid = Math.max(50, Math.min(GRID_POINTS, nBarcodes));
+            const smoothWindow = Math.max(3, Math.floor(nGrid * SMOOTH_FRACTION) | 1);
+
+            // Resample onto a grid uniform in log10(rank) before differentiating. Indexed
+            // by rank, the spacing of log10(rank) collapses as ~1/rank towards the tail, so
+            // differentiating against it amplifies the integer quantisation of the UMI
+            // counts in proportion to rank and buries the knee under tail noise.
+            const gridX = [], gridYRaw = [];
+            const step = (logX[n - 1] - logX[0]) / (nGrid - 1);
+            let lo = 0;
+            for (let i = 0; i < nGrid; i++) {
+                const x = i === nGrid - 1 ? logX[n - 1] : logX[0] + i * step;
+                while (lo < n - 2 && logX[lo + 1] < x) lo++;
+                const span = logX[lo + 1] - logX[lo];
+                const t = span > 0 ? (x - logX[lo]) / span : 0;
+                gridX.push(x);
+                gridYRaw.push(logY[lo] + t * (logY[lo + 1] - logY[lo]));
+            }
+            const gridY = movingAverage(gridYRaw, smoothWindow);
+
+            const d2 = gradient(gradient(gridY, gridX), gridX);
+            const gridRanks = gridX.map(v => Math.pow(10, v));
+
+            // Bound the search to a window around the expected cell count: the cumulative
+            // curve of a sample with a deep ambient tail keeps bending well past the real
+            // cells, so an unbounded search settles out in the empty droplets.
+            const expectedCells = parseInt(
+                String((sample.cell_calling && sample.cell_calling.expected_cells) || "")
+                    .replace(/[^0-9]/g, ""), 10);
+            const haveExpected = Number.isFinite(expectedCells) && expectedCells > 0;
+
+            const trimmed = [];
+            for (let i = smoothWindow; i < d2.length - smoothWindow; i++) trimmed.push(i);
+
+            let searchable = [];
+            if (haveExpected) {
+                searchable = trimmed.filter(i =>
+                    gridRanks[i] >= expectedCells * SEARCH_LO_FACTOR &&
+                    gridRanks[i] <= expectedCells * SEARCH_HI_FACTOR);
+            }
+            const bounded = searchable.length > 0;
+            if (!bounded) {
+                searchable = trimmed.length ? trimmed : d2.map((_, i) => i);
             }
 
-            // 2nd Derivative
-            let d2 = [];
-            for (let i = 0; i < d1.length - 1; i++) {
-                d2.push((d1[i + 1] - d1[i]) / (logX[i + 1] - logX[i]));
+            let selectedIdx = searchable[0];
+            for (const i of searchable) {
+                if (d2[i] < d2[selectedIdx]) selectedIdx = i;
             }
 
-            // Smoothing (Python: np.convolve(data, ones/window, mode='same'))
-            const smoothed2nd = movingAverage(d2, SMOOTHING_WINDOW);
+            // Back from the grid to an actual barcode rank, then to the UMI count there.
+            const cutoffRank = Math.min(Math.max(Math.round(gridRanks[selectedIdx]), 1), nBarcodes);
+            // ...and from that rank to the retained point at or below it. Ranks up
+            // to the head of the curve are all kept, so this is the exact barcode
+            // whenever the cutoff falls among the called cells.
+            let cutIdx = 0;
+            while (cutIdx < n - 1 && ranks[cutIdx + 1] <= cutoffRank) cutIdx++;
+            const maxD2 = Math.max(...d2);
 
-            // --- MINIMA DETECTION ---
-            const maxVal = Math.max(...smoothed2nd);
-            const plotCurve = smoothed2nd.map(v => v - maxVal);
+            plotSecondDerivative({
+                logX: logX,
+                logY: logY,
+                customdata: ranks.map((r, i) => [r, umisKept[i]]),
+                derivX: gridX,
+                derivY: d2.map(v => v - maxD2),
+                cutX: logX[cutIdx],
+                cutY: logY[cutIdx],
+                cutUmis: umisKept[cutIdx],
+                note: bounded ? null
+                    : "No expected cell count for this sample, so the knee was searched for "
+                      + "across the whole curve; on a deep ambient tail that can pick a cutoff "
+                      + "far from the real cells.",
+                applied: false
+            });
+        }
 
-            let selectedIdx = 0;
-
-            // Search_area = smoothed_2nd[trim_edge:-trim_edge]
-            let minVal = Infinity;
-            // Search within the trimmed bounds
-            for (let i = TRIM_EDGE; i < smoothed2nd.length - TRIM_EDGE; i++) {
-                if (smoothed2nd[i] < minVal) {
-                    minVal = smoothed2nd[i];
-                    selectedIdx = i;
-                }
-            }
-
-            // --- RENDER Plotly ---
-            const derivX = logX.slice(1, -1);
-
-            // Threshold Data
-            const cutX = logX[selectedIdx];
-            const cutReads = filtered[selectedIdx];
+        /* Draws the cumulative-UMI curve with its second derivative and the cutoff.
+           `applied` marks the curve as the one the matrices were filtered on. */
+        function plotSecondDerivative(d) {
+            const cutX = d.cutX;
+            const cutReads = d.cutUmis;
 
             Plotly.purge("kneeplot");
 
             // Trace 1: Cumulative Reads
             const trace1 = {
-                x: logX, y: logY,
+                x: d.logX, y: d.logY,
                 name: 'log10(Cumulative Reads)',
                 type: 'scatter', mode: 'lines',
                 line: { color: '#2c3e50', width: 2.5 },
-                customdata: filtered.map((reads, i) => [ranks[i], reads]),
+                customdata: d.customdata,
                 hovertemplate: '<b>Rank:</b> %{customdata[0]:,}<br><b>UMI:</b> %{customdata[1]:,}<br><b>log(CumSum):</b> %{y:.3f}<extra></extra>'
             };
 
             // Trace 2: 2nd Derivative
             const trace2 = {
-                x: derivX, y: plotCurve,
+                x: d.derivX, y: d.derivY,
                 name: '2nd Derivative of log10(Cumulative Reads)',
                 type: 'scatter', mode: 'lines',
                 line: { color: '#e74c3c', width: 1.5 },
@@ -1291,9 +1608,41 @@
                 hovertemplate: '<b>2nd Deriv:</b> %{y:.3f}<extra></extra>'
             };
 
+            const annotations = [];
+            if (cutX != null) {
+                annotations.push({
+                    x: cutX,
+                    y: d.cutY,
+                    xref: 'x',
+                    yref: 'y',
+                    text: `UMI Threshold: ${(cutReads || 0).toLocaleString()}`,
+                    font: { color: '#2c3e50', size: 12 },
+                    showarrow: true,
+                    arrowhead: 2,
+                    arrowcolor: 'black',
+                    ax: 40,
+                    ay: -40,
+                    bgcolor: 'rgba(255, 255, 255, 0.9)',
+                    bordercolor: '#ccc',
+                    borderwidth: 1
+                });
+            }
+            if (d.note) {
+                annotations.push({
+                    xref: 'paper', yref: 'paper',
+                    x: 0, y: 1.02,
+                    text: d.note,
+                    showarrow: false,
+                    xanchor: 'left', yanchor: 'bottom',
+                    font: { color: '#b9770e', size: 11 }
+                });
+            }
+
             Plotly.newPlot('kneeplot', [trace1, trace2], {
                 title: {
-                    text: `Cell Calling using 2nd Derivative`,
+                    text: d.applied
+                        ? 'Cell Calling using 2nd Derivative (applied to matrices)'
+                        : 'Cell Calling using 2nd Derivative',
                     font: { family: 'Arial, sans-serif', size: 16, color: '#1e1e1e' },
                     y: 0.95
                 },
@@ -1323,47 +1672,48 @@
                 margin: { t: 80, r: 60, b: 60, l: 60 },
 
                 // Vertical Threshold Line
-                shapes: [{
+                shapes: cutX == null ? [] : [{
                     type: 'line', x0: cutX, x1: cutX, y0: 0, y1: 1,
                     xref: 'x', yref: 'paper',
                     line: { color: '#c0392b', width: 2, dash: 'dash' }
                 }],
 
-                annotations: [{
-                    x: cutX,
-                    y: logY[selectedIdx],
-                    xref: 'x',
-                    yref: 'y',
-                    text: `UMI Threshold: ${cutReads.toLocaleString()}`,
-                    font: { color: '#2c3e50', size: 12 },
-                    showarrow: true,
-                    arrowhead: 2,
-                    arrowcolor: 'black',
-                    ax: 40,
-                    ay: -40,
-                    bgcolor: 'rgba(255, 255, 255, 0.9)',
-                    bordercolor: '#ccc',
-                    borderwidth: 1
-                }]
+                annotations: annotations
             }, { responsive: true });
         }
 
+        /* Centred moving average with the end points replicated into the window, matching
+           moving_average() in bin/secondderiv_cellcalling.py. Shrinking the window at the
+           edges instead would weight them differently from the Python side and shift the
+           knee the two are supposed to agree on. */
         function movingAverage(data, size) {
-            let res = [];
-            const halfWindow = Math.floor(size / 2);
-
+            if (size < 3) return [...data];
+            const pad = Math.floor(size / 2);
+            const res = [];
             for (let i = 0; i < data.length; i++) {
-                // Define window bounds ensuring we stay within array limits
-                let start = Math.max(0, i - halfWindow);
-                let end = Math.min(data.length, i + halfWindow + 1);
-
                 let sum = 0;
-                for (let j = start; j < end; j++) {
+                for (let k = -pad; k <= pad; k++) {
+                    const j = Math.min(Math.max(i + k, 0), data.length - 1);
                     sum += data[j];
                 }
-                res.push(sum / (end - start));
+                res.push(sum / (pad * 2 + 1));
             }
             return res;
+        }
+
+        /* First derivative by central differences, matching np.gradient on the uniform
+           log10(rank) grid the curve is resampled onto (for uniform spacing np.gradient's
+           general formula reduces to exactly this). */
+        function gradient(y, x) {
+            const len = y.length;
+            const h = x[1] - x[0];
+            const out = new Array(len);
+            out[0] = (y[1] - y[0]) / h;
+            out[len - 1] = (y[len - 1] - y[len - 2]) / h;
+            for (let i = 1; i < len - 1; i++) {
+                out[i] = (y[i + 1] - y[i - 1]) / (2 * h);
+            }
+            return out;
         }
 
         /**********************************************************************
@@ -1386,8 +1736,8 @@
                   </svg>
                 </a>
 
-                <p> Have you provided the mitochondrial contig in your custom_parameters.config file? </p>
-                <p> If not, add the [mt_contig] variable and the per-cell plots should be created. </p>
+                <p> Per-cell plots are built from the STARsolo BAM, so they are only available for samples mapped with STARsolo. </p>
+                <p> Check the [mt_contig] variable in your custom_parameters.config file to make sure the mitochondrial contig name(s) match your reference; several can be given separated by whitespace. </p>
               </div>
 
               <p>No per-cell data available for this sample.</p>`;
@@ -1414,54 +1764,70 @@
             const combos = [
                 {
                     id: "plot1",
-                    x: "IntronicPercent", xLabel: "% Intronic",
-                    y: "MTPercent", yLabel: "% mtDNA",
-                    title: "% Intronic vs % mtDNA"
+                    x: "IntronicPercent", xLabel: "% intronic reads (of uniquely mapped)",
+                    y: "MTPercent", yLabel: "% mtDNA reads (of mapped)",
+                    title: "% Intronic vs % mtDNA Reads"
                 },
                 {
                     id: "plot2",
-                    x: "IntronicPercent", xLabel: "% Intronic",
-                    y: "rRNAPercent", yLabel: "% rRNA",
-                    title: "% Intronic vs % rRNA"
+                    x: "IntronicPercent", xLabel: "% intronic reads (of uniquely mapped)",
+                    y: "rRNAPercent", yLabel: "% rRNA reads (of mapped)",
+                    title: "% Intronic vs % rRNA Reads"
                 },
                 {
                     id: "plot3",
-                    x: "IntronicPercent", xLabel: "% Intronic",
-                    y: "TotalReads", yLabel: "Total UMIs",
-                    title: "% Intronic vs Total UMIs"
+                    x: "IntronicPercent", xLabel: "% intronic reads (of uniquely mapped)",
+                    y: "MappedReads", yLabel: "Mapped reads",
+                    title: "% Intronic Reads vs Mapped Reads"
                 },
                 {
                     id: "plot4",
-                    x: "MTPercent", xLabel: "% mtDNA",
-                    y: "rRNAPercent", yLabel: "% rRNA",
-                    title: "% mtDNA vs % rRNA"
+                    x: "MTPercent", xLabel: "% mtDNA reads (of mapped)",
+                    y: "rRNAPercent", yLabel: "% rRNA reads (of mapped)",
+                    title: "% mtDNA vs % rRNA Reads"
                 },
                 {
                     id: "plot5",
-                    x: "MTPercent", xLabel: "% mtDNA",
-                    y: "TotalReads", yLabel: "Total UMIs",
-                    title: "% mtDNA vs Total UMIs"
+                    x: "MTPercent", xLabel: "% mtDNA reads (of mapped)",
+                    y: "MappedReads", yLabel: "Mapped reads",
+                    title: "% mtDNA Reads vs Mapped Reads"
                 },
                 {
                     id: "plot6",
-                    x: "rRNAPercent", xLabel: "% rRNA",
-                    y: "TotalReads", yLabel: "Total UMIs",
-                    title: "% rRNA vs Total UMIs"
+                    x: "rRNAPercent", xLabel: "% rRNA reads (of mapped)",
+                    y: "MappedReads", yLabel: "Mapped reads",
+                    title: "% rRNA Reads vs Mapped Reads"
                 }
             ];
+
+            /* IsCell marks membership of the cell set the count matrix was filtered on,
+               so it is exact. The threshold is only a fallback: it compares a UMI cutoff
+               against per-barcode mapped-read counts, which merely approximates that set. */
+            const hasIsCell = Object.prototype.hasOwnProperty.call(rawData, "IsCell");
+            const isCell = d => hasIsCell ? Boolean(d.IsCell) : d.MappedReads > threshold;
+
+            /* Every called cell is plotted; the non-cell cloud is thinned by a
+               fixed stride when it runs into the hundreds of thousands, since
+               beyond that the markers only overplot each other. The legend says
+               so rather than silently showing a subset. */
+            const sampling = sample.per_cell_sampling;
+            const thinned = sampling && sampling.noncells_shown < sampling.noncells_total;
+            const nonCellName = thinned
+                ? `Non-Cell (${sampling.noncells_shown.toLocaleString()} of ${sampling.noncells_total.toLocaleString()} shown)`
+                : "Non-Cell";
 
             combos.forEach(c => {
                 Plotly.purge(c.id);
 
-                const below = perCellData.filter(d => d.TotalReads <= threshold);
-                const above = perCellData.filter(d => d.TotalReads > threshold);
+                const below = perCellData.filter(d => !isCell(d));
+                const above = perCellData.filter(d => isCell(d));
 
                 const traceBelow = {
                     x: below.map(d => d[c.x]), // Keeps using the data key
                     y: below.map(d => d[c.y]),
                     mode: "markers",
                     type: "scattergl",
-                    name: "Non-Cell",
+                    name: nonCellName,
                     marker: { color: "lightgrey", size: 4, opacity: 0.6 }
                 };
 
@@ -1490,11 +1856,12 @@
                         tickfont: { color: '#1e1e1e' },
                         gridcolor: '#eee'
                     },
-                    margin: { l: 60, r: 30, b: 60, t: 60 },
+
+                    margin: { l: 60, r: 30, b: 60, t: 90 },
                     paper_bgcolor: 'white',
                     plot_bgcolor: 'white',
                     showlegend: true,
-                    legend: { x: 1, y: 1.1, xanchor: 'right', yanchor: 'bottom', orientation: 'h' }
+                    legend: { x: 1, y: 1, xanchor: 'right', yanchor: 'bottom', orientation: 'v' }
                 }, { responsive: true });
             });
         }
@@ -1694,54 +2061,278 @@
                 </div>
                 `;
 
-            } else if (method === "cellbender") {
-
-                // Build CellBender table rows
-                let tableRows = `<tr><td colspan="3">No gene data available.</td></tr>`;
-                if (cf.top_genes && Array.isArray(cf.top_genes)) {
-                    tableRows = cf.top_genes.map(g => `
-                        <tr>
-                        <td>${g.gene_name || 'N/A'}</td>
-                        <td>${g.ambient_expression != null ? Number(g.ambient_expression) : 'N/A'}</td>
-                        <td>${g.n_removed != null ? Number(g.n_removed).toLocaleString() : 'N/A'}</td>
-                        <td>${g.fraction_removed != null ? (Number(g.fraction_removed) * 100).toFixed(2) + '%' : 'N/A'}</td>
-                        </tr>
-                    `).join("");
-                }
-
-                container.innerHTML = `
-          <h3>CellBender</h3>
-
-          <div style="display: flex; gap: 20px; flex-wrap: wrap;">
-             <div style="flex: 1; min-width: 300px; display: flex; justify-content: center;">
-                <img src="${cf.plot1 || ''}" style="max-width: 100%; height: auto; border-radius: 8px; border: 1px solid var(--border);" alt="CellBender Plot 1" />
-             </div>
-             <div style="flex: 1; min-width: 300px; display: flex; justify-content: center;">
-                <img src="${cf.plot2 || ''}" style="max-width: 100%; height: auto; border-radius: 8px; border: 1px solid var(--border);" alt="CellBender Plot 2" />
-             </div>
-          </div>
-
-          <h4 style="margin-top: 30px;">Table of top genes removed</h4>
-
-          <div class="table-scroll" style="max-height: 310px; overflow-y: auto; border: 1px solid var(--border);">
-            <table style="width: 100%; border-collapse: collapse; font-size: 14px;">
-              <thead style="position: sticky; top: 0; background: #f9f9f9; z-index: 2; box-shadow: 0 1px 2px rgba(0,0,0,0.1);">
-                <tr>
-                  <th>Gene Name</th>
-                  <th>Ambient Expression</th>
-                  <th>Removed Count (n_removed)</th>
-                  <th>Fraction Removed</th>
-                </tr>
-              </thead>
-              <tbody>
-                ${tableRows}
-              </tbody>
-            </table>
-          </div>
-        `;
-
             } else {
                 container.innerHTML = `<p>Unknown or missing cell filtering method: <strong>${cf.method || 'None'}</strong></p>`;
+            }
+        }
+
+
+        /**********************************************************************
+         * GENE EXTENSION TAB
+         **********************************************************************/
+        /* GeneExt is run once per pipeline run, on the merged alignments of every
+           sample, so this tab describes the extended annotation itself and does not
+           follow the sample selector. The numbers are lifted from GeneExt's own
+           report; when that report is unavailable the generator falls back to the
+           GeneExt log, which carries only the headline counts. */
+        function geEsc(v) {
+            return String(v == null ? "" : v)
+                .replace(/&/g, "&amp;").replace(/</g, "&lt;").replace(/>/g, "&gt;")
+                .replace(/"/g, "&quot;").replace(/'/g, "&#39;");
+        }
+
+        /* Pinned to en-US so these numbers are grouped the same way as the ones the
+           generator formats server-side, rather than following the viewer's locale */
+        function geNum(v) {
+            return (v == null || v === "") ? null : Number(v).toLocaleString("en-US");
+        }
+
+        function renderGeneExt() {
+            const container = document.getElementById("geneext");
+            const D = window._geneExtData || {};
+
+            if (!D || Object.keys(D).length === 0) {
+                container.innerHTML = `<p>No gene extension data available for this run.</p>`;
+                return;
+            }
+
+            const S = D.summary || {};
+            const PF = D.peak_flow || {};
+            const E = D.extension_param || {};
+            const partial = D.source === "log";
+
+            // ── Summary table ────────────────────────────────────────────────
+            const statRows = [
+                S.n_extended != null ? [
+                    "Genes extended",
+                    `${geNum(S.n_extended)}${S.n_genes != null ? ` out of ${geNum(S.n_genes)}` : ""}` +
+                    `${S.pct_extended != null ? ` (${S.pct_extended}%)` : ""}`
+                ] : null,
+                S.median_ext != null ? ["Median extension", `${geNum(S.median_ext)} bp`] : null,
+                S.n_noov_peaks != null ? ["Intergenic candidate peaks", geNum(S.n_noov_peaks)] : null,
+                PF.passed_filtering != null ? [
+                    "Intergenic peaks retained",
+                    `${geNum(PF.passed_filtering)}${S.n_noov_peaks ? ` out of ${geNum(S.n_noov_peaks)}` +
+                        ` (${(100 * PF.passed_filtering / S.n_noov_peaks).toFixed(1)}%)` : ""}`
+                ] : null,
+            ].filter(Boolean);
+
+            const tableHtml = `
+                <div class="table-scroll">
+                  <table>
+                    <tbody>
+                      ${statRows.map(([k, v]) => `<tr><td>${k}</td><td>${v}</td></tr>`).join("")}
+                    </tbody>
+                  </table>
+                </div>`;
+
+            // ── Peak-filtering flow ──────────────────────────────────────────
+            const flowNodes = [
+                PF.initial_called != null ? { n: PF.initial_called, l: "Initial MACS2 peaks" } : null,
+                PF.passed_filtering != null ? { n: PF.passed_filtering, l: "Intergenic peaks retained" } : null,
+                PF.assigned_to_genes != null ? { n: PF.assigned_to_genes, l: "Assigned to upstream genes" } : null,
+                PF.orphan_enabled ? { n: PF.orphan_count || 0, l: "Orphan peaks/clusters" } : null,
+            ].filter(Boolean);
+
+            const flowHtml = flowNodes.length === 0
+                ? `<p>No peak filtering flow available.</p>`
+                : `
+                <div class="ge-panel ge-flow-panel">
+                  <h4>Peak filtering flow</h4>
+                  <p class="ge-sub">
+                    MACS2 peaks are filtered on coverage${S.cov_percentile != null
+                    ? ` at the ${S.cov_percentile}th percentile of genic peak coverage (<code>--peak_perc</code>)`
+                    : ""}, and the survivors are assigned to the nearest upstream gene.
+                  </p>
+                  <div class="ge-flow">
+                    ${flowNodes.map((n, i) => `
+                      ${i > 0 ? `<div class="ge-flow-arrow">&#8595;</div>` : ""}
+                      <div class="ge-flow-node">
+                        <div class="n">${geNum(n.n)}</div>
+                        <div class="l">${n.l}</div>
+                      </div>`).join("")}
+                  </div>
+                </div>`;
+
+            // ── Run metadata ─────────────────────────────────────────────────
+            const paramLines = [];
+            if (E.mode) {
+                paramLines.push(E.mode === "auto"
+                    ? `Maximal extension length (<code>-m</code>/<code>--maxdist</code>) auto-estimated${E.auto_quantile != null
+                        ? ` as the ${Math.round(Number(E.auto_quantile) * 100)}th percentile of gene genomic span` : ""}.`
+                    : `Maximal extension length (<code>-m</code>/<code>--maxdist</code>) set by the user.`);
+            }
+            const GF = D.genome_fix || {};
+            if (GF.mRNA_to_transcript) paramLines.push("Input annotation fixed: <code>mRNA</code> features renamed to <code>transcript</code>.");
+            if (GF.gene_features_added) {
+                paramLines.push(`Input annotation fixed: ${geNum(GF.gene_features_added.n_genes_added)} missing <code>gene</code> features added.`);
+            }
+            if (GF.clip_5prime) {
+                paramLines.push(`5&prime; overlap clipping: ${geNum(GF.clip_5prime.n_events)} events across ${geNum(GF.clip_5prime.n_genes_clipped)} genes.`);
+            }
+            if (S.input_file) paramLines.push(`Input annotation: <code>${geEsc(S.input_file)}</code>`);
+            if (S.output_file) paramLines.push(`Extended annotation: <code>${geEsc(S.output_file)}</code>`);
+            if (S.run_date) paramLines.push(`Run: ${geEsc(S.run_date)}`);
+            if (D.report_file) paramLines.push(`Full GeneExt report, including the per-gene extension table: <code>gene_ext/${geEsc(D.report_file)}</code>`);
+
+            const metaHtml = (paramLines.length === 0 && !S.run_args) ? "" : `
+                <div class="ge-panel" style="margin-bottom:16px">
+                  <h4>Parameters and inputs</h4>
+                  <div class="ge-meta">
+                    ${paramLines.length ? `<ul>${paramLines.map(l => `<li>${l}</li>`).join("")}</ul>` : ""}
+                    ${S.run_args ? `<p style="margin-top:10px"><code>${geEsc(S.run_args)}</code></p>` : ""}
+                  </div>
+                </div>`;
+
+            // ── Mapping statistics (only present with GeneExt's --estimate) ───
+            let mappingHtml = "";
+            if (Array.isArray(D.mapping_stats) && D.mapping_stats.length > 0) {
+                mappingHtml = `
+                <h4 style="margin-top:20px">Mapping statistics</h4>
+                <div class="table-scroll">
+                  <table>
+                    <thead><tr>
+                      <th>Annotation</th><th>Total reads</th><th>Mapped</th>
+                      <th>Genic</th><th>Orphan peaks</th><th>Intergenic</th>
+                    </tr></thead>
+                    <tbody>
+                      ${D.mapping_stats.map(r => `
+                        <tr>
+                          <td>${geEsc(String(r.label || "").split("/").pop())}</td>
+                          <td>${geNum(r.total) || "N/A"}</td>
+                          <td>${geNum(r.mapped) || "N/A"}${r.mapped_pct != null ? ` (${r.mapped_pct}%)` : ""}</td>
+                          <td>${geNum(r.genic) || "N/A"}${r.genic_pct != null ? ` (${r.genic_pct}%)` : ""}</td>
+                          <td>${geNum(r.orphan) || "N/A"}${r.orphan_pct != null ? ` (${r.orphan_pct}%)` : ""}</td>
+                          <td>${geNum(r.intergenic) || "N/A"}${r.intergenic_pct != null ? ` (${r.intergenic_pct}%)` : ""}</td>
+                        </tr>`).join("")}
+                    </tbody>
+                  </table>
+                </div>`;
+            }
+
+            const warnHtml = S.orphan_warning ? `
+                <div class="ge-warn">
+                  <strong>&#9888; Too many orphan peaks.</strong>
+                  GeneExt reported ${geNum(S.n_orphan_peaks)} orphan peaks/clusters against
+                  ${geNum(S.n_genes)} input genes, which usually means the annotation is missing
+                  a substantial part of the transcribed genome.
+                </div>` : "";
+
+
+            const chartsHtml = partial ? "" : `
+                <div class="ge-panels">
+                  <div class="ge-panel">
+                    <h4>3&prime;-extension length distribution</h4>
+                    <p class="ge-sub">Base pairs added at the 3&prime; end of each extended gene model.</p>
+                    <div id="ge-ext-chart" style="height:320px"></div>
+                  </div>
+                  <div class="ge-panel">
+                    <h4>Peak coverage filtering</h4>
+                    <p class="ge-sub">
+                      Coverage of genic peaks (the reference distribution) against intergenic
+                      candidate peaks; the dashed line marks the retention threshold.
+                    </p>
+                    <div id="ge-cov-chart" style="height:320px"></div>
+                  </div>
+                </div>`;
+
+            container.innerHTML = `
+        <h3>Gene Extension</h3>
+        <div class="citation-box">
+          <p>
+            GeneExt is run <strong>once per pipeline run</strong> on the merged alignments of all
+            samples, so the statistics here describe the extended annotation as a whole, not the
+            selected sample. Each sample's <code>_geneext_starsolo</code> (or
+            <code>_geneext_subsampled_starsolo</code>) and <code>_geneext_alevinfry</code>
+            analytical runs in the other tabs are the mappings against this annotation.
+          </p>
+        </div>
+
+        ${warnHtml}
+
+        <div class="cellcalling-grid ge-summary">
+          <div class="cellcalling-left">${tableHtml}</div>
+          <div class="cellcalling-right">${flowHtml}</div>
+        </div>
+
+        ${chartsHtml}
+
+        ${metaHtml}
+
+        ${mappingHtml}
+      `;
+
+            if (!partial) plotGeneExtCharts(D);
+        }
+
+        function plotGeneExtCharts(D) {
+            const EH = D.ext_hist || {};
+            const CH = D.cov_hist || {};
+
+            const extDiv = document.getElementById("ge-ext-chart");
+            if (extDiv) {
+                if (EH.labels && EH.counts && EH.counts.length) {
+                    Plotly.purge("ge-ext-chart");
+                    Plotly.newPlot("ge-ext-chart", [{
+                        x: EH.labels.map(Number),
+                        y: EH.counts,
+                        type: "bar",
+                        name: "Genes",
+                        marker: { color: "#239184" },
+                        hovertemplate: "~%{x:,.0f} bp<br>%{y:,} gene(s)<extra></extra>"
+                    }], {
+                        xaxis: { title: { text: "Extension length (bp)", font: { size: 12 } }, gridcolor: "#eee" },
+                        yaxis: { title: { text: "Number of genes", font: { size: 12 } }, gridcolor: "#eee" },
+                        bargap: 0.05,
+                        margin: { l: 60, r: 20, b: 50, t: 20 },
+                        paper_bgcolor: "white",
+                        plot_bgcolor: "white",
+                        showlegend: false
+                    }, { responsive: true });
+                } else {
+                    extDiv.innerHTML = `<p>No extension length distribution available.</p>`;
+                }
+            }
+
+            const covDiv = document.getElementById("ge-cov-chart");
+            if (covDiv) {
+                if (CH.labels && CH.labels.length) {
+                    const x = CH.labels.map(Number);
+                    const traces = [];
+                    if (CH.counts_genic) traces.push({
+                        x: x, y: CH.counts_genic, type: "bar", name: "Genic peaks",
+                        marker: { color: "rgba(255,99,132,0.6)" }
+                    });
+                    if (CH.counts_noov) traces.push({
+                        x: x, y: CH.counts_noov, type: "bar", name: "Intergenic candidate peaks",
+                        marker: { color: "rgba(77,158,245,0.6)" }
+                    });
+
+                    const shapes = [];
+                    if (CH.log10_threshold != null) {
+                        shapes.push({
+                            type: "line", xref: "x", yref: "paper",
+                            x0: CH.log10_threshold, x1: CH.log10_threshold, y0: 0, y1: 1,
+                            line: { color: "#d64545", width: 1.5, dash: "dash" }
+                        });
+                    }
+
+                    Plotly.purge("ge-cov-chart");
+                    Plotly.newPlot("ge-cov-chart", traces, {
+                        barmode: "overlay",
+                        xaxis: { title: { text: "log₁₀(normalized coverage)", font: { size: 12 } }, gridcolor: "#eee" },
+                        yaxis: { title: { text: "Number of peaks", font: { size: 12 } }, gridcolor: "#eee" },
+                        shapes: shapes,
+                        bargap: 0.05,
+                        margin: { l: 60, r: 20, b: 50, t: 20 },
+                        paper_bgcolor: "white",
+                        plot_bgcolor: "white",
+                        showlegend: true,
+                        legend: { x: 1, y: 1, xanchor: "right", yanchor: "top" }
+                    }, { responsive: true });
+                } else {
+                    covDiv.innerHTML = `<p>No peak coverage distribution available.</p>`;
+                }
             }
         }
 

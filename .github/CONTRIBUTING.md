@@ -21,40 +21,45 @@ If you'd like to write some code for biodiversitycellatlas/bca_preprocessing, th
 
 If you're not used to this workflow with git, you can start with some [docs from GitHub](https://help.github.com/en/github/collaborating-with-issues-and-pull-requests) or even their [excellent `git` resources](https://try.github.io/).
 
-## Tests
+## Testing
 
-You have the option to test your changes locally by running the pipeline. For receiving warnings about process selectors and other `debug` information, it is recommended to use the debug profile. Execute all the tests with the following command:
+The checks in [`tests/`](../tests/README.md) validate the pipeline's environments
+and container images and need no real data:
 
 ```bash
-nf-test test --profile debug,test,docker --verbose
+bash tests/run_tests.sh           # run everything
+bash tests/run_tests.sh --list    # see the available checks
 ```
 
-When you create a pull request with changes, [GitHub Actions](https://github.com/features/actions) will run automatic tests.
-Typically, pull-requests are only fully reviewed when these tests are passing, though of course we can help out before then.
+- `conda_envs` builds every `modules/**/environment.yml` with each conda-based
+  profile (`conda`, `mamba`, `micromamba`), catching dependency specs that no
+  longer solve.
+- `containers` checks that every container image declared by the modules still
+  resolves for each container profile.
+- `nextflow_versions` dry-runs the pipeline with each Nextflow version installed
+  on your machine, so a release that breaks the config, the plugins or the
+  workflow is caught before you upgrade.
 
-There are typically two types of tests that run:
+They are slow at full depth, so run the fast variants while iterating:
 
-### Lint tests
+```bash
+bash tests/run_tests.sh conda_envs -- --solve-only
+bash tests/run_tests.sh containers -- --depth manifest
+bash tests/run_tests.sh nextflow_versions -- --depth config
+```
 
-`nf-core` has a [set of guidelines](https://nf-co.re/developers/guidelines) which all pipelines must adhere to.
-To enforce these and ensure that all pipelines stay in sync, we have developed a helper tool which runs checks on the pipeline code. This is in the [nf-core/tools repository](https://github.com/nf-core/tools) and once installed can be run locally with the `nf-core pipelines lint <pipeline-directory>` command.
-
-If any failures or warnings are encountered, please follow the listed URL for more documentation.
-
-### Pipeline tests
-
-Each `nf-core` pipeline should be set up with a minimal set of test-data.
-`GitHub Actions` then runs the pipeline on this data to ensure that it exits successfully.
-If there are any failures then the automated tests fail.
-These tests are run both with the latest available version of `Nextflow` and also the minimum required version that is stated in the pipeline code.
+A check is skipped, not failed, when the tool it needs is not installed, so the
+suite is safe to run on any machine. If you add a new step to the pipeline,
+please make sure it still passes. See [`tests/README.md`](../tests/README.md) for
+how to add a check of your own.
 
 ## Patch
 
 :warning: Only in the unlikely and regretful event of a release happening with a bug.
 
-- On your own fork, make a new branch `patch` based on `upstream/main` or `upstream/master`.
+- On your own fork, make a new branch `patch` based on `upstream/main` or `upstream/dev`.
 - Fix the bug, and bump version (X.Y.Z+1).
-- Open a pull-request from `patch` to `main`/`master` with the changes.
+- Open a pull-request from `patch` to `main`/`dev` with the changes.
 
 ## Pipeline contribution conventions
 
@@ -102,17 +107,4 @@ If you are using a new feature from core Nextflow, you may bump the minimum requ
 
 For overview images and other documents we follow the nf-core [style guidelines and examples](https://nf-co.re/developers/design_guidelines).
 
-## GitHub Codespaces
 
-This repo includes a devcontainer configuration which will create a GitHub Codespaces for Nextflow development! This is an online developer environment that runs in your browser, complete with VSCode and a terminal.
-
-To get started:
-
-- Open the repo in [Codespaces](https://github.com/biodiversitycellatlas/bca_preprocessing/codespaces)
-- Tools installed
-  - nf-core
-  - Nextflow
-
-Devcontainer specs:
-
-- [DevContainer config](.devcontainer/devcontainer.json)

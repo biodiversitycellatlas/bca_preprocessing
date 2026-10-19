@@ -3,10 +3,11 @@ channels:
   - bioconda
 
 dependencies:
-  - python
+  - python=3.11
+  - pip
   - pip:
       - anndata
       - scanpy
       - numpy
       - pandas
-      - cellsweep[analysis]
+      - cellsweep[analysis]>=1.0.0

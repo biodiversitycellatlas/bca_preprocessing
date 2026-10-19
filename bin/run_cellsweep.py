@@ -2,29 +2,68 @@
 """
 Handles empty droplet detection, automated cell typing via Leiden clustering,
 and ambient RNA denoising using the Cellsweep tool.
+
+Reads the raw count-matrix triplet directly, like every other step of the
+filtering workflow: MTX_TO_H5AD now runs last, after this, and packs the denoised
+counts alongside the raw ones.
+
+Doublet detection happens upstream on the cell-called matrix (Scrublet +
+scDblFinder consensus). Exactly one of two things arrives here, on
+params.perform_doublet_filtering:
+
+  false (default)  the unfiltered triplet plus --doublet_results, whose calls are
+                   annotated and projected onto the UMAP but left in the matrix
+  true             a triplet DOUBLET_FILTER has already removed them from, and no
+                   --doublet_results
+
+CellSweep's own guidance is to drop doublets before denoising; keeping them and
+only annotating them is the conservative default here, and removal stays opt-in
+(see bin/filter_doublets.py).
+
+The one object written, --cs_full_h5ad, holds the barcodes not called empty: CellSweep
+fits its model on every barcode but returns only those (keep_empties=False). Nothing
+here filters cells beyond that. MTX_TO_H5AD lifts the denoised counts and annotations
+into the published object, where every barcode absent from this one reads as empty,
+and any cut on alpha_hat is left to the analysis.
 """
 
 import argparse
 import logging
-import os
 import sys
-from pathlib import Path
 
-import anndata as ad
 import scanpy as sc
 import matplotlib.pyplot as plt
 import seaborn as sns
 from cellsweep import denoise_count_matrix
 from cellsweep.utils import visualization_utils as cs_utils
 
+import doublet_calls
+import mtx_io
+from doublet_calls import DOUBLET_COL
 
-# Configure Logging
+
+# Configure Logging. Before importing build_gene_table, whose own basicConfig is then a no-op.
 logging.basicConfig(
     level=logging.INFO,
     format="%(asctime)s [%(levelname)s] %(message)s",
     handlers=[logging.StreamHandler(sys.stdout)]
 )
 logger = logging.getLogger("CellSweep")
+
+import build_gene_table  # noqa: E402
+import metacell_qc_summary as qcs  # noqa: E402
+
+# Principal components used for the Leiden neighbour graph. The clustering needs more
+# cells and genes than this left after filtering, or PCA cannot produce them.
+N_PCS = 50
+
+# Exit status for a matrix with too few cells to cluster. Distinct from a crash, so
+# that the log says why; the module's error_optional label skips the sample either way.
+EXIT_TOO_FEW_CELLS = 3
+
+
+class TooFewCellsError(Exception):
+    pass
 
 
 def detect_empty_droplets(adata, expected_cells, image_prefix):
@@ -49,57 +88,62 @@ def detect_empty_droplets(adata, expected_cells, image_prefix):
     return adata
 
 
-def assign_clusters(adata, min_genes, max_mt_percent, remove_doublets, image_prefix):
+def mito_genes(var_names, gtf, mt_contigs):
+    """
+    Which features are mitochondrial, aligned to ``var_names``: the genes on
+    ``params.mt_contig``, decided and matched the way the metacell gene table does it.
+    """
+    genes, _aliases = build_gene_table.parse_gtf(gtf)
+    is_mito = build_gene_table.flag_mito(genes, mt_contigs)
+    table = build_gene_table.build_table(genes, is_mito, dict.fromkeys(genes, False), {})
+    info, how = qcs.gene_info(var_names, table)
+
+    flags = info["is_mito"].to_numpy()
+    logger.info(
+        f"{int(flags.sum())} mitochondrial features on {' '.join(mt_contigs) or '(no contig)'} "
+        f"({how['match_rate']:.1%} of features matched a GTF gene)"
+    )
+    if not mt_contigs:
+        logger.warning("No mitochondrial contig given (mt_contig is empty); the MT filter will remove no cells.")
+    elif not flags.any():
+        logger.warning(
+            f"No features found on the mitochondrial contig(s) {mt_contigs}; the MT filter will remove no cells. "
+            "Check mt_contig against the GTF's sequence names."
+        )
+    return flags
+
+
+def assign_clusters(adata, min_genes, max_mt_percent, is_mito):
     """
     Perform clustering to provide CellSweep with biological groups.
-    When remove_doublets is False, doublets are identified but retained;
-    their predictions are propagated back to adata.obs for downstream visualization.
     """
     logger.info("Assigning preliminary cell types via Leiden clustering...")
 
     adata_celltype = adata[~adata.obs["is_empty"]].copy()
+    adata_celltype.var["mt"] = is_mito
+    n_non_empty = adata_celltype.n_obs
 
     if min_genes is not None:
         sc.pp.filter_cells(adata_celltype, min_genes=min_genes)
+    n_min_genes = adata_celltype.n_obs
 
     sc.pp.filter_genes(adata_celltype, min_cells=1)
 
     if max_mt_percent is not None:
-        adata_celltype.var["mt"] = adata_celltype.var_names.str.upper().str.startswith("MT-")
         sc.pp.calculate_qc_metrics(adata_celltype, qc_vars=["mt"], percent_top=None, log1p=False, inplace=True)
-        adata_celltype = adata_celltype[adata_celltype.obs.pct_counts_mt < max_mt_percent, :]
-
-    # Always run Scrublet — either to remove or to annotate doublets for visualization
-    logger.info("Running Scrublet doublet detection...")
-    sc.pp.scrublet(adata_celltype)
-
-    total_cells = len(adata_celltype)
-    num_doublets = int(adata_celltype.obs["predicted_doublet"].sum())
-    doublet_pct = (num_doublets / total_cells * 100) if total_cells > 0 else 0.0
-
-    action = "Removed" if remove_doublets else "Identified (kept for visualization)"
-    logger.info(f"Doublets {action}: {num_doublets} ({doublet_pct:.2f}%).")
-
-    doublet_out_path = f"{image_prefix}doublet_summary.txt"
-    with open(doublet_out_path, "w") as f:
-        f.write(f"Total_Cells_Evaluated\t{total_cells}\n")
-        f.write(f"Doublets_{'Removed' if remove_doublets else 'Identified'}\t{num_doublets}\n")
-        f.write(f"Doublet_Percentage\t{doublet_pct:.2f}%\n")
-
-    if remove_doublets:
-        adata_celltype = adata_celltype[~adata_celltype.obs["predicted_doublet"]]
-    else:
-        # Propagate doublet predictions to the full adata for downstream UMAP highlighting
-        adata.obs["predicted_doublet"] = (
-            adata_celltype.obs["predicted_doublet"]
-            .reindex(adata.obs.index)
-            .fillna(False)
-            .astype(bool)
+        adata_celltype = adata_celltype[adata_celltype.obs.pct_counts_mt < max_mt_percent, :].copy()
+        logger.info(
+            f"MT filter: {n_min_genes - adata_celltype.n_obs} of {n_min_genes} cells "
+            f"at or above {max_mt_percent}% MT excluded from clustering"
         )
-        adata.obs["doublet_score"] = (
-            adata_celltype.obs["doublet_score"]
-            .reindex(adata.obs.index)
-            .fillna(0.0)
+    n_below_mt = adata_celltype.n_obs
+
+    if adata_celltype.n_obs <= N_PCS or adata_celltype.n_vars <= N_PCS:
+        raise TooFewCellsError(
+            f"{adata_celltype.n_obs} cells x {adata_celltype.n_vars} genes left to cluster, "
+            f"more than {N_PCS} of each are needed "
+            f"({n_non_empty} non-empty barcodes, {n_min_genes} with >= {min_genes} genes, "
+            f"{n_below_mt} below {max_mt_percent}% MT)"
         )
 
     # Standard Scanpy preprocessing for clustering
@@ -108,7 +152,7 @@ def assign_clusters(adata, min_genes, max_mt_percent, remove_doublets, image_pre
     sc.pp.log1p(adata_celltype)
     sc.pp.highly_variable_genes(adata_celltype, n_top_genes=2000)
     sc.tl.pca(adata_celltype, svd_solver="arpack", random_state=42)
-    sc.pp.neighbors(adata_celltype, n_neighbors=15, n_pcs=50)
+    sc.pp.neighbors(adata_celltype, n_neighbors=15, n_pcs=N_PCS)
 
     sc.tl.leiden(adata_celltype, flavor="igraph", n_iterations=2, resolution=1.0, random_state=42)
 
@@ -118,10 +162,6 @@ def assign_clusters(adata, min_genes, max_mt_percent, remove_doublets, image_pre
         .reindex(adata.obs.index)
         .fillna("empty")
     )
-
-    adata_cells_filtered = adata[
-        (adata.obs["is_empty"] | adata.obs_names.isin(adata_celltype.obs_names))
-    ].copy()
 
     return adata
 
@@ -146,19 +186,18 @@ def generate_visualizations(adata_cs, image_prefix):
     cs_utils.print_top_ambient_genes(adata_cs, top_n=20, out_path=f"{image_prefix}top_ambient_genes.csv")
 
 
-def generate_noise_boxplot(adata_cs, image_prefix, label):
+def generate_noise_boxplot(adata_cs, image_prefix):
     plt.figure(figsize=(10, 6))
     sns.boxplot(data=adata_cs.obs, x='celltype', y='alpha_hat', palette='viridis')
     plt.title('Ambient Fraction by Cluster')
-    plt.savefig(f"{image_prefix}contamination_{label}.png")
+    plt.savefig(f"{image_prefix}contamination_by_cluster.png")
     plt.close('all')
 
 
-def compare_umaps(adata, image_prefix, highlight_doublets=False):
+def compare_umaps(adata, image_prefix):
     """
-    Manifold comparison (Before vs. After CellSweep denoising).
-    When highlight_doublets=True, renders a 2x2 grid showing both cell-type
-    labels and doublet predictions for the raw and denoised embeddings.
+    Manifold comparison (Raw vs. CellSweep-denoised counts), plus a projection of the
+    consensus doublets onto the denoised embedding when they were annotated.
     """
     logger.info("Computing UMAPs for comparison...")
     cell_mask = (adata.obs['celltype'] != 'empty')
@@ -178,48 +217,26 @@ def compare_umaps(adata, image_prefix, highlight_doublets=False):
     sc.pp.neighbors(ad_plot)
     sc.tl.umap(ad_plot)
 
-    has_doublet_col = (
-        highlight_doublets
-        and "predicted_doublet" in ad_plot.obs.columns
-    )
+    has_doublets = DOUBLET_COL in ad_plot.obs
+    n_panels = 3 if has_doublets else 2
+    fig, axes = plt.subplots(1, n_panels, figsize=(7 * n_panels, 6))
+    sc.pl.umap(ad_raw, color='celltype', title='Raw Counts', show=False, ax=axes[0])
+    sc.pl.umap(ad_plot, color='celltype', title='Denoised Counts', show=False, ax=axes[1])
 
-    if has_doublet_col:
-        # Add a human-readable label column for clean legend text
-        for ad_obj in (ad_raw, ad_plot):
-            ad_obj.obs["doublet_label"] = (
-                ad_obj.obs["predicted_doublet"]
-                .map({True: "Doublet", False: "Singlet"})
-                .astype("category")
-            )
-
-        fig, axes = plt.subplots(2, 2, figsize=(16, 12))
-
+    if has_doublets:
+        n_doublets = int((ad_plot.obs[DOUBLET_COL] == 'doublet').sum())
+        # `groups` greys out the singlets and draws the doublets on top of them, but needs
+        # a non-empty group -- fall back to a plain two-colour scatter when none are left
+        # (e.g. when they were already dropped by params.perform_doublet_filtering).
         sc.pl.umap(
-            ad_raw, color="celltype",
-            title="Raw Counts – Cell Types",
-            show=False, ax=axes[0, 0]
+            ad_plot,
+            color=DOUBLET_COL,
+            groups=['doublet'] if n_doublets > 0 else None,
+            palette={'singlet': 'lightgrey', 'doublet': '#d62728'},
+            title=f'Consensus doublets (n={n_doublets})',
+            show=False,
+            ax=axes[2]
         )
-        sc.pl.umap(
-            ad_raw, color="doublet_label",
-            title="Raw Counts – Predicted Doublets",
-            palette={"Doublet": "#d62728", "Singlet": "#aec7e8"},
-            show=False, ax=axes[0, 1]
-        )
-        sc.pl.umap(
-            ad_plot, color="celltype",
-            title="Denoised Counts – Cell Types",
-            show=False, ax=axes[1, 0]
-        )
-        sc.pl.umap(
-            ad_plot, color="doublet_label",
-            title="Denoised Counts – Predicted Doublets",
-            palette={"Doublet": "#d62728", "Singlet": "#aec7e8"},
-            show=False, ax=axes[1, 1]
-        )
-    else:
-        fig, (ax1, ax2) = plt.subplots(1, 2, figsize=(14, 6))
-        sc.pl.umap(ad_raw, color='celltype', title='Raw Counts', show=False, ax=ax1)
-        sc.pl.umap(ad_plot, color='celltype', title='Filtered Counts', show=False, ax=ax2)
 
     plt.tight_layout()
     plt.savefig(f"{image_prefix}umap_comparison.png", dpi=150)
@@ -228,55 +245,89 @@ def compare_umaps(adata, image_prefix, highlight_doublets=False):
 
 def main():
     parser = argparse.ArgumentParser(description="Run CellSweep denoising on scRNA-seq data.")
-    parser.add_argument("--input_h5ad", type=str, required=True, help="Path to raw h5ad file")
+    parser.add_argument("--mtx", type=str, required=True, help="Raw count matrix (mtx)")
+    parser.add_argument("--barcodes", type=str, required=True, help="Barcode axis of --mtx")
+    parser.add_argument("--features", type=str, required=True, help="Feature axis of --mtx")
+    parser.add_argument("--sample_id", type=str, default=None, help="Written to .obs['sample_id']")
     parser.add_argument("--expected_cells", type=int, required=True, help="Expected number of cells")
-    parser.add_argument("--cs_filtered_h5ad", type=str, required=True, help="Output path for filtered cells")
-    parser.add_argument("--cs_full_h5ad", type=str, required=True, help="Output path for full denoised matrix")
+    parser.add_argument("--cs_full_h5ad", type=str, required=True,
+                        help="Output path for the denoised object (the barcodes not called empty)")
     parser.add_argument("--image_prefix", type=str, default="", help="Prefix for output PNGs")
-    parser.add_argument("--alpha_threshold", type=float, default=0.3, help="Max ambient fraction allowed")
     parser.add_argument("--min-genes", type=int, default=10, help="Minimum number of genes")
     parser.add_argument("--max-mt-percent", type=int, default=25, help="Maximum percentage of MT content, scale 0 to 100.")
-    parser.add_argument('--remove-doublets', default=True, action=argparse.BooleanOptionalAction,
-                        help="Remove doublets before clustering (recommended). If disabled, doublets are "
-                             "identified and highlighted on the UMAP instead.")
+    parser.add_argument("--gtf", type=str, required=True,
+                        help="Reference GTF the matrix was counted against; locates the mitochondrial genes")
+    parser.add_argument("--mt_contig", nargs="*", default=[],
+                        help="Mitochondrial contig names (params.mt_contig, space-separated)")
     parser.add_argument("--threads", type=int, default=1, help="Threads for CellSweep")
+    parser.add_argument("--doublet_results", type=str, default=None,
+                        help="Optional Combine_Results.R '_w_combined_assignments.tsv' output; "
+                             "its consensus doublets are annotated and projected onto the UMAP")
+    parser.add_argument("--doublet_method", type=str, default=None,
+                        help="Consensus method name used in Combine_Results.R (e.g. AnySinglet). "
+                             "Required with --doublet_results")
     args = parser.parse_args()
 
+    if args.doublet_results and not args.doublet_method:
+        parser.error("--doublet_method is required when --doublet_results is given")
+
+    # params.mt_contig may arrive as one quoted argument ("chrM M MT") or as words
+    args.mt_contig = [c for arg in args.mt_contig for c in arg.split()]
+
     # 1. Load Data
-    logger.info(f"Loading data from {args.input_h5ad}")
-    adata = sc.read_h5ad(args.input_h5ad)
-    adata.var_names_make_unique()
+    adata = mtx_io.read_triplet_anndata(args.mtx, args.barcodes, args.features, sample_id=args.sample_id)
+    is_mito = mito_genes(adata.var_names, args.gtf, args.mt_contig)
+
+    # 1b. Annotate (do not remove) the consensus doublets called upstream
+    doublet_barcodes = None
+    if args.doublet_results:
+        logger.info(f"Loading consensus doublet calls from {args.doublet_results}")
+        doublet_barcodes = doublet_calls.read_doublet_barcodes(args.doublet_results, args.doublet_method)
+        adata = doublet_calls.annotate(adata, doublet_barcodes)
 
     # 2. Identify Empty Droplets
     adata = detect_empty_droplets(adata, args.expected_cells, args.image_prefix)
 
-    # 3. Cluster Cells (doublets always identified; optionally removed)
-    adata = assign_clusters(adata, args.min_genes, args.max_mt_percent, args.remove_doublets, args.image_prefix)
+    # 3. Cluster Cells (biological grouping for CellSweep)
+    try:
+        adata = assign_clusters(adata, args.min_genes, args.max_mt_percent, is_mito)
+    except TooFewCellsError as e:
+        logger.error(
+            f"Too few cells for CellSweep in {args.sample_id}: {e}. "
+            "Skipping ambient RNA removal; the sample continues without denoised counts."
+        )
+        sys.exit(EXIT_TOO_FEW_CELLS)
 
     # 4. Run CellSweep Denoising
     logger.info("Starting CellSweep denoising (this may take a few minutes)...")
     log_file = f"{args.image_prefix}cellsweep_run.log"
 
+    # keep_empties=False is CellSweep's default, but MTX_TO_H5AD relies on it: a barcode
+    # absent from this output is one called empty. Passed explicitly so a changed default
+    # cannot quietly change what that absence means.
     adata_cs = denoise_count_matrix(
         adata,
         adata_out=args.cs_full_h5ad,
         log_file=log_file,
-        threads=args.threads
+        threads=args.threads,
+        keep_empties=False
     )
-    generate_noise_boxplot(adata_cs, args.image_prefix, 'before')
+    generate_noise_boxplot(adata_cs, args.image_prefix)
 
-    # 5. Filter and Save
+    if doublet_barcodes is not None:
+        adata_cs = doublet_calls.annotate(adata_cs, doublet_barcodes)
+
+    # denoise_count_matrix() wrote --cs_full_h5ad itself, before the annotation above and
+    # before CellSweep's own columns were complete. MTX_TO_H5AD reads this file to lift the
+    # denoised counts and annotations into the published object, so the copy on disk has to
+    # be the finished one.
+    logger.info(f"Re-writing {args.cs_full_h5ad} with the final annotations")
+    adata_cs.write_h5ad(args.cs_full_h5ad)
+
+    # 5. Diagnostics
     generate_visualizations(adata_cs, args.image_prefix)
+    compare_umaps(adata_cs, args.image_prefix)
 
-    # Pass highlight_doublets=True when doublets were kept instead of removed
-    compare_umaps(adata_cs, args.image_prefix, highlight_doublets=not args.remove_doublets)
-
-    logger.info(f"Filtering cells (is_empty=False, alpha_hat <= {args.alpha_threshold})")
-    keep_mask = (~adata_cs.obs["is_empty"]) & (adata_cs.obs["alpha_hat"] <= args.alpha_threshold)
-    adata_filtered = adata_cs[keep_mask].copy()
-    generate_noise_boxplot(adata_filtered, args.image_prefix, 'after')
-
-    adata_filtered.write_h5ad(args.cs_filtered_h5ad)
     logger.info("CellSweep complete. Output files written.")
 
 

@@ -1,5 +1,5 @@
 process SCIROCKET_DEMUX {
-    publishDir "${params.outdir}", mode: 'copy'
+    publishDir path: { "${params.outdir}" }, mode: 'copy', saveAs: { filename -> filename == 'versions.yml' ? null : filename }
     tag "${meta.id}, ${fastq_cDNA}, ${fastq_BC_UMI}"
     label 'process_medium'
     debug true
@@ -9,6 +9,7 @@ process SCIROCKET_DEMUX {
 
     input:
     tuple val(meta), path(fastq_cDNA), path(fastq_BC_UMI), path(fastq_indices), path(input_file)
+    path(barcodes, stageAs: 'barcodes/*')
 
     output:
     path("demux_reads/${meta.id}_R1.fastq.gz"),       emit: samples_R1
@@ -21,6 +22,7 @@ process SCIROCKET_DEMUX {
     path("demux_reads/${meta.id}_whitelist_rt*"),           emit: bc_whitelists_rt
     tuple val(meta), path("demux_reads/${meta.id}_R2.fastq.gz"), path("demux_reads/${meta.id}_R1.fastq.gz"), path(fastq_indices), path(input_file), emit: demux_samplesheet
     tuple path("demux_reads/${meta.id}_whitelist_p7*"), path("demux_reads/${meta.id}_whitelist_p5*"), path("demux_reads/${meta.id}_whitelist_ligation*"), path("demux_reads/${meta.id}_whitelist_rt*"), emit: bc_whitelist
+    path "versions.yml", emit: versions
 
     script:
     // Get basename of the FASTQ files
@@ -28,11 +30,11 @@ process SCIROCKET_DEMUX {
     def fastq_BC_UMI_name = fastq_BC_UMI.toString().replaceAll(/.fastq.gz$/, '')
 
     """
-    echo "\n\n==================  DEMULTIPLEXING FASTQ FILES  =================="
+    echo -e "\\n\\n==================  DEMULTIPLEXING FASTQ FILES  =================="
     echo "Sample ID: ${meta.id}"
     echo "FASTQ cDNA: ${fastq_cDNA}"
     echo "FASTQ BC & UMI: ${fastq_BC_UMI}"
-    echo "Barcode whitelist: ${params.bc_whitelist}"
+    echo "Barcode whitelist: ${barcodes}"
     echo "Samples file: ${input_file}"
 
     mkdir -p demux_reads/
@@ -40,8 +42,13 @@ process SCIROCKET_DEMUX {
     scirocket_demux_rocket.py \\
          --experiment_name ${meta.id} \\
          --samples ${input_file} \\
-         --barcodes ${params.bc_whitelist} \\
+         --barcodes ${barcodes} \\
          --r1 ${fastq_BC_UMI} --r2 ${fastq_cDNA} \\
          --out demux_reads/
+
+    cat <<-END_VERSIONS > versions.yml
+    "${task.process}":
+        python: \$(python3 --version | sed 's/Python //g')
+    END_VERSIONS
     """
 }

@@ -18,10 +18,13 @@ import csv
 import datetime
 import glob
 import json
+import math
 import os
 import re
 import sys
 from typing import Any, Dict, List, Optional, Tuple
+
+from alevin_usa import usa_genes
 
 
 # ---------------------------------------------------------------------------
@@ -30,7 +33,10 @@ from typing import Any, Dict, List, Optional, Tuple
 
 # Ordered longest-first so "_geneext_starsolo" is checked before "_starsolo".
 _ANALYTICAL_SUFFIXES: List[str] = [
+    "_geneext_subsampled_starsolo",
+    "_geneext_alevinfry",
     "_geneext_starsolo",
+    "_subsampled_starsolo",
     "_starsolo",
     "_alevinfry",
 ]
@@ -38,12 +44,106 @@ _ANALYTICAL_SUFFIXES: List[str] = [
 # STARsolo gene-model directories, in preference order.
 _SOLO_GENE_DIRS: List[str] = ["GeneFull_Ex50pAS", "Gene"]
 
+# Subdirectory of a gene-model directory holding the second-derivative outputs.
+_SECONDDERIV_DIR: str = "filtered_secondderiv"
+
 # Candidate locations for optional cell-filtering outputs (checked in order).
 _CELLSWEEP_ROOTS:  List[str] = ["cell_filtering/cellsweep", "cellsweep"]
-_CELLBENDER_ROOTS: List[str] = ["cell_filtering/cellbender", "cellbender"]
 
 # Candidate locations for Kraken sankey HTML files.
 _SANKEY_ROOTS: List[str] = ["kraken", "taxonomy"]
+
+# ── Payload budgets ──────────────────────────────────────────────────────────
+# The report embeds every curve it draws as JSON inside the HTML, so its size is
+# driven by the number of *barcodes*, not the number of samples: a deeply
+# sequenced library has millions of barcodes with at least one UMI, and writing
+# one JSON number per barcode per series runs into hundreds of MB.  The budgets
+# below cap each series at the point where adding more data stops changing the
+# picture -- the barcode-rank and cumulative curves are drawn on log axes, where
+# a curve thinned uniformly in log10(rank) is indistinguishable from the full
+# one, and the per-cell scatters saturate their pixels long before the full
+# ambient cloud is drawn.  Every number that the dashboard *reports* (cell
+# counts, medians, thresholds) is computed upstream on the complete data and is
+# unaffected by this thinning.
+_KNEE_MAX_POINTS: int = 3000        # barcode-rank curve, drawn on log-log axes
+_KNEE_HEAD_RANKS: int = 500         # leading ranks kept untouched (the called cells)
+_SD_MAX_POINTS:   int = 3000        # second-derivative cumulative-UMI curve
+_PERCELL_MAX_NONCELLS: int = 50000  # grey background cloud of the per-cell scatters
+
+# Minimum UMIs per barcode considered by the second-derivative cell calling;
+# must match MIN_UMIS in bin/secondderiv_cellcalling.py.
+_SD_MIN_UMIS: int = 100
+
+# Per-cell metric columns the report actually plots.  ``Cell`` (the barcode
+# string) is dropped from the embedded copy -- nothing reads it, and it is the
+# single widest column.  The published *_metrics.csv / *_metrics.json keep it.
+_PERCELL_COLUMNS: List[str] = [
+    "IntronicPercent", "MTPercent", "rRNAPercent", "MappedReads", "IsCell",
+]
+_PERCELL_PCT_COLUMNS: List[str] = ["IntronicPercent", "MTPercent", "rRNAPercent"]
+
+# ── rRNA / mtDNA metrics ─────────────────────────────────────────────────────
+# Rows of *_mt_rrna_metrics.txt the report shows, by payload key: the current row
+# name and the name an earlier pipeline version gave the same quantity.  The
+# legacy name is None where the old row measured something else -- the mtDNA
+# percentage of mapped reads used to count alignment records -- so an old file
+# shows N/A there rather than a wrong value under the new label.
+_MT_RRNA_ROWS: Dict[str, Tuple[str, Optional[str]]] = {
+    "rrna_mapped_pct": (
+        "Percentage of rRNA reads (of mapped reads, primary alignment)", None),
+    "rrna_unique_pct": (
+        "Percentage of rRNA reads (of uniquely mapped reads)",
+        "Percentage of rRNA reads (of uniquely mapped reads)"),
+    "rrna_multi_primary_pct": (
+        "Percentage of rRNA reads (of multimapped reads, primary alignment)",
+        "Percentage of rRNA in multimapped reads (primary alignment)"),
+    "rrna_multi_aln_pct": (
+        "Percentage of rRNA alignments (of multimapped read alignments, all alignments)",
+        "Percentage of rRNA in multimapped reads (all alignments)"),
+    "mtdna_mapped_pct": (
+        "Percentage of mtDNA reads (of mapped reads, primary alignment)", None),
+    "mtdna_unique_pct": (
+        "Percentage of mtDNA reads (of uniquely mapped reads)", None),
+    "mtdna_multi_primary_pct": (
+        "Percentage of mtDNA reads (of multimapped reads, primary alignment)",
+        "Percentage of mtDNA in multimapped reads (primary alignment)"),
+    "mtdna_multi_aln_pct": (
+        "Percentage of mtDNA alignments (of multimapped read alignments, all alignments)",
+        "Percentage of mtDNA in multimapped reads (all alignments)"),
+}
+# Rows that only exist when their inputs did (a called-cell barcode list, a
+# stranded run); the card leaves them out rather than showing N/A.
+_MT_RRNA_OPTIONAL_ROWS: Dict[str, str] = {
+    "rrna_mapped_cells_pct":
+        "Percentage of rRNA reads (of mapped reads, primary alignment, called cells)",
+    "mtdna_mapped_cells_pct":
+        "Percentage of mtDNA reads (of mapped reads, primary alignment, called cells)",
+    "mtdna_sense_pct":
+        "Percentage of mtDNA reads sense to mitochondrial genes (of mtDNA reads)",
+    "mtdna_antisense_pct":
+        "Percentage of mtDNA reads antisense to mitochondrial genes (of mtDNA reads)",
+    "mtdna_outside_pct":
+        "Percentage of mtDNA reads outside mitochondrial genes (of mtDNA reads)",
+}
+
+# ── GeneExt ──────────────────────────────────────────────────────────────────
+# GeneExt writes a standalone HTML report next to the extended GTF with every
+# number it computed embedded as a single JSON object.  The dashboard re-uses
+# that object rather than re-deriving anything from the GTF, but keeps only the
+# run-level summary and the two histograms it redraws: the report's ``ext_table``
+# carries one row per extended gene and ``orphan_bed`` the full orphan-peak BED,
+# which together dwarf every other block and are already one click away in the
+# GeneExt report itself.
+_GENEEXT_SUMMARY_KEYS: List[str] = [
+    "n_genes", "n_extended", "pct_extended",
+    "min_ext", "median_ext", "mean_ext", "max_ext",
+    "n_genic_peaks", "n_noov_peaks", "n_orphan_peaks", "orphan_warning",
+    "cov_percentile", "cov_threshold", "n_reads", "subsampled",
+    "input_file", "output_file", "genome_fixed", "run_date", "run_args",
+]
+
+# Blocks copied verbatim from the GeneExt payload (all small, fixed-size).
+_GENEEXT_BLOCK_KEYS: List[str] = ["ext_hist", "cov_hist", "peak_flow", "log_notes"]
 
 
 # ---------------------------------------------------------------------------
@@ -95,6 +195,7 @@ def parse_args() -> argparse.Namespace:
     parser.add_argument("--af_meta_info",  nargs="*", help="meta_info.json files")
     parser.add_argument("--af_quant_json", nargs="*", help="quant.json files")
     parser.add_argument("--af_cell_meta",  nargs="*", help="cell_meta.tsv files")
+    parser.add_argument("--af_mat_cols",   nargs="*", help="quants_mat_cols.txt files (authoritative gene count)")
 
     # ── Pipeline mode: visualisation file lists ──────────────────────────────
     parser.add_argument("--sankey_files",    nargs="*", help="*_kraken.sankey.html files")
@@ -103,14 +204,18 @@ def parse_args() -> argparse.Namespace:
     parser.add_argument("--residuals_imgs",  nargs="*", help="Residuals PNG images")
     parser.add_argument("--saturation_logs",nargs="*", help="saturation.log files")
     parser.add_argument("--mt_rrna_metrics",nargs="*", help="*_mt_rrna_metrics.txt files")
+    parser.add_argument("--antisense_metrics", nargs="*", help="*_antisense_metrics.txt files")
     parser.add_argument("--knee_files",      nargs="*", help="UMIperCellSorted.txt files")
+    parser.add_argument("--secondderiv_knee",  nargs="*", help="*_knee_data.json files from the second-derivative cell calling")
+    parser.add_argument("--secondderiv_stats", nargs="*", help="*_secondderiv_statistics.json files from the second-derivative matrix filtering")
 
     parser.add_argument("--cellsweep_tables",        nargs="*")
     parser.add_argument("--cellsweep_plots_contrib", nargs="*")
     parser.add_argument("--cellsweep_plots_umap",    nargs="*")
-    parser.add_argument("--cellbender_tables",        nargs="*")
-    parser.add_argument("--cellbender_plots1",        nargs="*")
-    parser.add_argument("--cellbender_plots2",        nargs="*")
+
+    # ── Pipeline mode: GeneExt (run-level, not per sample) ───────────────────
+    parser.add_argument("--geneext_report", nargs="*", help="GeneExt *.Report.html file")
+    parser.add_argument("--geneext_log",    nargs="*", help="GeneExt *.GeneExt.log file")
 
     return parser.parse_args()
 
@@ -168,20 +273,36 @@ def fmt(val: Any) -> str:
 # ---------------------------------------------------------------------------
 
 def extract_sankey_data(html_path: Optional[str]) -> Optional[dict]:
-    """Extract the htmlwidgets JSON payload from a sankey HTML file."""
+    """Extract the htmlwidgets JSON payload from a sankey HTML file.
+
+    The widget ID is whatever htmlwidgets generated -- older versions emit a hex
+    digest, newer ones an arbitrary alphanumeric string -- and the attribute
+    order varies between renderers, so the payload is located by its
+    ``data-for="htmlwidget-…"`` marker rather than by an exact tag spelling.
+    """
     if not html_path or not os.path.exists(html_path):
         return None
     try:
         with open(html_path, "r") as fh:
             content = fh.read()
         match = re.search(
-            r'<script type="application/json" data-for="htmlwidget-[a-f0-9]+">(.*?)</script>',
+            r'<script[^>]*\bdata-for="htmlwidget-[^"]+"[^>]*>(.*?)</script>',
             content, re.DOTALL,
         )
+        if not match:
+            # Attribute order is not fixed: type may follow data-for instead.
+            match = re.search(
+                r'<script[^>]*\btype="application/json"[^>]*>(.*?)</script>',
+                content, re.DOTALL,
+            )
         if match:
             return json.loads(match.group(1)).get("x")
-    except Exception:
-        pass
+        sys.stderr.write(
+            f"Warning: no htmlwidgets payload found in {html_path}; "
+            "the taxonomy tab will be empty for this sample\n"
+        )
+    except Exception as exc:
+        sys.stderr.write(f"Warning: could not read sankey {html_path}: {exc}\n")
     return None
 
 
@@ -203,6 +324,138 @@ def parse_saturation_log(path: Optional[str]) -> str:
     return "N/A"
 
 
+def extract_geneext_report_data(html_path: Optional[str]) -> Dict[str, Any]:
+    """Extract the embedded ``const D = {...}`` payload from a GeneExt report.
+
+    The object is written on a single line by GeneExt, but it contains braces and
+    escaped quotes throughout, so it is decoded with :class:`json.JSONDecoder`
+    from the first ``{`` after the declaration rather than matched with a regex.
+
+    Returns ``{}`` when the file is missing or holds no recognisable payload.
+    """
+    if not html_path or not os.path.exists(html_path):
+        return {}
+    try:
+        with open(html_path, "r", encoding="utf-8", errors="replace") as fh:
+            content = fh.read()
+        match = re.search(r"\bconst\s+D\s*=\s*", content)
+        if not match:
+            sys.stderr.write(
+                f"Warning: no GeneExt data payload found in {html_path}; "
+                "falling back to the GeneExt log\n"
+            )
+            return {}
+        obj, _ = json.JSONDecoder().raw_decode(content, match.end())
+        return obj if isinstance(obj, dict) else {}
+    except Exception as exc:
+        sys.stderr.write(f"Warning: could not read GeneExt report {html_path}: {exc}\n")
+        return {}
+
+
+def parse_geneext_log(path: Optional[str]) -> Dict[str, Any]:
+    """Recover GeneExt's headline numbers from its plain-text log.
+
+    Used when the HTML report is absent -- a GeneExt older than the one that
+    writes it -- so the dashboard can still report what the extension did.  Only
+    the three lines GeneExt prints as its result are read; anything the report
+    would have added (the histograms, the peak-filtering flow) has no equivalent
+    in the log and is simply left out.
+    """
+    if not path or not os.path.exists(path):
+        return {}
+    try:
+        with open(path, "r", encoding="utf-8", errors="replace") as fh:
+            content = fh.read()
+    except Exception as exc:
+        sys.stderr.write(f"Warning: could not read GeneExt log {path}: {exc}\n")
+        return {}
+
+    summary: Dict[str, Any] = {}
+    peak_flow: Dict[str, Any] = {}
+
+    extended = re.search(r"Extended\s+(\d+)\s*/\s*(\d+)\s+genes", content)
+    if extended:
+        n_extended, n_genes = int(extended.group(1)), int(extended.group(2))
+        summary["n_extended"] = n_extended
+        summary["n_genes"]    = n_genes
+        if n_genes:
+            summary["pct_extended"] = round(100.0 * n_extended / n_genes, 1)
+
+    median = re.search(r"Median extension length:\s*([\d.]+)\s*bp", content)
+    if median:
+        summary["median_ext"] = float(median.group(1))
+
+    retained = re.search(
+        r"Retained\s+(\d+)\s*/\s*(\d+)\s+\(\s*[\d.]+\s*%\s*\)\s+intergenic peaks", content
+    )
+    if retained:
+        peak_flow["passed_filtering"] = int(retained.group(1))
+        summary["n_noov_peaks"]       = int(retained.group(2))
+    if "n_extended" in summary:
+        peak_flow["assigned_to_genes"] = summary["n_extended"]
+
+    notes = [
+        line.strip() for line in content.splitlines()
+        if "warning" in line.lower() and line.strip()
+    ]
+
+    if not summary and not peak_flow:
+        return {}
+    return {"summary": summary, "peak_flow": peak_flow, "log_notes": notes}
+
+
+def build_geneext_payload(
+    report_path: Optional[str],
+    log_path: Optional[str],
+) -> Dict[str, Any]:
+    """Assemble the gene-extension block the dashboard embeds.
+
+    Prefers GeneExt's own HTML report, which carries every statistic it computed,
+    and falls back to the log when the report is unavailable.  ``source`` records
+    which of the two the numbers came from, so the tab can leave out the
+    distributions the log cannot supply.
+
+    Returns ``{}`` when neither file yields anything, which is what hides the tab.
+    """
+    payload: Dict[str, Any] = {}
+
+    data = extract_geneext_report_data(report_path)
+    if data:
+        summary = data.get("summary") or {}
+        payload["summary"] = {
+            k: summary[k] for k in _GENEEXT_SUMMARY_KEYS if k in summary
+        }
+        for key in _GENEEXT_BLOCK_KEYS:
+            if data.get(key):
+                payload[key] = data[key]
+
+        fix_info = data.get("fix_info") or {}
+        if fix_info.get("extension_param"):
+            payload["extension_param"] = fix_info["extension_param"]
+        if fix_info.get("steps"):
+            # Only the steps that actually ran are worth a line in the report
+            payload["genome_fix"] = {
+                name: step for name, step in fix_info["steps"].items()
+                if isinstance(step, dict) and step.get("applied")
+            }
+        if data.get("mapping_stats"):
+            payload["mapping_stats"] = data["mapping_stats"]
+        payload["source"] = "report"
+
+    else:
+        from_log = parse_geneext_log(log_path)
+        if not from_log:
+            return {}
+        payload = {k: v for k, v in from_log.items() if v}
+        payload["source"] = "log"
+
+    if report_path:
+        payload["report_file"] = os.path.basename(report_path)
+    if log_path:
+        payload["log_file"] = os.path.basename(log_path)
+    return payload
+
+
 def parse_run_config(path: Optional[str]) -> Dict[str, str]:
     """Parse a ``KEY=VALUE`` text file into a dict; return ``{}`` on failure."""
     config: Dict[str, str] = {}
@@ -219,8 +472,8 @@ def parse_run_config(path: Optional[str]) -> Dict[str, str]:
     return config
 
 
-def parse_cell_filtering_table(path: Optional[str], method: str) -> List[Dict[str, Any]]:
-    """Parse a cellsweep or cellbender output table into a list of row dicts."""
+def parse_cell_filtering_table(path: Optional[str]) -> List[Dict[str, Any]]:
+    """Parse a cellsweep output table into a list of row dicts."""
     if not path or not os.path.exists(path):
         return []
     data: List[Dict[str, Any]] = []
@@ -231,19 +484,11 @@ def parse_cell_filtering_table(path: Optional[str], method: str) -> List[Dict[st
             fh.seek(0)
             for row in csv.DictReader(fh, delimiter=delimiter):
                 cleaned = {k.strip(): v.strip() for k, v in row.items() if k}
-                if method == "cellsweep":
-                    data.append({
-                        "gene":        cleaned.get("gene", "N/A"),
-                        "ambient_hat": safe_float(cleaned.get("ambient_hat")),
-                    })
-                elif method == "cellbender":
-                    data.append({
-                        "gene_name":        cleaned.get("gene_name", "N/A"),
-                        "n_removed":        safe_float(cleaned.get("n_removed")),
-                        "fraction_removed": safe_float(cleaned.get("fraction_removed")),
-                    })
-        sort_key = "ambient_hat" if method == "cellsweep" else "n_removed"
-        data.sort(key=lambda x: x[sort_key] if x[sort_key] is not None else -1, reverse=True)
+                data.append({
+                    "gene":        cleaned.get("gene", "N/A"),
+                    "ambient_hat": safe_float(cleaned.get("ambient_hat")),
+                })
+        data.sort(key=lambda x: x["ambient_hat"] if x["ambient_hat"] is not None else -1, reverse=True)
         return data[:100]
     except Exception:
         return []
@@ -281,41 +526,87 @@ def parse_starsolo_summary(path: Optional[str]) -> Dict[str, str]:
 
 
 def parse_mt_rrna_metrics(path: Optional[str]) -> Dict[str, str]:
-    """Parse an MT/rRNA metrics file (``key,value`` lines) into a dict."""
+    """Parse an MT/rRNA metrics file (``key,value`` CSV rows) into a dict.
+
+    Read as CSV: metric names carry commas ("of mapped reads, primary alignment")
+    and are quoted.  Files of earlier versions, unquoted, read the same way.
+    """
     data: Dict[str, str] = {}
     if not path or not os.path.exists(path):
         return data
     try:
-        with open(path, "r") as fh:
-            for line in fh:
-                if "," in line:
-                    key, val = line.strip().split(",", 1)
-                    data[key.strip()] = val.strip()
+        with open(path, "r", newline="") as fh:
+            for rec in csv.reader(fh):
+                if len(rec) >= 2:
+                    data[rec[0].strip()] = ",".join(rec[1:]).strip()
     except Exception:
         pass
     return data
 
 
+def mt_rrna_values(stats: Dict[str, str]) -> Dict[str, Optional[str]]:
+    """The rRNA / mtDNA percentages the report shows, keyed as in the payload.
+
+    ``_MT_RRNA_ROWS`` are always present (``"N/A"`` when missing), falling back to
+    the legacy row name where the quantity is unchanged.  ``_MT_RRNA_OPTIONAL_ROWS``
+    are ``None`` unless the file holds a number for them.
+    """
+    values: Dict[str, Optional[str]] = {}
+    for key, (name, legacy) in _MT_RRNA_ROWS.items():
+        raw = stats.get(name)
+        if raw is None and legacy:
+            raw = stats.get(legacy)
+        values[key] = to_pct(raw)
+    for key, name in _MT_RRNA_OPTIONAL_ROWS.items():
+        pct = to_pct(stats.get(name))
+        values[key] = None if pct == "N/A" else pct
+    return values
+
+
 def parse_starsolo_intronic(path: Optional[str]) -> Any:
     """Compute intronic fraction from a STARsolo ``CellReads.stats`` file.
+
+    STARsolo records the region flags (``exonic``, ``intronic``, ``exonicAS``,
+    ``intronicAS``, ``mito``) only for reads with a unique genomic alignment, so
+    ``genomeU`` is the denominator; ``genomeM`` reads can never appear in the
+    numerator and would deflate the fraction.  The ``CBnotInPasslist`` summary
+    row aggregates reads whose barcode was not in the passlist and is skipped.
+
+    Columns are resolved by header name rather than position, since the column
+    set varies between STAR versions (some emit ``cbPerfectU`` / ``cbMMuniqueU``
+    / ``cbMMmultipleU`` after ``featureM``).
+
+    The fraction is computed over all barcodes, not only the called cells, so it
+    is a library-level rate.
 
     Returns the fraction as a ``float``, or ``"N/A"`` when unavailable.
     """
     if not path or not os.path.exists(path):
         return "N/A"
     try:
-        mapped_reads = 0
-        intronic_sum = 0
         with open(path, "r") as fh:
-            next(fh)  # skip header
+            header = fh.readline().rstrip("\n").split("\t")
+            idx = {name: i for i, name in enumerate(header)}
+            if "intronic" not in idx or "genomeU" not in idx:
+                sys.stderr.write(
+                    f"Warning: 'intronic'/'genomeU' columns not found in {path}\n"
+                )
+                return "N/A"
+
+            i_intronic, i_genome_u = idx["intronic"], idx["genomeU"]
+            needed = max(i_intronic, i_genome_u)
+
+            intronic_sum = 0
+            genome_unique = 0
             for line in fh:
-                parts = line.strip().split()
-                if len(parts) < 6:
+                parts = line.rstrip("\n").split("\t")
+                if len(parts) <= needed or parts[0] == "CBnotInPasslist":
                     continue
-                intronic_sum += int(parts[4]) + int(parts[5])
-                mapped_reads += int(parts[2]) + int(parts[3]) + int(parts[4]) + int(parts[5])
-        if mapped_reads > 0:
-            return intronic_sum / mapped_reads
+                intronic_sum += int(parts[i_intronic])
+                genome_unique += int(parts[i_genome_u])
+
+        if genome_unique > 0:
+            return intronic_sum / genome_unique
     except Exception:
         pass
     return "N/A"
@@ -345,6 +636,309 @@ def extract_umi_cutoff(log_out_path: Optional[str], cfg_name: str = "GeneFull_Ex
     return 0
 
 
+def count_alevin_genes(quant: Dict[str, Any], cols_path: Optional[str]) -> Any:
+    """Number of distinct genes in an alevin-fry reference.
+
+    ``quant.json``'s ``num_genes`` counts *matrix columns*.  In USA mode -- which
+    this pipeline always runs, since ``alevin-fry quant`` is given a 3-column
+    ``t2g_3col.tsv`` -- the matrix carries three blocks per gene (spliced,
+    unspliced, ambiguous), so that value is three times the gene count.
+
+    ``quants_mat_cols.txt`` names those columns and is authoritative, so it is
+    preferred when available: a USA column set (``alevin_usa.usa_genes``) gives
+    its first third, anything else its distinct names.  ``quant.json`` is the
+    fallback.
+
+    Note this is the size of the reference, not the number of genes with
+    non-zero counts; the dashboard labels it accordingly.
+    """
+    if cols_path and os.path.exists(cols_path):
+        try:
+            with open(cols_path, "r") as fh:
+                names = [line.strip() for line in fh if line.strip()]
+            if names:
+                try:
+                    return len(usa_genes(names))
+                except ValueError:
+                    return len(set(names))
+        except Exception:
+            sys.stderr.write(f"Warning: could not read {cols_path}\n")
+
+    n_cols = quant.get("num_genes", quant.get("num_targets"))
+    try:
+        n_cols = int(n_cols)
+    except (TypeError, ValueError):
+        return "N/A"
+    if quant.get("usa_mode") and n_cols % 3 == 0:
+        return n_cols // 3
+    return n_cols
+
+
+def manifest_version() -> Optional[str]:
+    """Read ``manifest.version`` from the pipeline's ``nextflow.config``.
+
+    Pipeline mode gets the version from Nextflow itself (``--version``); this is
+    the standalone-mode fallback, and keeps the two in step without a second
+    place to bump.  ``nextflow.config`` sits one level above ``bin/``, where this
+    script lives.  Returns ``None`` when it cannot be read.
+    """
+    config_path = os.path.join(
+        os.path.dirname(os.path.dirname(os.path.abspath(__file__))), "nextflow.config"
+    )
+    try:
+        with open(config_path, "r") as fh:
+            content = fh.read()
+    except Exception:
+        return None
+    match = re.search(
+        r"manifest\s*\{.*?\bversion\s*=\s*['\"]([^'\"]+)['\"]",
+        content, re.DOTALL,
+    )
+    return match.group(1) if match else None
+
+
+def _meta_field(raw: Dict[str, Any], *keys: str) -> str:
+    """First usable string among *keys* of a ``params_*.json`` dump.
+
+    ``nextflow.config`` declares ``params.version = false`` to back Nextflow's
+    own ``--version`` flag, and ``dumpParametersToJSON`` writes that boolean out
+    as-is.  Passing it through ``str()`` is what made the report header read
+    "vFalse", so booleans -- and their stringified spellings -- are skipped here
+    and the caller falls back to ``manifest.version``.
+    """
+    for key in keys:
+        value = raw.get(key)
+        if value is None or isinstance(value, bool):
+            continue
+        text = str(value).strip()
+        if text and text.lower() not in {"true", "false", "null", "none"}:
+            return text
+    return ""
+
+
+# ---------------------------------------------------------------------------
+# Curve thinning
+# ---------------------------------------------------------------------------
+
+def _log_spaced_indices(n: int, max_points: int, head: int = 0) -> List[int]:
+    """Indices into a length-*n* sequence, thinned uniformly in ``log10(rank)``.
+
+    The first *head* indices and the final index are always kept; the remaining
+    budget is spread evenly in log10 of the rank, which is the axis these curves
+    are drawn against.  The result is sorted and free of duplicates, so it may be
+    shorter than *max_points*.
+
+    Returns every index when the sequence already fits within the budget.
+    """
+    if n <= 0:
+        return []
+    if n <= max_points:
+        return list(range(n))
+
+    head = max(0, min(head, n))
+    keep = set(range(head))
+    keep.add(n - 1)
+
+    budget = max(max_points - len(keep), 2)
+    lo = math.log10(max(head, 1))
+    hi = math.log10(n)
+    for i in range(budget):
+        rank = 10.0 ** (lo + (hi - lo) * i / (budget - 1))
+        keep.add(min(max(int(round(rank)) - 1, 0), n - 1))
+    return sorted(keep)
+
+
+def build_knee_payload(path: Optional[str]) -> Optional[Dict[str, Any]]:
+    """Read a ``UMIperCellSorted.txt`` into a thinned, plot-ready barcode-rank curve.
+
+    The file holds one UMI count per barcode, which for a deeply sequenced sample
+    is millions of lines.  Only ``_KNEE_MAX_POINTS`` of them are embedded, chosen
+    by :func:`_log_spaced_indices`, and each retained point carries its true rank
+    plus the cumulative UMI total up to that rank.  Carrying the exact rank and
+    cumulative sum is what makes the thinning safe: the report reconstructs both
+    the barcode-rank plot and the client-side second-derivative curve from these
+    points without ever needing the ones in between.
+
+    Returns ``None`` when the file is missing or holds no counts.  The payload:
+
+    ``ranks`` / ``umis`` / ``cum``
+        Parallel arrays over the retained barcodes (1-based rank, UMI count,
+        cumulative UMIs up to and including that rank).
+    ``n_barcodes``
+        Total barcodes in the file, before thinning.
+    ``n_above_min``
+        Barcodes with at least ``min_umis`` UMIs -- the length of the curve the
+        second-derivative cell calling operates on.
+    ``min_umis``
+        The floor that count was taken at.
+    """
+    if not path or not os.path.exists(path):
+        return None
+    try:
+        with open(path, "r") as fh:
+            umis = [int(s) for s in (line.strip() for line in fh) if s.isdigit()]
+    except Exception:
+        return None
+    if not umis:
+        return None
+
+    # The file is emitted sorted, but the rank axis only means anything if it is
+    umis.sort(reverse=True)
+    n = len(umis)
+    n_above_min = sum(1 for v in umis if v >= _SD_MIN_UMIS)
+
+    keep = set(_log_spaced_indices(n, _KNEE_MAX_POINTS, _KNEE_HEAD_RANKS))
+    # The last barcode above the floor bounds the second-derivative curve, so the
+    # client reaches the same end point as if it had the untruncated data
+    if n_above_min:
+        keep.add(n_above_min - 1)
+
+    ranks: List[int] = []
+    values: List[int] = []
+    cum: List[int] = []
+    running = 0
+    for i, val in enumerate(umis):
+        running += val
+        if i in keep:
+            ranks.append(i + 1)
+            values.append(val)
+            cum.append(running)
+
+    return {
+        "ranks":       ranks,
+        "umis":        values,
+        "cum":         cum,
+        "n_barcodes":  n,
+        "n_above_min": n_above_min,
+        "min_umis":    _SD_MIN_UMIS,
+    }
+
+
+def thin_secondderiv_curve(entry: Dict[str, Any]) -> Dict[str, Any]:
+    """Thin the cumulative-UMI curve of a ``*_knee_data.json`` payload.
+
+    ``logX`` / ``logY`` / ``customdata`` carry one point per barcode above the
+    UMI floor; the derivative arrays are already resampled onto a fixed grid by
+    ``secondderiv_cellcalling.py`` and are left alone.  Points are picked in
+    log10(rank), the curve's own x axis, and the floats are rounded to 6 decimals
+    -- far below one screen pixel on a plot spanning a handful of log units.
+    """
+    log_x = entry.get("logX")
+    if not isinstance(log_x, list) or not log_x:
+        return entry
+
+    log_y      = entry.get("logY") or []
+    customdata = entry.get("customdata") or []
+    idx = _log_spaced_indices(len(log_x), _SD_MAX_POINTS, _KNEE_HEAD_RANKS)
+
+    thinned = dict(entry)
+    thinned["logX"] = [round(log_x[i], 6) for i in idx]
+    if len(log_y) == len(log_x):
+        thinned["logY"] = [round(log_y[i], 6) for i in idx]
+    if len(customdata) == len(log_x):
+        thinned["customdata"] = [customdata[i] for i in idx]
+    if isinstance(entry.get("derivX"), list):
+        thinned["derivX"] = [round(v, 6) for v in entry["derivX"]]
+    if isinstance(entry.get("derivY"), list):
+        thinned["derivY"] = [round(v, 6) for v in entry["derivY"]]
+    return thinned
+
+
+def build_per_cell_payload(
+    path: Optional[str],
+    umi_threshold: Any,
+) -> Tuple[Optional[Dict[str, List]], Optional[Dict[str, int]]]:
+    """Load a per-cell metrics JSON and cut it down to what the scatters plot.
+
+    The file is column-oriented with one entry per barcode carrying at least one
+    read -- millions of them on a deeply sequenced sample, and by far the largest
+    contributor to the report's size.  Two reductions are applied:
+
+    * the ``Cell`` barcode strings are dropped, since no plot reads them;
+    * every called cell is kept, while the non-cell background cloud is thinned
+      by a fixed stride down to ``_PERCELL_MAX_NONCELLS`` points.
+
+    The six scatters draw the non-cells as 4px translucent markers, so past a few
+    tens of thousands they overplot into a solid shape whose outline and density
+    gradient a uniform stride preserves exactly.  Barcodes appear in whitelist
+    order, which is unrelated to any metric, so the stride is an unbiased sample.
+
+    Cells are identified by ``IsCell`` -- membership of the filtered matrix --
+    falling back to ``MappedReads > umi_threshold``, matching what the report does.
+
+    Returns ``(columns, sampling)``, where *sampling* records the non-cell counts
+    before and after thinning so the plot legends can say what is shown, or
+    ``(None, None)`` when nothing usable was read.
+    """
+    if not path or not os.path.exists(path):
+        return None, None
+    try:
+        with open(path, "r") as fh:
+            raw = json.load(fh)
+    except Exception:
+        return None, None
+    if not isinstance(raw, dict) or not raw:
+        return None, None
+
+    # Files from earlier pipeline versions name the read column TotalReads and hold
+    # the percentages as 0-1 fractions; bring them to the current layout
+    legacy = "TotalReads" in raw and "MappedReads" not in raw
+    if legacy:
+        raw = dict(raw)
+        raw["MappedReads"] = raw.pop("TotalReads")
+        for name in _PERCELL_PCT_COLUMNS:
+            if isinstance(raw.get(name), list):
+                raw[name] = [v * 100 if isinstance(v, (int, float)) else v for v in raw[name]]
+
+    columns = {k: v for k, v in raw.items()
+               if k in _PERCELL_COLUMNS and isinstance(v, list)}
+    if not columns:
+        return None, None
+    n_rows = min(len(v) for v in columns.values())
+    if n_rows == 0:
+        return None, None
+
+    is_cell_col = columns.get("IsCell")
+    total_col   = columns.get("MappedReads")
+    threshold   = safe_float(umi_threshold)
+    if is_cell_col is not None:
+        cell_flags = [bool(v) for v in is_cell_col[:n_rows]]
+    elif total_col is not None and threshold is not None:
+        cell_flags = [(safe_float(v) or 0.0) > threshold for v in total_col[:n_rows]]
+    else:
+        cell_flags = [True] * n_rows
+
+    n_noncells = sum(1 for flag in cell_flags if not flag)
+    stride = 1
+    if n_noncells > _PERCELL_MAX_NONCELLS:
+        stride = math.ceil(n_noncells / _PERCELL_MAX_NONCELLS)
+
+    keep: List[int] = []
+    seen_noncells = 0
+    for i, flag in enumerate(cell_flags):
+        if flag:
+            keep.append(i)
+        else:
+            if seen_noncells % stride == 0:
+                keep.append(i)
+            seen_noncells += 1
+
+    out: Dict[str, List] = {}
+    for name, values in columns.items():
+        if name in _PERCELL_PCT_COLUMNS:
+            out[name] = [round(v, 3) if isinstance(v, float) else v
+                         for v in (values[i] for i in keep)]
+        else:
+            out[name] = [values[i] for i in keep]
+
+    sampling = {
+        "noncells_total":  n_noncells,
+        "noncells_shown":  len(keep) - (n_rows - n_noncells),
+        "cells_shown":     n_rows - n_noncells,
+    }
+    return out, sampling
+
+
 def _safe_read_json(path: Optional[str]) -> Dict[str, Any]:
     """Read a JSON object from *path*; return ``{}`` on any failure."""
     if not path or not os.path.exists(path):
@@ -355,6 +949,24 @@ def _safe_read_json(path: Optional[str]) -> Dict[str, Any]:
         return obj if isinstance(obj, dict) else {}
     except Exception:
         return {}
+
+
+def parse_secondderiv_knee(path: Optional[str], sample_id: str) -> Optional[Dict[str, Any]]:
+    """Read a ``*_knee_data.json`` produced by ``secondderiv_cellcalling.py``.
+
+    The file is keyed by sample ID at the top level; the sole payload is
+    returned when the key does not match the analytical ID exactly.
+    """
+    payload = _safe_read_json(path)
+    if not payload:
+        return None
+    if sample_id in payload:
+        entry = payload[sample_id]
+    elif len(payload) == 1:
+        entry = next(iter(payload.values()))
+    else:
+        return None
+    return entry if isinstance(entry, dict) else None
 
 
 def parse_cell_meta_tsv(path: Optional[str]) -> Dict[str, Any]:
@@ -406,9 +1018,12 @@ def _extract_base_id(analytical_id: str) -> str:
 
     Examples::
 
-        "Nvec-1C_starsolo"         → "Nvec-1C"
-        "Nvec-1C_geneext_starsolo" → "Nvec-1C"
-        "BCA015_sample_alevinfry"  → "BCA015_sample"
+        "Nvec-1C_starsolo"                → "Nvec-1C"
+        "Nvec-1C_geneext_starsolo"        → "Nvec-1C"
+        "Nvec-1C_subsampled_starsolo"     → "Nvec-1C"
+        "Nvec-1C_geneext_subsampled_starsolo" → "Nvec-1C"
+        "BCA015_sample_alevinfry"         → "BCA015_sample"
+        "BCA015_sample_geneext_alevinfry" → "BCA015_sample"
     """
     for suffix in _ANALYTICAL_SUFFIXES:
         if analytical_id.endswith(suffix):
@@ -427,16 +1042,34 @@ def _probe(path: str) -> Optional[str]:
     return path if os.path.exists(path) else None
 
 
+def _find_sankey(directory: str, analytical_id: str) -> Optional[str]:
+    """Return this sample's Kraken sankey HTML from *directory*, or ``None``.
+
+    PAVIAN names its output after the Kraken report it is handed -- here
+    ``<id>.k2report`` -- and the exact spelling varies with the Pavian version
+    (``<id>.sankey.html``, ``<id>.k2report.sankey.html``, ...), so the file is
+    matched by sample ID rather than by one hard-coded name.  The remainder of
+    the name has to start with a separator, otherwise sample ``S1`` would claim
+    ``S10``'s report.
+    """
+    for path in sorted(glob.glob(os.path.join(directory, "*.sankey.html"))):
+        name = os.path.basename(path)
+        if not name.startswith(analytical_id):
+            continue
+        if name[len(analytical_id):][:1] in ("_", ".", "-"):
+            return path
+    return None
+
+
 def _discover_cell_filtering(
     result_dir: str,
     analytical_id: str,
     files: Dict[str, str],
 ) -> None:
-    """Populate cellsweep / cellbender entries in *files* when outputs are present.
+    """Populate cellsweep entries in *files* when outputs are present.
 
-    Searches :data:`_CELLSWEEP_ROOTS` and :data:`_CELLBENDER_ROOTS` under
-    *result_dir* for per-sample subdirectories, stopping at the first hit for
-    each method.
+    Searches :data:`_CELLSWEEP_ROOTS` under *result_dir* for per-sample
+    subdirectories, stopping at the first hit.
     """
     for cs_root in _CELLSWEEP_ROOTS:
         base = os.path.join(result_dir, cs_root, analytical_id)
@@ -452,19 +1085,20 @@ def _discover_cell_filtering(
                     files[key] = candidate
             break
 
-    for cb_root in _CELLBENDER_ROOTS:
-        base = os.path.join(result_dir, cb_root, analytical_id)
-        table = _probe(os.path.join(base, f"{analytical_id}_cellbender.tsv"))
-        if table:
-            files["cb_table"] = table
-            for key, suffix in [
-                ("cb_plot1", "_plot1.png"),
-                ("cb_plot2", "_plot2.png"),
-            ]:
-                candidate = _probe(os.path.join(base, f"{analytical_id}{suffix}"))
-                if candidate:
-                    files[key] = candidate
-            break
+
+def _discover_geneext(result_dir: str) -> Tuple[Optional[str], Optional[str]]:
+    """Locate the GeneExt report and log under ``gene_ext/`` (standalone mode).
+
+    Both are named after the annotation GeneExt wrote, which the pipeline calls
+    ``geneext.gtf``; they are matched by suffix so a differently named output is
+    still found.  Returns ``(report, log)``, either of which may be ``None``.
+    """
+    gene_ext = os.path.join(result_dir, "gene_ext")
+    if not os.path.isdir(gene_ext):
+        return None, None
+    report = _latest_glob(os.path.join(gene_ext, "*.Report.html"))
+    log    = _latest_glob(os.path.join(gene_ext, "*.GeneExt.log"))
+    return report, log
 
 
 def _discover_starsolo_samples(
@@ -516,12 +1150,29 @@ def _discover_starsolo_samples(
                 if candidate:
                     files.setdefault(key, candidate)
 
+            # Second-derivative cell calling (only present for that cellfilter_method)
+            sd_path = os.path.join(gene_path, _SECONDDERIV_DIR)
+            for key, fname in [
+                ("sd_knee",  f"{analytical_id}_knee_data.json"),
+                ("sd_stats", f"{analytical_id}_secondderiv_statistics.json"),
+            ]:
+                candidate = _probe(os.path.join(sd_path, fname))
+                if candidate:
+                    files.setdefault(key, candidate)
+
         # rRNA / mtDNA metrics
         mt = _probe(os.path.join(
             result_dir, "rRNA_mtDNA", f"{analytical_id}_mt_rrna_metrics.txt"
         ))
         if mt:
             files["mt_rrna"] = mt
+
+        # Antisense reads (stranded runs only, next to the rRNA / mtDNA metrics)
+        antisense = _probe(os.path.join(
+            result_dir, "rRNA_mtDNA", f"{analytical_id}_antisense_metrics.txt"
+        ))
+        if antisense:
+            files["antisense"] = antisense
 
         # Sequencing saturation outputs
         sat_dir = os.path.join(result_dir, "saturation", analytical_id)
@@ -544,9 +1195,7 @@ def _discover_starsolo_samples(
 
         # Kraken sankey (optional; scanned across common directory names)
         for sankey_root in _SANKEY_ROOTS:
-            candidate = _probe(os.path.join(
-                result_dir, sankey_root, f"{analytical_id}_kraken.sankey.html"
-            ))
+            candidate = _find_sankey(os.path.join(result_dir, sankey_root), analytical_id)
             if candidate:
                 files["sankey"] = candidate
                 break
@@ -604,6 +1253,26 @@ def _discover_alevinfry_samples(
         ))
         if meta:
             files["af_meta"] = meta
+
+        # quants_mat_cols.txt  →  af_cols (authoritative gene count)
+        cols = _probe(os.path.join(
+            sample_path, f"{analytical_id}_counts", "alevin", "quants_mat_cols.txt"
+        ))
+        if cols:
+            files["af_cols"] = cols
+
+        # Second-derivative cell calling
+        sd_path = os.path.join(
+            sample_path, f"{analytical_id}_counts", "alevin", _SECONDDERIV_DIR
+        )
+        for key, fname in [
+            ("knee",     f"{analytical_id}_alevin_UMIperCellSorted.txt"),
+            ("sd_knee",  f"{analytical_id}_knee_data.json"),
+            ("sd_stats", f"{analytical_id}_secondderiv_statistics.json"),
+        ]:
+            candidate = _probe(os.path.join(sd_path, fname))
+            if candidate:
+                files[key] = candidate
 
         # Per-cell metrics JSON (same location as STARsolo)
         pc = _probe(os.path.join(
@@ -674,8 +1343,8 @@ def discover_result_dir(
     pipeline_meta: Dict[str, str] = {}
     if latest_params:
         raw = _safe_read_json(latest_params)
-        pipeline_meta["version"] = str(raw.get("pipeline_version", raw.get("version", "")))
-        pipeline_meta["commit"]  = str(raw.get("git_commit",       raw.get("commit",  "")))
+        pipeline_meta["version"] = _meta_field(raw, "pipeline_version", "version")
+        pipeline_meta["commit"]  = _meta_field(raw, "git_commit",      "commit")
 
     # ── Sample discovery ─────────────────────────────────────────────────────
     _discover_starsolo_samples(result_dir, active_samples, file_map)
@@ -717,29 +1386,34 @@ def _build_file_map_from_cli(
                 file_map[sid][key] = path
                 break
 
+    # STARsolo-specific outputs
     _map(args.star_logs,               "star_log",      {"starsolo"})
     _map(args.star_summaries,          "star_summary",  {"starsolo"})
     _map(args.star_full_logs,          "star_full_log", {"starsolo"})
     _map(args.mt_rrna_metrics,         "mt_rrna",       {"starsolo"})
+    _map(args.antisense_metrics,       "antisense",     {"starsolo"})
     _map(args.saturation_logs,         "sat_log",       {"starsolo"})
     _map(args.cell_stats,              "cell_stats",    {"starsolo"})
     _map(args.saturation_imgs,         "sat_img",       {"starsolo"})
     _map(args.residuals_imgs,          "res_img",       {"starsolo"})
     _map(args.sankey_files,            "sankey",        {"starsolo"})
     _map(args.per_cell_files,          "per_cell",      {"starsolo"})
-    _map(args.knee_files,              "knee",          {"starsolo"})
 
+    # Shared outputs by both mappers
+    _map(args.knee_files,              "knee")
+    _map(args.secondderiv_knee,        "sd_knee")
+    _map(args.secondderiv_stats,       "sd_stats")
+
+    # Alevin-specific output
     _map(args.af_meta_info,            "af_meta",       {"alevin"})
     _map(args.af_quant_json,           "af_quant",      {"alevin"})
     _map(args.af_cell_meta,            "af_cell",       {"alevin"})
+    _map(args.af_mat_cols,             "af_cols",       {"alevin"})
 
-    # Cell-filtering outputs are shared (either tool can emit them)
+    # Cell-filtering outputs (shared by both mappers)
     _map(args.cellsweep_tables,        "cs_table")
     _map(args.cellsweep_plots_contrib, "cs_plot_contrib")
     _map(args.cellsweep_plots_umap,    "cs_plot_umap")
-    _map(args.cellbender_tables,       "cb_table")
-    _map(args.cellbender_plots1,       "cb_plot1")
-    _map(args.cellbender_plots2,       "cb_plot2")
 
     return file_map
 
@@ -778,7 +1452,7 @@ def main() -> None:
             )
 
         raw_run_config = parse_run_config(run_config_path)
-        version = args.version or pipeline_meta.get("version") or "unknown"
+        version = args.version or pipeline_meta.get("version") or manifest_version() or "unknown"
         commit  = args.commit  or pipeline_meta.get("commit")  or "unknown"
 
         samplesheet_config: Dict[str, Any] = {}
@@ -788,6 +1462,8 @@ def main() -> None:
                     if row.get("sample"):
                         samplesheet_config[row["sample"]] = row
 
+        geneext_report, geneext_log = _discover_geneext(args.result_dir)
+
         print(
             f"Standalone mode: discovered {len(active_samples)} analytical samples.",
             file=sys.stderr,
@@ -795,7 +1471,7 @@ def main() -> None:
 
     else:  # pipeline mode
         raw_run_config = parse_run_config(args.run_config)
-        version = args.version or "unknown"
+        version = args.version or manifest_version() or "unknown"
         commit  = args.commit  or "unknown"
 
         samplesheet_config = {}
@@ -817,6 +1493,11 @@ def main() -> None:
         else:
             sys.exit(f"Error: manifest not found: {args.analytical_samples}")
 
+        # GeneExt runs once per pipeline run, on the merged alignments of every
+        # sample, so its outputs are run-level and are not part of the file map
+        geneext_report = (args.geneext_report or [None])[0]
+        geneext_log    = (args.geneext_log    or [None])[0]
+
         file_map = _build_file_map_from_cli(args, active_samples)
         print(
             f"Pipeline mode: loaded {len(active_samples)} samples from manifest.",
@@ -833,11 +1514,19 @@ def main() -> None:
     }
 
     # ── Per-sample processing (identical for both modes) ─────────────────────
+    # The overview mixes mappers in one table, so a single header cannot carry a
+    # per-row definition: "% Mapped Reads" is uniquely-mapped for STARsolo and
+    # all mapped fragments for alevin-fry. The Mapper column makes which one
+    # applies explicit for every row. When every row turns out to be STARsolo the
+    # column has only one meaning, and the header is sharpened to say so after
+    # the loop below, once the mappers are known.
+    _MAPPED_COL = 2
     global_cols = [
-        "Sample", "% Uniquely Mapped Reads", "N cells", "Saturation",
+        "Sample", "Mapper", "% Mapped Reads", "N cells", "Saturation",
         "Reads Needed for Target Saturation", "Noise (% UMIs non-cell barcodes)",
-        "Median Transcripts Per Cell", "% Intronic Reads", "% rRNA in Unique reads",
-        "% mtDNA in Unique reads", "% mtDNA in multimappers all pos",
+        "Median Transcripts Per Cell", "% intronic reads (of uniquely mapped reads)",
+        "% rRNA reads (of mapped reads)", "% rRNA reads (of uniquely mapped reads)",
+        "% mtDNA reads (of mapped reads)", "% mtDNA reads (of mapped reads, called cells)",
     ]
     global_rows:        List[List]         = []
     samples_json_list:  List[Dict]         = []
@@ -845,6 +1534,8 @@ def main() -> None:
     saturation_images:  Dict[str, Any]     = {}
     knee_data:          Dict[str, Any]     = {}
     cell_filtering_data: Dict[str, Any]   = {}
+    secondderiv_data:   Dict[str, Any]     = {}
+    mappers_seen:       set                = set()
 
     def get_val(source: Dict, key: str, default: Any = "N/A") -> Any:
         return source.get(key, default) if source else default
@@ -860,6 +1551,7 @@ def main() -> None:
         using_star  = source == "starsolo" if source != "auto" \
                       else bool(files.get("star_log") and files.get("star_summary"))
         using_alevin = not using_star
+        mappers_seen.add("starsolo" if using_star else "alevin")
 
         mt_stats          = parse_mt_rrna_metrics(files.get("mt_rrna"))
         reads_07_sat_val  = parse_saturation_log(files.get("sat_log")) if using_star else "N/A"
@@ -873,6 +1565,12 @@ def main() -> None:
                 if os.path.exists(guessed):
                     full_log = guessed
             umi_threshold = extract_umi_cutoff(full_log)
+
+        # STARsolo's own nUMImin, kept aside because umi_threshold is replaced by
+        # the second-derivative cutoff below whenever the matrices were re-filtered
+        # on one. The report shows both, so the two cell calls stay comparable.
+        # 0 means the value was not in Log.out, which is nothing to report.
+        starsolo_cutoff: Optional[int] = umi_threshold if using_star and umi_threshold else None
 
         if using_star:
             star_stats = parse_star_log(files.get("star_log"))
@@ -924,14 +1622,17 @@ def main() -> None:
                 except (ValueError, TypeError):
                     pass
 
+            # salmon's num_mapped counts mapped *fragments*, including
+            # multimappers (resolved downstream by alevin-fry quant) -- it is not
+            # STARsolo's uniquely-mapped count. The dashboard labels these
+            # fields per mapper so the two are not read as the same quantity.
             n_input_reads = total_reads
             n_unique      = mapped_reads
             pct_unique    = to_pct(mapping_rate)
             n_cells       = af_quant.get("num_quantified_cells",
                               af_quant.get("num_cells",
                               af_meta.get("final_num_cbs", "N/A")))
-            total_genes   = af_quant.get("num_genes",
-                              af_quant.get("num_targets", "N/A"))
+            total_genes   = count_alevin_genes(af_quant, files.get("af_cols"))
 
             mean_reads = "N/A"
             if total_reads != "N/A" and n_cells != "N/A":
@@ -951,14 +1652,72 @@ def main() -> None:
                              af_cell.get("genes__median",
                              af_meta.get("mean_genes_per_cell", "N/A")))
 
-        rrna_pct           = to_pct(get_val(mt_stats, "Percentage of rRNA reads (of uniquely mapped reads)"))
-        mtdna_unique       = to_pct(get_val(mt_stats, "Percentage of mtDNA reads (of mapped reads)"))
-        mtdna_multi_all    = to_pct(get_val(mt_stats, "Percentage of mtDNA in multimapped reads (all alignments)"))
-        mtdna_multi_primary = to_pct(get_val(mt_stats, "Percentage of mtDNA in multimapped reads (primary alignment)"))
+        # ── Second-derivative cell calling ───────────────────────────────────
+        # When cellfilter_method = "second_derivative", the cells are re-called on the
+        # raw matrix: STARsolo's own filtered matrix is neither produced nor published,
+        # and alevin-fry's quantified matrix is filtered again after its knee. Every
+        # cell-level number below is recomputed on the matrix that was actually
+        # filtered, so those values replace the ones the mapper reported for its own
+        # cell set (STARsolo's Summary.csv, alevin-fry's quant.json / cell_meta.tsv).
+        sd_cutoff: Optional[int] = None
+        # alevin-fry's own gene count is the matrix width, i.e. the reference size;
+        # re-calling cells yields a genes-detected count instead, which the dashboard
+        # has to label differently.
+        total_genes_scope = "reference" if using_alevin else "detected"
+        sd_stats = _safe_read_json(files.get("sd_stats"))
+        if sd_stats:
+            sd_cutoff     = sd_stats.get("umi_threshold_applied")
+            umi_threshold = sd_cutoff if sd_cutoff is not None else umi_threshold
+            n_cells       = sd_stats.get("estimated_cells", n_cells)
+            median_umis   = int(round(sd_stats["median_umis_per_cell"]))   if "median_umis_per_cell"  in sd_stats else median_umis
+            median_genes  = int(round(sd_stats["median_genes_per_cell"]))  if "median_genes_per_cell" in sd_stats else median_genes
+            if "total_genes_detected" in sd_stats:
+                total_genes       = sd_stats["total_genes_detected"]
+                total_genes_scope = "detected"
+
+            # Reads per cell and noise both depend on the cell set, so recompute them
+            n_reads = safe_float(n_input_reads)
+            if n_reads and n_cells:
+                try:
+                    mean_reads = int(n_reads / int(n_cells))
+                except (ValueError, TypeError, ZeroDivisionError):
+                    pass
+
+            frac_in_cells_sd = safe_float(sd_stats.get("fraction_unique_reads_in_cells"))
+            if frac_in_cells_sd is not None:
+                noise_pct = f"{(1.0 - frac_in_cells_sd) * 100:.2f}%"
+
+            # Saturation is the duplication rate of the reads counted into the cells,
+            # so it too describes the cell set rather than the library
+            saturation_sd = safe_float(sd_stats.get("sequencing_saturation"))
+            if saturation_sd is not None:
+                saturation = to_pct(saturation_sd)
+
+        sd_knee = parse_secondderiv_knee(files.get("sd_knee"), s_id)
+        if sd_knee:
+            secondderiv_data[s_id] = thin_secondderiv_curve(sd_knee)
+            if sd_cutoff is None:
+                sd_cutoff = sd_knee.get("threshold_umi")
+
+        # Library-level rows describe every read in the BAM; the called-cell ones only
+        # exist when the filtered matrix's barcodes reached CALC_READ_METRICS
+        mt_rrna = mt_rrna_values(mt_stats)
+
+        # None rather than "N/A" when the file is absent, so the card leaves the row out for
+        # runs without antisense metrics (no STARsolo BAM, unstranded, no CellReads.stats)
+        antisense_pct: Optional[str] = None
+        if files.get("antisense"):
+            antisense_stats = parse_mt_rrna_metrics(files["antisense"])
+            antisense_pct = to_pct(get_val(
+                antisense_stats, "Percentage of antisense reads (of reads assigned to genes)"
+            ))
 
         global_rows.append([
-            s_id, pct_unique, fmt(n_cells), saturation, reads_07_sat_val, noise_pct,
-            fmt(median_umis), intronic_pct, rrna_pct, mtdna_unique, mtdna_multi_all,
+            s_id, "STARsolo" if using_star else "alevin-fry",
+            pct_unique, fmt(n_cells), saturation, reads_07_sat_val, noise_pct,
+            fmt(median_umis), intronic_pct, mt_rrna["rrna_mapped_pct"],
+            mt_rrna["rrna_unique_pct"], mt_rrna["mtdna_mapped_pct"],
+            mt_rrna["mtdna_mapped_cells_pct"] or "N/A",
         ])
 
         # ── Cell filtering ───────────────────────────────────────────────────
@@ -966,16 +1725,9 @@ def main() -> None:
         if files.get("cs_table"):
             cf_dict = {
                 "method":    "cellsweep",
-                "top_genes": parse_cell_filtering_table(files["cs_table"], "cellsweep"),
+                "top_genes": parse_cell_filtering_table(files["cs_table"]),
                 "plot1":     encode_image(files.get("cs_plot_contrib")),
                 "plot2":     encode_image(files.get("cs_plot_umap")),
-            }
-        elif files.get("cb_table"):
-            cf_dict = {
-                "method":    "cellbender",
-                "top_genes": parse_cell_filtering_table(files["cb_table"], "cellbender"),
-                "plot1":     encode_image(files.get("cb_plot1")),
-                "plot2":     encode_image(files.get("cb_plot2")),
             }
         if cf_dict:
             cell_filtering_data[s_id] = cf_dict
@@ -984,6 +1736,13 @@ def main() -> None:
         combined_config = raw_run_config.copy()
         if base_id in samplesheet_config:
             combined_config.update(samplesheet_config[base_id])
+
+        # ── Per-cell metrics ─────────────────────────────────────────────────
+        per_cell_cols, per_cell_sampling = build_per_cell_payload(
+            files.get("per_cell"), umi_threshold
+        )
+        if per_cell_cols:
+            per_cell_data[s_id] = per_cell_cols
 
         samples_json_list.append({
             "sample_id": s_id,
@@ -1001,10 +1760,8 @@ def main() -> None:
                 "pct_unmapped_other":   pct_other,
                 "noise_pct":            noise_pct,
                 "intronic_pct":         intronic_pct,
-                "rrna_pct":             rrna_pct,
-                "mtdna_unique_pct":     mtdna_unique,
-                "mtdna_multi_all_pct":  mtdna_multi_all,
-                "mtdna_multi_primary_pct": mtdna_multi_primary,
+                **mt_rrna,
+                "antisense_pct":        antisense_pct,
                 "n_cells":              fmt(n_cells),
                 "saturation":           saturation,
                 "reads_07_saturation":  reads_07_sat_val,
@@ -1012,33 +1769,23 @@ def main() -> None:
                 "median_umis":          fmt(median_umis),
                 "median_genes":         fmt(median_genes),
                 "total_genes":          fmt(total_genes),
+                "total_genes_scope":    total_genes_scope,
             },
             "cell_calling": {
                 "expected_cells": fmt(samplesheet_config.get(base_id, {}).get("expected_cells", "N/A")),
                 "num_cells":      fmt(n_cells),
                 "umi_threshold":  umi_threshold,
+                "secondderiv_cutoff": sd_cutoff,
+                "starsolo_cutoff":    starsolo_cutoff,
             },
             "taxonomy_sankey": extract_sankey_data(files.get("sankey")),
+            "per_cell_sampling": per_cell_sampling,
         })
 
-        # ── Per-cell JSON ────────────────────────────────────────────────────
-        if files.get("per_cell"):
-            try:
-                with open(files["per_cell"], "r") as fh:
-                    per_cell_data[s_id] = json.load(fh)
-            except Exception:
-                pass
-
         # ── Knee data ────────────────────────────────────────────────────────
-        knee_data[s_id] = []
-        if files.get("knee"):
-            try:
-                with open(files["knee"], "r") as fh:
-                    knee_data[s_id] = [
-                        int(line.strip()) for line in fh if line.strip().isdigit()
-                    ]
-            except Exception:
-                pass
+        knee_payload = build_knee_payload(files.get("knee"))
+        if knee_payload:
+            knee_data[s_id] = knee_payload
 
         # ── Saturation images ────────────────────────────────────────────────
         saturation_images[s_id] = {}
@@ -1047,20 +1794,45 @@ def main() -> None:
         if files.get("res_img"):
             saturation_images[s_id]["residuals"]  = encode_image(files["res_img"])
 
+    # Every row came from STARsolo, so the mapped-reads column carries a single
+    # definition and the header can name it. A mixed run keeps the generic wording.
+    if global_rows and mappers_seen == {"starsolo"}:
+        global_cols[_MAPPED_COL] = "% Uniquely Mapped Reads"
+
+    # ── Gene extension (run-level) ───────────────────────────────────────────
+    geneext_data = build_geneext_payload(geneext_report, geneext_log)
+    if geneext_data:
+        print(
+            f"GeneExt statistics read from the {geneext_data['source']}.",
+            file=sys.stderr,
+        )
+
     # ── Inject into HTML template ────────────────────────────────────────────
-    with open(args.template, "r") as fh:
+    # The template carries non-ASCII text (superscripts, arrows, primes), so the
+    # encoding is pinned rather than taken from the locale -- a C/POSIX locale
+    # would otherwise fail to read the template at all.
+    with open(args.template, "r", encoding="utf-8") as fh:
         html_content = fh.read()
 
+    # The payloads are parsed by the report, never read by a human, so they are
+    # serialised without indentation: pretty-printing puts every element of the
+    # per-cell and knee arrays on its own padded line, which roughly doubles the
+    # size of the largest blocks for no benefit.
+    def _dump(obj: Any) -> str:
+        return json.dumps(obj, separators=(",", ":"))
+
     replacements = {
-        "__RUN_METADATA_PLACEHOLDER__":      json.dumps(report_metadata,      indent=2),
-        "__GLOBAL_DATA_PLACEHOLDER__":       json.dumps(
-            {"overview": {"columns": global_cols, "rows": global_rows}}, indent=2
+        "__RUN_METADATA_PLACEHOLDER__":      _dump(report_metadata),
+        "__GLOBAL_DATA_PLACEHOLDER__":       _dump(
+            {"overview": {"columns": global_cols, "rows": global_rows}}
         ),
-        "__SAMPLES_DATA_PLACEHOLDER__":      json.dumps({"samples": samples_json_list}, indent=2),
-        "__PER_CELL_DATA_PLACEHOLDER__":     json.dumps(per_cell_data,         indent=2),
-        "__SATURATION_IMAGES_PLACEHOLDER__": json.dumps(saturation_images,     indent=2),
-        "__KNEE_DATA_PLACEHOLDER__":         json.dumps(knee_data,             indent=2),
-        "__CELLFILTERING_DATA_PLACEHOLDER__": json.dumps(cell_filtering_data,  indent=2),
+        "__SAMPLES_DATA_PLACEHOLDER__":      _dump({"samples": samples_json_list}),
+        "__PER_CELL_DATA_PLACEHOLDER__":     _dump(per_cell_data),
+        "__SATURATION_IMAGES_PLACEHOLDER__": _dump(saturation_images),
+        "__KNEE_DATA_PLACEHOLDER__":         _dump(knee_data),
+        "__SECONDDERIV_DATA_PLACEHOLDER__":  _dump(secondderiv_data),
+        "__CELLFILTERING_DATA_PLACEHOLDER__": _dump(cell_filtering_data),
+        "__GENEEXT_DATA_PLACEHOLDER__":       _dump(geneext_data),
     }
 
     for placeholder, json_str in replacements.items():
@@ -1070,7 +1842,7 @@ def main() -> None:
             safe_ph = re.escape(placeholder)
             html_content = re.sub(r"\s*" + safe_ph + r"\s*", "\n" + json_str + "\n", html_content)
 
-    with open(args.output, "w") as fh:
+    with open(args.output, "w", encoding="utf-8") as fh:
         fh.write(html_content)
 
     print(

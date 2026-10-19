@@ -1,12 +1,17 @@
 process CR_PIPELINE_MKREF {
-    publishDir "${params.outdir}/genome/cellranger_ref", mode: 'copy'
+    publishDir path: { "${params.outdir}/genome/cellranger_ref" }, mode: 'copy', saveAs: { filename -> filename == 'versions.yml' ? null : filename }
     label 'process_medium'
 
 
     container "quay.io/nf-core/cellranger:9.0.1"
 
+    input:
+    path fasta
+    path gtf
+
     output:
-    path "*"
+    path "*",           emit: reference
+    path "versions.yml", emit: versions
 
     script:
     // Exit if running this module with -profile conda / -profile mamba  TODO: add condition that singularity is not available
@@ -15,13 +20,18 @@ process CR_PIPELINE_MKREF {
     // }
 
     """
-    echo "\n\n=============== CellRanger pipeline - create REF  ==============="
+    echo -e "\\n\\n=============== CellRanger pipeline - create REF  ==============="
 
-    GTF_FILE="${params.ref_gtf_alt ?: params.ref_gtf}"
+    GTF_FILE="${gtf}"
 
     cellranger mkref \\
         --genome cellranger_ref \\
-        --fasta=${params.ref_fasta} \\
+        --fasta=${fasta} \\
         --genes=\$GTF_FILE
+
+    cat <<-END_VERSIONS > versions.yml
+    "${task.process}":
+        cellranger: \$(cellranger --version 2>&1 | grep -oE '[0-9]+\\.[0-9]+\\.[0-9]+' | head -1)
+    END_VERSIONS
     """
 }

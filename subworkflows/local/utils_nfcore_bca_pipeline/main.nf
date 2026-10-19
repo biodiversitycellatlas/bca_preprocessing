@@ -10,7 +10,6 @@
 
 include { UTILS_NFSCHEMA_PLUGIN     } from '../../nf-core/utils_nfschema_plugin'
 include { paramsSummaryMap          } from 'plugin/nf-schema'
-include { samplesheetToList         } from 'plugin/nf-schema'
 include { completionEmail           } from '../../nf-core/utils_nfcore_pipeline'
 include { completionSummary         } from '../../nf-core/utils_nfcore_pipeline'
 include { imNotification            } from '../../nf-core/utils_nfcore_pipeline'
@@ -35,7 +34,23 @@ workflow PIPELINE_INITIALISATION {
 
     main:
 
-    ch_versions = Channel.empty()
+    ch_versions = channel.empty()
+
+    //
+    // Print the help and stop. Up to Nextflow 25.10, nf-schema answers --help itself (the
+    // validation.help config) before this is reached; Nextflow 26.04 no longer reads that
+    // config for nf-schema 2.3.0, so the help is printed here instead.
+    //
+    if (params.help || params.help_full) {
+        def show_hidden = params.help_full || (params.containsKey('show_hidden') && params.get('show_hidden'))
+        log.info params.schema_before_text + schemaHelpText(show_hidden) + params.schema_after_text
+        exit 0
+    }
+
+    //
+    // Fail fast on command-line values that Nextflow 26.04+ passes as text
+    //
+    checkCommandLineParamTypes()
 
     //
     // Print version and exit if required and dump pipeline parameters to JSON file
@@ -44,7 +59,7 @@ workflow PIPELINE_INITIALISATION {
         version,
         true,
         outdir,
-        workflow.profile.tokenize(',').intersect(['conda', 'mamba']).size() >= 1
+        workflow.profile.tokenize(',').intersect(['conda', 'mamba', 'micromamba']).size() >= 1
     )
 
     //
@@ -53,7 +68,7 @@ workflow PIPELINE_INITIALISATION {
     UTILS_NFSCHEMA_PLUGIN (
         workflow,
         validate_params,
-        null
+        "${projectDir}/nextflow_schema.json"
     )
 
     //
@@ -64,49 +79,325 @@ workflow PIPELINE_INITIALISATION {
     )
 
     //
-    // Create channel from input file provided through params.input
+    // Fail fast on git submodules that were not checked out
     //
+    // GeneExt, 10x_saturate and pavianCore are run from submodules/, so without them the
+    // run would only fail once it reaches one of those steps.
+    //
+    def missing_submodules = [
+        'submodules/10x_saturate/saturation_table.py',
+        'submodules/GeneExt/geneext.py',
+        'submodules/pavianCore/exec/pavianCoreTools.R'
+    ].findAll { path -> !file("${projectDir}/${path}").exists() }
+    if (missing_submodules) {
+        error(
+            "Git submodules are missing from ${projectDir}: ${missing_submodules.join(', ')}.\n" +
+            "Fetch them with 'git -C ${projectDir} submodule update --init --recursive',\n" +
+            "or clone the pipeline with 'git clone --recurse-submodules'."
+        )
+    }
+
+    //
+    // Fail fast on doublet options that would silently do nothing
+    //
+    // Doublet detection annotates the consensus calls, doublet filtering additionally removes
+    // them from the matrix. Both are independent of 'ambient_rna_remover': the calls reach the
+    // published AnnData through MTX_TO_H5AD whether or not CellSweep ran.
+    //
+    if (params.perform_doublet_filtering && !params.perform_doublet_detection) {
+        error(
+            "'perform_doublet_filtering' is set, but 'perform_doublet_detection' is false.\n" +
+            "There would be no doublet calls to filter on: either enable 'perform_doublet_detection',\n" +
+            "or unset 'perform_doublet_filtering'."
+        )
+    }
+
+    //
+    // 'perform_featurecounts' is retired: CALC_READ_METRICS runs for every STARsolo BAM,
+    // since PERCELL_METRICS takes its per-barcode counts from it
+    //
+    if (params.perform_featurecounts != null) {
+        log.warn(
+            "'perform_featurecounts' is deprecated and has no effect: the mtDNA, rRNA and antisense\n" +
+            "read metrics now run for every STARsolo BAM. Remove it from your configuration."
+        )
+    }
+
+    //
+    // 'ref_gtf_alt' is retired: the Cell Ranger and split-pipe references use 'ref_gtf'
+    //
+    if (params.ref_gtf_alt != null) {
+        log.warn(
+            "'ref_gtf_alt' is deprecated and has no effect: the Cell Ranger and split-pipe\n" +
+            "references are built from 'ref_gtf'. Remove it from your configuration."
+        )
+    }
+
+    //
+    // Fail fast on metacell options that would fail late or silently do nothing
+    //
+    // The metacells are grouped at the very end of a run, and the selection is applied on
+    // a rerun, so a misnamed column or a stale selection would otherwise only surface
+    // hours in -- or, for the annotation, not at all: an unmatched column reads as "no
+    // gene has a domain" and the report just hides its PFAM panel.
+    //
+    if (params.perform_metacells) {
+        if (!(params.run_method in ["standard", "post_mapping"])) {
+            error("'perform_metacells' needs the filtered matrices, which only run_method 'standard' or 'post_mapping' produce.")
+        }
+        if (!(params.mc2_target_metacell_size instanceof Number) || params.mc2_target_metacell_size < 2) {
+            error("'mc2_target_metacell_size' = '${params.mc2_target_metacell_size}' must be a number of cells, at least 2.")
+        }
+        if (!(params.metacell_gene_mode in ["drop", "flag"])) {
+            error("Unknown 'metacell_gene_mode' = '${params.metacell_gene_mode}'. Use one of: drop, flag.")
+        }
+        if (params.gene_annotation) {
+            def annotation = file(params.gene_annotation)
+            if (!annotation.exists()) {
+                error("'gene_annotation' = '${params.gene_annotation}' does not exist.")
+            }
+            def header  = annotation.withReader { reader -> reader.readLine() } ?: ""
+            def columns = header.split("\t").collect { col -> col.trim().replaceFirst(/^#/, "") }
+            def absent  = [params.gene_annotation_id_col, params.gene_annotation_pfam_col].findAll { col -> !(col in columns) }
+            if (absent) {
+                error(
+                    "'gene_annotation' has no column(s) ${absent.join(', ')} in its header (${columns.join(', ')}).\n" +
+                    "Set 'gene_annotation_id_col' and 'gene_annotation_pfam_col' to the identifier and domain columns."
+                )
+            }
+        }
+        if (!params.perform_doublet_detection) {
+            log.warn("'perform_metacells' is set without 'perform_doublet_detection': the filtering report will have no doublet percentages to filter on.")
+        }
+        if (!params.mt_contig?.toString()?.trim()) {
+            log.warn("'mt_contig' is empty: no gene is flagged mitochondrial, so every mito percentage in the filtering report will be 0.")
+        }
+    }
+
+    if (params.metacell_selection) {
+        if (!params.perform_metacells) {
+            error("'metacell_selection' is applied to the metacells, so it needs 'perform_metacells' (and -resume, to reuse them).")
+        }
+        def selection_file = file(params.metacell_selection)
+        if (!selection_file.exists()) {
+            error("'metacell_selection' = '${params.metacell_selection}' does not exist.")
+        }
+        def selection = null
+        try {
+            selection = new groovy.json.JsonSlurper().parse(selection_file)
+        } catch (Exception e) {
+            error("'metacell_selection' = '${params.metacell_selection}' is not valid JSON: ${e.message}")
+        }
+        if (!(selection instanceof Map) || selection.schema != "bca_metacell_selection" || selection.schema_version != 1) {
+            error(
+                "'metacell_selection' = '${params.metacell_selection}' is not a selection exported from\n" +
+                "filtering_report.html (expected schema 'bca_metacell_selection', version 1)."
+            )
+        }
+    }
+
+    //
+    // Fail fast on an unknown run method or cell-calling method
+    //
+    def valid_run_methods = ["standard", "geneext_only", "external_pipeline_only", "post_mapping"]
+    if (!(params.run_method in valid_run_methods)) {
+        error("Unknown 'run_method' = '${params.run_method}'. Use one of: ${valid_run_methods.join(', ')}.")
+    }
+
+    def valid_cellfilter_methods = ["star_solocellfilter", "second_derivative", "manual_cutoff"]
+    if (!(params.cellfilter_method in valid_cellfilter_methods)) {
+        error("Unknown 'cellfilter_method' = '${params.cellfilter_method}'. Use one of: ${valid_cellfilter_methods.join(', ')}.")
+    }
+
+    //
+    // Fail fast on mapping-rate check settings, and clear verdicts left by an earlier
+    // attempt of this session (-resume) so they cannot cancel a rerun with new settings
+    //
+    if (!(params.mapping_rate_action in MappingRateCheck.VALID_ACTIONS)) {
+        error("Unknown 'mapping_rate_action' = '${params.mapping_rate_action}'. Use one of: ${MappingRateCheck.VALID_ACTIONS.join(', ')}.")
+    }
+    if (!(params.min_mapping_rate instanceof Number) || params.min_mapping_rate < 0 || params.min_mapping_rate > 100) {
+        error("'min_mapping_rate' = '${params.min_mapping_rate}' must be a percentage between 0 and 100 (0 disables the check).")
+    }
+    MappingRateCheck.reset(workflow)
+
+    if (!(params.geneext_downstream in AnalyticalRuns.VALID_GENEEXT_DOWNSTREAM)) {
+        error("Unknown 'geneext_downstream' = '${params.geneext_downstream}'. Use one of: ${AnalyticalRuns.VALID_GENEEXT_DOWNSTREAM.join(', ')}.")
+    }
+
+    //
+    // Fail fast on a GeneExt run that cannot produce a BAM
+    //
+    // GeneExt reads the alignments, so without a BAM there is nothing to extend from. Left
+    // unchecked the run succeeds and writes no annotation at all: the BAM channel stays
+    // empty, collect() on it emits nothing, and the merge and GeneExt never run.
+    //
+    if (params.run_method in ["standard", "geneext_only"] && !params.star_generateBAM) {
+        def geneext_input = AnalyticalRuns.plan(params).geneext_input
+        if (geneext_input == 'own_run' && !params.geneext_bam_only) {
+            error(
+                "GeneExt reads a STARsolo pass of its own here, which with both 'star_generateBAM'\n" +
+                "and 'geneext_bam_only' unset writes no BAM, so no extended annotation would be\n" +
+                "written. Leave 'geneext_bam_only' set, or enable 'star_generateBAM'."
+            )
+        }
+        if (geneext_input == 'reuse_standard') {
+            error(
+                "With 'geneext_downstream' = 'both', GeneExt reads the BAMs of the standard '_starsolo'\n" +
+                "run, which 'star_generateBAM' = false does not write, so no extended annotation would\n" +
+                "be written. Enable 'star_generateBAM', or set 'geneext_downstream' = 'geneext_only'."
+            )
+        }
+    }
+
+    //
+    // Fail fast on a samplesheet that is not given or not there
+    //
+    // Checked here as well as by the schema, since validation can be switched off. The
+    // samplesheet path itself is read against the launch directory, like every parameter.
+    //
+    if (!params.input) {
+        error("No samplesheet given: set 'input' to the path of the samplesheet (CSV).")
+    }
     def samples_file = file(params.input)
-
-    Channel
-    .fromPath(params.input)
-    .splitCsv(header: true, sep: ',')
-    .map { row ->
-        // Concat metadata into a Map object
-        def meta = [
-            id             : row.sample,
-            expected_cells : row.expected_cells ? row.expected_cells.toInteger() : null,
-            p5             : row.p5 ? row.p5 : '',
-            p7             : row.p7 ? row.p7 : '',
-            rt             : row.rt ? row.rt : '',
-        ]
-
-        // Assign each FASTQ to its own variable (or null if missing)
-        def fastq_cDNA   = row.fastq_cDNA   ? [file(row.fastq_cDNA)]   : []
-        def fastq_BC_UMI = row.fastq_BC_UMI ? [file(row.fastq_BC_UMI)] : []
-        def fastq_indices = row.fastq_indices ? [file(row.fastq_indices)] : []
-
-        // Returng tuple
-        [ meta.id, meta, fastq_cDNA, fastq_BC_UMI, fastq_indices, samples_file ]
+    if (!samples_file.exists()) {
+        error("'input' = '${params.input}' does not exist (relative paths are read from the launch directory, ${workflow.launchDir}).")
     }
-    // Group by sample ID
-    .groupTuple(by: 0)
 
-    .map { sample_id, metas, fastq_cDNAs, fastq_BC_UMIs, fastq_indices_list, samples_files ->
-
-        def meta = metas[0]
-
-        // Filter out empty lists, flatten valid files only
-        def merged_fastq_cDNA = fastq_cDNAs.findResults { it }.flatten().findAll { it.exists() }
-        def merged_fastq_BC_UMI = fastq_BC_UMIs.findResults { it }.flatten().findAll { it.exists() }
-        def merged_fastq_indices = fastq_indices_list.findResults { it }.flatten()
-
-        samples_file = samples_files[0]
-
-        // Return tuple for merging FASTQs
-        tuple(meta, merged_fastq_cDNA, merged_fastq_BC_UMI, merged_fastq_indices, samples_file)
+    //
+    // Fail fast on a 'post_mapping' run with nothing to pick up
+    //
+    // The mode reads a previous run's published mapping results back in rather than
+    // mapping again, so those results have to be there before anything is scheduled.
+    //
+    if (params.run_method == "post_mapping") {
+        def prev_dir = file(params.previous_outdir ?: params.outdir)
+        if (!prev_dir.exists()) {
+            error(
+                "'run_method' = 'post_mapping' reads a previous run's mapping results from\n" +
+                "${prev_dir}, which does not exist. Set 'previous_outdir' to that run's results directory."
+            )
+        }
+        if (!file("${prev_dir}/mapping_STARsolo").exists() && !file("${prev_dir}/mapping_alevin").exists()) {
+            error(
+                "'run_method' = 'post_mapping' found neither 'mapping_STARsolo/' nor 'mapping_alevin/'\n" +
+                "under ${prev_dir}, so there are no mapping results to pick up.\n" +
+                "Set 'previous_outdir' to the results directory of the run to continue from."
+            )
+        }
     }
-    .set { ch_samplesheet }
+
+    //
+    // Fail fast on manual cutoffs that are not actually given
+    //
+    // The cutoff is per sample and has no sensible default, so a missing one would
+    // silently fall back to the second-derivative call it was meant to replace.
+    //
+    def samplesheet_rows = samples_file.splitCsv(header: true, sep: ',')
+
+    // An empty column is not a cutoff, so it is not worth warning about
+    def has_cutoffs = samplesheet_rows.any { row -> row.manual_cutoff?.toString()?.trim() }
+
+    if (params.cellfilter_method == "manual_cutoff") {
+        def without_cutoff = samplesheet_rows
+            .findAll { row -> !(row.manual_cutoff?.toString()?.trim()) }
+            .collect { row -> row.sample }
+            .unique()
+
+        if (without_cutoff) {
+            error(
+                "'cellfilter_method' = 'manual_cutoff' needs a 'manual_cutoff' column in the samplesheet\n" +
+                "giving the UMI threshold for every sample, but it is missing for: ${without_cutoff.join(', ')}."
+            )
+        }
+    } else if (has_cutoffs) {
+        log.warn(
+            "The samplesheet gives a 'manual_cutoff' for one or more samples, but 'cellfilter_method' is " +
+            "'${params.cellfilter_method}'. Those cutoffs will be ignored; set " +
+            "'cellfilter_method' to 'manual_cutoff' to apply them."
+        )
+    }
+
+    //
+    // Resolve the FASTQs of every row, and fail fast on the ones that are not there
+    //
+    // A relative path is read against the samplesheet's own folder, so a samplesheet can sit
+    // next to its data and the run be launched from anywhere. Samplesheets written before
+    // that were read against the launch directory, so a path only found there is still used,
+    // with a warning. A FASTQ that is named but missing used to be dropped silently, leaving
+    // the sample with fewer reads or none; 'post_mapping' reads only the sample names, so it
+    // does not need the FASTQs to still be there.
+    //
+    def needs_fastqs   = params.run_method != "post_mapping"
+    def sheet_dir      = samples_file.parent
+    def problems       = []
+    def from_launchdir = []
+
+    def resolved_rows = samplesheet_rows.withIndex().collect { row, idx ->
+        def line   = idx + 2    // line 1 is the header
+        def sample = row.sample?.toString()?.trim()
+        if (!sample) {
+            problems << "line ${line}: no 'sample'"
+        }
+        def fastqs = ['fastq_cDNA', 'fastq_BC_UMI', 'fastq_indices'].collectEntries { col ->
+            def value = row[col]?.toString()?.trim()
+            if (!value) {
+                if (needs_fastqs && col != 'fastq_indices') {
+                    problems << "line ${line} (${sample}): no '${col}'"
+                }
+                return [col, []]
+            }
+            def resolved = resolveSamplesheetPath(value, sheet_dir)
+            if (!resolved.files && needs_fastqs) {
+                problems << "line ${line} (${sample}): '${col}' = '${value}' not found (looked for ${resolved.tried.join(' and ')})"
+            }
+            if (resolved.from_launchdir) {
+                from_launchdir << value
+            }
+            [col, resolved.files]
+        }
+        [sample, row, fastqs]
+    }
+
+    if (problems) {
+        error(
+            "The samplesheet ${samples_file} names FASTQs that cannot be used:\n  " +
+            problems.join("\n  ") + "\n" +
+            "Relative paths are read against the samplesheet's folder, ${sheet_dir}."
+        )
+    }
+    if (from_launchdir) {
+        log.warn(
+            "${from_launchdir.size()} FASTQ path(s) in ${samples_file} were not found next to the samplesheet,\n" +
+            "only relative to the launch directory (e.g. '${from_launchdir[0]}'). Relative paths are now read\n" +
+            "against the samplesheet's folder, ${sheet_dir}; update the samplesheet, or use absolute paths."
+        )
+    }
+
+    // One entry per sample: the rows of a sample (e.g. its lanes) are merged, with the
+    // metadata of its first row
+    def samples = resolved_rows
+        .groupBy { entry -> entry[0] }
+        .collect { sample, entries ->
+            def row  = entries[0][1]
+            def meta = [
+                id             : sample,
+                expected_cells : row.expected_cells ? row.expected_cells.toInteger() : null,
+                manual_cutoff  : row.manual_cutoff ? row.manual_cutoff.toInteger() : null,
+                p5             : row.p5 ? row.p5 : '',
+                p7             : row.p7 ? row.p7 : '',
+                rt             : row.rt ? row.rt : '',
+            ]
+            [
+                meta,
+                entries.collectMany { entry -> entry[2].fastq_cDNA },
+                entries.collectMany { entry -> entry[2].fastq_BC_UMI },
+                entries.collectMany { entry -> entry[2].fastq_indices },
+                samples_file
+            ]
+        }
+
+    def ch_samplesheet = channel.fromList(samples)
 
     emit:
     samplesheet = ch_samplesheet
@@ -131,7 +422,7 @@ workflow PIPELINE_COMPLETION {
     multiqc_report  //  string: Path to MultiQC report
 
     main:
-    summary_params = paramsSummaryMap(workflow, parameters_schema: "nextflow_schema.json")
+    summary_params = paramsSummaryMap(workflow, parameters_schema: "${projectDir}/nextflow_schema.json")
     def multiqc_reports = multiqc_report.toList()
 
     //
@@ -168,18 +459,124 @@ workflow PIPELINE_COMPLETION {
 */
 
 //
-// Validate channels from input samplesheet
+// Fail fast on command-line values that would be read with the wrong type
 //
-def validateInputSamplesheet(input) {
-    def (metas, fastqs) = input[1..2]
+// Up to Nextflow 25.10, '--perform_kraken false' arrives as a boolean and '--min_mapping_rate 20'
+// as a number. From 26.04 every command-line value is text, and text is true whatever it says,
+// so the first would switch Kraken on and the second would fail the range check. A -params-file
+// or a -c config file keeps the types on every version. For a parameter the schema types as a
+// boolean or number, text fails the schema validation as well, so 'true' is caught too; for one
+// it does not know, 'true' as text still reads as true and needs no check.
+//
+def checkCommandLineParamTypes() {
+    def given = (workflow.commandLine ?: '').tokenize(' ')
+        .findAll { token -> token.startsWith('--') }
+        .collect { token -> token.substring(2).tokenize('=')[0] }
+        .unique()
 
-    // Check that multiple runs of the same sample are of the same datatype i.e. single-end / paired-end
-    def endedness_ok = metas.collect{ meta -> meta.single_end }.unique().size == 1
-    if (!endedness_ok) {
-        error("Please check input samplesheet -> Multiple runs of a sample must be of the same datatype i.e. single-end or paired-end: ${metas[0].id}")
+    def param_types = schemaParamTypes()
+    def mistyped = given.findAll { name ->
+        def value = params.containsKey(name) ? params.get(name) : null
+        if (!(value instanceof CharSequence)) {
+            return false
+        }
+        def types = param_types[name]
+        types == null
+            ? value.toString().trim() ==~ /(?i)false|-?\d+(\.\d+)?/
+            : !('string' in types) && value.toString().trim() ==~ /(?i)true|false|-?\d+(\.\d+)?/
     }
 
-    return [ metas[0], fastqs ]
+    if (mistyped) {
+        def yaml = mistyped.collect { name -> "    ${name}: ${params.get(name).toString().trim().toLowerCase()}" }
+        error(
+            "Nextflow ${workflow.nextflow.version} passes command-line parameters as text, so " +
+            "${mistyped.collect { name -> "'--${name} ${params.get(name)}'" }.join(', ')} would not be read as\n" +
+            "a boolean or number ('false' as text counts as true). Set them in a params file instead,\n" +
+            "e.g. params.yml:\n\n" +
+            yaml.join('\n') + "\n\n" +
+            "and run with '-params-file params.yml', or set them in the -c config file."
+        )
+    }
+}
+
+//
+// Help text built from nextflow_schema.json: every parameter group with each parameter's type
+// and description, leaving out hidden parameters unless asked for
+//
+def schemaHelpText(show_hidden) {
+    def schema = new groovy.json.JsonSlurper().parseText(file("${projectDir}/nextflow_schema.json").text)
+    def lines  = [
+        "Typical pipeline command:",
+        "",
+        "  nextflow run -profile <institution_config>,conda -c /path/to/custom_config",
+        ""
+    ]
+    ((schema['$defs'] ?: schema['definitions'] ?: [:]) as Map).each { group_name, group ->
+        def shown = ((group['properties'] ?: [:]) as Map).findAll { _name, spec -> show_hidden || !spec['hidden'] }
+        if (shown) {
+            def width = shown.keySet().collect { name -> name.length() }.max() + 2
+            lines << (group['title'] ?: group_name).toString()
+            shown.each { name, spec ->
+                lines << "  --${name.padRight(width)} [${spec['type']}] ${spec['description'] ?: ''}".toString()
+            }
+            lines << ""
+        }
+    }
+    if (!show_hidden) {
+        lines << "Hidden parameters are not shown; use --help_full to list them as well."
+    }
+    return lines.join('\n')
+}
+
+//
+// The types nextflow_schema.json declares for each parameter, as a list (a parameter may allow
+// several, e.g. ["boolean", "string"])
+//
+def schemaParamTypes() {
+    def schema_file = file("${projectDir}/nextflow_schema.json")
+    if (!schema_file.exists()) {
+        return [:]
+    }
+    def schema = new groovy.json.JsonSlurper().parseText(schema_file.text)
+    def groups = ((schema['$defs'] ?: schema['definitions'] ?: [:]) as Map).values().toList() + [schema]
+    return groups.collectEntries { group ->
+        ((group['properties'] ?: [:]) as Map).collectEntries { name, spec -> [name, [spec['type']].flatten()] }
+    }
+}
+
+//
+// Resolve one samplesheet path to the files it names
+//
+// An absolute path or a URI (s3://, https://, ...) is used as it is, and '~/' is expanded to
+// the home directory, which file() does not do. A relative path is read against the
+// samplesheet's folder first and then, for samplesheets written before that, against the
+// launch directory. A glob (e.g. the index reads 'name_I*') gives every file it matches, and
+// one matching nothing counts as missing.
+//
+def resolveSamplesheetPath(String value, sheet_dir) {
+    def is_glob = value ==~ /.*[*?\[{].*/
+    def lookup  = { String path -> is_glob ? (files(path) as List) : [file(path)].findAll { f -> f.exists() } }
+
+    if (value.startsWith('~/')) {
+        def in_home = System.getProperty('user.home') + value.substring(1)
+        return [files: lookup.call(in_home), tried: [in_home], from_launchdir: false]
+    }
+    if (value ==~ /^[a-zA-Z][a-zA-Z0-9+.-]*:\/\/.*/ || value.startsWith('/')) {
+        return [files: lookup.call(value), tried: [value], from_launchdir: false]
+    }
+
+    def next_to_sheet = sheet_dir.resolve(value).toUriString()
+    def found = lookup.call(next_to_sheet)
+    if (found) {
+        return [files: found, tried: [next_to_sheet], from_launchdir: false]
+    }
+
+    def in_launchdir = workflow.launchDir.resolve(value).toString()
+    if (in_launchdir == next_to_sheet) {
+        return [files: [], tried: [next_to_sheet], from_launchdir: false]
+    }
+    found = lookup.call(in_launchdir)
+    return [files: found, tried: [next_to_sheet, in_launchdir], from_launchdir: found as boolean]
 }
 
 

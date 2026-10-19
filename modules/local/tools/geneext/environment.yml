@@ -218,11 +218,12 @@ dependencies:
   - zope.event=5.0=pyhd8ed1ab_0
   - zope.interface=6.3=py310h2372a71_0
   - zstd=1.5.5=hfc55251_0
+  - pybedtools=0.9.1=py310h2b6aa90_1
+  
   - pip:
       - asgiref==3.7.2
       - cython==0.29.37
       - idna==3.6
       - importlib-resources==6.1.2
       - peaks2utr==1.2.5
-      - pybedtools==0.9.1
       - tqdm==4.66.2

@@ -16,7 +16,7 @@
 #
 # Published and created by the combine-lab:
 # https://combine-lab.github.io/alevin-fry-tutorials/2021/improving-txome-specificity/
-# and edited to be used in the context of the scRNA-seq pipeline
+# and edited to be used in the context of the BCA pre-processing pipeline.
 # ------------------------------------------------------------------------------------
 
 suppressPackageStartupMessages({
@@ -104,6 +104,19 @@ make_splici_txome <- function(gtf_path,
   # Process gtf to get spliced and introns
   #########################################################################################################
   message("============processing gtf to get spliced and introns============")
+  # Build transcripts from the GTF's exon records only, as STAR does (--sjdbGTFfeatureExon
+  # exon) and as pyroe's make-splici does. GenomicFeatures would otherwise also make
+  # transcripts out of CDS/UTR records that have no exon record, giving alevin-fry genes that
+  # STARsolo does not have. A GFF3 is used as it is: its exons need their parent records.
+  if (grepl("\\.gtf(\\.gz)?$", gtf_path, ignore.case = TRUE)) {
+    gtf_lines <- readLines(gtf_path)
+    is_exon <- grepl("^[^#][^\t]*\t[^\t]*\texon\t", gtf_lines)
+    message(sum(is_exon), " exon records kept of ", length(gtf_lines), " GTF lines")
+    gtf_path <- tempfile(fileext = ".gtf")
+    writeLines(gtf_lines[is_exon], gtf_path)
+    rm(gtf_lines)
+  }
+
   # fl is the flank length, here we set it to
   # the read length - 5
   grl <- suppressWarnings(getFeatureRanges(
@@ -119,22 +132,26 @@ make_splici_txome <- function(gtf_path,
   # Get spliced related stuffs
   #########################################################################################################
 
-  # spliced ranges has no dash in it
-  spliced_grl = grl[str_detect(names(grl), "-", negate = TRUE)]
+  # eisaR lists which ranges are spliced transcripts and which are introns. Telling them
+  # apart by a '-' in the name would misfile every transcript whose own ID contains one
+  # (NCBI-style 'rna-XM_...')
+  featurelist = S4Vectors::metadata(grl)$featurelist
+  spliced_grl = grl[featurelist$spliced]
 
   #########################################################################################################
   # Get reduced introns
   #########################################################################################################
 
   # identify all introns and convert to GRanges
-  intron_gr = unlist(grl[str_detect(names(grl), "-")])
+  intron_gr = unlist(grl[featurelist$intron])
   # group introns by gene, then collapse ovelaping ranges!
   intron_grl = reduce(split(intron_gr, intron_gr$gene_id))
 
-  # clean txp names and gene names
+  # clean txp names and gene names: eisaR names an intron's gene '<gene_id>-I', and only
+  # that suffix is removed, so gene IDs containing '-' are kept whole
   intron_gr <- BiocGenerics::unlist(intron_grl)
   intron_gr$exon_rank <- 1L
-  intron_gr$transcript_id <- word(names(intron_gr), 1, sep = '-')
+  intron_gr$transcript_id <- sub("-I$", "", names(intron_gr))
   intron_gr$gene_id <- intron_gr$transcript_id
   intron_gr$type <- "exon"
   intron_gr$transcript_id <- make.unique(paste0(intron_gr$transcript_id, "-I"), sep = '')
@@ -190,9 +207,12 @@ make_splici_txome <- function(gtf_path,
 
   df <- getTx2Gene(grl)
   write.table(df, out_t2g, sep = "\t", row.names = FALSE, quote = FALSE, col.names = FALSE)
+  # Introns are the ranges named above; their gene loses only the '-I' suffix, so the gene
+  # IDs match the GTF (and STARsolo's features.tsv) exactly
+  intron_ids <- intron_gr$transcript_id
   df <- df %>%
-    dplyr::mutate(gene_id = word(gene_id, 1, sep = '-'),
-                  status = ifelse(str_detect(transcript_id, '-'), 'U', 'S'))
+    dplyr::mutate(status = ifelse(transcript_id %in% intron_ids, 'U', 'S'),
+                  gene_id = ifelse(status == 'U', sub("-I$", "", gene_id), gene_id))
 
   writeXStringSet(seqs, out_fa, format = "fasta")
   write.table(df, file.path(output_dir, paste0(file_name_prefix, "_t2g_3col.tsv")), sep = "\t", row.names = FALSE, quote = FALSE, col.names = FALSE)

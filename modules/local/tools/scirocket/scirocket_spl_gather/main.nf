@@ -1,5 +1,5 @@
 process SCIROCKET_SPL_GATHER {
-    publishDir "${params.outdir}", mode: 'copy'
+    publishDir path: { "${params.outdir}" }, mode: 'copy', saveAs: { filename -> filename == 'versions.yml' ? null : filename }
     label 'process_single'
 
 
@@ -8,11 +8,12 @@ process SCIROCKET_SPL_GATHER {
     path r2_list
 
     output:
-    tuple val("all"), path("spl_gather/all_R1.fastq.gz"), path("spl_gather/all_R2.fastq.gz")
+    tuple val("all"), path("spl_gather/all_R1.fastq.gz"), path("spl_gather/all_R2.fastq.gz"), emit: gathered_files
+    path "versions.yml", emit: versions
 
     script:
     """
-    echo "\n\n==================  GATHER DEMULTIPLEXED SAMPLES  =================="
+    echo -e "\\n\\n==================  GATHER DEMULTIPLEXED SAMPLES  =================="
     echo "Gathering ${r1_list.size()} R1 files and ${r2_list.size()} R2 files"
     echo "Output directory: spl_gather/"
 
@@ -21,5 +22,10 @@ process SCIROCKET_SPL_GATHER {
     # Combine sample-specific FASTQ files from all demultiplexed splits.
     cat ${r1_list.join(' ')} > spl_gather/all_R1.fastq.gz
     cat ${r2_list.join(' ')} > spl_gather/all_R2.fastq.gz
+
+    cat <<-END_VERSIONS > versions.yml
+    "${task.process}":
+        bash: \$(bash --version | head -n1 | sed 's/^GNU bash, version //; s/ .*\$//')
+    END_VERSIONS
     """
 }

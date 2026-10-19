@@ -29,6 +29,24 @@ trap _term TERM
 export NXF_JVM_ARGS="-Xms2g -Xmx5g"
 
 
+#####################
+# Test the pipeline #
+#####################
+
+## Run the pipeline in preview mode to check that all processes can be launched and that your configuration setup is valid.
+# nextflow run main.nf \
+#     -preview \
+#     -profile crg,conda \
+#     -c tests/test_parsebio.config
+
+## Test run on the small test dataset with capped resources
+# nextflow run -profile crg,conda,test -c examples/10x/conf/spis_10x_parameters.config -ansi-log false "$@" & pid=$!
+
+## TEST SUITE -- Checks conda environments and container images (no data needed)
+## Run `bash tests/run_tests.sh --list` for the available checks.
+# bash tests/run_tests.sh
+
+
 ####################
 # Run the pipeline #
 ####################

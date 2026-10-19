@@ -8,8 +8,8 @@ This pipeline handles the analysis of single-cell RNA sequencing data, including
 quality control, demultiplexing, mapping, and reporting.
 
 Pre-requisites:
-- Created a samplesheet in CSV format (see conf/example_samplesheet.csv)
-- Configured the custom config file (config/custom.config)
+- Created a samplesheet in CSV format (see examples/example_samplesheet.csv)
+- Configured the custom config file (conf/custom_parameters.config)
 - Conda & Nextflow available in base environment
 
 Run:
@@ -24,11 +24,15 @@ nextflow run -profile <institution_config>,conda -c /path/to/custom_config
 */
 include { preprocessing_workflow    } from './workflows/preprocessing_workflow'
 include { QC_mapping_workflow       } from './workflows/mapping_workflow'
+include { post_mapping_workflow     } from './workflows/post_mapping_workflow'
 include { filtering_workflow        } from './workflows/filtering_workflow'
 include { reporting_workflow        } from './workflows/reporting_workflow'
+include { metacell_workflow         } from './workflows/metacell_workflow'
 
 include { PIPELINE_INITIALISATION   } from './subworkflows/local/utils_nfcore_bca_pipeline'
 include { PIPELINE_COMPLETION       } from './subworkflows/local/utils_nfcore_bca_pipeline'
+include { processVersionsFromYAML   } from './subworkflows/nf-core/utils_nfcore_pipeline'
+include { workflowVersionToYAML     } from './subworkflows/nf-core/utils_nfcore_pipeline'
 
 include { SAVE_RUN_CONFIG           } from './modules/local/custom/save_configs/main'
 include { MAPPING_STATS             } from './modules/local/custom/dashboard/mapping_stats/main'
@@ -44,66 +48,132 @@ include { MULTIQC                   } from './modules/local/tools/multiqc/main'
         local installation is given). The pre-processed files are then used
         for mapping and quality control, and once all outputs are finished,
         the pipeline triggers MultiQC and the filtering workflow.
+
+        With run_method = "post_mapping" the first two stages are skipped
+        entirely: a previous run's published mapping results are read back in
+        and everything after mapping is redone on them, which is how the cells
+        can be re-called without paying for mapping again.
 ~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~
 */
 workflow BCA_PREPROCESSING {
 
     take:
-        samplesheet     // channel: samplesheet read in from --input
+        samplesheet
 
     main:
         // Initialize reporting channels
-        def multiqc_report_ch   = Channel.empty()
+        def multiqc_report_ch   = channel.empty()
+        def preprocs_output_ch  = channel.empty()
+
+        // Cell Ranger / split-pipe results, empty in post_mapping where they are not rerun
+        def vendor_results_ch   = channel.empty()
+
+        // The mapping results the downstream workflows run on, either freshly mapped or
+        // read back from a previous run; both branches emit the same channel names
+        def mapping_out         = null
+        def run_downstream      = false
 
         // Save run configurations
-        SAVE_RUN_CONFIG(samplesheet.first())
+        SAVE_RUN_CONFIG(samplesheet.first().map { row -> row[4] })
 
-        // Pre-processing workflow
-        preprocessing_workflow(samplesheet)
+        // versions.yml of every process that ran, merged into one file at the end
+        def ch_versions = SAVE_RUN_CONFIG.out.versions
 
-        // Runs mapping for "standard", "geneext_only"
-        if ( params.run_method != "external_pipeline_only" ) {
-            // Mapping using STARsolo, Alevin, and/or comparison to commercial pipelines
-            QC_mapping_workflow(preprocessing_workflow.out.data_output, preprocessing_workflow.out.bc_whitelist)
+        // "post_mapping" resumes a previous run from the point mapping ended, so neither
+        // pre-processing nor mapping is repeated
+        if (params.run_method == "post_mapping") {
+
+            post_mapping_workflow(samplesheet)
+            mapping_out    = post_mapping_workflow.out
+            run_downstream = true
+
+        } else {
+
+            // Pre-processing workflow
+            preprocessing_workflow(samplesheet)
+            preprocs_output_ch = preprocessing_workflow.out.data_output
+            vendor_results_ch  = preprocessing_workflow.out.vendor_results
+            ch_versions = ch_versions.mix(preprocessing_workflow.out.versions)
+
+            // Runs mapping for "standard", "geneext_only"
+            if ( params.run_method != "external_pipeline_only" ) {
+                // Mapping using STARsolo, Alevin, and/or comparison to commercial pipelines
+                QC_mapping_workflow(preprocessing_workflow.out.data_output, preprocessing_workflow.out.bc_whitelist)
+                mapping_out = QC_mapping_workflow.out
+
+                // Continue with filtering and MultiQC only with "standard" run_method
+                run_downstream = (params.run_method == "standard")
+            }
         }
 
-        // Continue with filtering and MultiQC only with "standard" run_method
-        if (params.run_method == "standard") {
+        // Both mapping branches emit their versions under the same name
+        if (mapping_out != null) {
+            ch_versions = ch_versions.mix(mapping_out.versions)
+        }
+
+        if (run_downstream) {
 
             // Filtering raw matrices of ambient RNA
-            filtering_workflow(QC_mapping_workflow.out.starsolo_genefull50_raw, QC_mapping_workflow.out.starsolo_genefull50_filtered, QC_mapping_workflow.out.af_mtx)
+            filtering_workflow(mapping_out.starsolo_genefull50_raw, mapping_out.starsolo_genefull50_filtered, mapping_out.af_mtx, mapping_out.af_filtered_mtx,
+                                mapping_out.starsolo_velocyto_filtered, mapping_out.ref_gtf)
 
             reporting_workflow(
-                QC_mapping_workflow.out.mapped_samplesheet,
+                mapping_out.mapped_samplesheet,
                 SAVE_RUN_CONFIG.out.samplesheet,
-                QC_mapping_workflow.out.ref_gtf,
                 SAVE_RUN_CONFIG.out.run_config,
-                QC_mapping_workflow.out.star_final_log,
-                QC_mapping_workflow.out.star_summaries,
-                QC_mapping_workflow.out.star_log,
-                QC_mapping_workflow.out.starsolo_bam,
-                QC_mapping_workflow.out.star_solodir,
-                QC_mapping_workflow.out.saturation_logs,
-                QC_mapping_workflow.out.star_cellreads,
-                QC_mapping_workflow.out.af_meta_info,
-                QC_mapping_workflow.out.af_quant_json,
-                QC_mapping_workflow.out.af_cell_meta,
-                QC_mapping_workflow.out.pavian_sankey,
-                QC_mapping_workflow.out.saturation_imgs,
-                QC_mapping_workflow.out.saturation_residual_imgs,
-                QC_mapping_workflow.out.star_umipercell,
-                QC_mapping_workflow.out.featurecount_txt,
+                mapping_out.star_final_log,
+                mapping_out.star_summaries,
+                mapping_out.star_log,
+                mapping_out.barcode_reads,
+                mapping_out.star_solodir,
+                mapping_out.starsolo_genefull50_filtered,
+                mapping_out.saturation_logs,
+                mapping_out.star_cellreads,
+                mapping_out.af_meta_info,
+                mapping_out.af_quant_json,
+                mapping_out.af_cell_meta,
+                mapping_out.af_mtx,
+                mapping_out.af_umipercell,
+                mapping_out.pavian_sankey,
+                mapping_out.saturation_imgs,
+                mapping_out.saturation_residual_imgs,
+                mapping_out.star_umipercell,
+                mapping_out.featurecount_txt,
+                mapping_out.antisense_txt,
+                mapping_out.secondderiv_knee,
+                mapping_out.secondderiv_stats,
+                mapping_out.secondderiv_cutoff,
                 filtering_workflow.out.cs_ambient_hist_plot,
                 filtering_workflow.out.cs_umap_comparison_plot,
-                filtering_workflow.out.cs_top_genes
+                filtering_workflow.out.cs_top_genes,
+                mapping_out.geneext_report,
+                mapping_out.geneext_log,
+                mapping_out.fastqc_results,
+                mapping_out.kraken_report,
+                mapping_out.starsolo_genefull50_raw,
+                vendor_results_ch
             )
 
             multiqc_report_ch = reporting_workflow.out.multiqc_report
+            ch_versions = ch_versions.mix(filtering_workflow.out.versions, reporting_workflow.out.versions)
+            
+            // Metacells and the interactive filtering report; with --metacell_selection
+            // (and -resume) also the filtered UMI matrices the report's selection asks for
+            if (params.perform_metacells) {
+                metacell_workflow(
+                    filtering_workflow.out.h5ad,
+                    mapping_out.ref_gtf,
+                    mapping_out.featurecount_txt,
+                    mapping_out.antisense_txt
+                )
+                ch_versions = ch_versions.mix(metacell_workflow.out.versions)
+            }
         }
 
     emit:
-        preprocs_output         = preprocessing_workflow.out.data_output
+        preprocs_output         = preprocs_output_ch
         multiqc_report          = multiqc_report_ch
+        versions                = ch_versions
 }
 
 
@@ -134,6 +204,28 @@ workflow {
     BCA_PREPROCESSING (
         PIPELINE_INITIALISATION.out.samplesheet
     )
+
+    //
+    // Collate the software versions into a single <outdir>/versions.yml. A process that ran
+    // per sample reports the same versions every time, so the duplicates are dropped; a file
+    // that does not parse as YAML is kept as written rather than failing the run.
+    //
+    BCA_PREPROCESSING.out.versions
+        .map { yml -> yml.text }
+        .filter { text -> text.trim() }
+        .unique()
+        .map { text ->
+            try {
+                processVersionsFromYAML(text)
+            } catch (Exception e) {
+                log.warn "Could not parse a versions.yml, adding it unprocessed: ${e.message}"
+                text.trim()
+            }
+        }
+        .unique()
+        .mix(channel.of(workflowVersionToYAML()))
+        .collectFile(storeDir: params.outdir, name: 'versions.yml', sort: true, newLine: true)
+
     //
     // SUBWORKFLOW: Run completion tasks
     //
@@ -146,17 +238,15 @@ workflow {
         params.hook_url,
         BCA_PREPROCESSING.out.multiqc_report
     )
-}
 
 
-
-/*
-~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~
-    WORKFLOWS TO DISPLAY RUNTIME INFORMATION
-~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~
-*/
-workflow.onComplete {
-    summary = """
+    /*
+    ~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~
+        DISPLAY RUNTIME INFORMATION
+    ~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~
+    */
+    workflow.onComplete = {
+        def summary = """
         Pipeline execution summary
         ---------------------------
         Completed at: ${workflow.complete}
@@ -165,11 +255,15 @@ workflow.onComplete {
         workDir     : ${workflow.workDir}
         exit status : ${workflow.exitStatus}
         """
-    println summary
-}
+        println summary
 
-workflow.onError {
-    println "Error: Pipeline execution stopped with the following message: ${workflow.errorMessage}"
+        // Samples cancelled for a low mapping rate, with the Kraken recommendation
+        MappingRateCheck.summarise(workflow, params, log)
+    }
+
+    workflow.onError = {
+        println "Error: Pipeline execution stopped with the following message: ${workflow.errorMessage}"
+    }
 }
 
 

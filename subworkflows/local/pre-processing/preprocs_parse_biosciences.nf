@@ -26,17 +26,24 @@ workflow parse_workflow {
         ch_samplesheet
 
     main:
+        def ch_versions = channel.empty()
+        def ch_splitpipe_stats = channel.empty()
 
         // Demultiplex the fastq files based on the sample wells
         if (params.perform_demultiplexing && params.splitpipe_demultiplex_script == null) {
             log.info "Running Parse Biosciences demultiplexing using default script."
-            PARSEBIO_CUSTOM_DEMUX(ch_samplesheet)
+            if (!params.bc_whitelist_parse_splitwells) {
+                error("The Parse Biosciences demultiplexing splits the reads on the wells in 'bc_whitelist_parse_splitwells', which is not set.")
+            }
+            PARSEBIO_CUSTOM_DEMUX(ch_samplesheet, file(params.bc_whitelist_parse_splitwells, checkIfExists: true))
             demux_samplesheet = PARSEBIO_CUSTOM_DEMUX.out.splitted_files
+            ch_versions = ch_versions.mix(PARSEBIO_CUSTOM_DEMUX.out.versions)
 
         } else if (params.perform_demultiplexing && params.splitpipe_demultiplex_script != null) {
             log.info "Running Parse Biosciences demultiplexing using script: ${params.splitpipe_demultiplex_script}"
             PARSEBIO_PIPELINE_DEMUX(ch_samplesheet)
             demux_samplesheet = PARSEBIO_PIPELINE_DEMUX.out.splitted_files
+            ch_versions = ch_versions.mix(PARSEBIO_PIPELINE_DEMUX.out.versions)
 
         } else {
             log.info "Skipping Parse Biosciences demultiplexing as 'perform_demultiplexing' is set to false."
@@ -45,15 +52,20 @@ workflow parse_workflow {
 
         // Only run Parse pipeline if the path is defined and exists
         if (params.splitpipe_installation && file(params.splitpipe_installation).exists()) {
-            PARSEBIO_PIPELINE_MKREF()
+            PARSEBIO_PIPELINE_MKREF(file(params.ref_fasta, checkIfExists: true), file(params.ref_gtf, checkIfExists: true))
 
-            // Use .first() to reuse the reference output for all split samples
-            PARSEBIO_PIPELINE(demux_samplesheet, PARSEBIO_PIPELINE_MKREF.out.first())
+            // The reference process has single-value inputs only, so it runs once and its output is reused by every sample
+            PARSEBIO_PIPELINE(demux_samplesheet, PARSEBIO_PIPELINE_MKREF.out.reference)
+            ch_versions = ch_versions.mix(PARSEBIO_PIPELINE_MKREF.out.versions, PARSEBIO_PIPELINE.out.versions)
+
+            // The two split-pipe reports the mapping statistics are read from
+            ch_splitpipe_stats = PARSEBIO_PIPELINE.out.sample_stats.mix(PARSEBIO_PIPELINE.out.agg_summary)
         }
 
     emit:
         data_output     = demux_samplesheet
-        bc_whitelist    = params.bc_whitelist
+        splitpipe_stats = ch_splitpipe_stats
+        versions        = ch_versions
 }
 
 /*

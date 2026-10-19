@@ -14,16 +14,17 @@ In the case of Parse Biosciences data, the column of p5 should be filled with th
         'C4' specifies a single well.
         Multiple selections are joined by commas (no space), e.g. 'A1-A6,B1:D3,C4'
 
-In the table below, the variables are summarized, with an example samplesheet listed [here](conf/example_samplesheet.csv).
+In the table below, the variables are summarized, with an example samplesheet listed [here](../examples/example_samplesheet.csv).
 
 | Variable       | Required/Optional | Description                                                                                                                                                             |
 | -------------- | ----------------- | ----------------------------------------------------------------------------------------------------------------------------------------------------------------------- |
 | sample         | **Required**      | Must be unique unless you want the FASTQ files to be merged after demultiplexing.                                                                                       |
-| fastq_cDNA     | **Required**      | Path to the FASTQ file containing cDNA                                                                                                                                  |
-| fastq_CB_UMI   | **Required**      | Path to the FASTQ file containing the cell barcode & UMI                                                                                                                |
+| fastq_cDNA     | **Required**      | Path to the FASTQ file containing cDNA. Uncompressed (`.fastq`/`.fq`) and gzipped (`.fastq.gz`/`.fq.gz`) files are both accepted, and may be mixed within a sample.      |
+| fastq_BC_UMI   | **Required**      | Path to the FASTQ file containing the cell barcode & UMI. Uncompressed and gzipped files are both accepted.                                                              |
 | expected_cells | **Required**      | Number of expected cells                                                                                                                                                |
-| p5             | Optional          | Only required for sci-RNA-seq3 (p5-associated barcode from [sci-RNA-seq3 barcode whitelist file](assets/sciRNAseq3_bwl.txt) & Parse Biosciences (group-well definition) |
-| p7             | Optional          | Only required for sci-RNA-seq3 (p7-associated barcode from [sci-RNA-seq3 barcode whitelist file](assets/sciRNAseq3_bwl.txt)                                             |
+| manual_cutoff  | Optional          | Per-sample UMI threshold used to call cells. Required for every sample when `cellfilter_method = "manual_cutoff"`, ignored otherwise. See [Cell calling](CONFIGURATION_PARAMETERS.md#cell-calling). |
+| p5             | Optional          | Only required for sci-RNA-seq3 (p5-associated barcode from [sci-RNA-seq3 barcode whitelist file](assets/sciRNAseq3_bwl.txt), Parse Biosciences (group-well definition) & OAK (i5 barcode sequence of the aliquot) |
+| p7             | Optional          | Only required for sci-RNA-seq3 (p7-associated barcode from [sci-RNA-seq3 barcode whitelist file](assets/sciRNAseq3_bwl.txt); optional for OAK (i7 barcode sequence of the aliquot) |
 | rt             | Optional          | Only required for sci-RNA-seq3 (rt-associated barcode from [sci-RNA-seq3 barcode whitelist file](assets/sciRNAseq3_bwl.txt)                                             |
 
 
@@ -38,19 +39,25 @@ Within each custom configuration file the following variables can be defined:
 | Variable                 | Required/Optional | Description                                                                                                                                                                                                                       |
 | ------------------------ | ----------------- | --------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------- |
 | `input`                  | **Required**      | Path to the samplesheet.                                                                                                                                                                                                          |
-| `outdir`                 | **Required**      | Path to the results/output directory; must exist before running.                                                                                                                                                                  |
-| `protocol`               | **Required**      | Specifies the sequencing technology used (must be one of the following: `"oak_seq"`, `"10xv3"`, `"parse_biosciences_WT_mini"` or `"parse_biosciences_WT"`, `"bd_rhapsody"`, `"sciRNAseq3"` , `"ultima_genomics"` or `"seqspec"`). |
+| `outdir`                 | **Required**      | Path to the results/output directory; created if missing.                                                                                                                                                                          |
+| `protocol`               | **Required**      | Specifies the sequencing technology used (must be one of the following: `"oak_v1"`, `"10xv1"`, `"10xv2"`, `"10xv3"`, `"10xv4"`, `"parse_biosciences_WT_mini"` or `"parse_biosciences_WT"`, `"bd_rhapsody_v1"`, `"bd_rhapsody_enhancedbeads"`, `"sciRNAseq3"` , `"ultima_genomics"`, `"marsseq_v1"`, `"marsseq_v2"` or `"seqspec"`). |
 | `ref_fasta`              | **Required**      | Path to the genome FASTA file used for mapping reads.                                                                                                                                                                             |
 | `ref_gtf`                | **Required**      | Path to the GTF/GFF file formatted for STARsolo.                                                                                                                                                                                  |
-| `ref_gtf_alt`            | Optional          | Path to the GTF/GFF file formatted specifically for analysis with Parse Biosciences / CellRanger pipeline. Defaults to the same path as `ref_gtf`.                                                                                |
 | `seqspec_file`           | Optional          | Path to the seqspec file.                                                                                                                                                                                                         |
-| `mt_contig`              | Optional          | Name of the mitochondrial contig in the reference annotation, used to calculate mtDNA content. Default set to `"chrM M MT"`.                                                                                                      |
+| `mt_contig`              | Optional          | Name(s) of the mitochondrial contig(s) in the reference annotation, used to calculate mtDNA content. Multiple contigs can be given separated by whitespace, in which case reads on any of them count as mitochondrial. Default set to `"chrM M MT"`. |
 | `grep_rrna`              | Optional          | String used to grep ribosomal RNA (rRNA) reads from annotations. Default set to `"rRNA"`                                                                                                                                          |
-| `mapping_software`       | Optional          | Software used to map reads (must be one of the following: `"starsolo"`, `"alevin"` or `"both"`). Default set to `"starsolo"`.                                                                                                     |
+| `mapping_software`       | Optional          | Software used to map reads (must be one of the following: `"starsolo"`, `"alevin"`, `"both"`/`"alevin_starsolo"` or `"alevin_subsampled_starsolo"`). Default set to `"starsolo"`. alevin-fry is set up to be comparable to STARsolo; see [alevin-fry settings](CONFIGURATION_PARAMETERS.md#alevin-fry-settings). |
+| `alevin_resolution`      | Optional          | alevin-fry's UMI resolution, `"cr-like"` (default; discards gene-ambiguous UMIs, as STARsolo's matrix does) or `"cr-like-em"`. |
+| `cellfilter_method`      | Optional          | How cells are called: `"star_solocellfilter"` (each mapper's own cell filter), `"second_derivative"` or `"manual_cutoff"` (a per-sample threshold from the samplesheet). Default set to `"second_derivative"`, which re-calls cells for both mappers and recomputes every cell-dependent statistic in the report on the retained cells. See [Cell calling](CONFIGURATION_PARAMETERS.md#cell-calling). |
+| `run_method`             | Optional          | One of `"standard"`, `"geneext_only"`, `"external_pipeline_only"` or `"post_mapping"`. Default set to `"standard"`. Use `"post_mapping"` to redo everything after mapping on a finished run — for instance to re-call cells with a different `expected_cells` or a manual cutoff — without mapping again. See [Re-running after mapping](CONFIGURATION_PARAMETERS.md#re-running-after-mapping). |
+| `previous_outdir`        | Optional          | Only with `run_method = "post_mapping"`: the finished run's results directory to read the mapping results back from. Defaults to `outdir`.                                                                                        |
 | `perform_geneext`        | Optional          | Boolean flag to enable or disable the gene extension step in preprocessing. Default is `false`.                                                                                                                                   |
-| `perform_featurecounts`  | Optional          | Boolean flag to enable or disable calculation of mtDNA & rRNA percentages. Default is `false`.                                                                                                                                     |
+| `geneext_downstream`     | Optional          | Only with `perform_geneext`: `"geneext_only"` maps and analyses only the runs against the extended annotation (by GeneExt), `"both"` also the standard-annotation runs. Default is `"geneext_only"`. See [Which runs GeneExt adds](CONFIGURATION_PARAMETERS.md#which-runs-geneext-adds). |
 | `perform_kraken`         | Optional          | Boolean flag to enable or disable Kraken2 classification of unmapped reads. Default is `false`.                                                                                                                                   |
-| `perform_cellbender`     | Optional          | Boolean flag to enable or disable removal of ambient RNA using CellBender. Default is `false`.                                                                                                                                    |
+| `ambient_rna_remover`    | Optional          | Software used to remove ambient RNA: `"cellsweep"` or `"none"`. Default is `"cellsweep"`.                                                                                                                                         |
+| `perform_metacells`      | Optional          | Boolean flag to group the called cells into Metacell2 metacells and build the interactive `filtering_report.html`. Default is `false`. See [Metacells and the filtering report](CONFIGURATION_PARAMETERS.md#metacells-and-the-filtering-report). |
+| `gene_annotation`        | Optional          | TSV with protein domains (PFAM) per gene, transcript or protein id, e.g. an eggNOG-mapper annotation. It enables filtering genes by domain in the report.                                                                        |
+| `metacell_selection`     | Optional          | The `metacell_selection.json` exported from `filtering_report.html`. Rerun with `-resume` to write the filtered UMI matrices to `<outdir>/metacell_filtering/`.                                                                    |
 | `kraken_db_path`         | Optional          | Path to the Kraken2 database used for taxonomic classification of unmapped reads, if empty, a default database will be installed.                                                                                                 |
 | `perform_cellranger`     | Optional          | Boolean flag to enable or disable the CellRanger pipeline. Default is `false`.                                                                                                                                                    |
 | `splitpipe_installation` | Optional          | Path to the split-pipe installation folder, that can be used as a control.                                                                                                                                                        |
@@ -67,7 +74,7 @@ To modify the behaviour of certain processes, additional variables can be added 
 
 ### Pre-requisites:
 
-- [ ] Created a samplesheet in CSV format (see [conf/example_samplesheet.csv](conf/example_samplesheet.csv))
+- [ ] Created a samplesheet in CSV format (see [examples/example_samplesheet.csv](../examples/example_samplesheet.csv))
 - [ ] Edited ([`conf/custom_parameters.config`](conf/custom_parameters.config)) or created a new custom configuration file
 - [ ] Conda & Nextflow available in base environment
 
@@ -85,3 +92,22 @@ nextflow run -profile <institution_config>,conda -c </path/to/custom_parameters.
 # Submit pipeline to SLURM queue
 sbatch submit_nextflow.sh main.nf
 ```
+
+
+### Filtering metacells (two passes)
+
+With `perform_metacells = true` the run ends with `<outdir>/filtering_report.html`. Open it and,
+for each sample, set the cell-level filters (mitochondrial %, doublet %, ambient fraction,
+blacklist) and the gene-level filters (minimum UMIs, PFAM domains). Opening a tab with a sample
+selected applies that level's settings; *Apply settings to all samples* copies them to the rest. Then download
+`metacell_selection.json` from the *Export selection* tab. It holds the samples whose settings are
+applied at both levels. Rerun the same command
+with `-resume` and the selection:
+
+```
+nextflow run -profile <institution_config>,conda -c </path/to/custom_parameters.config> -w </path/to/workdir> \
+    -resume --metacell_selection metacell_selection.json
+```
+
+Only the filtering step runs. The filtered matrices for downstream analysis are written to
+`<outdir>/metacell_filtering/<sample>/<sample>_final/`.

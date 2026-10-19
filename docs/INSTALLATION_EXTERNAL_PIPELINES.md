@@ -4,14 +4,14 @@
 
 ## Table of Contents
 
-1. [Cell Ranger (10x Genomics & OAK-seq)](#cell-ranger-10x-genomics--oak-seq)
+1. [Cell Ranger (10x Genomics & OAK)](#cell-ranger-10x-genomics--oak)
 2. [BD Single-Cell Multiomics Software (BD Rhapsody)](#bd-single-cell-multiomics-software-bd-rhapsody)
 3. [split-pipe (Parse Biosciences)](#split-pipe-parse-biosciences)
 4. [sci-rocket (sci-RNA-seq3)](#sci-rocket-sci-rna-seq3)
 
 ---
 
-### Cell Ranger (10x Genomics & OAK-seq)
+### Cell Ranger (10x Genomics & OAK)
 Follow the installation guide on the [10x Genomics website](https://www.10xgenomics.com/support/software/cell-ranger/latest/tutorials/cr-tutorial-in), and downloaded Cell Ranger using wget for the latest version on the [downloads](https://www.10xgenomics.com/support/software/cell-ranger/downloads) page.
 
 ---

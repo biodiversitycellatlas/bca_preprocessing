@@ -1,5 +1,5 @@
 process FASTP {
-    publishDir "${params.outdir}/fastp", mode: 'copy'
+    publishDir path: { "${params.outdir}/fastp" }, mode: 'copy', saveAs: { filename -> filename == 'versions.yml' ? null : filename }
     tag "${meta.id}"
     label 'process_low'
     debug true
@@ -11,7 +11,8 @@ process FASTP {
     tuple val(meta), path(fastq_cDNA), path(fastq_BC_UMI), path(fastq_indices), path(input_file)
 
     output:
-    tuple val(meta), path("trimmed_${fastq_cDNA}"), path("trimmed_${fastq_BC_UMI}"), path(fastq_indices), path(input_file)
+    tuple val(meta), path("trimmed_${fastq_cDNA}"), path("trimmed_${fastq_BC_UMI}"), path(fastq_indices), path(input_file), emit: trimmed_files
+    path "versions.yml", emit: versions
 
     script:
     // Retrieve fastp settings from custom parameters if set, otherwise from conf/seqtech_parameters.config
@@ -19,7 +20,7 @@ process FASTP {
     def fastp_qualified_quality_phred = params.fastp_qualified_quality_phred ?: params.seqtech_parameters[params.protocol].fastp_qualified_quality_phred
 
     """
-    echo "\n\n==================  TRIM FASTQs WITH FASTP  =================="
+    echo -e "\\n\\n==================  TRIM FASTQs WITH FASTP  =================="
     echo "Metadata: ${meta}"
     echo "FASTQ cDNA: ${fastq_cDNA}"
     echo "FASTQ BC & UMI: ${fastq_BC_UMI}"
@@ -39,5 +40,10 @@ process FASTP {
         --qualified_quality_phred ${fastp_qualified_quality_phred} \\
         --detect_adapter_for_pe \\
         --dont_eval_duplication
+
+    cat <<-END_VERSIONS > versions.yml
+    "${task.process}":
+        fastp: \$(fastp --version 2>&1 | sed 's/fastp //')
+    END_VERSIONS
     """
 }

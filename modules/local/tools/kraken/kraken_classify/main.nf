@@ -1,7 +1,7 @@
 process KRAKEN {
-    publishDir "${params.outdir}/kraken/", mode: 'copy'
+    publishDir path: { "${params.outdir}/kraken/" }, mode: 'copy', saveAs: { filename -> filename == 'versions.yml' ? null : filename }
     tag "${meta.id}"
-    label 'process_high_memory'
+    label 'process_single_high2'
 
     conda "${moduleDir}/environment.yml"
     container "oras://community.wave.seqera.io/library/kraken2:2.17.1--9b129e69b7bcd776"
@@ -11,11 +11,12 @@ process KRAKEN {
     tuple val(meta), path(filtered_fasta)
 
     output:
-    path("${meta.id}.k2report")
+    path("${meta.id}.k2report"), emit: k2report
+    path "versions.yml",         emit: versions
 
     script:
     """
-    echo "\n\n==================  KRAKEN  =================="
+    echo -e "\\n\\n==================  KRAKEN  =================="
     echo "Kraken db path file: ${db_path_file}"
     echo "Running KRAKEN for ${meta.id}"
     echo "FASTA file: ${filtered_fasta}"
@@ -28,5 +29,10 @@ process KRAKEN {
         --report ${meta.id}.k2report \\
         --output ${meta.id}.kraken \\
         ${filtered_fasta}
+
+    cat <<-END_VERSIONS > versions.yml
+    "${task.process}":
+        kraken2: \$(kraken2 --version | head -n1 | sed 's/Kraken version //')
+    END_VERSIONS
     """
 }
