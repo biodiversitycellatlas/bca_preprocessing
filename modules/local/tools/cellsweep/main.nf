@@ -28,7 +28,6 @@ process CELLSWEEP {
     path(ref_gtf)
 
     output:
-    tuple val(meta), path("${meta.id}_cs_filtered.h5ad"), emit: cs_filtered_h5ad
     tuple val(meta), path("${meta.id}_cs_full.h5ad"),     emit: cs_full_h5ad
     path("*_ambient_hat_histogram.png"),                  emit: cs_ambient_hist_plot
     path("*_top_ambient_genes.csv"),                      emit: cs_top_genes
@@ -50,7 +49,6 @@ process CELLSWEEP {
         --barcodes ${barcodes} \\
         --features ${features} \\
         --sample_id ${meta.id} \\
-        --cs_filtered_h5ad ${meta.id}_cs_filtered.h5ad \\
         --cs_full_h5ad ${meta.id}_cs_full.h5ad \\
         --image_prefix ${meta.id}_ \\
         --expected_cells ${meta.expected_cells} \\

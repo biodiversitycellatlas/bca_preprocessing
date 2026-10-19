@@ -19,8 +19,9 @@ The two triplets hold the *same* matrix in opposite orientations:
     starsolo/   matrix.mtx        genes x cells, features.tsv with three columns
     alevin/     quants_mat.mtx    cells x genes, quants_mat_cols.txt with one
 
-The CellSweep object is deliberately awkward: its barcodes are shuffled and its
-genes are a shuffled subset, so a merge that trusts positions cannot pass.
+The CellSweep object is deliberately awkward: its barcodes and genes are shuffled
+subsets, so a merge that trusts positions cannot pass. The barcodes it leaves out are
+the empty droplets, as CellSweep does.
 
 Usage: make_annotation_fixture.py OUTDIR
 """
@@ -163,7 +164,8 @@ def write_cellsweep_h5ad(path, aligned=False):
 
     Two variants, because the merge has two paths. ``aligned=True`` gives the axes
     CellSweep actually produces now that it reads the same triplet, which the merge
-    takes as it stands; the default gives shuffled barcodes and a missing gene, so
+    takes as it stands; the default is what CellSweep returns on a raw matrix -- the
+    non-empty barcodes only (keep_empties=False) -- shuffled, and missing a gene, so
     the general path cannot get away with merging by position.
     """
     import anndata as ad
@@ -172,10 +174,11 @@ def write_cellsweep_h5ad(path, aligned=False):
         obs_order = barcodes()
         var_order = genes()
     else:
+        kept_cells = [barcode(c) for c in range(N_CELLS) if not is_empty(c)]
         kept_genes = [gene(g) for g in range(N_GENES) if g != CS_DROPPED_GENE]
         # Shuffled deterministically: the same fixture every run, but never in axis order
         rng = np.random.default_rng(0)
-        obs_order = list(rng.permutation(barcodes()))
+        obs_order = list(rng.permutation(kept_cells))
         var_order = list(rng.permutation(kept_genes))
 
     cell_of = {barcode(c): c for c in range(N_CELLS)}

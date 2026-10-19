@@ -10,4 +10,4 @@ dependencies:
       - scanpy
       - numpy
       - pandas
-      - cellsweep[analysis]
+      - cellsweep[analysis]>=1.0.0

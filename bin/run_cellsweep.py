@@ -19,6 +19,12 @@ params.perform_doublet_filtering:
 CellSweep's own guidance is to drop doublets before denoising; keeping them and
 only annotating them is the conservative default here, and removal stays opt-in
 (see bin/filter_doublets.py).
+
+The one object written, --cs_full_h5ad, holds the barcodes not called empty: CellSweep
+fits its model on every barcode but returns only those (keep_empties=False). Nothing
+here filters cells beyond that. MTX_TO_H5AD lifts the denoised counts and annotations
+into the published object, where every barcode absent from this one reads as empty,
+and any cut on alpha_hat is left to the analysis.
 """
 
 import argparse
@@ -180,11 +186,11 @@ def generate_visualizations(adata_cs, image_prefix):
     cs_utils.print_top_ambient_genes(adata_cs, top_n=20, out_path=f"{image_prefix}top_ambient_genes.csv")
 
 
-def generate_noise_boxplot(adata_cs, image_prefix, label):
+def generate_noise_boxplot(adata_cs, image_prefix):
     plt.figure(figsize=(10, 6))
     sns.boxplot(data=adata_cs.obs, x='celltype', y='alpha_hat', palette='viridis')
     plt.title('Ambient Fraction by Cluster')
-    plt.savefig(f"{image_prefix}contamination_{label}.png")
+    plt.savefig(f"{image_prefix}contamination_by_cluster.png")
     plt.close('all')
 
 
@@ -244,10 +250,9 @@ def main():
     parser.add_argument("--features", type=str, required=True, help="Feature axis of --mtx")
     parser.add_argument("--sample_id", type=str, default=None, help="Written to .obs['sample_id']")
     parser.add_argument("--expected_cells", type=int, required=True, help="Expected number of cells")
-    parser.add_argument("--cs_filtered_h5ad", type=str, required=True, help="Output path for filtered cells")
-    parser.add_argument("--cs_full_h5ad", type=str, required=True, help="Output path for full denoised matrix")
+    parser.add_argument("--cs_full_h5ad", type=str, required=True,
+                        help="Output path for the denoised object (the barcodes not called empty)")
     parser.add_argument("--image_prefix", type=str, default="", help="Prefix for output PNGs")
-    parser.add_argument("--alpha_threshold", type=float, default=0.3, help="Max ambient fraction allowed")
     parser.add_argument("--min-genes", type=int, default=10, help="Minimum number of genes")
     parser.add_argument("--max-mt-percent", type=int, default=25, help="Maximum percentage of MT content, scale 0 to 100.")
     parser.add_argument("--gtf", type=str, required=True,
@@ -297,13 +302,17 @@ def main():
     logger.info("Starting CellSweep denoising (this may take a few minutes)...")
     log_file = f"{args.image_prefix}cellsweep_run.log"
 
+    # keep_empties=False is CellSweep's default, but MTX_TO_H5AD relies on it: a barcode
+    # absent from this output is one called empty. Passed explicitly so a changed default
+    # cannot quietly change what that absence means.
     adata_cs = denoise_count_matrix(
         adata,
         adata_out=args.cs_full_h5ad,
         log_file=log_file,
-        threads=args.threads
+        threads=args.threads,
+        keep_empties=False
     )
-    generate_noise_boxplot(adata_cs, args.image_prefix, 'before')
+    generate_noise_boxplot(adata_cs, args.image_prefix)
 
     if doublet_barcodes is not None:
         adata_cs = doublet_calls.annotate(adata_cs, doublet_barcodes)
@@ -315,16 +324,10 @@ def main():
     logger.info(f"Re-writing {args.cs_full_h5ad} with the final annotations")
     adata_cs.write_h5ad(args.cs_full_h5ad)
 
-    # 5. Filter and Save
+    # 5. Diagnostics
     generate_visualizations(adata_cs, args.image_prefix)
     compare_umaps(adata_cs, args.image_prefix)
 
-    logger.info(f"Filtering cells (is_empty=False, alpha_hat <= {args.alpha_threshold})")
-    keep_mask = (~adata_cs.obs["is_empty"]) & (adata_cs.obs["alpha_hat"] <= args.alpha_threshold)
-    adata_filtered = adata_cs[keep_mask].copy()
-    generate_noise_boxplot(adata_filtered, args.image_prefix, 'after')
-
-    adata_filtered.write_h5ad(args.cs_filtered_h5ad)
     logger.info("CellSweep complete. Output files written.")
 
 

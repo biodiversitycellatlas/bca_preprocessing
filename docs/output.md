@@ -406,7 +406,7 @@ carries not only the counts but everything that was called on them:
 | `var["gene_name"]`, `var["feature_type"]` | always — the gene symbol and feature type from STARsolo's `features.tsv`; `var_names` are the gene IDs. alevin-fry's feature file has IDs only, so there `gene_name` is blank and `feature_type` absent |
 | `obs["doublet_status"]` | `perform_doublet_detection` — `singlet` / `doublet`. The empty droplets of a `raw`/`full` matrix were never evaluated and read `singlet` |
 | `layers["cellsweep"]` | `ambient_rna_remover = "cellsweep"`, `raw`/`full` only — the denoised counts, aligned to `X` |
-| `obs["is_empty"]`, `obs["celltype"]`, `obs["alpha_hat"]` | as above — empty-droplet call, Leiden grouping, per-cell ambient fraction |
+| `obs["is_empty"]`, `obs["celltype"]`, `obs["alpha_hat"]` | as above — empty-droplet call, Leiden grouping, per-cell ambient fraction. Barcodes called empty read `is_empty = True` and `celltype = "empty"`; CellSweep estimates no ambient fraction for them, so their `alpha_hat` is `NaN` and their `layers["cellsweep"]` row is zero |
 | `var["ambient_hat"]` | as above — per-gene ambient profile |
 
 The velocity objects in `anndata/<analytical_run>/velocity/` are a separate, terminal output —
@@ -426,9 +426,9 @@ It operates on the **unfiltered** matrix.
 
 | File | Description |
 | ---- | ----------- |
-| `<id>_cs_filtered.h5ad` | Decontaminated matrix, cells only. |
-| `<id>_cs_full.h5ad` | Decontaminated matrix, all barcodes. |
+| `<id>_cs_full.h5ad` | CellSweep's own object: the denoised counts and annotations of the barcodes it did not call empty. The same results are in `anndata/<id>/raw/`, on every barcode and next to the raw counts. |
 | `<id>_ambient_hat_histogram.png` | Distribution of estimated ambient contribution per cell. |
+| `<id>_contamination_by_cluster.png` | Per-cell ambient fraction (`alpha_hat`) per Leiden cluster. |
 | `<id>_top_ambient_genes.csv` | Genes contributing most to the ambient profile — worth inspecting, since a dominant ambient gene often points at a specific problem. |
 | `<id>_umap_comparison.png` | UMAP before vs. after decontamination. |
 
@@ -802,10 +802,11 @@ The pipeline deliberately produces several matrices. For a standard analysis:
    — the cell-called, exonic+intronic matrix.
    For alevin-fry, the equivalent is
    `mapping_alevin/<sample>_alevinfry/<sample>_alevinfry_counts/alevin/filtered_secondderiv/filtered/`.
-2. **If you enabled ambient RNA removal**, prefer `cellsweep/<sample>_starsolo/<sample>_starsolo_cs_filtered.h5ad`,
-   which is decontaminated and cell-called. To keep the raw counts alongside the denoised ones,
-   take `anndata/<sample>_starsolo/raw/` instead: it carries both, plus every annotation
-   (see [AnnData conversion](#anndata-conversion)).
+2. **If you enabled ambient RNA removal**, the denoised counts are in
+   `anndata/<sample>_starsolo/raw/`, as `layers["cellsweep"]` next to the raw counts, with
+   CellSweep's per-cell ambient fraction in `obs["alpha_hat"]` and every other annotation
+   (see [AnnData conversion](#anndata-conversion)). CellSweep filters no cells: subset that
+   object to your cell-called barcodes, and cut on `alpha_hat` if your analysis calls for it.
 3. **Doublet calls are already in** `anndata/.../obs["doublet_status"]`. The per-barcode tables
    behind them are in `doublet_filtering/<sample>_starsolo/combined/`, and with
    `perform_doublet_filtering = true` the doublets are gone from every published matrix.

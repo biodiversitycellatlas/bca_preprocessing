@@ -10,8 +10,8 @@
 # of by name gives the right columns against the wrong cells. Neither raises.
 #
 # tests/lib/make_annotation_fixture.py therefore writes counts that identify their
-# own gene and cell, and hands the merge a CellSweep object whose barcodes are
-# shuffled and whose genes are a subset. The cases below assert on those values
+# own gene and cell, and hands the merge a CellSweep object whose barcodes and genes
+# are shuffled subsets. The cases below assert on those values
 # rather than on shapes or exit status.
 #
 # No sequencing data, no mapper and no cluster are needed.
@@ -53,7 +53,8 @@ Cases:
   h5ad_plain          the bare conversion carries the counts and sample_id
   h5ad_doublets       obs['doublet_status'] flags exactly the consensus calls
   h5ad_cellsweep      the denoised layer and annotations land by name, on both
-                      the matching-axes fast path and the general scatter
+                      the matching-axes fast path and the general scatter, and
+                      the barcodes CellSweep left out read empty
   h5ad_alevin         either orientation gives the same annotated object
 EOF
 }
@@ -419,10 +420,10 @@ if run_logged "$BCA_TEST_LOGDIR/annotated_h5ad_merge.log" \
         "exactly the consensus calls, everything else singlet" \
         "$ANNOTATED"
 
-    # The CellSweep object's barcodes are shuffled and one gene is missing, so a
-    # positional merge lands the right values on the wrong cells.
+    # The CellSweep object holds only the non-empty barcodes, shuffled, and misses a
+    # gene, so a positional merge lands the right values on the wrong cells.
     assert "h5ad_cellsweep.layer" \
-        "((lambda L: (all(L[i, g] == (0 if g == CS_DROPPED_GENE else denoised_value(g, i))
+        "((lambda L: (all(L[i, g] == (0 if g == CS_DROPPED_GENE or is_empty(i) else denoised_value(g, i))
                           for i in range(N_CELLS) for g in range(N_GENES)),
                       'denoised counts placed by name'))(
             dense(read_h5ad(A[0]).layers['cellsweep'])))" \
@@ -430,11 +431,24 @@ if run_logged "$BCA_TEST_LOGDIR/annotated_h5ad_merge.log" \
         "$ANNOTATED"
 
     assert "h5ad_cellsweep.obs" \
-        "((lambda a: (all(a.obs['alpha_hat'][barcode(c)] == alpha_hat(c) for c in range(N_CELLS))
+        "((lambda a: (all(a.obs['alpha_hat'][barcode(c)] == alpha_hat(c) for c in range(N_CELLS) if not is_empty(c))
                       and all(bool(a.obs['is_empty'][barcode(c)]) == is_empty(c) for c in range(N_CELLS))
                       and all(str(a.obs['celltype'][barcode(c)]) == celltype(c) for c in range(N_CELLS)),
                       'obs annotations reindexed by barcode'))(read_h5ad(A[0])))" \
         "alpha_hat, is_empty and celltype follow the barcode" \
+        "$ANNOTATED"
+
+    # CellSweep leaves the barcodes it called empty out of its output. They have to come
+    # back empty -- in a plain bool column, which a gap would have made unwritable --
+    # with no ambient fraction, since none was estimated for them.
+    EMPTIES="[barcode(c) for c in range(N_CELLS) if is_empty(c)]"
+    assert "h5ad_cellsweep.empties" \
+        "((lambda a: (a.obs['is_empty'].dtype == bool
+                      and all(a.obs['is_empty'][bc] and a.obs['celltype'][bc] == 'empty'
+                              and np.isnan(a.obs['alpha_hat'][bc]) for bc in $EMPTIES),
+                      f\"empties read {a.obs.loc[$EMPTIES, ['is_empty', 'celltype', 'alpha_hat']].values.tolist()}, \"
+                      f\"is_empty is {a.obs['is_empty'].dtype}\"))(read_h5ad(A[0])))" \
+        "the barcodes CellSweep left out read empty, with alpha_hat NaN" \
         "$ANNOTATED"
 
     assert "h5ad_cellsweep.var" \

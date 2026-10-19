@@ -104,9 +104,15 @@ def lift_ambient(adata, ambient_h5ad):
         if missing:
             logger.warning(f"{missing} / {adata.n_obs} called barcodes are absent from {ambient_h5ad}")
 
+        # A called cell absent from the raw object (the warning above) leaves a gap, and
+        # a gap turns a bool is_empty or, through to_numpy(), a categorical celltype into
+        # an object array h5ad cannot write. Nullable bool and .values keep both typed.
         for col in CS_OBS_COLS:
             if col in obs.columns:
-                adata.obs[col] = obs[col].reindex(adata.obs_names).to_numpy()
+                s = obs[col]
+                if s.dtype == bool:
+                    s = s.astype("boolean")
+                adata.obs[col] = s.reindex(adata.obs_names).values
         if qcs.AMBIENT_VAR_COL in var.columns:
             adata.var[qcs.AMBIENT_VAR_COL] = var[qcs.AMBIENT_VAR_COL].reindex(adata.var_names).to_numpy()
 

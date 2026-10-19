@@ -14,18 +14,17 @@ instead of a succession of partial h5ads.
     obs['doublet_status']                --doublet_results, the Combine_Results.R
                                          consensus (singlet / doublet)
     layers['cellsweep']                  --cellsweep_h5ad, CellSweep's denoised counts
-    obs['is_empty' / 'celltype' /        --cellsweep_h5ad
-        'alpha_hat']
+    obs['is_empty' / 'celltype' /        --cellsweep_h5ad; the barcodes CellSweep called
+        'alpha_hat']                     empty are absent from it and read empty here
     var['ambient_hat']                   --cellsweep_h5ad
 
 Both annotation inputs are optional; without either, this is the plain triplet ->
 h5ad conversion it has always been.
 
-CellSweep reads the same triplet, so its axes normally match this object's exactly
-and its matrix is taken as it stands. Nothing in its API promises they will, so the
-general case is merged by name -- never by position, since a positional merge that
-silently slipped would produce an object of exactly the right shape carrying the
-wrong numbers.
+CellSweep reads the same triplet but returns only the barcodes it did not call empty,
+so its barcode axis is normally a subset of this object's. Its results are merged by
+name -- never by position, since a positional merge that silently slipped would
+produce an object of exactly the right shape carrying the wrong numbers.
 """
 
 import argparse
@@ -53,18 +52,18 @@ def denoised_layer(adata, cs):
     """
     CellSweep's denoised counts, on `adata`'s axes.
 
-    CellSweep reads the same triplet this object was built from, so its axes
-    normally match exactly and its matrix can be taken as it stands. Nothing in
-    CellSweep's API promises that, though, so the general case is still handled --
-    by name, never by position, since a positional merge that slipped would give a
-    layer of exactly the right shape carrying the wrong cells' counts.
+    CellSweep returns only the barcodes it did not call empty, so its counts are
+    normally scattered onto this object's axes -- by name, never by position, since
+    a positional merge that slipped would give a layer of exactly the right shape
+    carrying the wrong cells' counts. Only when no barcode was called empty do the
+    axes match, and its matrix is taken as it stands.
     """
     if cs.obs_names.equals(adata.obs_names) and cs.var_names.equals(adata.var_names):
         logger.info("CellSweep's axes match the count matrix; taking its counts as they are")
         return cs.X
 
-    # Scatter onto this object's axes. Genes CellSweep dropped stay zero in the
-    # layer, which a sparse matrix stores for free.
+    # Scatter onto this object's axes. The empty droplets and any gene CellSweep
+    # dropped stay zero in the layer, which a sparse matrix stores for free.
     sub = cs[:, cs.var_names.isin(adata.var_names)]
     coo = sp.coo_matrix(sub.X)
     rows = adata.obs_names.get_indexer(sub.obs_names)[coo.row]
@@ -100,11 +99,26 @@ def merge_cellsweep(adata, cellsweep_h5ad):
 
     adata.layers["cellsweep"] = denoised_layer(adata, cs)
 
+    # CellSweep returns only the barcodes it did not call empty (run_cellsweep.py passes
+    # keep_empties=False), so every other barcode was called empty: is_empty True and
+    # celltype 'empty', as run_cellsweep.py labels it. No ambient fraction was estimated
+    # for them, so alpha_hat stays NaN rather than a value a mean would pick up.
     for col in CS_OBS_COLS:
-        if col in cs.obs:
-            adata.obs[col] = cs.obs[col].reindex(adata.obs_names)
-        else:
+        if col not in cs.obs:
             logger.warning(f"CellSweep output carries no obs['{col}']; skipped")
+            continue
+
+        s = cs.obs[col]
+        if col == "is_empty":
+            s = s.reindex(adata.obs_names, fill_value=True)
+        elif col == "celltype":
+            s = s.astype("category")
+            if "empty" not in s.cat.categories:
+                s = s.cat.add_categories(["empty"])
+            s = s.reindex(adata.obs_names).fillna("empty")
+        else:
+            s = s.reindex(adata.obs_names)
+        adata.obs[col] = s
 
     for col in CS_VAR_COLS:
         if col in cs.var:
