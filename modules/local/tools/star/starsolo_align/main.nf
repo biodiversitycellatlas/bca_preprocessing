@@ -31,6 +31,7 @@ process STARSOLO_ALIGN {
     val bam_only
     path genome_index_files
     path(seqspec, stageAs: 'seqspec/*')          // the seqspec file for protocol 'seqspec', empty otherwise
+    val mapping_flag_dir                         // MappingRateCheck.flagDir(workflow), as a string
 
     output:
     tuple val(meta), path("*"),                                 emit: starsolo_files
@@ -118,9 +119,9 @@ process STARSOLO_ALIGN {
     // Mapping-rate check: STAR runs under bin/mapping_rate_guard.sh, which reads
     // Log.progress.out once mapping_rate_check_reads reads are processed, and Log.final.out
     // at the end. It shares a verdict with alevin-fry through the base sample id.
-    def mapping_guard = MappingRateCheck.enabled(params)
+    def mapping_guard = MappingRateCheck.enabled(params.skip_mapping_rate_check, params.min_mapping_rate)
         ? "mapping_rate_guard.sh run --mapper star" +
-          " --flag-dir ${MappingRateCheck.flagDir(workflow)} --sample ${meta.base_id ?: meta.id} --label ${meta.id}" +
+          " --flag-dir ${mapping_flag_dir} --sample ${meta.base_id ?: meta.id} --label ${meta.id}" +
           " --min ${params.min_mapping_rate} --check-reads ${params.mapping_rate_check_reads ?: 0}" +
           " --poll ${params.mapping_rate_poll_secs ?: 60}" +
           " --progress ${meta.id}_Log.progress.out --report ${meta.id}_Log.final.out --"

@@ -15,6 +15,7 @@ process ALEVIN_FRY {
     path(bc_whitelist, stageAs: 'whitelist_?/*')  // in barcode-segment order; empty without a whitelist
     path(splici_index_reference)
     path(salmon_index)
+    val mapping_flag_dir                         // MappingRateCheck.flagDir(workflow), as a string
 
     output:
     tuple val(meta), path("${meta.id}_*"), emit: mapping_files
@@ -37,9 +38,9 @@ process ALEVIN_FRY {
     // Mapping-rate check: salmon runs under bin/mapping_rate_guard.sh, which reads
     // percent_mapped from meta_info.json before the alevin-fry steps, and cancels salmon
     // early if STARsolo already found this sample below the threshold.
-    def mapping_guard = MappingRateCheck.enabled(params)
+    def mapping_guard = MappingRateCheck.enabled(params.skip_mapping_rate_check, params.min_mapping_rate)
         ? "mapping_rate_guard.sh run --mapper salmon" +
-          " --flag-dir ${MappingRateCheck.flagDir(workflow)} --sample ${meta.base_id ?: meta.id} --label ${meta.id}" +
+          " --flag-dir ${mapping_flag_dir} --sample ${meta.base_id ?: meta.id} --label ${meta.id}" +
           " --min ${params.min_mapping_rate} --poll ${params.mapping_rate_poll_secs ?: 60}" +
           " --report ./${meta.id}_run/aux_info/meta_info.json --"
         : ''

@@ -32,10 +32,20 @@ class MappingRateCheck {
 
     static final List<String> VALID_ACTIONS = ['abort', 'skip_sample']
 
-    static boolean enabled(Map params) {
-        return !params.skip_mapping_rate_check && (params.min_mapping_rate ?: 0) as double > 0
+    /** 
+    * Takes the two settings rather than params: a bare 'params' in a process script is
+    * hashed by object identity, which differs on every launch (see flagDir).
+    */
+    static boolean enabled(Object skip, Object minRate) {
+        return !skip && (minRate ?: 0) as double > 0
     }
 
+    /**
+    * Called in the workflow and handed to the mappers as a string input, never from a
+    * process script: Nextflow hashes every global a script references, and neither
+    * 'workflow' (its startTime) nor 'workflow.workDir' (a Path, hashed with its mtime)
+    * hashes the same twice, so -resume would rerun the mapper every time.
+    */ 
     static Path flagDir(workflow) {
         return workflow.workDir.resolve('.mapping_rate_check').resolve(workflow.sessionId.toString())
     }

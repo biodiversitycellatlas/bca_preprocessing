@@ -40,7 +40,8 @@ workflow mapping_alevin_workflow {
             data_output,
             bc_whitelist,
             SALMON_SPLICI.out.splici_index_reference,
-            SALMON_INDEX.out.salmon_index
+            SALMON_INDEX.out.salmon_index,
+            MappingRateCheck.flagDir(workflow).toString()
         )
 
         // Quality control report for Alevin-fry outputs

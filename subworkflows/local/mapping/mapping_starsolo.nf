@@ -67,7 +67,7 @@ workflow mapping_starsolo_workflow {
         def seqspec = params.protocol == 'seqspec' ? file(params.seqspec_file, checkIfExists: true) : []
 
         // Run STARsolo alignment
-        STARSOLO_ALIGN(data_output, bc_whitelist_ch, bam_only, star_index_ch, seqspec)
+        STARSOLO_ALIGN(data_output, bc_whitelist_ch, bam_only, star_index_ch, seqspec, MappingRateCheck.flagDir(workflow).toString())
         ch_versions = ch_versions.mix(STARSOLO_ALIGN.out.versions)
 
         // Re-call cells on a UMI cutoff, or keep STARsolo's own filtered matrix
