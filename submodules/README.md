@@ -8,20 +8,5 @@ This repository uses several external pipelines and tools as git submodules. The
 | Path                         | Source Repository                                          | Description |
 |-----------------------------|--------------------------------------------------------------|-------------|
 | `submodules/10x_saturate`   | https://github.com/bonitavw/10x_saturate.git (branch `CR_UR_support`), fork of [zolotarovgl/10x_saturate](https://github.com/zolotarovgl/10x_saturate) | 10x Genomics saturation and library complexity estimation tool. |
-| `submodules/GeneExt`        | https://github.com/zolotarovgl/GeneExt.git                  | Gene extension utilities used for reference preprocessing. |
+| `submodules/GeneExt`        | https://github.com/zolotarovgl/GeneExt.git                  | Gene model adjustment tool for improved scRNA-seq quantification. |
 | `submodules/pavianCore`     | https://github.com/Enthusiasm23/pavianCore.git              | Command-line visualization for kraken reports, extension of [Pavian](https://github.com/fbreitwieser/pavian). |
-
----
-
-### Initializing Submodules
-
-After cloning this repository, retrieve all external dependencies with:
-
-```bash
-git submodule update --init --recursive
-```
-
-To update the submodules to their latest remote commits:
-```bash
-git submodule update --remote --recursive
-```

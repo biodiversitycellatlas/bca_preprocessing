@@ -620,16 +620,6 @@
                     "type": "string",
                     "description": "Cluster options added with -profile gpu.",
                     "hidden": true
-                },
-                "dynamic_memory": {
-                    "type": "object",
-                    "description": "Input-size dependent memory requests per process, see docs/RESOURCE_TUNING.md.",
-                    "hidden": true
-                },
-                "seqtech_parameters": {
-                    "type": "object",
-                    "description": "Per-protocol defaults, set in conf/seqtech_parameters.config.",
-                    "hidden": true
                 }
             }
         },

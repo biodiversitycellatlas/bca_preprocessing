@@ -28,9 +28,7 @@
 
 ## Overview
 
-<table>
-<tr>
-<td valign="top">
+<img src="img/Preprocs_Pipeline.png" alt="pipeline" align="right" width="50%">
 
 This nextflow pipeline is designed to pre-process single-cell and single-nucleus RNA-seq data. It accepts FASTQ files from multiple sequencing platforms, at the moment being:
 
@@ -49,14 +47,7 @@ The pipeline is highly configurable, and many processes can be enabled, disabled
 - Filtering report, based on three levels of filtering: cell-level, metacell-level and gene-level filtering.
 - Raw & filtered count matrices, as MTX or H5AD formats.
 
-</td>
-<td width="50%">
-
-![pipeline](img/Preprocs_Pipeline.png)
-
-</td>
-</tr>
-</table>
+<br clear="right">
 
 
 ---
@@ -67,7 +58,6 @@ The pipeline is highly configurable, and many processes can be enabled, disabled
 ```
 git clone --recurse-submodules https://github.com/biodiversitycellatlas/bca_preprocessing.git
 ```
-
 
 2. **Check dependencies**
 
@@ -80,7 +70,7 @@ micromamba --version
 apptainer --version
 ```
 
-3. **(Optionally) Installing external pipelines as validation**
+3. **(Optionally) Installing an external pipeline as validation**
 
 For instructions on how to download the supported external pipelines and configure additional the parameters, read  [supported external pipelines](docs/INSTALLATION_EXTERNAL_PIPELINES.md). 
 
@@ -102,11 +92,10 @@ SCIRNASEQ3_EXAMPLE,BCA001_R2_001.fastq.gz,BCA001_R1_001.fastq.gz,,2500,A02,D09,P
 For a more detailed explanation of the samplesheet configuration per protocol see [detailed samplesheet configurations](docs/PROTOCOLS_AND_WHITELISTS.md).
 
 
-
 ### 2. Create a custom configuration file
 
 In the custom configuration file the user specifies the location of required files such as the previously-configured samplesheet and genome reference.
-To modify the behaviour of certain processes or enable external pipelines, many additional variables can be added to the configuration file. An overview of the extended custom parameters is listed [here](docs/CONFIGURATION_PARAMETERS.md).
+To modify the behaviour of certain processes or enable external pipelines, many additional variables can be added to the configuration file, see an overview of [all configuration parameters](docs/CONFIGURATION_PARAMETERS.md).
 
 Example [`custom_parameters.config`](./conf/custom_parameters.config):
 ```
@@ -118,16 +107,17 @@ params {
 
     // Protocol-specific parameters
     protocol = ""                       // Sequencing technique
-    bc_whitelist = ""                   // Path(s) or URL(s) to the barcode whitelist, separated by whitespace
+    bc_whitelist = ""                   // Path(s) or URL(s) to the barcode whitelist, separated by a whitespace
 
     // References
-    ref_gtf = ""                        // Reference genome files
-    ref_fasta = ""                      // Reference genome files
-    mt_contig = "chrM M MT"             // Mitochondrion contig, if not provided defaults to "chrM M MT"
+    ref_gtf = ""                        // Path to the gene annotation GTF
+    ref_fasta = ""                      // Path to the genome FASTA
+    mt_contig = "chrM M MT"             // Mitochondrial contig, if not provided defaults to "chrM M MT"
     star_index = null                   // Path to STAR index, leave empty to create one automatically
 
     // Enable/disable processes
     perform_geneext = true              // Enable/disable GeneExt
+    perform_doublet_detection = false   // Enable/disable scrublet & scDblFinder
     perform_kraken = false              // Enable/disable Kraken2 & Pavian
 
 }
@@ -149,6 +139,7 @@ nextflow run
 # Submitting pipeline to an HPC using SLURM
 sbatch submit_nextflow.sh main.nf
 ```
+
 
 ## Output
 
@@ -188,9 +179,11 @@ output_directory/
 └── BDrhapsody_pipeline/            # (Optional) External BD Rhapsody outputs
 ```
 
+
 ## Citations
 
 An extensive list of references for the tools used by the pipeline can be found in the [CITATIONS.md](CITATIONS.md) file.
+
 
 ## Contact us
 
