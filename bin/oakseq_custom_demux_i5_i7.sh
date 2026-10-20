@@ -75,7 +75,10 @@ done
 
 # Reverse‐complement function
 revcomp() {
-  echo "$1" | tr 'ACGTacgt' 'TGCAtgca' | rev
+  local comp rc="" i
+  comp=$(echo "$1" | tr 'ACGTacgt' 'TGCAtgca')
+  for (( i=${#comp}-1; i>=0; i-- )); do rc+="${comp:i:1}"; done
+  echo "$rc"
 }
 
 barcode_rc=$(revcomp "$barcode_raw")

@@ -132,9 +132,9 @@ params {
 ```
 # Submitting the pipeline in a local environment or interactive session on a HPC
 nextflow run
-    -profile <institution_config>,<environment_manager>
-    -c </path/to/custom_parameters.config>
-    -w </path/to/workdir>
+    -profile <institution_config>,<environment_manager>         # e.g. -profile crg,conda
+    -c </path/to/custom_parameters.config>                      # e.g. -c conf/custom_parameters.config
+    -w </path/to/workdir>                                       # Temporary nextflow files are stored here
 
 # Submitting pipeline to an HPC using SLURM
 sbatch submit_nextflow.sh main.nf
@@ -143,9 +143,9 @@ sbatch submit_nextflow.sh main.nf
 
 ## Output
 
-The pipeline outputs are organized into sub-directories based on the analysis steps performed, see [output.md](/docs/output.md)
-Below is an overview of the possible directory structure:
+The pipeline outputs are organized into sub-directories based on the analysis steps performed, see [output.md](/docs/output.md) for a comprehensive description of the ouput directory content.
 
+Below is an example of the possible directory structure:
 ```
 output_directory/
 ├── dashboard.html                  # Portable HTML dashboard — start here
