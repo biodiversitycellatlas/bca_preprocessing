@@ -21,17 +21,18 @@ Within each custom configuration file the following variables can be defined:
 | Variable               | Required/Optional | Description |
 |------------------------|-------------------|-------------|
 | `input`                | __Required__      | Path to the samplesheet. |
-| `outdir`               | __Required__      | Path to the results/output directory; must exist before running. |
+| `outdir`               | __Required__      | Path to the results/output directory; created if missing. |
 | `bc_whitelist`         | __Required__      | Path or link to the barcode whitelist file(s), multiple ones separated by whitespace. If links are given, they are automatically downloaded (and unzipped if applicable) for any protocol. Not used by `"marsseq_v1"`/`"marsseq_v2"`, which run without a whitelist.|
-| `protocol`              | __Required__     | Specifies the sequencing technology used (must be one of the following: `"oak_seq"`, `"10xv1"`, `"10xv2"`, `"10xv3"`, `"10xv4"`, `"parse_biosciences_WT_mini"` or `"parse_biosciences_WT"`,     `"bd_rhapsody_v1"`, `"bd_rhapsody_enhancedbeads"`, `"sciRNAseq3"` , `"ultima_genomics"`, `"marsseq_v1"`, `"marsseq_v2"` or `"seqspec"`). |
+| `protocol`              | __Required__     | Specifies the sequencing technology used (must be one of the following: `"oak_v1"`, `"10xv1"`, `"10xv2"`, `"10xv3"`, `"10xv4"`, `"parse_biosciences_WT_mini"` or `"parse_biosciences_WT"`,     `"bd_rhapsody_v1"`, `"bd_rhapsody_enhancedbeads"`, `"sciRNAseq3"` , `"ultima_genomics"`, `"marsseq_v1"`, `"marsseq_v2"` or `"seqspec"`). |
 | `ref_fasta`            | __Required__      | Path to the genome FASTA file used for mapping reads. |
 | `ref_gtf`              | __Required__      | Path to the GTF/GFF file formatted for STARsolo. |
-| `ref_gtf_alt`          | Optional          | Path to the GTF/GFF file formatted specifically for analysis with Parse Biosciences / CellRanger pipeline. Defaults to the same path as `ref_gtf`. |
+| `ref_gtf_alt`          | Optional          | **Deprecated, no effect.** The Cell Ranger and split-pipe references are built from `ref_gtf`, like the STARsolo one. Setting it logs a warning. |
 | `run_method`             | Optional          | Method of running the pre-processing pipeline, demonstrated in the [pipeline diagram](img/Preprocs_Pipeline.png), one of `"standard"`, `"geneext_only"`, `"external_pipeline_only"` or `"post_mapping"`. Default is set to `"standard"`. `"post_mapping"` picks a finished run up at the point mapping ended and redoes everything after it. |
 | `previous_outdir`      | Optional          | Only used with `run_method = "post_mapping"`: the results directory the published mapping results are read back from. Defaults to `outdir`, i.e. re-running in place. |
 | `mapping_software`     | Optional          | Software used to map reads (must be one of the following: `"starsolo"`, `"alevin"`, `"both"/"alevin_starsolo"` or `"alevin_subsampled_starsolo"`). Default set to `"starsolo"`. |
 | `cellfilter_method`    | Optional          | How cells are called: `"star_solocellfilter"` (each mapper's own cell filter: STARsolo's `--soloCellFilter`, alevin-fry's knee), `"second_derivative"` or `"manual_cutoff"`. Default set to `"second_derivative"`. The latter two apply to both mappers: they filter the count matrix on a UMI cutoff and recompute every cell-dependent statistic in the report on the retained cells, differing only in where that cutoff comes from. See [Cell calling](#cell-calling). |
 | `perform_demultiplexing` | Optional        | Boolean flag to enable or disable demultiplexing of the FASTQ files, where applicable. Default is `true`. |
+| `perform_trimming`     | Optional          | Boolean flag to enable or disable trimming of adapters and low-quality bases with fastp, where applicable (sci-RNA-seq3 and seqspec). Default is `true`. |
 | `oak_demux_max_mismatches` | Optional      | (OAK only) Mismatches allowed between an index read and the aliquot's i5/i7 barcode. Default is `1` (set in `conf/seqtech_parameters.config`). |
 | `seqspec_file`         | Optional          | Path to the seqspec file. |
 | `subsample_nreads`     | Optional          | The size (number of reads) of the subset used to map to STARsolo, in case the parameter `mapping_software = alevin_subsampled_starsolo`. Default set to `100000000` reads. |

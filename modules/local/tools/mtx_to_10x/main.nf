@@ -12,6 +12,7 @@ process MTX_TO_10X {
         params.dynamic_memory?.MTX_TO_10X, [mtx, barcodes, features], task.attempt, 10) }
 
     conda "${moduleDir}/environment.yml"
+    container "oras://community.wave.seqera.io/library/python_numpy_pandas_scipy:9829b20b4522c6a0"
 
     input:
     tuple val(meta), path(mtx), path(barcodes), path(features)

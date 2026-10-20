@@ -4,6 +4,7 @@ process OAK_DEMUX {
     label 'process_single'
 
     conda "${moduleDir}/environment.yml"
+    container "oras://community.wave.seqera.io/library/seqtk_gawk_gzip:a2c1feaa489ca45f"
 
     input:
     tuple val(meta), path(fastq_cDNA), path(fastq_BC_UMI), path(fastq_indices), path(input_file)

@@ -36,6 +36,7 @@ tests/
 │   └── execution_trace_formats.txt  # hand-written trace covering awkward formats
 └── lib/
     ├── common.sh                  # logging, result recording, summary
+    ├── check_image_env.py         # compares an image's packages with an environment.yml
     ├── extract_containers.awk     # pulls image refs out of module definitions
     ├── make_annotation_fixture.py # generates both mappers' triplets plus doublet
     │                              # and CellSweep annotations to merge
@@ -102,12 +103,31 @@ Extracts the image references declared by the modules and checks that each one
 resolves for the container profiles in `nextflow.config` (`docker`, `podman`,
 `singularity`, `apptainer`, `wave`).
 
+A module runs from its `environment.yml` under the conda profiles and from its
+container under the others, so the check also holds the two together:
+
+- `coverage` fails for every module that has an `environment.yml` but no
+  container. It needs no engine, so it runs everywhere.
+- At the default depth for singularity/apptainer (`env`), each pulled image is
+  compared with the `environment.yml` of every module that declares it, by
+  [`lib/check_image_env.py`](lib/check_image_env.py). Every conda and pip
+  dependency must be installed and satisfy its version constraint. This is what
+  fails when an `environment.yml` changes and its image is not rebuilt.
+
 ```bash
 # Registry lookups only, no layers downloaded
 bash tests/run_tests.sh containers -- --depth manifest
 
-# Actually download the singularity images
+# Download the singularity images without comparing them to the environments
 bash tests/run_tests.sh containers -- --profiles singularity --depth pull
+```
+
+After changing an `environment.yml`, rebuild its image from that file and put
+the new reference in the module, e.g. with the
+[Wave CLI](https://github.com/seqeralabs/wave-cli):
+
+```bash
+wave --conda-file modules/local/tools/seqtk/environment.yml --freeze --singularity --await
 ```
 
 Notes:

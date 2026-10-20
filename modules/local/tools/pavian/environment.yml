@@ -21,5 +21,8 @@ dependencies:
   - r-miniui
   - r-xml2
   - r-shiny
+  - r-d3r
+  - r-ggsci
+  - r-magrittr
   - phantomjs
   - pandoc

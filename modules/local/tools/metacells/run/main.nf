@@ -27,6 +27,7 @@ process METACELL2 {
         params.dynamic_memory?.METACELL2, [cells_h5ad], task.attempt, 36) }
 
     conda "${moduleDir}/environment.yml"
+    container "oras://community.wave.seqera.io/library/python_h5py_metacells_anndata_pruned:101f1effbc94defd"
 
     input:
     tuple val(meta), path(cells_h5ad), path(ambient_h5ad)

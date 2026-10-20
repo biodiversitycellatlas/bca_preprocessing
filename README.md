@@ -21,12 +21,14 @@
 
 1. [Overview](#overview)
 2. [Installation](#installation)
-3. [Setup](#setup)
+3. [Quick Setup](#quick-setup)
 4. [Usage](#usage)
 5. [Output](#output)
 6. [Citations](#citations)
 
 ## Overview
+
+<img src="img/Preprocs_Pipeline.png" alt="pipeline" align="right" width="50%">
 
 This nextflow pipeline is designed to pre-process single-cell and single-nucleus RNA-seq data. It accepts FASTQ files from multiple sequencing platforms, at the moment being:
 
@@ -39,22 +41,14 @@ This nextflow pipeline is designed to pre-process single-cell and single-nucleus
 - MARS-seq
 - and others, when providing a [seqspec](https://github.com/pachterlab/seqspec) file
 
-Depending on the chosen sequencing technique, it handles the processing of the FASTQ files accordingly. Whenever possible, we compared our results to a commercial pre-processing pipeline for that sequencing technique. For example, comparing our Parse Biosciences results to the official split-pipe pipeline from Parse Biosciences. While we cannot provide this commercial software directly, you can install it yourself (e.g. by following [these instructions](docs/INSTALLATION_EXTERNAL_PIPELINES.md)), and provide a path where the installation is located in the configuration file. This way, it will be executed alongside of the BCA pre-processing pipeline.
+The pipeline is highly configurable, and many processes can be enabled, disabled or adjusted in the configuration file. The most notable output files are:
 
-The pipeline will produce the following output files:
+- Quality Control report, summarizing the most important results across processes including: mapping, cell-calling, gene extension, doublet detection and more.
+- Filtering report, based on three levels of filtering: cell-level, metacell-level and gene-level filtering.
+- Raw & filtered count matrices, as MTX or H5AD formats.
 
-- Quality control reports for raw FASTQ files
-- Raw & Filtered count matrices (exonic, exonic & intronic) from STARsolo and/or Alevin-fry
-- (Optional) Intronic count matrices for RNA velocity (spliced/unspliced/ambiguous), as `.mtx` and `.h5ad`
-- (Optional) mtDNA and rRNA statistics
-- (Optional) Sequencing saturation analysis
-- (Optional) Extended gene annotation file
-- (Optional) Ambient-RNA-corrected count matrices (`.h5ad`) from the CellSweep step
-- (Optional) Kraken2 taxonomic classification
-- MultiQC report
-- Portable HTML dashboard displaying results
+<br clear="right">
 
-![pipeline](/img/Preprocs_Pipeline.png)
 
 ---
 
@@ -65,176 +59,131 @@ The pipeline will produce the following output files:
 git clone --recurse-submodules https://github.com/biodiversitycellatlas/bca_preprocessing.git
 ```
 
+2. **Check dependencies**
 
-2. **Conda & Nextflow**
-
-In order to run the pipeline, you must have [Conda](https://anaconda.org/) and [Nextflow](https://www.nextflow.io/docs/latest/index.html) installed. When working on a HPC, there might be a module system available to use instead, simplifying the use of different software.
-To see which modules are available and how to load them:
-
+In order to run the pipeline, you must have [Nextflow](https://www.nextflow.io/docs/latest/index.html) installed, as well as access to one of the following environment managers: Conda, Mamba, Micromamba or Singularity/Apptainer. To verify the installations, print the versions of the available software:
 ```
-# List currently loaded modules
-module list
-
-# Check for available Nextflow modules
-module avail Nextflow
-
-# Load Nextflow module (make sure to change version accordingly!)
-module load Nextflow/24.04.3
+nextflow -v
+conda -V
+mamba --version
+micromamba --version
+apptainer --version
 ```
 
-To test the installations, please try:
+3. **(Optionally) Installing an external pipeline as validation**
 
-```
-# Verify conda installation
-conda -h
+For instructions on how to download the supported external pipelines and configure additional the parameters, read  [supported external pipelines](docs/INSTALLATION_EXTERNAL_PIPELINES.md). 
 
-# Verify nextflow installation
-nextflow -h
-```
 
-3. **(Optional) Installing external pipelines as validation**
-
-After following these [installation instructions](docs/INSTALLATION_EXTERNAL_PIPELINES.md) for some of the sequencing technologies, see table below, users can run external pipelines simultaneaously with the BCA pre-processing pipeline. Depending on the sequencing technique, you only have to provide the path to the installation as within the [`conf/custom_parameters.config`](conf/custom_parameters.config) file or a boolean flag to enable/disable the execution, see Setup explenation below, and it will automatically start.
-
-This option is limited to the following sequencing technologies:
-| Sequencing technology | External pipeline | Requires manual installation |
-|-----------------------|-------------------|-------------------|
-| 10x Genomics | [10x Genomics Cell Ranger](https://github.com/10XGenomics/cellranger) | :x: |
-| OAK | [10x Genomics Cell Ranger](https://github.com/10XGenomics/cellranger) | :x: |
-| Ultima Genomics | [10x Genomics Cell Ranger](https://github.com/10XGenomics/cellranger) | :x: |
-| Parse Biosciences | [split-pipe](https://support.parsebiosciences.com/hc/en-us/articles/27066395947412-How-Do-I-Analyze-my-Parse-Biosciences-Data) | :heavy_check_mark: |
-| BD-Rhapsody | [BD Rhapsody™ Sequence Analysis Pipeline](https://www.bdbiosciences.com/en-us/products/software/rhapsody-sequence-analysis-pipeline) | :heavy_check_mark: |
-
-## Setup
+## Quick Setup
 
 ### 1. Create a samplesheet
 
-The samplesheet should be a comma-seperated file, specifying the names and locations of the files and details necessary for pipeline execution. Depending on the chosen sequencing technique the order of the FASTQ files is altered, R1 might contain the cDNA while in other cases this might contain the Cell barcode & UMI's, check the available documentation or do a manual inspection.
+The samplesheet should be a comma-seperated file, specifying the sample id, locations of the FASTQ files (compressed or uncompressed) and details necessary for pipeline execution. Depending on the chosen sequencing technique the order of the FASTQ files is altered, R1 might contain the cDNA while in other cases this might contain the Cell barcode & UMI's, check the available documentation or do a manual inspection. One samplesheet should be created for every species, and duplicate sample id's will be merged before mapping.
 
-Some protocols need more than the FASTQ paths: sci-RNA-seq3 needs the `p5`, `p7` and `rt` columns filled in, Parse Biosciences needs the group-well definition in `rt`, OAK needs one row per aliquot with its i5 (`p5`) and optional i7 (`p7`) barcode plus the index FASTQs, and Parse Biosciences and MARS-seq put the cDNA in read 1 rather than read 2. These per-protocol requirements, together with the read layouts and the pre-processing steps they trigger, are described in [Protocol-specific steps & whitelists](docs/PROTOCOLS_AND_WHITELISTS.md).
+This following example shows one configuration example for every type of protocol, [`example_samplesheet.csv`](./examples/example_samplesheet.csv):
+```
+sample,fastq_cDNA,fastq_BC_UMI,fastq_indices,expected_cells,p5,p7,rt
+10x_OAKSEQ_EXAMPLE,BCA001_S0_L001_R2_001.fastq.gz,BCA001_S0_L001_R1_001.fastq.gz,,2500,,,
+BD_RHAPSODY_EXAMPLE,BCA001_R2_001.fastq.gz,BCA001_R1_001.fastq.gz,,2500,,,
+PARSE_BIOSCIENCES_EXAMPLE,BCA001_R1_001.fastq.gz,BCA001_R2_001.fastq.gz,,2500,,,A1-A3
+SCIRNASEQ3_EXAMPLE,BCA001_R2_001.fastq.gz,BCA001_R1_001.fastq.gz,,2500,A02,D09,P02-A01:P02-H07
+```
+For a more detailed explanation of the samplesheet configuration per protocol see [detailed samplesheet configurations](docs/PROTOCOLS_AND_WHITELISTS.md).
 
-In the table below, the available variables are summarized:
-| Variable | Required/Optional | Description |
-| -------------- | ----------------- | ----------------------------------------------------------------------------------------------------------------------------------------------------------------------- |
-| sample | **Required** | Must be unique unless you want the FASTQ files to be merged after demultiplexing. |
-| fastq_cDNA | **Required** | Path to the FASTQ file containing cDNA. Uncompressed (`.fastq`/`.fq`) and gzipped (`.fastq.gz`/`.fq.gz`) files are both accepted, and may be mixed within a sample. |
-| fastq_BC_UMI | **Required** | Path to the FASTQ file containing the cell barcode & UMI. Uncompressed and gzipped files are both accepted. |
-| fastq_indices | Optional | Path to the FASTQ index file(s), to provide both I1 and I2, use an asterisk to the path like /path/name_I\*. Uncompressed and gzipped files are both accepted. |
-| expected_cells | **Required** | Number of expected cells |
-| p5 | Optional | Required for sci-RNA-seq3 and OAK (i5 barcode of the aliquot) |
-| p7 | Optional | Required for sci-RNA-seq3; optional for OAK (i7 barcode of the aliquot) |
-| rt | Optional | Only required for sci-RNA-seq3 & Parse Biosciences (group-well definition) |
 
-Relative FASTQ paths are read from the samplesheet's own folder; absolute paths and cloud URIs (`s3://`, ...) are used as they are, and `~/` is expanded to the home directory. See [How paths are resolved](docs/CONFIGURATION_PARAMETERS.md#how-paths-are-resolved).
+### 2. Create a custom configuration file
 
-To illustrate how the samplesheet would be filled across the different sequencing techniques, the table below is given, as well as an example samplesheet published [here](examples/example_samplesheet.csv). The names within the parenthesis of the p5 and rt column indicate the official names, often referenced like this in the official documentation of this protocol.
+In the custom configuration file the user specifies the location of required files such as the previously-configured samplesheet and genome reference.
+To modify the behaviour of certain processes or enable external pipelines, many additional variables can be added to the configuration file, see an overview of [all configuration parameters](docs/CONFIGURATION_PARAMETERS.md).
 
-| sample                    | fastq_cDNA | fastq_BC_UMI | fastq_indices | expected_cells | p5  | p7  | rt         |
-| ------------------------- | ---------- | ------------ | ------------- | -------------- | --- | --- | ---------- |
-| sciRNAseq3_example        | R2         | R1           |               | expected_cells | p5  | p7  | rt         |
-| bd_rhapsody_example       | R2         | R1           |               | expected_cells |     |     |            |
-| parse_biosciences_example | R1         | R2           |               | expected_cells |     |     | rt (wells) |
-| 10xv3_example             | R2         | R1           |               | expected_cells |     |     |            |
-| oak_v1_example            | R2         | R1           | I* (I1 & I2) | expected_cells | p5  | p7  |            |
-| ultima_genomics_example   | R2         | R1           |               | expected_cells |     |     |            |
-| marsseq_example           | R1         | R2           |               | expected_cells |     |     |            |
+Example [`custom_parameters.config`](./conf/custom_parameters.config):
+```
+params {
 
-### 2. Edit (or create) a custom configuration file
+    // General parameters
+    input = ""                          // Path to the samplesheet
+    outdir = ""                         // Path to the results directory, created if missing
 
-To set the custom parameters for each run, the easiest solution is to fill in the fiels in [`conf/custom_parameters.config`](conf/custom_parameters.config). This custom configuration file extends the general [`nextflow.config`](nextflow.config) file in the base of this repository. [`conf/custom_parameters.config`](conf/custom_parameters.config) contains the minimum variables in order to run this pipeline, and are described in the table below in more detail.
+    // Protocol-specific parameters
+    protocol = ""                       // Sequencing technique
+    bc_whitelist = ""                   // Path(s) or URL(s) to the barcode whitelist, separated by a whitespace
 
-To customize the run, you can add other (optional) variables to the [`conf/custom_parameters.config`](conf/custom_parameters.config) file. If you have a multi-species experiment, one configuration file per species must be created in order to analyze the data with the corresponding genome annotation files.
+    // References
+    ref_gtf = ""                        // Path to the gene annotation GTF
+    ref_fasta = ""                      // Path to the genome FASTA
+    mt_contig = "chrM M MT"             // Mitochondrial contig, if not provided defaults to "chrM M MT"
+    star_index = null                   // Path to STAR index, leave empty to create one automatically
 
-Within each custom configuration file the following variables can be defined:
+    // Enable/disable processes
+    perform_geneext = true              // Enable/disable GeneExt
+    perform_doublet_detection = false   // Enable/disable scrublet & scDblFinder
+    perform_kraken = false              // Enable/disable Kraken2 & Pavian
 
-| Variable                 | Required/Optional | Description                                                                                                                                                                                                                                                        |
-| ------------------------ | ----------------- | ------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------ |
-| `input`                  | **Required**      | Path to the samplesheet.                                                                                                                                                                                                                                           |
-| `outdir`                 | **Required**      | Path to the results/output directory; created if missing.                                                                                                                                                                                                           |
-| `protocol`               | **Required**      | Specifies the sequencing technology used (must be one of the following: `"oak_v1"`, `"10xv1"`, `"10xv2"`, `"10xv3"`, `"10xv4"`, `"parse_biosciences_WT_mini"` or `"parse_biosciences_WT"`, `"bd_rhapsody_v1"`, `"bd_rhapsody_enhancedbeads"`, `"sciRNAseq3"` , `"ultima_genomics"`, `"marsseq_v1"`, `"marsseq_v2"` or `"seqspec"`). |
-| `bc_whitelist`           | **Required**      | Path or link to the barcode whitelist file(s), multiple ones separated by whitespace. If links are given, they are automatically downloaded (and unzipped if applicable) for any protocol. Not used by `"marsseq_v1"`/`"marsseq_v2"`, which run without a whitelist. |
-| `ref_fasta`              | **Required**      | Path to the genome FASTA file used for mapping reads.                                                                                                                                                                                                              |
-| `ref_gtf`                | **Required**      | Path to the GTF/GFF file formatted for STARsolo.                                                                                                                                                                                                                   |
-| `run_method`             | Optional          | Method of running the pre-processing pipeline, demonstrated in the [pipeline diagram](img/Preprocs_Pipeline.png), one of `"standard"`, `"geneext_only"`, `"external_pipeline_only"` or `"post_mapping"`. Default is set to `"standard"`. `"post_mapping"` redoes everything after mapping on a finished run; re-calling cells with a different `expected_cells` or a manual cutoff, without mapping again; see [Re-running after mapping](docs/CONFIGURATION_PARAMETERS.md#re-running-after-mapping). |
-| `previous_outdir`        | Optional          | Only with `run_method = "post_mapping"`: the finished run's results directory to read the mapping results back from. Defaults to `outdir`.                                                                                                                        |
-| `perform_demultiplexing` | Optional          | Boolean flag to enable or disable demultiplexing of the FASTQ files, where applicable. Default is `true`.                                                                                                                                                          |
-| `seqspec_file`           | Optional          | Path to the seqspec file.                                                                                                                                                                                                                                          |
-| `mapping_software`       | Optional          | Software used to map reads (must be one of the following: `"starsolo"`, `"alevin"` or `"both"`). Default set to `"starsolo"`.                                                                                                                                      |
-| `perform_geneext`        | Optional          | Boolean flag to enable or disable the gene extension step in preprocessing. Default is `false`.                                                                                                                                                                    |
-| `geneext_downstream`     | Optional          | Only with `perform_geneext`: `"geneext_only"` maps and analyses only the runs against the extended annotation, `"both"` also the standard-annotation runs. Default is `"geneext_only"`.                                                                           |
-| `perform_kraken`         | Optional          | Boolean flag to enable or disable Kraken2 classification of unmapped reads. Default is `false`.                                                                                                                                                                    |
+}
+```
 
-To modify the behaviour of certain processes or enable external pipelines, additional variables can be added to the configuration file. An overview of the extended custom parameters is listed [here](docs/CONFIGURATION_PARAMETERS.md).
 
 ## Usage
 
-### Pre-requisites:
-
-- [ ] Created a samplesheet in CSV format (see [examples/example_samplesheet.csv](examples/example_samplesheet.csv))
-- [ ] Edited ([`conf/custom_parameters.config`](conf/custom_parameters.config)) or created a new custom configuration file
-- [ ] Conda & Nextflow available in base environment
-
-
-### Verifying your setup
-
-Before committing to a full run, you can check that the software the pipeline
-depends on is actually available on your systema:
-
-```
-# Run all available checks
-bash tests/run_tests.sh
-```
-
-See [`tests/README.md`](tests/README.md) for the full set of options.
-
-
-### Running the Pipeline
-
 > [!WARNING]
-> The pipeline must be run in the conda base environment, it cannot activate the different environments properly with a prior environment activated. It should have access to run both `nextflow` and `conda` in the commandline.
+> When using conda, mamba or micromamba: the pipeline must be run in the base environment, it cannot activate the different environments properly with a prior environment activated.
 
 ```
-
+# Submitting the pipeline in a local environment or interactive session on a HPC
 nextflow run
-    -profile <institution_config>,conda
-    -c </path/to/custom_parameters.config>
-    -w </path/to/workdir>
+    -profile <institution_config>,<environment_manager>         # e.g. -profile crg,conda
+    -c </path/to/custom_parameters.config>                      # e.g. -c conf/custom_parameters.config
+    -w </path/to/workdir>                                       # Temporary nextflow files are stored here
 
-# OR - submitting pipeline through a bash script
+# Submitting pipeline to an HPC using SLURM
 sbatch submit_nextflow.sh main.nf
 ```
 
+
 ## Output
 
-The pipeline outputs are organized into sub-directories based on the analysis steps performed.
-Below is an overview of the possible directory structure:
+The pipeline outputs are organized into sub-directories based on the analysis steps performed, see [output.md](/docs/output.md) for a comprehensive description of the ouput directory content.
 
+Below is an example of the possible directory structure:
 ```
 output_directory/
-├── demultiplex/            # Demultiplexed FASTQ files
-├── pipeline_info/          # Run execution details (configs, samplesheet, execution trace/report/timeline)
-├── fastqc/                 # Quality control reports for raw FASTQ files
-├── mapping_STARsolo/       # STARsolo count matrices and stats
-├── mapping_alevin/         # (Optional) Alevin-fry count matrices and AlevinQC
-├── summary_results/        # MultiQC report, Per-Cell metrics, and mapping_stats.tsv table
-├── dashboard.html          # Portable HTML dashboard displaying results
+├── dashboard.html                  # Portable HTML dashboard — start here
+├── filtering_report.html           # (Optional) Interactive metacell filtering report
+├── versions.yml                    # Software versions of every process that ran
+├── pipeline_info/                  # Run configuration, samplesheet, execution traces
+|
+├── genome/                         # Generated reference indices
+├── demultiplex/                    # Demultiplexed FASTQ files (Protocol-dependent)
+├── fastp/                          # Trimmed FASTQ files (Protocol-dependent)
+├── marsseq_reformat/               # Reconstructed reads (MARS-seq only)
+├── fastqc/                         # Quality control reports for raw FASTQ files
+├── mapping_STARsolo/               # STARsolo alignments, matrices and statistics
+├── mapping_alevin/                 # (Optional) alevin-fry matrices and AlevinQC
+├── anndata/                        # Count matrices converted to .h5ad
+│   └── <analytical_run>/velocity/  # (Optional) Spliced/unspliced layers for RNA velocity
+├── rRNA_mtDNA/                     # rRNA, mtDNA and antisense reads (runs with a BAM)
+├── cellsweep/                      # (Optional) CellSweep ambient RNA removal
+├── doublet_filtering/              # (Optional) Scrublet, scDblFinder and consensus calls
+├── metacells/                      # (Optional) Metacell2 metacells and their QC summaries
+├── metacell_filtering/             # (Optional) Filtered UMI matrices from the report's selection
+├── saturation/                     # (Optional) Sequencing saturation analysis
+├── gene_ext/                       # (Optional) GeneExt extended annotation, report and log
+├── kraken/                         # (Optional) Taxonomic classification of unmapped reads
 │
-├── anndata/                # Count matrices as .h5ad (incl. optional velocity/ layers)
+├── summary_results/                # MultiQC report, mapping_stats.tsv, per-cell metrics
+├── containers/                     # (Optional) Downloaded Demuxafy image
 │
-├── cellsweep/              # (Optional) CellSweep ambient RNA removal
-├── saturation/             # (Optional) Sequencing saturation analysis
-├── gene_ext/               # (Optional) Extended GTF file and outputs from GeneExt
-├── rRNA_mtDNA/             # mtDNA, rRNA and antisense reads (runs with a BAM)
-├── kraken/                 # (Optional) Kraken2 taxonomic classification of unmapped reads
-│
-├── CellRanger_pipeline/    # (Optional) External Cell Ranger outputs
-├── ParseBio_pipeline/      # (Optional) External Split-pipe outputs
-└── BDrhapsody_pipeline/    # (Optional) External BD Rhapsody outputs
+├── CellRanger_pipeline/            # (Optional) External Cell Ranger outputs
+├── ParseBio_pipeline/              # (Optional) External split-pipe outputs
+└── BDrhapsody_pipeline/            # (Optional) External BD Rhapsody outputs
 ```
+
 
 ## Citations
 
 An extensive list of references for the tools used by the pipeline can be found in the [CITATIONS.md](CITATIONS.md) file.
+
 
 ## Contact us
 
