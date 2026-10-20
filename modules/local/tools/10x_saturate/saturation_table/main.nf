@@ -14,6 +14,9 @@ process SATURATION_TABLE {
 
     conda "${moduleDir}/environment.yml"
     container "oras://community.wave.seqera.io/library/pysam_samtools_bc_python_pruned:82a1e27e868113f0"
+    // The script lives in a submodule. A container only sees the task directory and bin/,
+    // unless the pipeline happens to share a parent directory with the work directory
+    containerOptions { "${workflow.containerEngine in ['docker', 'podman'] ? '-v' : '-B'} ${projectDir}/submodules/10x_saturate:${projectDir}/submodules/10x_saturate" }
 
     input:
     tuple val(meta),   path(bam_file)

@@ -22,6 +22,7 @@ process CELLSWEEP {
     maxRetries 1
 
     conda "${moduleDir}/environment.yml"
+    container "oras://community.wave.seqera.io/library/python_pip_anndata_scanpy_pruned:c51d8166168b70dd"
 
     input:
     tuple val(meta), path(mtx), path(barcodes), path(features), path(doublet_results)
@@ -43,6 +44,9 @@ process CELLSWEEP {
     echo "Mapping method: ${meta.mapping_method}"
     echo "Datatype: ${meta.datatype}"
     echo "Doublet results: ${doublet_results ?: 'none (already filtered, or detection off)'}"
+
+    # scanpy's numba functions cache next to their source, which a container image keeps read-only
+    export NUMBA_CACHE_DIR=\$PWD/.numba_cache
 
     run_cellsweep.py \\
         --mtx ${mtx} \\

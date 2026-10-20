@@ -219,6 +219,7 @@ dependencies:
   - zope.interface=6.3=py310h2372a71_0
   - zstd=1.5.5=hfc55251_0
   - pybedtools=0.9.1=py310h2b6aa90_1
+  - procps-ng=4.0.4=hf303867_0
   
   - pip:
       - asgiref==3.7.2

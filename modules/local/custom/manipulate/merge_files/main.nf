@@ -3,6 +3,7 @@ process MERGE_FASTQS {
     label 'process_single2'
 
     conda "${moduleDir}/environment.yml"
+    container "oras://community.wave.seqera.io/library/pigz:364c6366e0195d5c"
 
     input:
     tuple val(meta), path(fastq_cDNA_list), path(fastq_BC_UMI_list), path(fastq_indices), path(input_file)

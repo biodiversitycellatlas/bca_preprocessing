@@ -4,6 +4,10 @@ process GENE_EXT {
 
     // conda "${projectDir}/submodules/GeneExt/environment.yaml"
     conda "${moduleDir}/environment.yml"
+    container "oras://community.wave.seqera.io/library/libgcc_mutex__openmp_mutex__r-mutex_aiohttp_pruned:b993752eeff11002"
+    // The script lives in a submodule. A container only sees the task directory and bin/,
+    // unless the pipeline happens to share a parent directory with the work directory
+    containerOptions { "${workflow.containerEngine in ['docker', 'podman'] ? '-v' : '-B'} ${projectDir}/submodules/GeneExt:${projectDir}/submodules/GeneExt" }
 
     input:
     path(bam_file)

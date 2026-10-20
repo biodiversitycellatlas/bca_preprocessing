@@ -7,6 +7,7 @@ process FILTER_MATRICES {
     tag "${meta.id} | ${mapper}"
 
     conda "${moduleDir}/environment.yml"
+    container "oras://community.wave.seqera.io/library/python_numpy_pandas_scipy:eeb34b63825ecb6a"
 
     input:
     // mapper: 'starsolo' or 'alevin-fry'. matrix_dir: STARsolo's GeneFull_Ex50pAS/raw, or

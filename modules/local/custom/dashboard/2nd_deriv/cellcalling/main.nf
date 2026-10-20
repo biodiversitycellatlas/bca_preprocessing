@@ -14,6 +14,7 @@ process SECONDDERIV_CELLCALLING {
     time   { 30.m * task.attempt }
 
     conda "${moduleDir}/environment.yml"
+    container "oras://community.wave.seqera.io/library/python_numpy_pandas_scipy:eeb34b63825ecb6a"
 
     input:
     // mapper: 'starsolo' or 'alevin-fry'. curve_source: STARsolo's UMIperCellSorted.txt, or

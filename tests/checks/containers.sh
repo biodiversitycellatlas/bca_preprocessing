@@ -4,7 +4,9 @@
 # Extracts the container references declared by the modules and checks that each
 # one can actually be resolved by the engines behind the container profiles in
 # nextflow.config. This catches images that were deleted, retagged, or that a
-# given engine simply cannot consume.
+# given engine simply cannot consume. It also checks that every module with a
+# conda environment declares a container, and that each image provides what the
+# module's environment.yml lists, so the container profiles run what conda runs.
 
 set -euo pipefail
 source "$(cd "$(dirname "${BASH_SOURCE[0]}")/../lib" && pwd)/common.sh"
@@ -31,7 +33,10 @@ Options:
   --depth LEVEL     How hard to check each image:
                       manifest  query the registry only; no layers downloaded
                       pull      download the full image
-                      auto      manifest for docker/podman, pull for
+                      env       pull, then check that the image provides every
+                                package in the module's environment.yml
+                                (singularity/apptainer; needs python3)
+                      auto      manifest for docker/podman, env for
                                 singularity/apptainer (default)
   --only PATTERN    Only check images matching PATTERN (grep -E).
   --force           Re-pull images already present in the cache.
@@ -39,6 +44,9 @@ Options:
   -h, --help        Show this help.
 
 Notes:
+  * The 'coverage' case needs no engine: it fails for every module that has an
+    environment.yml but no container, since such a module cannot run under the
+    container profiles.
   * Most modules declare oras:// images, which only singularity and apptainer
     can consume. They are reported as skipped under docker/podman rather than
     failed, with a count in the summary.
@@ -67,9 +75,31 @@ while [[ $# -gt 0 ]]; do
 done
 
 case "$DEPTH" in
-    auto|manifest|pull) ;;
-    *) log_error "Invalid --depth: $DEPTH (expected auto, manifest or pull)"; exit 2 ;;
+    auto|manifest|pull|env) ;;
+    *) log_error "Invalid --depth: $DEPTH (expected auto, manifest, pull or env)"; exit 2 ;;
 esac
+
+# --------------------------------------------------------------------------
+# Coverage: a module with a conda environment needs a container as well
+# --------------------------------------------------------------------------
+
+# Without one, the task runs on the host under the container profiles and finds
+# none of its tools. Needs no engine, so it runs on every machine.
+log_header "coverage"
+missing=""
+while IFS= read -r yml; do
+    nf="$(dirname "$yml")/main.nf"
+    [[ -f "$nf" ]] || continue
+    if ! grep -qE '^[[:space:]]*container[[:space:]]*["'"'"'{]' "$nf"; then
+        module="${nf#"$PROJECT_ROOT"/modules/}"
+        missing="$missing ${module%/main.nf}"
+    fi
+done < <(find "$PROJECT_ROOT/modules" -name environment.yml | sort)
+if [[ -z "$missing" ]]; then
+    record PASS "coverage" "every module with an environment.yml declares a container"
+else
+    record FAIL "coverage" "environment.yml without a container:$missing"
+fi
 
 # --------------------------------------------------------------------------
 # Select engines
@@ -142,16 +172,17 @@ while IFS= read -r nf; do
     done <<<"$literals"
 done < <(find "$PROJECT_ROOT/modules" -name main.nf | sort)
 
-# Several modules share an image (four samtools modules use one tag), so check
-# each unique reference once and remember a module that declares it.
-sort -u -k1,1 -o "$refs_file" "$refs_file"
+# Several modules share an image (four samtools modules use one tag): each unique
+# reference is pulled once, and checked against the environment of every module
+# that declares it.
+sort -u -o "$refs_file" "$refs_file"
 
 if [[ -n "$ONLY" ]]; then
     grep -E "$ONLY" "$refs_file" >"$refs_file.tmp" || true
     mv "$refs_file.tmp" "$refs_file"
 fi
 
-n_refs="$(wc -l <"$refs_file" | tr -d ' ')"
+n_refs="$(cut -f1 "$refs_file" | sort -u | wc -l | tr -d ' ')"
 if [[ "$n_refs" -eq 0 ]]; then
     log_error "No container references matched${ONLY:+ pattern '$ONLY'}."
     exit 1
@@ -171,11 +202,38 @@ effective_depth() {
     if [[ "$DEPTH" != auto ]]; then printf '%s' "$DEPTH"; return; fi
     case "$1" in
         docker|podman) printf 'manifest' ;;
-        *)             printf 'pull' ;;
+        *)             printf 'env' ;;
     esac
 }
 
-# check_ref ENGINE REF MODULE
+# check_env ENGINE SIF REF MODULES -- check a pulled image against the
+# environment.yml of each module that declares it (see lib/check_image_env.py).
+check_env() {
+    local engine="$1" sif="$2" ref="$3" modules="$4"
+    local module yml listing logfile
+    if ! have_cmd python3; then
+        record SKIP "$engine env: $ref" "needs python3"
+        return
+    fi
+    listing="$(mktemp -t bca_listing.XXXXXX)"
+    # A glob that matches nothing makes ls fail, so the listing is judged by its content
+    "$engine" exec "$sif" sh -c 'ls -1 /opt/conda/conda-meta/*.json /opt/conda/lib/python3*/site-packages/ 2>/dev/null' \
+        >"$listing" 2>/dev/null || true
+    for module in $modules; do
+        yml="$PROJECT_ROOT/modules/$module/environment.yml"
+        [[ -f "$yml" ]] || continue
+        logfile="$BCA_TEST_LOGDIR/containers__env_$(slugify "$engine-$module").log"
+        if run_logged "$logfile" python3 "$BCA_LIB_DIR/check_image_env.py" "$yml" "$listing"; then
+            record PASS "$engine env: $module" "$(tail -n1 "$logfile")"
+        else
+            record FAIL "$engine env: $module" "$(grep -cE '^(missing|mismatch)' "$logfile") problem(s) in ${ref##*/}"
+            grep -E '^(missing|mismatch)|^No conda' "$logfile" | head -n 12 | sed 's/^/        | /'
+        fi
+    done
+    rm -f "$listing"
+}
+
+# check_ref ENGINE REF MODULES -- MODULES lists every module declaring REF
 check_ref() {
     local engine="$1" ref="$2" module="$3"
     local depth logfile slug sif
@@ -249,14 +307,17 @@ check_ref() {
             sif="$CACHEDIR/$(slugify "$ref").sif"
             if [[ -s "$sif" && "$FORCE" -eq 0 ]]; then
                 record PASS "$engine: $ref" "cached"
-                return
-            fi
-            if run_logged "$logfile" "$engine" pull --force "$sif" "$ref"; then
+            # A plain registry reference needs a transport; Nextflow adds the same one
+            elif run_logged "$logfile" "$engine" pull --force "$sif" "$([[ "$ref" == *://* ]] || printf 'docker://')$ref"; then
                 record PASS "$engine: $ref" "$(du -h "$sif" 2>/dev/null | cut -f1)"
             else
                 record FAIL "$engine: $ref" "pull failed ($module)"
                 rm -f "$sif"
                 tail_log "$logfile"
+                return
+            fi
+            if [[ "$depth" == env ]]; then
+                check_env "$engine" "$sif" "$ref" "$module"
             fi
             ;;
 
@@ -275,9 +336,11 @@ check_ref() {
 
 for engine in $engines; do
     log_header "$engine (depth: $(effective_depth "$engine"))"
-    while IFS=$'\t' read -r ref module; do
-        [[ -n "$ref" ]] && check_ref "$engine" "$ref" "$module"
-    done <"$refs_file"
+    while IFS= read -r ref; do
+        [[ -n "$ref" ]] || continue
+        modules="$(awk -F'\t' -v r="$ref" '$1 == r { printf "%s ", $2 }' "$refs_file")"
+        check_ref "$engine" "$ref" "${modules% }"
+    done < <(cut -f1 "$refs_file" | sort -u)
 done
 
 finish_check

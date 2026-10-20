@@ -3,6 +3,7 @@ process SUBSAMPLE_FASTQS {
     label 'process_low'
 
     conda "${moduleDir}/environment.yml"
+    container "oras://community.wave.seqera.io/library/seqtk_pigz_gzip:d149a1002a332e56"
 
     input:
     tuple val(meta), path(fastq_cDNA), path(fastq_BC_UMI), path(fastq_indices), path(input_file)

@@ -5,3 +5,4 @@ channels:
 dependencies:
   - seqtk >=1.4
   - pigz
+  - gzip

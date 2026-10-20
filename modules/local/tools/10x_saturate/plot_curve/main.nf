@@ -5,6 +5,9 @@ process SATURATION_PLOT {
 
     conda "${moduleDir}/environment.yml"
     container "oras://community.wave.seqera.io/library/pysam_samtools_matplotlib_numpy_pruned:b8f551e4a5153343"
+    // The script lives in a submodule. A container only sees the task directory and bin/,
+    // unless the pipeline happens to share a parent directory with the work directory
+    containerOptions { "${workflow.containerEngine in ['docker', 'podman'] ? '-v' : '-B'} ${projectDir}/submodules/10x_saturate:${projectDir}/submodules/10x_saturate" }
 
     input:
     tuple val(meta), file(saturation_output)

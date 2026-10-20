@@ -32,6 +32,9 @@ process MTX_TO_H5AD {
     echo "Doublet results: ${doublet_results ?: 'none'}"
     echo "CellSweep results: ${cellsweep_h5ad ?: 'none'}"
 
+    # scanpy's numba functions cache next to their source, which a container image keeps read-only
+    export NUMBA_CACHE_DIR=\$PWD/.numba_cache
+
     mtx_to_h5ad.py \\
         --mtx ${mtx} \\
         --barcodes ${barcodes} \\
