@@ -5,7 +5,9 @@ process SCIROCKET_DEMUX {
     debug true
 
     conda "${moduleDir}/environment.yml"
-    container "oras://community.wave.seqera.io/library/fastp_pysam_sambamba_star_pruned:ac8b1ecd993405dd"
+    container "${ workflow.containerEngine in ['singularity', 'apptainer'] && !task.ext.singularity_pull_docker_container ?
+        'oras://community.wave.seqera.io/library/fastp_pysam_sambamba_star_pruned:ac8b1ecd993405dd' :
+        'community.wave.seqera.io/library/fastp_pysam_sambamba_star_pruned:d09cfefaa3d3bbe2' }"
 
     input:
     tuple val(meta), path(fastq_cDNA), path(fastq_BC_UMI), path(fastq_indices), path(input_file)

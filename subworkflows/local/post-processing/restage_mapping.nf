@@ -59,6 +59,13 @@ workflow restage_mapping_workflow {
         // whatever it says now -- that is what makes the cells re-callable
         def ch_meta = ch_samplesheet.map { row -> row[0] }
 
+        // The raw matrix analysed downstream (lib/StarsoloMatrix.groovy). A multi-gene one only
+        // exists when the previous run listed that type in star_soloMultiMappers.
+        def star_raw_matrix = StarsoloMatrix.rawFileName(params)
+        def star_raw_label  = star_raw_matrix == StarsoloMatrix.UNIQUE_FILE
+            ? "GeneFull_Ex50pAS/raw/${star_raw_matrix}"
+            : "GeneFull_Ex50pAS/raw/${star_raw_matrix} (star_soloMultiMappers = '${StarsoloMatrix.setting(params)}'; set it to what the previous run used)"
+
         /*
          * STARsolo
          */
@@ -79,6 +86,7 @@ workflow restage_mapping_workflow {
                     [ "${meta.id}_Solo.out",                  solo ],
                     [ "GeneFull_Ex50pAS",                     gene ],
                     [ "GeneFull_Ex50pAS/raw",                 file("${gene}/raw") ],
+                    [ star_raw_label,                         file("${gene}/raw/${star_raw_matrix}") ],
                     [ "GeneFull_Ex50pAS/Summary.csv",         file("${gene}/Summary.csv") ],
                     [ "GeneFull_Ex50pAS/CellReads.stats",     file("${gene}/CellReads.stats") ],
                     [ "GeneFull_Ex50pAS/UMIperCellSorted.txt", file("${gene}/UMIperCellSorted.txt") ],

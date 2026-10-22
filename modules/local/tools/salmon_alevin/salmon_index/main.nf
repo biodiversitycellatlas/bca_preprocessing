@@ -4,7 +4,9 @@ process SALMON_INDEX {
 
 
     conda "${moduleDir}/environment.yml"
-    container "oras://community.wave.seqera.io/library/salmon:1.10.3--726401738a281398"
+    container "${ workflow.containerEngine in ['singularity', 'apptainer'] && !task.ext.singularity_pull_docker_container ?
+        'oras://community.wave.seqera.io/library/salmon:1.10.3--726401738a281398' :
+        'community.wave.seqera.io/library/salmon:1.10.3--6ea6d56a4b0c26b8' }"
 
     input:
     path(splici_index_reference)

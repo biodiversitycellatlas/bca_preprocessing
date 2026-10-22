@@ -31,6 +31,7 @@ tests/
 │   ├── mt_rrna_metrics.sh
 │   ├── nextflow_versions.sh
 │   ├── resource_efficiency.sh
+│   ├── starsolo_em_matrix.sh
 │   └── velocity_matrix.sh
 ├── fixtures/
 │   └── execution_trace_formats.txt  # hand-written trace covering awkward formats
@@ -122,12 +123,20 @@ bash tests/run_tests.sh containers -- --depth manifest
 bash tests/run_tests.sh containers -- --profiles singularity --depth pull
 ```
 
-After changing an `environment.yml`, rebuild its image from that file and put
-the new reference in the module, e.g. with the
+After changing an `environment.yml`, rebuild both its images from that file and
+put the new references in the module (the `oras://` one for singularity/apptainer,
+the other for docker/podman), e.g. with the
 [Wave CLI](https://github.com/seqeralabs/wave-cli):
 
 ```bash
 wave --conda-file modules/local/tools/seqtk/environment.yml --freeze --singularity --await
+wave --conda-file modules/local/tools/seqtk/environment.yml --freeze --await
+```
+
+To check the docker images against the environments as well (this pulls them):
+
+```bash
+bash tests/run_tests.sh containers -- --profiles docker --depth env
 ```
 
 Notes:
@@ -436,6 +445,29 @@ names) must now fail without writing output. Needs only numpy, pandas and scipy.
 
 ```bash
 bash tests/run_tests.sh alevin_usa
+```
+
+## `starsolo_em_matrix`
+
+Checks that STARsolo's multi-gene matrix (`raw/UniqueAndMult-EM.mtx`, analysed whenever
+`star_soloMultiMappers` lists a multi-gene type, as every protocol does by default) is what
+cell calling reads end to end. Covered:
+- the `umis` curve and the `filter` of
+  [`secondderiv_filter_matrices.py`](../bin/secondderiv_filter_matrices.py), with a cell that
+  clears the cutoff only with its EM counts;
+- genes counted as detected from one UMI;
+- a clear failure when the matrix is missing;
+- the subset to STARsolo's own cells that `SUBSET_STARSOLO_CELLS` makes, and the `stats` of
+  that matrix;
+- [`dashboard_mappingstats.py`](../bin/dashboard_mappingstats.py) taking the median UMIs,
+  median genes and genes detected from those statistics rather than `Summary.csv`, and the
+  cells and saturation from STAR;
+- the file and curve rules of [`lib/StarsoloMatrix.groovy`](../lib/StarsoloMatrix.groovy).
+
+Needs numpy, pandas and scipy; the name case also needs `nextflow` and is skipped without it.
+
+```bash
+bash tests/run_tests.sh starsolo_em_matrix
 ```
 
 ## Adding a check

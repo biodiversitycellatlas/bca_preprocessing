@@ -22,7 +22,9 @@ process CELLSWEEP {
     maxRetries 1
 
     conda "${moduleDir}/environment.yml"
-    container "oras://community.wave.seqera.io/library/python_pip_anndata_scanpy_pruned:c51d8166168b70dd"
+    container "${ workflow.containerEngine in ['singularity', 'apptainer'] && !task.ext.singularity_pull_docker_container ?
+        'oras://community.wave.seqera.io/library/python_pip_anndata_scanpy_pruned:c51d8166168b70dd' :
+        'community.wave.seqera.io/library/python_pip_anndata_scanpy_pruned:482ff25ccf8e0ce3' }"
 
     input:
     tuple val(meta), path(mtx), path(barcodes), path(features), path(doublet_results)

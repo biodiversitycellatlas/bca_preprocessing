@@ -8,7 +8,9 @@ process ALEVIN_FRY {
     errorStrategy { MappingRateCheck.errorStrategy(task, params) }
 
     conda "${moduleDir}/environment.yml"
-    container "oras://community.wave.seqera.io/library/alevin-fry_piscem_salmon_simpleaf_pruned:c71cfb476b003414"
+    container "${ workflow.containerEngine in ['singularity', 'apptainer'] && !task.ext.singularity_pull_docker_container ?
+        'oras://community.wave.seqera.io/library/alevin-fry_piscem_salmon_simpleaf_pruned:c71cfb476b003414' :
+        'community.wave.seqera.io/library/alevin-fry_piscem_salmon_simpleaf_pruned:0c7b7b78674d62a2' }"
 
     input:
     tuple val(meta), path(fastq_cDNA), path(fastq_BC_UMI), path(fastq_indices), path(input_file)

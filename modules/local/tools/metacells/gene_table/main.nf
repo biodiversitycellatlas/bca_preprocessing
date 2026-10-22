@@ -2,7 +2,9 @@ process MC_GENE_TABLE {
     publishDir path: { "${params.outdir}/metacells/gene_table" }, mode: 'copy', saveAs: { filename -> filename == 'versions.yml' ? null : filename }
     label 'process_single'
 
-    container "oras://community.wave.seqera.io/library/numpy_pandas_python:b78d8279027c3c38"
+    container "${ workflow.containerEngine in ['singularity', 'apptainer'] && !task.ext.singularity_pull_docker_container ?
+        'oras://community.wave.seqera.io/library/numpy_pandas_python:b78d8279027c3c38' :
+        'community.wave.seqera.io/library/numpy_pandas_python:e63d9be2ea3d0055' }"
     conda "${moduleDir}/environment.yml"
 
     input:

@@ -11,7 +11,9 @@ process STARSOLO_INDEX {
         params.dynamic_memory?.STARSOLO_INDEX, [ref_fasta, ref_gtf], task.attempt, 10) }
 
     conda "${moduleDir}/environment.yml"
-    container "oras://community.wave.seqera.io/library/htslib_samtools_star_gawk:f196f82abbbc8871"
+    container "${ workflow.containerEngine in ['singularity', 'apptainer'] && !task.ext.singularity_pull_docker_container ?
+        'oras://community.wave.seqera.io/library/htslib_samtools_star_gawk:f196f82abbbc8871' :
+        'community.wave.seqera.io/library/htslib_samtools_star_gawk:782fa39fdeb1558c' }"
 
     // One index per run: fastq_cDNA holds the cDNA reads of every sample, only used for
     // the read length. Staged into numbered dirs so equal filenames across samples don't clash.

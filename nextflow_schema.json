@@ -127,7 +127,7 @@
                     "type": "string",
                     "default": "cr-like",
                     "enum": ["cr-like", "cr-like-em"],
-                    "description": "alevin-fry UMI resolution. cr-like discards UMIs that stay ambiguous between genes, as Cell Ranger and STARsolo's matrix.mtx do; cr-like-em splits them by expectation-maximisation."
+                    "description": "alevin-fry UMI resolution. cr-like discards UMIs that stay ambiguous between genes, as Cell Ranger and STARsolo with star_soloMultiMappers 'Unique' do; cr-like-em splits them by expectation-maximisation, the counterpart of STARsolo's default 'EM'."
                 },
                 "skip_mapping_rate_check": {
                     "type": "boolean",
@@ -223,7 +223,9 @@
                     "type": "string"
                 },
                 "star_soloMultiMappers": {
-                    "type": "string"
+                    "type": "string",
+                    "description": "STARsolo counting of multi-gene reads, and so the matrix analysed: 'Unique' (raw/matrix.mtx) or 'EM', 'Uniform', 'PropUnique', 'Rescue' (raw/UniqueAndMult-<type>.mtx, fractional). Defaults to the protocol's, 'EM' for all.",
+                    "pattern": "^(Unique|EM|Uniform|PropUnique|Rescue)( (Unique|EM|Uniform|PropUnique|Rescue))*$"
                 },
                 "star_clipAdapterType": {
                     "type": "string"

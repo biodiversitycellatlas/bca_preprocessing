@@ -208,6 +208,7 @@ def parse_args() -> argparse.Namespace:
     parser.add_argument("--knee_files",      nargs="*", help="UMIperCellSorted.txt files")
     parser.add_argument("--secondderiv_knee",  nargs="*", help="*_knee_data.json files from the second-derivative cell calling")
     parser.add_argument("--secondderiv_stats", nargs="*", help="*_secondderiv_statistics.json files from the second-derivative matrix filtering")
+    parser.add_argument("--matrix_stats", nargs="*", help="*_UniqueAndMult-<type>_statistics.json files: STARsolo's own cells in its multi-gene matrix")
 
     parser.add_argument("--cellsweep_tables",        nargs="*")
     parser.add_argument("--cellsweep_plots_contrib", nargs="*")
@@ -1136,6 +1137,7 @@ def _discover_starsolo_samples(
 
         # Solo.out: prefer GeneFull_Ex50pAS over Gene
         solo_out = os.path.join(sample_path, f"{analytical_id}_Solo.out")
+        derived_knee: Optional[str] = None
         for gene_dir in _SOLO_GENE_DIRS:
             gene_path = os.path.join(solo_out, gene_dir)
             if not os.path.isdir(gene_path):
@@ -1159,6 +1161,19 @@ def _discover_starsolo_samples(
                 candidate = _probe(os.path.join(sd_path, fname))
                 if candidate:
                     files.setdefault(key, candidate)
+
+            # With a multi-gene matrix (star_soloMultiMappers EM etc.) the cutoff was read off
+            # a curve derived from that matrix, <id>_<type>_UMIperCellSorted.txt; it replaces
+            # STAR's own curve, which counts unique-gene UMIs only
+            derived = sorted(glob.glob(os.path.join(sd_path, f"{glob.escape(analytical_id)}_*_UMIperCellSorted.txt")))
+            if derived and not derived_knee:
+                files["knee"] = derived_knee = derived[0]
+
+            # STARsolo's own cells in a multi-gene matrix (SUBSET_STARSOLO_CELLS): the
+            # statistics of that matrix, next to its filtered_UniqueAndMult-<type>/
+            matrix_stats = sorted(glob.glob(os.path.join(gene_path, f"{glob.escape(analytical_id)}_UniqueAndMult-*_statistics.json")))
+            if matrix_stats:
+                files.setdefault("matrix_stats", matrix_stats[0])
 
         # rRNA / mtDNA metrics
         mt = _probe(os.path.join(
@@ -1398,6 +1413,7 @@ def _build_file_map_from_cli(
     _map(args.residuals_imgs,          "res_img",       {"starsolo"})
     _map(args.sankey_files,            "sankey",        {"starsolo"})
     _map(args.per_cell_files,          "per_cell",      {"starsolo"})
+    _map(args.matrix_stats,            "matrix_stats",  {"starsolo"})
 
     # Shared outputs by both mappers
     _map(args.knee_files,              "knee")
@@ -1692,6 +1708,20 @@ def main() -> None:
             saturation_sd = safe_float(sd_stats.get("sequencing_saturation"))
             if saturation_sd is not None:
                 saturation = to_pct(saturation_sd)
+
+        # ── STARsolo's own cells in a multi-gene matrix ──────────────────────
+        # With star_solocellfilter and star_soloMultiMappers "EM" etc., STAR's cells stand
+        # but the matrix analysed is UniqueAndMult-<type>.mtx, while Summary.csv describes
+        # their unique-gene counts. Only the numbers read off the matrix are replaced: the
+        # cells, the cutoff and the read-level statistics are STAR's own.
+        elif not using_alevin:
+            matrix_stats = _safe_read_json(files.get("matrix_stats"))
+            if matrix_stats:
+                median_umis  = int(round(matrix_stats["median_umis_per_cell"]))  if "median_umis_per_cell"  in matrix_stats else median_umis
+                median_genes = int(round(matrix_stats["median_genes_per_cell"])) if "median_genes_per_cell" in matrix_stats else median_genes
+                if "total_genes_detected" in matrix_stats:
+                    total_genes       = matrix_stats["total_genes_detected"]
+                    total_genes_scope = "detected"
 
         sd_knee = parse_secondderiv_knee(files.get("sd_knee"), s_id)
         if sd_knee:

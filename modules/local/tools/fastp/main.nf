@@ -5,7 +5,9 @@ process FASTP {
     debug true
 
     conda "${moduleDir}/environment.yml"
-    container "oras://community.wave.seqera.io/library/fastp:0.24.0--0397de619771c7ae"
+    container "${ workflow.containerEngine in ['singularity', 'apptainer'] && !task.ext.singularity_pull_docker_container ?
+        'oras://community.wave.seqera.io/library/fastp:0.24.0--0397de619771c7ae' :
+        'community.wave.seqera.io/library/fastp:0.24.0--0ee57846e27f8af5' }"
 
     input:
     tuple val(meta), path(fastq_cDNA), path(fastq_BC_UMI), path(fastq_indices), path(input_file)

@@ -4,7 +4,9 @@ process PERCELL_METRICS {
     label 'process_single_long2'
 
     conda "${moduleDir}/environment.yml"
-    container "oras://community.wave.seqera.io/library/python_numpy_pandas_scipy_pruned:cf1c1895e9c6e6ec"
+    container "${ workflow.containerEngine in ['singularity', 'apptainer'] && !task.ext.singularity_pull_docker_container ?
+        'oras://community.wave.seqera.io/library/python_numpy_pandas_scipy_pruned:cf1c1895e9c6e6ec' :
+        'community.wave.seqera.io/library/python_numpy_pandas_scipy_pruned:fa325a520dd2005b' }"
 
     input:
     tuple val(meta),   path(barcode_reads)     // CALC_READ_METRICS' per-barcode reads; the BAM is not read

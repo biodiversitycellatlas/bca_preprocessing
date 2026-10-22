@@ -10,6 +10,7 @@
 include { SECONDDERIV_CELLCALLING        } from '../../../modules/local/custom/dashboard/2nd_deriv/cellcalling/main'
 include { FILTER_MATRICES                } from '../../../modules/local/custom/dashboard/2nd_deriv/filter_mtx/main'
 include { SUBSET_VELOCYTO_MATRICES       } from '../../../modules/local/custom/manipulate/subset_velocyto/main'
+include { SUBSET_STARSOLO_CELLS          } from '../../../modules/local/custom/manipulate/subset_starsolo_cells/main'
 
 
 /*
@@ -31,6 +32,13 @@ include { SUBSET_VELOCYTO_MATRICES       } from '../../../modules/local/custom/m
 
         Whichever call wins, the velocity matrices are then subset to its barcodes, so
         every matrix published for a sample describes the same cells.
+
+        With a multi-gene STARsolo matrix (star_soloMultiMappers "EM" etc., see
+        lib/StarsoloMatrix.groovy) the cutoff filters raw/UniqueAndMult-<type>.mtx and the
+        curve is derived from that matrix, like alevin-fry's, since STAR's own curve counts
+        unique-gene UMIs only. STAR's own cell call keeps its cells (it was made on unique
+        counts), but its filtered/ directory holds the unique matrix only, so the raw
+        multi-gene matrix is subset to those cells here.
 ~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~
 */
 workflow cellcalling_workflow {
@@ -49,10 +57,18 @@ workflow cellcalling_workflow {
         def ch_secondderiv_knee   = channel.empty()
         def ch_secondderiv_stats  = channel.empty()
         def ch_secondderiv_cutoff = channel.empty()
+        def ch_matrix_stats       = channel.empty()
         def ch_versions           = channel.empty()
 
+        // The matrix analysed in STARsolo's raw/, and whether its curve has to be derived from it
+        def matrix_name      = mapper == 'starsolo' ? StarsoloMatrix.rawFileName(params) : ''
+        def curve_from_mtx   = mapper == 'starsolo' && StarsoloMatrix.curveFromMatrix(params)
+
         if (params.cellfilter_method in ["second_derivative", "manual_cutoff"]) {
-            SECONDDERIV_CELLCALLING(umi_curve.map { meta, curve -> [meta, mapper, curve] })
+            def ch_curve_input = curve_from_mtx
+                ? matrix.map { meta, raw_dir -> [meta, mapper, raw_dir, matrix_name] }
+                : umi_curve.map { meta, curve -> [meta, mapper, curve, ''] }
+            SECONDDERIV_CELLCALLING(ch_curve_input)
 
             // Join on meta so every sample is filtered on its own cutoff. alevin-fry has no
             // CellReads.stats, so it is given an empty slot rather than joined on an empty channel.
@@ -61,7 +77,7 @@ workflow cellcalling_workflow {
                 ? ch_with_cutoff.join(cellreads_stats)
                 : ch_with_cutoff.map { meta, mtx_dir, cutoff -> [meta, mtx_dir, cutoff, []] }
 
-            FILTER_MATRICES(ch_filter_input.map { meta, mtx_dir, cutoff, cellreads -> [meta, mapper, mtx_dir, cutoff, cellreads] })
+            FILTER_MATRICES(ch_filter_input.map { meta, mtx_dir, cutoff, cellreads -> [meta, mapper, mtx_dir, cutoff, cellreads, matrix_name] })
 
             ch_filtered_mtx       = FILTER_MATRICES.out.filtered_matrix
             ch_secondderiv_stats  = FILTER_MATRICES.out.filter_stats
@@ -69,6 +85,17 @@ workflow cellcalling_workflow {
             ch_secondderiv_knee   = SECONDDERIV_CELLCALLING.out.json_data
             ch_secondderiv_cutoff = SECONDDERIV_CELLCALLING.out.cutoff
             ch_versions           = ch_versions.mix(SECONDDERIV_CELLCALLING.out.versions, FILTER_MATRICES.out.versions)
+            
+        } else if (matrix_name && matrix_name != StarsoloMatrix.UNIQUE_FILE) {
+            // STAR's own cell call, applied to the multi-gene matrix
+            def ch_subset_input = matrix
+                .join(mapper_filtered)
+                .map { meta, raw_dir, filtered_dir -> [meta, raw_dir, file("${filtered_dir}/barcodes.tsv"), matrix_name] }
+
+            SUBSET_STARSOLO_CELLS(ch_subset_input)
+            ch_filtered_mtx = SUBSET_STARSOLO_CELLS.out.filtered_matrix
+            ch_matrix_stats = SUBSET_STARSOLO_CELLS.out.matrix_stats
+            ch_versions     = ch_versions.mix(SUBSET_STARSOLO_CELLS.out.versions)
         } else {
             ch_filtered_mtx = mapper_filtered
         }
@@ -86,10 +113,11 @@ workflow cellcalling_workflow {
     emit:
         filtered_matrix    = ch_filtered_mtx
         velocyto_filtered  = SUBSET_VELOCYTO_MATRICES.out.filtered_matrix
-        umi_per_cell       = ch_umi_per_cell        // alevin-fry's derived curve; STARsolo's comes from the mapper
+        umi_per_cell       = ch_umi_per_cell
         secondderiv_knee   = ch_secondderiv_knee
         secondderiv_stats  = ch_secondderiv_stats
         secondderiv_cutoff = ch_secondderiv_cutoff
+        matrix_stats       = ch_matrix_stats
         versions           = ch_versions
 }
 

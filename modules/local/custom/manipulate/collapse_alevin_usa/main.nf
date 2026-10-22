@@ -4,7 +4,9 @@ process COLLAPSE_ALEVIN_USA {
     label 'process_low'
 
     conda "${moduleDir}/environment.yml"
-    container "oras://community.wave.seqera.io/library/python_numpy_scipy:c8191f2f84f43a69"
+    container "${ workflow.containerEngine in ['singularity', 'apptainer'] && !task.ext.singularity_pull_docker_container ?
+        'oras://community.wave.seqera.io/library/python_numpy_scipy:c8191f2f84f43a69' :
+        'community.wave.seqera.io/library/python_numpy_scipy:94af19427c9f8034' }"
 
     input:
     tuple val(meta), path(alevin_mtx_dir)

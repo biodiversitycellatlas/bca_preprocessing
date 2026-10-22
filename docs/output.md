@@ -229,11 +229,13 @@ by default (`--soloFeatures "Gene GeneFull_Ex50pAS"`):
 
 | Path | Description |
 | ---- | ----------- |
-| `raw/` | Unfiltered matrix over all barcodes: `matrix.mtx`, `features.tsv`, `barcodes.tsv`. |
-| `filtered/` | STARsolo's own cell-called matrix. **Only present when `cellfilter_method = "star_solocellfilter"`** — under the other methods it is removed after the summary is read, to avoid two competing "filtered" matrices. |
-| `Summary.csv` | Per-sample summary: reads, saturation, cells, median UMIs and genes per cell. Always written from STARsolo's own filter, even when a different cell-calling method is used. |
+| `raw/` | Unfiltered matrix over all barcodes: `matrix.mtx` (unique-gene counts), `features.tsv`, `barcodes.tsv`, and with a multi-gene `star_soloMultiMappers` (default `"EM"`) `UniqueAndMult-EM.mtx`: the unique plus the multi-gene counts, fractional. That one is the matrix analysed downstream; see [STARsolo multi-gene reads](CONFIGURATION_PARAMETERS.md#starsolo-multi-gene-reads). |
+| `filtered/` | STARsolo's own cell-called matrix, unique-gene counts only. **Only present when `cellfilter_method = "star_solocellfilter"`** — under the other methods it is removed after the summary is read, to avoid two competing "filtered" matrices. |
+| `filtered_UniqueAndMult-EM/` | `GeneFull_Ex50pAS/` only, with `star_solocellfilter` and a multi-gene `star_soloMultiMappers`: the analysed matrix subset to STARsolo's own cells, as `matrix.mtx`. |
+| `<id>_UniqueAndMult-EM_statistics.json` | Next to `filtered_UniqueAndMult-EM/`: number of cells, mean and median UMIs per cell, median genes per cell and total genes detected, computed on that matrix. The dashboard reports these three medians/totals instead of `Summary.csv`'s, which count unique-gene UMIs only. |
+| `Summary.csv` | Per-sample summary: reads, saturation, cells, median UMIs and genes per cell. Always written from STARsolo's own filter and its unique-gene counts, even when a different cell-calling method or a multi-gene matrix is used. |
 | `CellReads.stats` | Per-barcode read statistics. |
-| `UMIperCellSorted.txt` | UMI count per barcode, sorted descending. This is the barcode-rank curve, and the input to second-derivative cell calling. |
+| `UMIperCellSorted.txt` | Unique-gene UMI count per barcode, sorted descending. This is STAR's barcode-rank curve, and the input to second-derivative cell calling when the analysed matrix is `matrix.mtx`; with a multi-gene matrix the curve is derived from that matrix instead (`filtered_secondderiv/<id>_EM_UMIperCellSorted.txt`). |
 | `Features.stats` | Feature-level assignment statistics. |
 
 Only `GeneFull_Ex50pAS/` gets a `filtered_secondderiv/` directory — it is the feature the
@@ -295,7 +297,8 @@ The location differs per mapper:
 
 | File | Description |
 | ---- | ----------- |
-| `filtered/` | The cell-called count matrix: `matrix.mtx`, `features.tsv`, `barcodes.tsv`. **This is the matrix most analyses should start from.** |
+| `filtered/` | The cell-called count matrix: `matrix.mtx`, `features.tsv`, `barcodes.tsv`. **This is the matrix most analyses should start from.** For STARsolo it is taken from the analysed raw matrix, so with the default `star_soloMultiMappers = "EM"` it holds the multi-gene (fractional) counts. |
+| `<id>_EM_UMIperCellSorted.txt` | STARsolo with a multi-gene matrix: the barcode-rank curve derived from it, which the cutoff is read off and the dashboard plots. alevin-fry writes the same file as `<id>_alevin_UMIperCellSorted.txt`. |
 | `<id>_cutoff.txt` | The UMI threshold that was applied. |
 | `<id>_knee_data.json` | The barcode-rank curve and its second derivative, as plotted in the dashboard's Cell Calling tab. |
 | `<id>_secondderiv_statistics.json` | Statistics recomputed against this cutoff: number of cells, UMI cutoff, mean reads per cell, median UMIs and genes per cell, total genes detected, noise (% of UMIs in non-cell barcodes), sequencing saturation, and reads required to reach `saturation_target`. |
@@ -308,7 +311,9 @@ curve, searched between 0.1× and 10× the sample's `expected_cells`. The retain
 > [!NOTE]
 > `Summary.csv` in the STARsolo output is always written from STARsolo's own filter, even when
 > second-derivative calling is used. When the two disagree, `<id>_secondderiv_statistics.json`
-> is the one that describes the matrix in `filtered/`.
+> is the one that describes the matrix in `filtered/`. Likewise, with `star_solocellfilter` and a
+> multi-gene matrix, `GeneFull_Ex50pAS/<id>_UniqueAndMult-EM_statistics.json` describes
+> `filtered_UniqueAndMult-EM/`.
 
 </details>
 

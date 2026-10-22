@@ -47,7 +47,7 @@ Within each custom configuration file the following variables can be defined:
 | `mt_contig`              | Optional          | Name(s) of the mitochondrial contig(s) in the reference annotation, used to calculate mtDNA content. Multiple contigs can be given separated by whitespace, in which case reads on any of them count as mitochondrial. Default set to `"chrM M MT"`. |
 | `grep_rrna`              | Optional          | String used to grep ribosomal RNA (rRNA) reads from annotations. Default set to `"rRNA"`                                                                                                                                          |
 | `mapping_software`       | Optional          | Software used to map reads (must be one of the following: `"starsolo"`, `"alevin"`, `"both"`/`"alevin_starsolo"` or `"alevin_subsampled_starsolo"`). Default set to `"starsolo"`. alevin-fry is set up to be comparable to STARsolo; see [alevin-fry settings](CONFIGURATION_PARAMETERS.md#alevin-fry-settings). |
-| `alevin_resolution`      | Optional          | alevin-fry's UMI resolution, `"cr-like"` (default; discards gene-ambiguous UMIs, as STARsolo's matrix does) or `"cr-like-em"`. |
+| `alevin_resolution`      | Optional          | alevin-fry's UMI resolution, `"cr-like"` (discards gene-ambiguous UMIs, as STARsolo does with `star_soloMultiMappers = "Unique"`) or `"cr-like-em"` (default; splits them by EM, the counterpart of STARsolo's default `"EM"`). |
 | `cellfilter_method`      | Optional          | How cells are called: `"star_solocellfilter"` (each mapper's own cell filter), `"second_derivative"` or `"manual_cutoff"` (a per-sample threshold from the samplesheet). Default set to `"second_derivative"`, which re-calls cells for both mappers and recomputes every cell-dependent statistic in the report on the retained cells. See [Cell calling](CONFIGURATION_PARAMETERS.md#cell-calling). |
 | `run_method`             | Optional          | One of `"standard"`, `"geneext_only"`, `"external_pipeline_only"` or `"post_mapping"`. Default set to `"standard"`. Use `"post_mapping"` to redo everything after mapping on a finished run — for instance to re-call cells with a different `expected_cells` or a manual cutoff — without mapping again. See [Re-running after mapping](CONFIGURATION_PARAMETERS.md#re-running-after-mapping). |
 | `previous_outdir`        | Optional          | Only with `run_method = "post_mapping"`: the finished run's results directory to read the mapping results back from. Defaults to `outdir`.                                                                                        |
@@ -76,7 +76,7 @@ To modify the behaviour of certain processes, additional variables can be added 
 
 - [ ] Created a samplesheet in CSV format (see [examples/example_samplesheet.csv](../examples/example_samplesheet.csv))
 - [ ] Edited ([`conf/custom_parameters.config`](conf/custom_parameters.config)) or created a new custom configuration file
-- [ ] Conda & Nextflow available in base environment
+- [ ] Conda & Nextflow available in base environment (or Nextflow & Apptainer/Singularity/Docker, see below)
 
 ### Running the Pipeline
 

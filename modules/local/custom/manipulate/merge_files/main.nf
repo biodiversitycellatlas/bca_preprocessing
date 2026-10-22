@@ -3,7 +3,9 @@ process MERGE_FASTQS {
     label 'process_single2'
 
     conda "${moduleDir}/environment.yml"
-    container "oras://community.wave.seqera.io/library/pigz:364c6366e0195d5c"
+    container "${ workflow.containerEngine in ['singularity', 'apptainer'] && !task.ext.singularity_pull_docker_container ?
+        'oras://community.wave.seqera.io/library/pigz:364c6366e0195d5c' :
+        'community.wave.seqera.io/library/pigz:fab2d0c8d265f40b' }"
 
     input:
     tuple val(meta), path(fastq_cDNA_list), path(fastq_BC_UMI_list), path(fastq_indices), path(input_file)

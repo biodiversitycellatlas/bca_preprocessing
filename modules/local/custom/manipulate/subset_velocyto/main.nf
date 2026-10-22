@@ -12,7 +12,9 @@ process SUBSET_VELOCYTO_MATRICES {
         params.dynamic_memory?.SUBSET_VELOCYTO_MATRICES, [velocyto_raw_dir], task.attempt, 10) }
 
     conda "${moduleDir}/environment.yml"
-    container "oras://community.wave.seqera.io/library/python_numpy_pandas_scipy:eeb34b63825ecb6a"
+    container "${ workflow.containerEngine in ['singularity', 'apptainer'] && !task.ext.singularity_pull_docker_container ?
+        'oras://community.wave.seqera.io/library/python_numpy_pandas_scipy:eeb34b63825ecb6a' :
+        'community.wave.seqera.io/library/python_numpy_pandas_scipy:b12b357472dfbd06' }"
 
     input:
     tuple val(meta), path(velocyto_raw_dir), path(filtered_barcodes)

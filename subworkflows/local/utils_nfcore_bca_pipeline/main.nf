@@ -112,6 +112,15 @@ workflow PIPELINE_INITIALISATION {
         )
     }
 
+    // The doublet tools run inside Demuxafy.sif, which only singularity and apptainer can use
+    if (params.perform_doublet_detection && workflow.containerEngine && !(workflow.containerEngine in ['singularity', 'apptainer'])) {
+        error(
+            "'perform_doublet_detection' runs Scrublet and scDblFinder from the Demuxafy singularity image,\n" +
+            "which the '${workflow.containerEngine}' engine cannot run. Use -profile apptainer or singularity,\n" +
+            "or unset 'perform_doublet_detection'."
+        )
+    }
+
     //
     // 'perform_featurecounts' is retired: CALC_READ_METRICS runs for every STARsolo BAM,
     // since PERCELL_METRICS takes its per-barcode counts from it

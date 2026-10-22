@@ -3,7 +3,9 @@ process SALMON_SPLICI {
     label 'process_high'
 
     conda "${moduleDir}/environment.yml"
-    container "oras://community.wave.seqera.io/library/bioconductor-biostrings_bioconductor-bsgenome_bioconductor-eisar_bioconductor-genomicfeatures_pruned:b68bd7a74397c700"
+    container "${ workflow.containerEngine in ['singularity', 'apptainer'] && !task.ext.singularity_pull_docker_container ?
+        'oras://community.wave.seqera.io/library/bioconductor-biostrings_bioconductor-bsgenome_bioconductor-eisar_bioconductor-genomicfeatures_pruned:b68bd7a74397c700' :
+        'community.wave.seqera.io/library/bioconductor-biostrings_bioconductor-bsgenome_bioconductor-eisar_bioconductor-genomicfeatures_pruned:ec4000fcab4cb278' }"
 
     input:
     tuple val(meta), path(fastq_cDNA), path(fastq_BC_UMI), path(fastq_indices), path(input_file)

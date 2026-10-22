@@ -2,7 +2,9 @@ process GENERATE_FILTERING_REPORT {
     publishDir path: { "${params.outdir}" }, mode: 'copy', overwrite: true, saveAs: { filename -> filename == 'versions.yml' ? null : filename }
     label 'process_single_mem2'
 
-    container "oras://community.wave.seqera.io/library/python:3.14.2--0bd36b5fd9edb930"
+    container "${ workflow.containerEngine in ['singularity', 'apptainer'] && !task.ext.singularity_pull_docker_container ?
+        'oras://community.wave.seqera.io/library/python:3.14.2--0bd36b5fd9edb930' :
+        'community.wave.seqera.io/library/python:3.14.2--0562a0df3245213a' }"
     conda "${moduleDir}/environment.yml"
 
     input:

@@ -23,7 +23,9 @@ process STARSOLO_ALIGN {
     errorStrategy { MappingRateCheck.errorStrategy(task, params) }
 
     conda "${moduleDir}/environment.yml"
-    container "oras://community.wave.seqera.io/library/htslib_samtools_seqspec_star_pruned:cef769c7e3b03dd0"
+    container "${ workflow.containerEngine in ['singularity', 'apptainer'] && !task.ext.singularity_pull_docker_container ?
+        'oras://community.wave.seqera.io/library/htslib_samtools_seqspec_star_pruned:cef769c7e3b03dd0' :
+        'community.wave.seqera.io/library/htslib_samtools_seqspec_star_pruned:583718e0c3d7bddd' }"
 
     input:
     tuple val(meta), path(fastq_cDNA), path(fastq_BC_UMI), path(fastq_indices), path(input_file)

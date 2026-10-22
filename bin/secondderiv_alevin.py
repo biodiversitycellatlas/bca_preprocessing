@@ -179,9 +179,11 @@ def cmd_filter(args: argparse.Namespace) -> None:
     filtered_barcodes = [barcodes[i] for i in keep]
     filtered_totals = totals[keep]
 
+    # A gene counts as detected from one UMI on, as in secondderiv_filter_matrices.py: with
+    # cr-like-em the EM fractions would otherwise count genes that hold a sliver of a UMI
     kept_by_gene = by_gene[keep, :]
-    genes_per_cell = np.asarray((kept_by_gene > 0).sum(axis=1)).ravel()
-    total_genes_detected = int(np.sum(np.asarray(kept_by_gene.sum(axis=0)).ravel() > 0))
+    genes_per_cell = np.asarray((kept_by_gene >= 1).sum(axis=1)).ravel()
+    total_genes_detected = int(np.sum(np.asarray(kept_by_gene.sum(axis=0)).ravel() >= 1))
 
     os.makedirs(args.outdir, exist_ok=True)
 

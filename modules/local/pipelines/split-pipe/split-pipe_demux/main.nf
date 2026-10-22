@@ -4,7 +4,9 @@ process PARSEBIO_PIPELINE_DEMUX {
     label 'process_medium'
 
     conda "${moduleDir}/environment.yml"
-    container "oras://community.wave.seqera.io/library/numpy_pandas_python:b78d8279027c3c38"
+    container "${ workflow.containerEngine in ['singularity', 'apptainer'] && !task.ext.singularity_pull_docker_container ?
+        'oras://community.wave.seqera.io/library/numpy_pandas_python:b78d8279027c3c38' :
+        'community.wave.seqera.io/library/numpy_pandas_python:e63d9be2ea3d0055' }"
 
     input:
     tuple val(meta), path(fastq_cDNA), path(fastq_BC_UMI), path(fastq_indices), path(input_file)

@@ -143,6 +143,7 @@ workflow BCA_PREPROCESSING {
                 mapping_out.secondderiv_knee,
                 mapping_out.secondderiv_stats,
                 mapping_out.secondderiv_cutoff,
+                mapping_out.matrix_stats,
                 filtering_workflow.out.cs_ambient_hist_plot,
                 filtering_workflow.out.cs_umap_comparison_plot,
                 filtering_workflow.out.cs_top_genes,

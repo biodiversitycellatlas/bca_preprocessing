@@ -4,7 +4,9 @@ process OAK_DEMUX {
     label 'process_single'
 
     conda "${moduleDir}/environment.yml"
-    container "oras://community.wave.seqera.io/library/seqtk_gawk_gzip:a2c1feaa489ca45f"
+    container "${ workflow.containerEngine in ['singularity', 'apptainer'] && !task.ext.singularity_pull_docker_container ?
+        'oras://community.wave.seqera.io/library/seqtk_gawk_gzip:a2c1feaa489ca45f' :
+        'community.wave.seqera.io/library/seqtk_gawk_gzip:72cec4f9d63b7d4f' }"
 
     input:
     tuple val(meta), path(fastq_cDNA), path(fastq_BC_UMI), path(fastq_indices), path(input_file)

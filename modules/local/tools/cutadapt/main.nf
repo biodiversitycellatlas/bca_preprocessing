@@ -4,7 +4,9 @@ process RM_VARBASES {
 
 
     conda "${moduleDir}/environment.yml"
-    container "oras://community.wave.seqera.io/library/cutadapt:5.2--5505472a18e9cce0"
+    container "${ workflow.containerEngine in ['singularity', 'apptainer'] && !task.ext.singularity_pull_docker_container ?
+        'oras://community.wave.seqera.io/library/cutadapt:5.2--5505472a18e9cce0' :
+        'community.wave.seqera.io/library/cutadapt:5.2--0bf1fa95d2357cb7' }"
 
     input:
     tuple val(meta), path(fastq_cDNA), path(fastq_BC_UMI), path(fastq_indices), path(input_file)

@@ -13,7 +13,9 @@ process SATURATION_TABLE {
         params.dynamic_memory?.SATURATION_TABLE, [bam_file], task.attempt, 10) }
 
     conda "${moduleDir}/environment.yml"
-    container "oras://community.wave.seqera.io/library/pysam_samtools_bc_python_pruned:82a1e27e868113f0"
+    container "${ workflow.containerEngine in ['singularity', 'apptainer'] && !task.ext.singularity_pull_docker_container ?
+        'oras://community.wave.seqera.io/library/pysam_samtools_bc_python_pruned:82a1e27e868113f0' :
+        'community.wave.seqera.io/library/pysam_samtools_bc_python_pruned:d34a762142fc1075' }"
     // The script lives in a submodule. A container only sees the task directory and bin/,
     // unless the pipeline happens to share a parent directory with the work directory
     containerOptions { "${workflow.containerEngine in ['docker', 'podman'] ? '-v' : '-B'} ${projectDir}/submodules/10x_saturate:${projectDir}/submodules/10x_saturate" }

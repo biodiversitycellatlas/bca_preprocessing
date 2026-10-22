@@ -4,7 +4,9 @@ process KRAKEN {
     label 'process_single_high2'
 
     conda "${moduleDir}/environment.yml"
-    container "oras://community.wave.seqera.io/library/kraken2:2.17.1--9b129e69b7bcd776"
+    container "${ workflow.containerEngine in ['singularity', 'apptainer'] && !task.ext.singularity_pull_docker_container ?
+        'oras://community.wave.seqera.io/library/kraken2:2.17.1--9b129e69b7bcd776' :
+        'community.wave.seqera.io/library/kraken2:2.17.1--beecc0e7e3db7c8b' }"
 
     input:
     path db_path_file

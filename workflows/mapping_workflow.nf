@@ -69,7 +69,8 @@ workflow QC_mapping_workflow {
         def ch_secondderiv_knee             = channel.empty()
         def ch_secondderiv_stats            = channel.empty()
         def ch_secondderiv_cutoff           = channel.empty()
-        def ch_sat_imgs                     = channel.empty()
+        def ch_matrix_stats                 = channel.empty()
+        def ch_sat_imgs                    = channel.empty()
         def ch_sat_res_imgs                 = channel.empty()
         def ch_sat_logs                     = channel.empty()
         def ch_star_umi                     = channel.empty()
@@ -181,6 +182,7 @@ workflow QC_mapping_workflow {
             ch_secondderiv_knee             = ch_secondderiv_knee.mix(mapping_starsolo_workflow.out.secondderiv_knee)
             ch_secondderiv_stats            = ch_secondderiv_stats.mix(mapping_starsolo_workflow.out.secondderiv_stats)
             ch_secondderiv_cutoff           = ch_secondderiv_cutoff.mix(mapping_starsolo_workflow.out.secondderiv_cutoff)
+            ch_matrix_stats                 = ch_matrix_stats.mix(mapping_starsolo_workflow.out.matrix_stats)
             ch_star_umi                     = ch_star_umi.mix(mapping_starsolo_workflow.out.star_umipercell)
             ch_star_log                     = ch_star_log.mix(mapping_starsolo_workflow.out.star_log)
             ch_star_final_log               = ch_star_final_log.mix(mapping_starsolo_workflow.out.star_final_log)
@@ -269,6 +271,7 @@ workflow QC_mapping_workflow {
             ch_secondderiv_knee             = ch_secondderiv_knee.mix(mapping_starsolo_geneext_workflow.out.secondderiv_knee)
             ch_secondderiv_stats            = ch_secondderiv_stats.mix(mapping_starsolo_geneext_workflow.out.secondderiv_stats)
             ch_secondderiv_cutoff           = ch_secondderiv_cutoff.mix(mapping_starsolo_geneext_workflow.out.secondderiv_cutoff)
+            ch_matrix_stats                 = ch_matrix_stats.mix(mapping_starsolo_geneext_workflow.out.matrix_stats)
             ch_star_umi                     = ch_star_umi.mix(mapping_starsolo_geneext_workflow.out.star_umipercell)
             ch_star_log                     = ch_star_log.mix(mapping_starsolo_geneext_workflow.out.star_log)
             ch_star_final_log               = ch_star_final_log.mix(mapping_starsolo_geneext_workflow.out.star_final_log)
@@ -354,6 +357,7 @@ workflow QC_mapping_workflow {
         secondderiv_knee             = ch_secondderiv_knee
         secondderiv_stats            = ch_secondderiv_stats
         secondderiv_cutoff           = ch_secondderiv_cutoff
+        matrix_stats                 = ch_matrix_stats
         saturation_imgs              = ch_sat_imgs
         saturation_residual_imgs     = ch_sat_res_imgs
         saturation_logs              = ch_sat_logs

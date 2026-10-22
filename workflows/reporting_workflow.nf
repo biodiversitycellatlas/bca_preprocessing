@@ -46,6 +46,7 @@ workflow reporting_workflow {
         secondderiv_knee
         secondderiv_stats
         secondderiv_cutoff
+        matrix_stats
         cs_ambient_hist_plot
         cs_umap_comparison_plot
         cs_top_genes
@@ -154,6 +155,7 @@ workflow reporting_workflow {
             antisense_metrics.collect().ifEmpty([]),
             secondderiv_knee.map { it[1] }.collect().ifEmpty([]),
             secondderiv_stats.map { it[1] }.collect().ifEmpty([]),
+            matrix_stats.map { _meta, f -> f }.collect().ifEmpty([]),
             percell_json.collect().ifEmpty([]),
             cs_ambient_hist_plot.collect().ifEmpty([]),
             cs_umap_comparison_plot.collect().ifEmpty([]),
@@ -189,6 +191,7 @@ workflow reporting_workflow {
                 ch_star_logs.join(secondderiv_stats).map { meta, _log, f ->
                     ["${gene_dir.call(meta)}/filtered_secondderiv/${f.name}", f]
                 },
+                matrix_stats.map { meta, f -> ["${gene_dir.call(meta)}/${f.name}", f] },
 
                 af_meta_info.map   { meta, f -> ["mapping_alevin/${meta.id}/${meta.id}_run/aux_info/meta_info.json", f] },
                 af_quant_json.map  { meta, f -> ["${af_counts.call(meta)}/quant.json", f] },
@@ -210,7 +213,7 @@ workflow reporting_workflow {
             .toSortedList { a, b -> a[0].toString() <=> b[0].toString() }
             .map { rows -> [ rows.collect { row -> row[0].toString() }, rows.collect { row -> row[1] } ] }
 
-        MAPPING_STATS(ch_mapping_stats_files)
+        MAPPING_STATS(ch_mapping_stats_files, StarsoloMatrix.rawFileName(params))
 
         // The outputs MultiQC has a module for: FastQC zips, STAR's Log.final.out
         // and the Kraken2 reports

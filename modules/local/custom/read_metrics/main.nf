@@ -4,7 +4,9 @@ process CALC_READ_METRICS {
     label 'process_single_long2'
 
     conda "${moduleDir}/environment.yml"
-    container "oras://community.wave.seqera.io/library/pysam_samtools_bc_python_pruned:82a1e27e868113f0"
+    container "${ workflow.containerEngine in ['singularity', 'apptainer'] && !task.ext.singularity_pull_docker_container ?
+        'oras://community.wave.seqera.io/library/pysam_samtools_bc_python_pruned:82a1e27e868113f0' :
+        'community.wave.seqera.io/library/pysam_samtools_bc_python_pruned:d34a762142fc1075' }"
 
     input:
     tuple val(meta), path(bam_file), path(filtered_matrix_dir), path(cellreads_stats)

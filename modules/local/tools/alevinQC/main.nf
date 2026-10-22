@@ -4,7 +4,9 @@ process ALEVIN_QC {
     label 'process_medium'
 
     conda "${moduleDir}/environment.yml"
-    container "oras://community.wave.seqera.io/library/bioconductor-alevinqc_r-base:62474ff3de946976"
+    container "${ workflow.containerEngine in ['singularity', 'apptainer'] && !task.ext.singularity_pull_docker_container ?
+        'oras://community.wave.seqera.io/library/bioconductor-alevinqc_r-base:62474ff3de946976' :
+        'community.wave.seqera.io/library/bioconductor-alevinqc_r-base:6d2d752a32e8c96a' }"
 
     input:
     tuple val(meta), path(alevin_fry_output)

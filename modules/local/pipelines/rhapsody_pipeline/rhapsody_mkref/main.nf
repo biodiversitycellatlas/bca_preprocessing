@@ -2,7 +2,9 @@ process BDRHAP_PIPELINE_MKREF {
     label 'process_medium'
 
     conda "${moduleDir}/environment.yml"
-    container "oras://community.wave.seqera.io/library/htslib_samtools_star_gawk:f196f82abbbc8871"
+    container "${ workflow.containerEngine in ['singularity', 'apptainer'] && !task.ext.singularity_pull_docker_container ?
+        'oras://community.wave.seqera.io/library/htslib_samtools_star_gawk:f196f82abbbc8871' :
+        'community.wave.seqera.io/library/htslib_samtools_star_gawk:782fa39fdeb1558c' }"
 
     // The STAR index is built by STARSOLO_INDEX; it is staged straight into the layout the
     // BD Rhapsody pipeline expects inside its reference archive

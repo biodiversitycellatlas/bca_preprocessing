@@ -207,7 +207,22 @@ def load_secondderiv_stats(matrix_dir: Path) -> Dict[str, object]:
     which case the mapper's own cell set was replaced and these values describe
     the cells that were actually retained.
     """
-    matches = sorted((matrix_dir / "filtered_secondderiv").glob("*secondderiv_statistics.json"))
+    return _read_first_json(sorted((matrix_dir / "filtered_secondderiv").glob("*secondderiv_statistics.json")))
+
+
+def load_matrix_stats(gene_dir: Path) -> Dict[str, object]:
+    """Load the statistics of STARsolo's own cells in its multi-gene matrix.
+
+    Written by SUBSET_STARSOLO_CELLS next to ``filtered_UniqueAndMult-<type>/``,
+    with ``cellfilter_method = "star_solocellfilter"`` and a multi-gene
+    ``star_soloMultiMappers``. The cells are STAR's, but ``Summary.csv`` describes
+    their unique-gene counts, not the matrix analysed. Returns ``{}`` otherwise.
+    """
+    return _read_first_json(sorted(gene_dir.glob("*_UniqueAndMult-*_statistics.json")))
+
+
+def _read_first_json(matches: List[Path]) -> Dict[str, object]:
+    """Read the first of *matches* as a JSON object, or ``{}``."""
     if not matches:
         return {}
 
@@ -1016,6 +1031,17 @@ def process_star_samples(
             # so Summary.csv's value describes STARsolo's cell set, not this one
             if sd_stats.get("sequencing_saturation") is not None:
                 row["Saturation"] = convert_to_pct(float(sd_stats["sequencing_saturation"]))
+        else:
+            # STARsolo's own cells in a multi-gene matrix: the cells, cutoff and read-level
+            # statistics are STAR's, but the numbers read off the matrix describe the one analysed
+            matrix_stats = load_matrix_stats(gene_dir)
+            for key, col_name in (
+                ("median_umis_per_cell", "Median UMI Counts per Cell"),
+                ("median_genes_per_cell", "Median Genes per Cell"),
+                ("total_genes_detected", "Total Genes Detected"),
+            ):
+                if matrix_stats.get(key) is not None:
+                    row[col_name] = str(int(round(float(matrix_stats[key]))))
 
         read_stats = gene_dir / "CellReads.stats"
         creads = add_cellreads_metrics(read_stats, filt_barcodes)

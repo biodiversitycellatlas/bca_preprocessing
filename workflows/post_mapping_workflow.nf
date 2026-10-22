@@ -199,10 +199,13 @@ workflow post_mapping_workflow {
         secondderiv_knee             = ch_secondderiv_knee
         secondderiv_stats            = ch_secondderiv_stats
         secondderiv_cutoff           = ch_secondderiv_cutoff
+        matrix_stats                 = cellcalling_starsolo_workflow.out.matrix_stats
         saturation_imgs              = ch_sat_imgs
         saturation_residual_imgs     = ch_sat_res_imgs
         saturation_logs              = ch_sat_logs
-        star_umipercell              = restage_mapping_workflow.out.star_umipercell
+        star_umipercell              = StarsoloMatrix.curveFromMatrix(params)
+                                           ? cellcalling_starsolo_workflow.out.umi_per_cell
+                                           : restage_mapping_workflow.out.star_umipercell
         star_log                     = restage_mapping_workflow.out.star_log
         star_final_log               = restage_mapping_workflow.out.star_final_log
         star_summaries               = restage_mapping_workflow.out.star_summaries

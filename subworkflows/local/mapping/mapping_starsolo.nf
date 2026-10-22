@@ -35,6 +35,8 @@ workflow mapping_starsolo_workflow {
         def ch_secondderiv_knee     = channel.empty()
         def ch_secondderiv_stats    = channel.empty()
         def ch_secondderiv_cutoff   = channel.empty()
+        def ch_matrix_stats         = channel.empty()
+        def ch_umi_per_cell         = channel.empty()
         def ch_versions             = channel.empty()
 
         // Check if star index is provided, if not create it
@@ -86,7 +88,14 @@ workflow mapping_starsolo_workflow {
             ch_secondderiv_knee   = cellcalling_workflow.out.secondderiv_knee
             ch_secondderiv_stats  = cellcalling_workflow.out.secondderiv_stats
             ch_secondderiv_cutoff = cellcalling_workflow.out.secondderiv_cutoff
+            ch_matrix_stats       = cellcalling_workflow.out.matrix_stats
             ch_versions           = ch_versions.mix(cellcalling_workflow.out.versions)
+
+            // The report's knee plot shows the curve the cutoff was read off: derived from a
+            // multi-gene matrix, STAR's own (unique-gene) curve otherwise
+            ch_umi_per_cell = StarsoloMatrix.curveFromMatrix(params)
+                ? cellcalling_workflow.out.umi_per_cell
+                : STARSOLO_ALIGN.out.umi_per_cell
         }
 
         // 'bam_only' forces the BAM on regardless of star_generateBAM: it is the only
@@ -107,7 +116,8 @@ workflow mapping_starsolo_workflow {
         secondderiv_knee                = ch_secondderiv_knee
         secondderiv_stats               = ch_secondderiv_stats
         secondderiv_cutoff              = ch_secondderiv_cutoff
-        star_umipercell                 = STARSOLO_ALIGN.out.umi_per_cell
+        matrix_stats                    = ch_matrix_stats
+        star_umipercell                 = ch_umi_per_cell
         star_log                        = STARSOLO_ALIGN.out.log_file
         star_final_log                  = STARSOLO_ALIGN.out.log_final_file
         star_summaries                  = STARSOLO_ALIGN.out.summary_csv

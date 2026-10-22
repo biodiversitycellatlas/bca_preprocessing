@@ -32,11 +32,10 @@
 
 This nextflow pipeline is designed to pre-process single-cell and single-nucleus RNA-seq data. It accepts FASTQ files from multiple sequencing platforms, at the moment being:
 
+- 10x Genomics
 - Parse Biosciences
 - BD Rhapsody
-- 10x Genomics
 - OAK
-- Ultima Genomics
 - sci-RNA-seq3
 - MARS-seq
 - and others, when providing a [seqspec](https://github.com/pachterlab/seqspec) file
@@ -61,13 +60,14 @@ git clone --recurse-submodules https://github.com/biodiversitycellatlas/bca_prep
 
 2. **Check dependencies**
 
-In order to run the pipeline, you must have [Nextflow](https://www.nextflow.io/docs/latest/index.html) installed, as well as access to one of the following environment managers: Conda, Mamba, Micromamba or Singularity/Apptainer. To verify the installations, print the versions of the available software:
+In order to run the pipeline, you must have [Nextflow](https://www.nextflow.io/docs/latest/index.html) installed, as well as access to one of the following environment managers: Conda, Mamba, Micromamba, Singularity/Apptainer or Docker. To verify the installations, print the versions of the available software:
 ```
 nextflow -v
 conda -V
 mamba --version
 micromamba --version
 apptainer --version
+docker --version
 ```
 
 3. **(Optionally) Installing an external pipeline as validation**
@@ -109,11 +109,15 @@ params {
     protocol = ""                       // Sequencing technique
     bc_whitelist = ""                   // Path(s) or URL(s) to the barcode whitelist, separated by a whitespace
 
+    // Mapping parameters
+    mapping_software = "starsolo"       // Mapping method: "starsolo", "alevin", "both"/"alevin_starsolo" or "alevin_subsampled_starsolo"
+    star_soloMultiMappers = "EM"        // STARsolo's counting method for reads mapping to multiple genes
+
     // References
     ref_gtf = ""                        // Path to the gene annotation GTF
     ref_fasta = ""                      // Path to the genome FASTA
     mt_contig = "chrM M MT"             // Mitochondrial contig, if not provided defaults to "chrM M MT"
-    star_index = null                   // Path to STAR index, leave empty to create one automatically
+    star_index = null                   // Path to STAR index, leave null to create one automatically
 
     // Enable/disable processes
     perform_geneext = true              // Enable/disable GeneExt

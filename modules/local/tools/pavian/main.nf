@@ -3,7 +3,9 @@ process PAVIAN {
     label 'process_single2'
 
     conda "${moduleDir}/environment.yml"
-    container "oras://community.wave.seqera.io/library/r-base_r-dplyr_r-readr_r-purrr_pruned:612296ee176e80a7"
+    container "${ workflow.containerEngine in ['singularity', 'apptainer'] && !task.ext.singularity_pull_docker_container ?
+        'oras://community.wave.seqera.io/library/r-base_r-dplyr_r-readr_r-purrr_pruned:612296ee176e80a7' :
+        'community.wave.seqera.io/library/r-base_r-dplyr_r-readr_r-purrr_pruned:df5c53ac79ed2882' }"
     // The script lives in a submodule. A container only sees the task directory and bin/,
     // unless the pipeline happens to share a parent directory with the work directory
     containerOptions { "${workflow.containerEngine in ['docker', 'podman'] ? '-v' : '-B'} ${projectDir}/submodules/pavianCore:${projectDir}/submodules/pavianCore" }

@@ -12,7 +12,9 @@ process DOUBLET_FILTER {
         params.dynamic_memory?.DOUBLET_FILTER, [mtx, barcodes, features], task.attempt, 12) }
 
     conda "${moduleDir}/environment.yml"
-    container "oras://community.wave.seqera.io/library/python_pandas_numpy_scipy_matplotlib:3ab628a840bacec5"
+    container "${ workflow.containerEngine in ['singularity', 'apptainer'] && !task.ext.singularity_pull_docker_container ?
+        'oras://community.wave.seqera.io/library/python_pandas_numpy_scipy_matplotlib:3ab628a840bacec5' :
+        'community.wave.seqera.io/library/python_pandas_numpy_scipy_matplotlib:ef1cecd8d63c13b2' }"
 
     input:
     tuple val(meta), path(mtx), path(barcodes), path(features), path(combined_results)

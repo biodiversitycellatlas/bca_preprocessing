@@ -23,6 +23,7 @@ process GENERATE_DASHBOARD {
     path(antisense_metrics)
     path(secondderiv_knee)
     path(secondderiv_stats)
+    path(matrix_stats)
     path(per_cell_files)
     path(cellsweep_plots_contrib)
     path(cellsweep_plots_umap)
@@ -65,6 +66,7 @@ process GENERATE_DASHBOARD {
         --knee_files ${knee_files} \\
         --secondderiv_knee ${secondderiv_knee} \\
         --secondderiv_stats ${secondderiv_stats} \\
+        --matrix_stats ${matrix_stats} \\
         --cellsweep_tables ${cellsweep_top_genes} \\
         --cellsweep_plots_contrib ${cellsweep_plots_contrib} \\
         --cellsweep_plots_umap ${cellsweep_plots_umap} \\
