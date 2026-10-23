@@ -111,8 +111,8 @@ workflow restage_mapping_workflow {
             .set { ch_star }
 
         // All optional upstream: the BAM only exists with star_generateBAM, STARsolo's own
-        // filtered matrix is dropped whenever this pipeline re-calls cells, and Velocyto/raw
-        // only exists when the previous run set 'perform_velocity'
+        // filtered matrix is missing from runs made before it was kept under re-called cells,
+        // and Velocyto/raw only exists when the previous run set 'perform_velocity'
         def ch_star_bam = ch_star.bam.filter { _meta, bam -> bam.exists() }
         def ch_star_filtered = ch_star.filtered.filter { _meta, dir -> dir.exists() }
         def ch_star_velo_raw = ch_star.velo_raw.filter { _meta, dir -> dir.exists() }

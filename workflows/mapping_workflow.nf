@@ -59,7 +59,6 @@ workflow QC_mapping_workflow {
         // Initialize channels
         def ch_samples = data_output
         def ch_mapped_ss                    = channel.empty()
-        def ch_mapping_files                = channel.empty()
         def ch_starsolo_bam                 = channel.empty()
         def ch_star_solodir                 = channel.empty()
         def ch_starsolo_genefull50_raw      = channel.empty()
@@ -172,7 +171,6 @@ workflow QC_mapping_workflow {
             mapping_starsolo_workflow(ch_star_input, bc_whitelist_safe, ref_gtf_ch, ref_fasta_ch, 'false', false, star_index_standard)
 
             // Assign starsolo standard mapping outputs
-            ch_mapping_files                = ch_mapping_files.mix(mapping_starsolo_workflow.out.mapping_files)
             ch_starsolo_bam                 = ch_starsolo_bam.mix(mapping_starsolo_workflow.out.starsolo_bam)
             ch_star_solodir                 = ch_star_solodir.mix(mapping_starsolo_workflow.out.star_solodir)
             ch_starsolo_genefull50_raw      = ch_starsolo_genefull50_raw.mix(mapping_starsolo_workflow.out.starsolo_genefull50_raw)
@@ -261,7 +259,6 @@ workflow QC_mapping_workflow {
             mapping_starsolo_geneext_workflow(ch_geneext, bc_whitelist_safe, ref_gtf_geneext_ch, ref_fasta_geneext_ch, 'true', false, null)
 
             // Mix the geneext starsolo outputs with standard run
-            ch_mapping_files                = ch_mapping_files.mix(mapping_starsolo_geneext_workflow.out.mapping_files)
             ch_starsolo_bam                 = ch_starsolo_bam.mix(mapping_starsolo_geneext_workflow.out.starsolo_bam)
             ch_star_solodir                 = ch_star_solodir.mix(mapping_starsolo_geneext_workflow.out.star_solodir)
             ch_starsolo_genefull50_raw      = ch_starsolo_genefull50_raw.mix(mapping_starsolo_geneext_workflow.out.starsolo_genefull50_raw)
@@ -308,7 +305,6 @@ workflow QC_mapping_workflow {
             // Same reference as the standard STARsolo run, so the two mappers are compared like for like
             mapping_alevin_workflow(ch_alevin, bc_whitelist_safe, ref_gtf_ch, ref_fasta_ch, 'false')
 
-            ch_mapping_files       = ch_mapping_files.mix(mapping_alevin_workflow.out.mapping_files)
             ch_alevin_meta_info    = ch_alevin_meta_info.mix(mapping_alevin_workflow.out.af_meta_info)
             ch_alevin_quant_json   = ch_alevin_quant_json.mix(mapping_alevin_workflow.out.af_quant_json)
             ch_alevin_cell_meta    = ch_alevin_cell_meta.mix(mapping_alevin_workflow.out.af_cell_meta)
@@ -330,7 +326,6 @@ workflow QC_mapping_workflow {
             ch_mapped_ss = ch_mapped_ss.mix(ch_alevin_geneext)
             mapping_alevin_geneext_workflow(ch_alevin_geneext, bc_whitelist_safe, ref_gtf_geneext_ch, ref_fasta_geneext_ch, 'true')
 
-            ch_mapping_files       = ch_mapping_files.mix(mapping_alevin_geneext_workflow.out.mapping_files)
             ch_alevin_meta_info    = ch_alevin_meta_info.mix(mapping_alevin_geneext_workflow.out.af_meta_info)
             ch_alevin_quant_json   = ch_alevin_quant_json.mix(mapping_alevin_geneext_workflow.out.af_quant_json)
             ch_alevin_cell_meta    = ch_alevin_cell_meta.mix(mapping_alevin_geneext_workflow.out.af_cell_meta)
@@ -347,7 +342,6 @@ workflow QC_mapping_workflow {
         fastqc_results               = FASTQC.out.fastqc_results
         mapped_samplesheet           = ch_mapped_ss
         ref_gtf                      = ref_gtf_ch
-        mapping_files                = ch_mapping_files
         starsolo_bam                 = ch_starsolo_bam
         star_solodir                 = ch_star_solodir
         starsolo_genefull50_raw      = ch_starsolo_genefull50_raw

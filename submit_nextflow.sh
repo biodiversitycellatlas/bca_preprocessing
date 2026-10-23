@@ -37,7 +37,7 @@ export NXF_JVM_ARGS="-Xms2g -Xmx5g"
 # nextflow run main.nf \
 #     -preview \
 #     -profile crg,conda \
-#     -c tests/test_parsebio.config
+#     -c examples/10x/conf/spis_10x_parameters.config
 
 ## Test run on the small test dataset with capped resources
 # nextflow run -profile crg,conda,test -c examples/10x/conf/spis_10x_parameters.config -ansi-log false "$@" & pid=$!

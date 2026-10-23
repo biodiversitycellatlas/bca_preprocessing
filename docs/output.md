@@ -211,10 +211,8 @@ These are run on the **raw** input files, before any protocol-specific read mani
 | `<id>_Solo.out/` | STARsolo output tree — see below. |
 | `<id>_Log.final.out` | Alignment summary: input reads, uniquely mapped %, multimapping %, unmapped % by reason. The source of most of the dashboard's Mapping tab. |
 | `<id>_Log.out` | Verbose run log, including the resolved parameters STAR ran with. |
-| `<id>_Log.progress.out` | Progress log. |
 | `<id>_Aligned.sortedByCoord.out.bam` | Coordinate-sorted alignments, present when `star_generateBAM = true`. Includes unmapped reads (`--outSAMunmapped Within`), which is what makes the Kraken step possible. Under `run_method = "geneext_only"` with the default `geneext_bam_only` it is written for GeneExt alone: no `CR`/`UR`/`CB`/`UB` tags and no unmapped reads. |
 | `<id>_Aligned.sortedByCoord.out.bam.bai` | BAM index. |
-| `<id>_SJ.out.tab` | Splice junctions. |
 
 Inside `<id>_Solo.out/` there is one directory per requested feature. The first two are produced
 by default (`--soloFeatures "Gene GeneFull_Ex50pAS"`):
@@ -230,7 +228,7 @@ by default (`--soloFeatures "Gene GeneFull_Ex50pAS"`):
 | Path | Description |
 | ---- | ----------- |
 | `raw/` | Unfiltered matrix over all barcodes: `matrix.mtx` (unique-gene counts), `features.tsv`, `barcodes.tsv`, and with a multi-gene `star_soloMultiMappers` (default `"EM"`) `UniqueAndMult-EM.mtx`: the unique plus the multi-gene counts, fractional. That one is the matrix analysed downstream; see [STARsolo multi-gene reads](CONFIGURATION_PARAMETERS.md#starsolo-multi-gene-reads). |
-| `filtered/` | STARsolo's own cell-called matrix, unique-gene counts only. **Only present when `cellfilter_method = "star_solocellfilter"`** — under the other methods it is removed after the summary is read, to avoid two competing "filtered" matrices. |
+| `filtered/` | STARsolo's own cell-called matrix, unique-gene counts only: the cell set `Summary.csv` describes. Written under every `cellfilter_method`, but used downstream only with `"star_solocellfilter"`. Under `"second_derivative"` and `"manual_cutoff"` it is kept for comparison; the cells the pipeline called are in `filtered_secondderiv/filtered/`. |
 | `filtered_UniqueAndMult-EM/` | `GeneFull_Ex50pAS/` only, with `star_solocellfilter` and a multi-gene `star_soloMultiMappers`: the analysed matrix subset to STARsolo's own cells, as `matrix.mtx`. |
 | `<id>_UniqueAndMult-EM_statistics.json` | Next to `filtered_UniqueAndMult-EM/`: number of cells, mean and median UMIs per cell, median genes per cell and total genes detected, computed on that matrix. The dashboard reports these three medians/totals instead of `Summary.csv`'s, which count unique-gene UMIs only. |
 | `Summary.csv` | Per-sample summary: reads, saturation, cells, median UMIs and genes per cell. Always written from STARsolo's own filter and its unique-gene counts, even when a different cell-calling method or a multi-gene matrix is used. |

@@ -189,7 +189,6 @@ workflow post_mapping_workflow {
         fastqc_results               = channel.empty()
         mapped_samplesheet           = restage_mapping_workflow.out.mapped_metas
         ref_gtf                      = ref_gtf_ch
-        mapping_files                = channel.empty()
         starsolo_bam                 = restage_mapping_workflow.out.starsolo_bam
         star_solodir                 = restage_mapping_workflow.out.star_solodir
         starsolo_genefull50_raw      = restage_mapping_workflow.out.starsolo_genefull50_raw

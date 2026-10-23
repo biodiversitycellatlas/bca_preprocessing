@@ -992,8 +992,8 @@ def process_star_samples(
         summary_df = load_summary_csv(gene_dir / "Summary.csv")
         row.update(extract_star_summary_fields(summary_df, cfg_name))
 
-        # With the second-derivative method STARsolo's filtered/ is neither produced nor
-        # published, so the cell set comes from the matrix that FILTER_MATRICES wrote.
+        # With the second-derivative method STARsolo's filtered/ is kept for comparison
+        # only, so the cell set comes from the matrix that FILTER_MATRICES wrote.
         sd_stats = load_secondderiv_stats(gene_dir)
         if sd_stats:
             filt_barcodes = gene_dir / "filtered_secondderiv" / "filtered" / "barcodes.tsv"

@@ -36,7 +36,6 @@ process STARSOLO_ALIGN {
     val mapping_flag_dir                         // MappingRateCheck.flagDir(workflow), as a string
 
     output:
-    tuple val(meta), path("*"),                                 emit: starsolo_files
     tuple val(meta), path("*_Log.final.out"),                   emit: log_final_file
     tuple val(meta), path("*_Log.out"),                         emit: log_file
     tuple val(meta), path("*_Solo.out"),                        emit: star_solodir
@@ -110,9 +109,6 @@ process STARSOLO_ALIGN {
 
     // If star_generateBAM is false, do not output BAM (omit --outSAMtype), 'bam_only' forces it back on.
     def outSAMtype_option = (params.star_generateBAM || bam_only) ? '--outSAMtype BAM SortedByCoordinate' : '--outSAMtype None'
-
-    // If cellfilter_method is "second_derivative" or "manual_cutoff", the filtered matrices are dropped and the raw matrices are used for cell calling.
-    def drop_star_filtered = params.cellfilter_method in ["second_derivative", "manual_cutoff"]
 
     // Calculated in BcaResources.bamSortRam(), which returns a note and the byte count.
     // params.star_limitBAMsortRAM overrides whenever it is set to something non-zero.
@@ -200,12 +196,6 @@ process STARSOLO_ALIGN {
         --limitBAMsortRAM ${bamsort.bytes} \\
         --soloStrand ${params.star_soloStrand} \\
         ${star_extraargs}
-
-    if [[ "${drop_star_filtered}" == "true" ]]; then
-        echo "cellfilter_method=${params.cellfilter_method}: removing STARsolo's own filtered matrices"
-        rm -rf ${meta.id}_Solo.out/GeneFull_Ex50pAS/filtered
-        rm -rf ${meta.id}_Solo.out/Gene/filtered
-    fi
 
     # STAR insists on writing a raw matrix for the one feature it counted; nothing reads it
     # in this mode. Summary.csv and Barcodes.stats are kept as free QC on the alignment.

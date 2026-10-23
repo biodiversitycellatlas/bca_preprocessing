@@ -106,7 +106,6 @@ workflow mapping_starsolo_workflow {
 
 
     emit:
-        mapping_files                   = STARSOLO_ALIGN.out.starsolo_files
         starsolo_bam                    = ch_starsolo_bam
         star_solodir                    = STARSOLO_ALIGN.out.star_solodir
         starsolo_genefull50_raw         = STARSOLO_ALIGN.out.genefull50_raw_dir

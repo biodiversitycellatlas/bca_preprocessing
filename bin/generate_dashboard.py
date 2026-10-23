@@ -1670,7 +1670,7 @@ def main() -> None:
 
         # ── Second-derivative cell calling ───────────────────────────────────
         # When cellfilter_method = "second_derivative", the cells are re-called on the
-        # raw matrix: STARsolo's own filtered matrix is neither produced nor published,
+        # raw matrix: STARsolo's own filtered matrix is kept for comparison only,
         # and alevin-fry's quantified matrix is filtered again after its knee. Every
         # cell-level number below is recomputed on the matrix that was actually
         # filtered, so those values replace the ones the mapper reported for its own
