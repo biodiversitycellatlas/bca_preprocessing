@@ -583,7 +583,7 @@ def main(arguments):
         - Collects hashing metrics (if applicable).
             - Reads used for hashing are removed.
 
-    The R1 sequence is modified to a fixed length sequence (48nt) which includes all (corrected) barcodes: p5(10nt), p7(10nt), ligation(10nt), RT(10nt) and UMI (8nt) for downstream processing.
+    The R1 sequence is modified to a fixed length sequence (48nt) which includes all (corrected) barcodes: p7(10nt), p5(10nt), ligation(10nt), RT(10nt) and UMI (8nt) for downstream processing.
     The read names for R2 are modified to include the barcodes and UMI.
 
     It requires that the p5 and p7 barcodes are present in the read headers of the .fastq files (bcl2fastq):

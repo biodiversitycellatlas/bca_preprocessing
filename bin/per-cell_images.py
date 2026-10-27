@@ -9,8 +9,9 @@ primary alignment, and matches the called-cell rows of ``_mt_rrna_metrics.txt``:
 
     MappedReads       reads with a CB tag (primary alignment)
     MTPercent         % of MappedReads whose primary alignment is on a mitochondrial contig
-    rRNAPercent       % of MappedReads overlapping an rRNA region (any rRNA biotype, plus
-                      the whole of every contig of the added rRNA reference)
+    rRNAPercent       % of MappedReads overlapping an rRNA region (any rRNA biotype, the
+                      loci of ref_gtf_addfeature, and the whole of every contig of
+                      ref_fasta_addfeature)
     IntronicPercent   % of uniquely mapped reads STARsolo flags intronic (CellReads.stats)
     UnsplicedPercent  % of Velocyto UMIs classed unspliced, when Velocyto was run
 

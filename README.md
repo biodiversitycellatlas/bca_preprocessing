@@ -135,7 +135,7 @@ params {
 
 ```
 # Submitting the pipeline in a local environment or interactive session on a HPC
-nextflow run
+nextflow run main.nf
     -profile <institution_config>,<environment_manager>         # e.g. -profile crg,conda
     -c </path/to/custom_parameters.config>                      # e.g. -c conf/custom_parameters.config
     -w </path/to/workdir>                                       # Temporary nextflow files are stored here

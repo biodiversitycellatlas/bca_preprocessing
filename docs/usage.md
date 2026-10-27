@@ -1,113 +1,176 @@
-## Setup
+# Usage
 
-### 1. Create a samplesheet
+### Table of Contents
 
-The samplesheet should be a comma-seperated file, specifying the names and locations of the files and details necessary for pipeline execution. Depending on the chosen sequencing technique the order of the FASTQ files is altered, R1 might contain the cDNA while in other cases this might contain the Cell barcode & UMI's, check the available documentation or manually.
-
-When analysing sci-RNA-seq3 data, it is necessary to also provide the index to the p5, p7 and rt's for each sample to analyse this data successfully. These indexes are defined in the [sci-RNA-seq3 barcode whitelist file](assets/sciRNAseq3_bwl.txt), where you can match the sequences to the corresponding barcode, which is used in the samplesheet.
-
-In the case of Parse Biosciences data, the column of p5 should be filled with the group-well definitions, where:
-
-    Wells are specified in blocks, ranges, or individually like this:
-        'A1:C6' specifies a block as [top-left]:[bottom-right]; A1-A6, B1-B6, C1-C6.
-        'A1-B6' specifies a range as [start]-[end]; A1-A12, B1-6.
-        'C4' specifies a single well.
-        Multiple selections are joined by commas (no space), e.g. 'A1-A6,B1:D3,C4'
-
-In the table below, the variables are summarized, with an example samplesheet listed [here](../examples/example_samplesheet.csv).
-
-| Variable       | Required/Optional | Description                                                                                                                                                             |
-| -------------- | ----------------- | ----------------------------------------------------------------------------------------------------------------------------------------------------------------------- |
-| sample         | **Required**      | Must be unique unless you want the FASTQ files to be merged after demultiplexing.                                                                                       |
-| fastq_cDNA     | **Required**      | Path to the FASTQ file containing cDNA. Uncompressed (`.fastq`/`.fq`) and gzipped (`.fastq.gz`/`.fq.gz`) files are both accepted, and may be mixed within a sample.      |
-| fastq_BC_UMI   | **Required**      | Path to the FASTQ file containing the cell barcode & UMI. Uncompressed and gzipped files are both accepted.                                                              |
-| expected_cells | **Required**      | Number of expected cells                                                                                                                                                |
-| manual_cutoff  | Optional          | Per-sample UMI threshold used to call cells. Required for every sample when `cellfilter_method = "manual_cutoff"`, ignored otherwise. See [Cell calling](CONFIGURATION_PARAMETERS.md#cell-calling). |
-| p5             | Optional          | Only required for sci-RNA-seq3 (p5-associated barcode from [sci-RNA-seq3 barcode whitelist file](assets/sciRNAseq3_bwl.txt), Parse Biosciences (group-well definition) & OAK (i5 barcode sequence of the aliquot) |
-| p7             | Optional          | Only required for sci-RNA-seq3 (p7-associated barcode from [sci-RNA-seq3 barcode whitelist file](assets/sciRNAseq3_bwl.txt); optional for OAK (i7 barcode sequence of the aliquot) |
-| rt             | Optional          | Only required for sci-RNA-seq3 (rt-associated barcode from [sci-RNA-seq3 barcode whitelist file](assets/sciRNAseq3_bwl.txt)                                             |
-
-
-### 2. Edit (or create) a custom configuration file
-
-To set the custom parameters for each run, the easiest solution is to fill in the fiels in [`conf/custom_parameters.config`](conf/custom_parameters.config). This custom configuration file extends the general `nextflow.config` file in the base of this repository. `conf/custom_parameters.config` contains the minimum variables in order to run this pipeline, and are described in the table below in more detail.
-
-To customize the run, you can add other (optional) variables to the `conf/custom_parameters.config` file. If you have a multi-species experiment, one configuration file per species must be created in order to analyze the data with the corresponding genome annotation files.
-
-Within each custom configuration file the following variables can be defined:
-
-| Variable                 | Required/Optional | Description                                                                                                                                                                                                                       |
-| ------------------------ | ----------------- | --------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------- |
-| `input`                  | **Required**      | Path to the samplesheet.                                                                                                                                                                                                          |
-| `outdir`                 | **Required**      | Path to the results/output directory; created if missing.                                                                                                                                                                          |
-| `protocol`               | **Required**      | Specifies the sequencing technology used (must be one of the following: `"oak_v1"`, `"10xv1"`, `"10xv2"`, `"10xv3"`, `"10xv4"`, `"parse_biosciences_WT_mini"` or `"parse_biosciences_WT"`, `"bd_rhapsody_v1"`, `"bd_rhapsody_enhancedbeads"`, `"sciRNAseq3"` , `"ultima_genomics"`, `"marsseq_v1"`, `"marsseq_v2"` or `"seqspec"`). |
-| `ref_fasta`              | **Required**      | Path to the genome FASTA file used for mapping reads.                                                                                                                                                                             |
-| `ref_gtf`                | **Required**      | Path to the GTF/GFF file formatted for STARsolo.                                                                                                                                                                                  |
-| `seqspec_file`           | Optional          | Path to the seqspec file.                                                                                                                                                                                                         |
-| `mt_contig`              | Optional          | Name(s) of the mitochondrial contig(s) in the reference annotation, used to calculate mtDNA content. Multiple contigs can be given separated by whitespace, in which case reads on any of them count as mitochondrial. Default set to `"chrM M MT"`. |
-| `grep_rrna`              | Optional          | String used to grep ribosomal RNA (rRNA) reads from annotations. Default set to `"rRNA"`                                                                                                                                          |
-| `mapping_software`       | Optional          | Software used to map reads (must be one of the following: `"starsolo"`, `"alevin"`, `"both"`/`"alevin_starsolo"` or `"alevin_subsampled_starsolo"`). Default set to `"starsolo"`. alevin-fry is set up to be comparable to STARsolo; see [alevin-fry settings](CONFIGURATION_PARAMETERS.md#alevin-fry-settings). |
-| `alevin_resolution`      | Optional          | alevin-fry's UMI resolution, `"cr-like"` (discards gene-ambiguous UMIs, as STARsolo does with `star_soloMultiMappers = "Unique"`) or `"cr-like-em"` (default; splits them by EM, the counterpart of STARsolo's default `"EM"`). |
-| `cellfilter_method`      | Optional          | How cells are called: `"star_solocellfilter"` (each mapper's own cell filter), `"second_derivative"` or `"manual_cutoff"` (a per-sample threshold from the samplesheet). Default set to `"second_derivative"`, which re-calls cells for both mappers and recomputes every cell-dependent statistic in the report on the retained cells. See [Cell calling](CONFIGURATION_PARAMETERS.md#cell-calling). |
-| `run_method`             | Optional          | One of `"standard"`, `"geneext_only"`, `"external_pipeline_only"` or `"post_mapping"`. Default set to `"standard"`. Use `"post_mapping"` to redo everything after mapping on a finished run — for instance to re-call cells with a different `expected_cells` or a manual cutoff — without mapping again. See [Re-running after mapping](CONFIGURATION_PARAMETERS.md#re-running-after-mapping). |
-| `previous_outdir`        | Optional          | Only with `run_method = "post_mapping"`: the finished run's results directory to read the mapping results back from. Defaults to `outdir`.                                                                                        |
-| `perform_geneext`        | Optional          | Boolean flag to enable or disable the gene extension step in preprocessing. Default is `false`.                                                                                                                                   |
-| `geneext_downstream`     | Optional          | Only with `perform_geneext`: `"geneext_only"` maps and analyses only the runs against the extended annotation (by GeneExt), `"both"` also the standard-annotation runs. Default is `"geneext_only"`. See [Which runs GeneExt adds](CONFIGURATION_PARAMETERS.md#which-runs-geneext-adds). |
-| `perform_kraken`         | Optional          | Boolean flag to enable or disable Kraken2 classification of unmapped reads. Default is `false`.                                                                                                                                   |
-| `ambient_rna_remover`    | Optional          | Software used to remove ambient RNA: `"cellsweep"` or `"none"`. Default is `"cellsweep"`.                                                                                                                                         |
-| `perform_metacells`      | Optional          | Boolean flag to group the called cells into Metacell2 metacells and build the interactive `filtering_report.html`. Default is `false`. See [Metacells and the filtering report](CONFIGURATION_PARAMETERS.md#metacells-and-the-filtering-report). |
-| `gene_annotation`        | Optional          | TSV with protein domains (PFAM) per gene, transcript or protein id, e.g. an eggNOG-mapper annotation. It enables filtering genes by domain in the report.                                                                        |
-| `metacell_selection`     | Optional          | The `metacell_selection.json` exported from `filtering_report.html`. Rerun with `-resume` to write the filtered UMI matrices to `<outdir>/metacell_filtering/`.                                                                    |
-| `kraken_db_path`         | Optional          | Path to the Kraken2 database used for taxonomic classification of unmapped reads, if empty, a default database will be installed.                                                                                                 |
-| `perform_cellranger`     | Optional          | Boolean flag to enable or disable the CellRanger pipeline. Default is `false`.                                                                                                                                                    |
-| `splitpipe_installation` | Optional          | Path to the split-pipe installation folder, that can be used as a control.                                                                                                                                                        |
-| `splitpipe_conda_env`    | Optional          | Path to the split-pipe conda environment created by following these [instructions](docs/INSTALLATION_EXTERNAL_PIPELINES.md), required if running the split-pipe pipeline.                                                         |
-| `rhapsody_installation`  | Optional          | Path to the BD-Rhapsody pipeline installation folder, that can be used as a control.                                                                                                                                              |
-
-To modify the behaviour of certain processes, additional variables can be added to the configuration file. An overview of the extended custom parameters is listed [here](docs/CONFIGURATION_PARAMETERS.md).
-
+1. [Before you start](#before-you-start)
+2. [Running the pipeline](#running-the-pipeline)
+    - [Profiles](#profiles)
+    - [Useful options](#useful-options)
+    - [Testing your setup](#testing-your-setup)
+3. [Run methods](#run-methods)
+    - [Full run (`standard`)](#full-run-standard)
+    - [Gene extension only (`geneext_only`)](#gene-extension-only-geneext_only)
+    - [External pipelines only (`external_pipeline_only`)](#external-pipelines-only-external_pipeline_only)
+    - [Re-running after mapping (`post_mapping`)](#re-running-after-mapping-post_mapping)
+4. [Filtering UMI matrices (two passes)](#filtering-umi-matrices-two-passes)
 
 ---
 
 
-## Usage
+## Before you start
 
-### Pre-requisites:
-
-- [ ] Created a samplesheet in CSV format (see [examples/example_samplesheet.csv](../examples/example_samplesheet.csv))
-- [ ] Edited ([`conf/custom_parameters.config`](conf/custom_parameters.config)) or created a new custom configuration file
-- [ ] Conda & Nextflow available in base environment (or Nextflow & Apptainer/Singularity/Docker, see below)
-
-### Running the Pipeline
+- [ ] A samplesheet in CSV format, see [`example_samplesheet.csv`](../examples/example_samplesheet.csv) and the [samplesheet configuration per protocol](PROTOCOLS_AND_WHITELISTS.md).
+- [ ] A custom configuration file, see [`custom_parameters.config`](../conf/custom_parameters.config) and [all configuration parameters](CONFIGURATION_PARAMETERS.md).
+- [ ] Nextflow and one of: Conda, Mamba, Micromamba, Docker, Podman, Singularity or Apptainer.
 
 > [!WARNING]
-> The pipeline must be run in the conda base environment, it cannot activate the different environments properly with a prior environment activated. It should have access to run both `nextflow` and `conda` in the commandline.
+> When using conda, mamba or micromamba: the pipeline must be run in the base environment, it cannot activate the different environments properly with a prior environment activated.
+
+
+## Running the pipeline
 
 ```
+# Submitting the pipeline in a local environment or interactive session on a HPC
+nextflow run main.nf
+    -profile <institution_config>,<environment_manager>         # e.g. -profile crg,conda
+    -c </path/to/custom_parameters.config>                      # e.g. -c conf/custom_parameters.config
+    -w </path/to/workdir>                                       # Temporary nextflow files are stored here
 
-nextflow run -profile <institution_config>,conda -c </path/to/custom_parameters.config> -w </path/to/workdir>
-
-####### OR - submitting pipeline through a bash script #######
-
-# Submit pipeline to SLURM queue
+# Submitting pipeline to an HPC using SLURM
 sbatch submit_nextflow.sh main.nf
 ```
 
+[`submit_nextflow.sh`](../submit_nextflow.sh) runs `-profile crg,conda -c conf/custom_parameters.config`; edit that line for your own setup. Any extra arguments are passed on to Nextflow, e.g. `sbatch submit_nextflow.sh main.nf -resume`.
 
-### Filtering metacells (two passes)
+Every parameter of the configuration file can also be given on the command line with a double dash (`--run_method post_mapping`), which takes precedence over the file.
 
-With `perform_metacells = true` the run ends with `<outdir>/filtering_report.html`. Open it and,
-for each sample, set the cell-level filters (mitochondrial %, doublet %, ambient fraction,
-blacklist) and the gene-level filters (minimum UMIs, PFAM domains). Opening a tab with a sample
-selected applies that level's settings; *Apply settings to all samples* copies them to the rest. Then download
-`metacell_selection.json` from the *Export selection* tab. It holds the samples whose settings are
-applied at both levels. Rerun the same command
-with `-resume` and the selection:
+
+### Profiles
+
+Combine one institution profile with one environment manager, separated by a comma.
+
+| Profile | Description |
+|---------|-------------|
+| `<institution_config>` | Executor and queue settings of your cluster, loaded from [nf-core/configs](https://github.com/nf-core/configs) (e.g. `crg`). Leave it out to run locally. |
+| `conda`, `mamba`, `micromamba` | Builds one environment per module from its `environment.yml`. |
+| `apptainer`, `singularity` | Pulls a pre-built [Seqera container](https://seqera.io/containers/) (Singularity image) per module on first use. |
+| `docker`, `podman` | Pulls the Docker image of the same environment per module. Add `arm` on Apple Silicon to run the amd64 images. |
+| `wave` | Builds each module's container from its conda environment with [Wave](https://seqera.io/wave/); use together with a container profile. |
+| `test` | Caps every task at 2 CPUs, 4 GB and 1 h, and turns off retries ([`conf/test.config`](../conf/test.config)). |
+
+
+### Useful options
+
+| Option | Description |
+|--------|-------------|
+| `-resume` | Re-uses the cached results of a previous run in the same work directory, only re-running what changed. |
+| `-preview` | Checks that every process can be launched with the current configuration, without running anything. |
+| `--help` | Lists the pipeline parameters (`--help_full` for all of them). |
+
+
+### Testing your setup
+
+Small subsampled datasets with a matching configuration are included in [`examples/`](../examples/README.md). Run one with the `test` profile before starting on your own data:
 
 ```
-nextflow run -profile <institution_config>,conda -c </path/to/custom_parameters.config> -w </path/to/workdir> \
+nextflow run main.nf -profile <institution_config>,conda,test -c examples/10x/conf/spis_10x_parameters.config
+```
+
+The environments and container images can also be checked without any data, using the [test suite](../tests/README.md): `bash tests/run_tests.sh`.
+
+
+## Run methods
+
+The `run_method` parameter decides which part of the pipeline runs.
+
+| `run_method` | Maps reads | Stops after | Use it to |
+|--------------|:----------:|-------------|-----------|
+| `"standard"` (default) | Yes | The reports | Process a dataset from FASTQ to filtered count matrices. |
+| `"geneext_only"` | GeneExt pass only | GeneExt | Build an extended annotation once, to reuse as `ref_gtf`. |
+| `"external_pipeline_only"` | No | Vendor pipeline | Run only the vendor pipelines (Cell Ranger, split-pipe, BD Rhapsody). |
+| `"post_mapping"` | No | The reports | Redo cell calling and everything after it on a mapped sample. |
+
+
+### Full run (`standard`)
+
+Pre-processing, mapping, cell calling, filtering and reporting, as in the [pipeline diagram](../img/Preprocs_Pipeline.png). This is the default, so `run_method` can be left out of the configuration file. Use the command under [Running the pipeline](#running-the-pipeline).
+
+
+### Gene extension only (`geneext_only`)
+
+Maps every sample once with STARsolo, runs [GeneExt](https://github.com/zolotarovgl/GeneExt) on the merged alignments and stops. The result is `<outdir>/gene_ext/geneext.gtf`, to pass back as `ref_gtf` on later runs. `perform_geneext` does not have to be set.
+
+```
+nextflow run main.nf -profile <institution_config>,conda -c </path/to/custom_parameters.config> \
+    --run_method geneext_only
+```
+
+By default the mapping is reduced to what GeneExt needs: a BAM without cell tags, no count matrices and no cell calling. Set `geneext_bam_only = false` to map as a `standard` run would and still stop after GeneExt. See [The `geneext_only` run method](CONFIGURATION_PARAMETERS.md#the-geneext_only-run-method).
+
+
+### External pipelines only (`external_pipeline_only`)
+
+Runs the protocol's pre-processing and the enabled vendor pipelines, then stops. Nothing is mapped with STARsolo or alevin-fry, and no reports are made. A vendor pipeline only runs when it is enabled:
+
+| Pipeline | Protocols | Enabled by |
+|----------|-----------|------------|
+| Cell Ranger | 10x Genomics, OAK | `perform_cellranger = true` |
+| split-pipe | Parse Biosciences | `splitpipe_installation` and `splitpipe_conda_env` |
+| BD Rhapsody | BD Rhapsody | `rhapsody_installation` |
+
+```
+nextflow run main.nf -profile <institution_config>,conda -c </path/to/custom_parameters.config> \
+    --run_method external_pipeline_only
+```
+
+For installing split-pipe and BD Rhapsody, see [supported external pipelines](INSTALLATION_EXTERNAL_PIPELINES.md).
+
+
+### Re-running after mapping (`post_mapping`)
+
+Picks a finished run up where mapping ended. The previous run's STARsolo and alevin-fry results are read back in, cells are called again from the current samplesheet, and every step after that is redone: matrix filtering, saturation, read and per-cell metrics, ambient RNA removal, doublet detection, metacells, the dashboard and MultiQC. Demultiplexing, trimming, FastQC, indexing, mapping and GeneExt are not repeated.
+
+Use it to correct the cell calling without mapping again:
+
+- **A different number of expected cells:** edit `expected_cells` in the samplesheet. It bounds the window the second-derivative search looks for the knee in.
+- **A cutoff chosen by hand:** set `cellfilter_method = "manual_cutoff"` and give every sample a `manual_cutoff` in the samplesheet.
+
+See [Cell calling](CONFIGURATION_PARAMETERS.md#cell-calling) for both methods.
+
+```
+nextflow run main.nf -profile <institution_config>,conda -c </path/to/custom_parameters.config> \
+    --run_method post_mapping \
+    --previous_outdir </path/to/finished/results> \
+    --cellfilter_method manual_cutoff
+```
+
+| Variable | Notes |
+|----------|-------|
+| `previous_outdir` | Results directory of the finished run. Defaults to `outdir`, which overwrites the cell-called outputs in place; set a different `outdir` to keep the original results. |
+| `input` | The samplesheet, read again. Sample names must match the previous run; the FASTQs do not have to exist anymore. |
+| `mapping_software`, `perform_geneext`, `geneext_downstream` | Must match the previous run, as they decide which analytical runs are picked up. They are recorded in its `pipeline_info/run_config_*.txt`. |
+| `ref_gtf`, `ref_fasta`, `protocol` | Still required, for the read metrics. |
+| `geneext_gtf` | Only with `perform_geneext`. Defaults to `<previous_outdir>/gene_ext/geneext.gtf`. |
+
+Notes:
+
+- The saturation, read metrics and Kraken steps read the previous run's BAMs, so they need a run made with `star_generateBAM = true`.
+- An analytical run with missing or incomplete outputs is named in a warning and skipped; the other samples are still processed.
+- With `perform_geneext`, the GeneExt runs are picked up (and the standard ones too with `geneext_downstream = "both"`). Without it, only the standard runs are processed, which needs a previous run that mapped them.
+
+
+## Filtering UMI matrices (two passes)
+
+Available with `run_method` `"standard"` or `"post_mapping"`.
+
+1. Run with `perform_metacells = true`. The run ends with `<outdir>/filtering_report.html`.
+2. Open the report and set the cell-, metacell- and gene-level filters for each sample. *Apply settings to all samples* copies them to the rest.
+3. Download `metacell_selection.json` from the *Export selection* tab. It holds the samples whose settings were applied at both levels.
+4. Rerun the same command with `-resume` and the selection:
+
+```
+nextflow run main.nf -profile <institution_config>,conda -c </path/to/custom_parameters.config> -w </path/to/workdir> \
     -resume --metacell_selection metacell_selection.json
 ```
 
-Only the filtering step runs. The filtered matrices for downstream analysis are written to
-`<outdir>/metacell_filtering/<sample>/<sample>_final/`.
+Only the filtering step runs. The filtered matrices are written to `<outdir>/metacell_filtering/<sample>/<sample>_final/`. See [Metacells and the filtering report](CONFIGURATION_PARAMETERS.md#metacells-and-the-filtering-report) for the report's settings.

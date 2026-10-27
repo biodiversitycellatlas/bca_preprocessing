@@ -13,8 +13,7 @@ include { cellcalling_workflow as cellcalling_alevin_workflow               } fr
 include { bam_inspection_workflow                                           } from '../subworkflows/local/post-processing/bam_inspection'
 include { bam_inspection_workflow as bam_inspection_geneext_workflow        } from '../subworkflows/local/post-processing/bam_inspection'
 
-include { MERGE_REF_GTF                                                     } from '../modules/local/custom/manipulate/merge_ref_gtf/main'
-include { MERGE_REF_GTF as MERGE_REF_GTF_GENEEXT                            } from '../modules/local/custom/manipulate/merge_ref_gtf/main'
+include { PREPARE_ADDFEATURE                                                } from '../modules/local/custom/manipulate/prepare_addfeature/main'
 
 
 /*
@@ -58,14 +57,19 @@ workflow post_mapping_workflow {
         // Read the previous run's mapping results back into channels
         restage_mapping_workflow(ch_samplesheet)
 
-        // Conditionally bypass MERGE_REF_GTF when no additional features are provided
-        def ref_gtf_ch
-        if (params.ref_gtf_addfeature) {
-            MERGE_REF_GTF(file(params.ref_gtf, checkIfExists: true), file(params.ref_gtf_addfeature, checkIfExists: true), '')
-            ref_gtf_ch = MERGE_REF_GTF.out.gtf
-            ch_versions = ch_versions.mix(MERGE_REF_GTF.out.versions)
-        } else {
-            ref_gtf_ch = channel.value(file(params.ref_gtf, checkIfExists: true))
+        // ref_gtf_addfeature only feeds the read-level rRNA metrics, as during mapping.
+        // The regions also list the added records dropped as copies of reference sequence,
+        // so a BAM mapped against a reference that still held them counts them as rRNA.
+        def ref_gtf_ch      = channel.value(file(params.ref_gtf, checkIfExists: true))
+        def ch_rrna_regions = channel.value([])
+        if (params.ref_fasta_addfeature || params.ref_gtf_addfeature) {
+            PREPARE_ADDFEATURE(
+                file(params.ref_fasta, checkIfExists: true),
+                params.ref_fasta_addfeature ? file(params.ref_fasta_addfeature, checkIfExists: true) : [],
+                params.ref_gtf_addfeature ? file(params.ref_gtf_addfeature, checkIfExists: true) : []
+            )
+            ch_rrna_regions = PREPARE_ADDFEATURE.out.rrna_regions
+            ch_versions = ch_versions.mix(PREPARE_ADDFEATURE.out.versions)
         }
 
         // The GeneExt-remapped runs were annotated against the extended GTF, so their
@@ -80,13 +84,7 @@ workflow post_mapping_workflow {
                     "or unset 'perform_geneext' to process the standard mapping runs only."
                 )
             }
-            if (params.ref_gtf_addfeature) {
-                MERGE_REF_GTF_GENEEXT(channel.value(geneext_gtf), file(params.ref_gtf_addfeature, checkIfExists: true), '_geneext')
-                ref_gtf_geneext_ch = MERGE_REF_GTF_GENEEXT.out.gtf
-                ch_versions = ch_versions.mix(MERGE_REF_GTF_GENEEXT.out.versions)
-            } else {
-                ref_gtf_geneext_ch = channel.value(geneext_gtf)
-            }
+            ref_gtf_geneext_ch = channel.value(geneext_gtf)
 
             // Check if GeneExt produced a report and/or log, and if so, publish them to the dashboard
             def geneext_report = file("${geneext_gtf}.Report.html")
@@ -145,6 +143,7 @@ workflow post_mapping_workflow {
             bam_inspection_workflow(
                 ch_bam.filter       { meta, _bam  -> !meta.geneext },
                 ref_gtf_ch,
+                ch_rrna_regions,
                 ch_summary.filter   { meta, _csv  -> !meta.geneext },
                 ch_final_log.filter { meta, _log  -> !meta.geneext },
                 ch_sd_stats.filter  { meta, _json -> !meta.geneext },
@@ -166,6 +165,7 @@ workflow post_mapping_workflow {
                 bam_inspection_geneext_workflow(
                     ch_bam.filter       { meta, _bam  -> meta.geneext },
                     ref_gtf_geneext_ch,
+                    ch_rrna_regions,
                     ch_summary.filter   { meta, _csv  -> meta.geneext },
                     ch_final_log.filter { meta, _log  -> meta.geneext },
                     ch_sd_stats.filter  { meta, _json -> meta.geneext },

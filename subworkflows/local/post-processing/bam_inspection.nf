@@ -27,6 +27,7 @@ workflow bam_inspection_workflow {
     take:
         bam_file
         ref_gtf
+        rrna_regions
         summary_csv
         log_final_file
         secondderiv_stats
@@ -94,13 +95,9 @@ workflow bam_inspection_workflow {
             .map { meta, bam, filtered, cellreads -> [meta, bam, filtered ?: [], cellreads ?: []] }
             .set { ch_metrics_inputs }
 
-        def ch_rrna_gtf = params.ref_gtf_addfeature
-            ? channel.value(file(params.ref_gtf_addfeature, checkIfExists: true))
-            : channel.value([])
-
         // Percentages of mtDNA and rRNA reads, per library, per called cell and per barcode,
         // and the antisense share of gene reads from STARsolo's CellReads.stats (stranded runs only).
-        CALC_READ_METRICS(ch_metrics_inputs, ref_gtf, ch_rrna_gtf)
+        CALC_READ_METRICS(ch_metrics_inputs, ref_gtf, rrna_regions)
         ch_versions = ch_versions.mix(CALC_READ_METRICS.out.versions)
 
         // Inspecting unmapped reads using Kraken2

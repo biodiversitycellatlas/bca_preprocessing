@@ -95,10 +95,6 @@ they scale with it instead of using a fixed amount of resources:
 | `SUBSET_VELOCYTO_MATRICES` | Velocyto matrix size | ~3 GB small, up to 48 GB |
 | `VELOCITY_H5AD` | Velocyto or USA matrix size | ~3 GB small, up to 48 GB |
 
-`DOUBLET_FILTER` only runs with `perform_doublet_filtering = true`, and the last two only
-with `perform_velocity = true`. `MTX_TO_H5AD` reads two matrices where CellSweep ran — the
-counts and the denoised counts it merges in as a layer — which is why its ceiling is the
-higher one; its coefficients were measured before that and are worth re-measuring.
 
 The numbers live in `dynamic_memory` in [`nextflow.config`](../nextflow.config), and you can refresh them
 based on your own runs:
@@ -110,13 +106,6 @@ bin/resource_efficiency.py --results /path/to/outdir --dynamic
 That writes a `resources_dynamic_*.config` you can pass with `-c`, or copy into
 `nextflow.config`.
 
-`perform_velocity = true` is worth a note of its own. It adds a third feature structure
-to STARsolo's solo post-map step, so `STARSOLO_ALIGN` needs more memory — but its entry
-scales on **FASTQ size**, which does not change when a feature is added. The anchor
-(`mem_gb` at `ref_gb`) therefore under-provisions with velocity on. The retry ladder
-absorbs a single overrun, but if `STARSOLO_ALIGN` starts retrying on memory once you
-enable velocity, raise `dynamic_memory.STARSOLO_ALIGN.mem_gb` (and `cap_gb` if you are
-hitting it) rather than assuming the fit is wrong.
 
 One thing to watch when copying an entry across: `--dynamic` calibrates `ref_gb` from
 the trace's `rchar`, the total bytes a task read, while the module measures the file

@@ -5,7 +5,7 @@ Within each custom configuration file the following variables can be defined:
 
 ## Table of Contents
 
-1. [Base Variables](#base-variables) (and [How paths are resolved](#how-paths-are-resolved))
+1. [Base Variables](#base-variables) (and [How paths are resolved](#how-paths-are-resolved), [Added rRNA reference](#added-rrna-reference))
 2. [STAR Variables](#star-variables) (and [STARsolo multi-gene reads](#starsolo-multi-gene-reads))
 3. [Alevin-fry Variables](#alevin-fry-variables)
 4. [Mapping-rate check](#mapping-rate-check)
@@ -28,11 +28,13 @@ Within each custom configuration file the following variables can be defined:
 | `input`                | __Required__      | Path to the samplesheet. |
 | `outdir`               | __Required__      | Path to the results/output directory; created if missing. |
 | `bc_whitelist`         | __Required__      | Path or link to the barcode whitelist file(s), multiple ones separated by whitespace. If links are given, they are automatically downloaded (and unzipped if applicable) for any protocol. Not used by `"marsseq_v1"`/`"marsseq_v2"`, which run without a whitelist.|
-| `protocol`              | __Required__     | Specifies the sequencing technology used (must be one of the following: `"oak_v1"`, `"10xv1"`, `"10xv2"`, `"10xv3"`, `"10xv4"`, `"parse_biosciences_WT_mini"` or `"parse_biosciences_WT"`,     `"bd_rhapsody_v1"`, `"bd_rhapsody_enhancedbeads"`, `"sciRNAseq3"` , `"ultima_genomics"`, `"marsseq_v1"`, `"marsseq_v2"` or `"seqspec"`). |
+| `protocol`              | __Required__     | Specifies the sequencing technology used (must be one of the following: `"oak_v1"`, `"10xv1"`, `"10xv2"`, `"10xv3"`, `"10xv4"`, `"parse_biosciences_WT_mini"` or `"parse_biosciences_WT"`,     `"bd_rhapsody_v1"`, `"bd_rhapsody_enhancedbeads"`, `"sciRNAseq3"`, `"marsseq_v1"`, `"marsseq_v2"` or `"seqspec"`). |
 | `ref_fasta`            | __Required__      | Path to the genome FASTA file used for mapping reads. |
 | `ref_gtf`              | __Required__      | Path to the GTF/GFF file formatted for STARsolo. |
+| `ref_fasta_addfeature` | Optional          | Extra sequences appended to `ref_fasta` for mapping, e.g. a consensus rDNA unit missing from the assembly. Every read on them counts as rRNA. Records that copy sequence already in `ref_fasta` are dropped. See [Added rRNA reference](#added-rrna-reference). |
+| `ref_gtf_addfeature`   | Optional          | rRNA loci, e.g. Rfam hits, counted in the read-level rRNA metrics only. They are not added to the mapping annotation. See [Added rRNA reference](#added-rrna-reference). |
 | `ref_gtf_alt`          | Optional          | **Deprecated, no effect.** The Cell Ranger and split-pipe references are built from `ref_gtf`, like the STARsolo one. Setting it logs a warning. |
-| `run_method`             | Optional          | Method of running the pre-processing pipeline, demonstrated in the [pipeline diagram](img/Preprocs_Pipeline.png), one of `"standard"`, `"geneext_only"`, `"external_pipeline_only"` or `"post_mapping"`. Default is set to `"standard"`. `"post_mapping"` picks a finished run up at the point mapping ended and redoes everything after it. |
+| `run_method`             | Optional          | Method of running the pre-processing pipeline, demonstrated in the [pipeline diagram](../img/Preprocs_Pipeline.png), one of `"standard"`, `"geneext_only"`, `"external_pipeline_only"` or `"post_mapping"`. Default is set to `"standard"`. `"post_mapping"` picks a finished run up at the point mapping ended and redoes everything after it. |
 | `previous_outdir`      | Optional          | Only used with `run_method = "post_mapping"`: the results directory the published mapping results are read back from. Defaults to `outdir`, i.e. re-running in place. |
 | `mapping_software`     | Optional          | Software used to map reads (must be one of the following: `"starsolo"`, `"alevin"`, `"both"/"alevin_starsolo"` or `"alevin_subsampled_starsolo"`). Default set to `"starsolo"`. |
 | `cellfilter_method`    | Optional          | How cells are called: `"star_solocellfilter"` (each mapper's own cell filter: STARsolo's `--soloCellFilter`, alevin-fry's knee), `"second_derivative"` or `"manual_cutoff"`. Default set to `"second_derivative"`. The latter two apply to both mappers: they filter the count matrix on a UMI cutoff and recompute every cell-dependent statistic in the report on the retained cells, differing only in where that cutoff comes from. See [Cell calling](#cell-calling). |
@@ -42,7 +44,7 @@ Within each custom configuration file the following variables can be defined:
 | `seqspec_file`         | Optional          | Path to the seqspec file. |
 | `subsample_nreads`     | Optional          | The size (number of reads) of the subset used to map to STARsolo, in case the parameter `mapping_software = alevin_subsampled_starsolo`. Default set to `100000000` reads. |
 | `alevin_usa_counts`    | Optional          | Which of alevin-fry's USA blocks are summed into each gene's count before ambient-RNA removal and doublet detection: `"SUA"` (spliced + unspliced + ambiguous), `"SA"`, `"S"`, `"UA"` or `"U"`. Default set to `"SUA"`. See [USA counts](#usa-counts). |
-| `alevin_resolution`    | Optional          | alevin-fry's UMI resolution: `"cr-like"` discards UMIs that stay ambiguous between genes, as Cell Ranger and STARsolo with `star_soloMultiMappers = "Unique"` do; `"cr-like-em"` splits them between the genes by expectation-maximisation, giving fractional counts, the counterpart of STARsolo's default `"EM"`. Default set to `"cr-like"`. See [alevin-fry settings](#alevin-fry-settings). |
+| `alevin_resolution`    | Optional          | alevin-fry's UMI resolution: `"cr-like"` discards UMIs that stay ambiguous between genes, as Cell Ranger and STARsolo with `star_soloMultiMappers = "Unique"` do; `"cr-like-em"` splits them between the genes by expectation-maximisation, giving fractional counts, the counterpart of STARsolo's default `"EM"`. Default set to `"cr-like-em"`. See [alevin-fry settings](#alevin-fry-settings). |
 | `perform_velocity`     | Optional          | Boolean flag to additionally produce intronic counts for RNA velocity: STARsolo's `Velocyto` feature (spliced/unspliced/ambiguous) and alevin-fry's unspliced block, plus a velocity-ready `.h5ad` per mapper. Default is `false`. See [RNA velocity](#rna-velocity). |
 | `validate_params`      | Optional          | Check every parameter and the samplesheet against `nextflow_schema.json` and `assets/schema_input.json` before anything runs: types, allowed values, and that given input files and directories exist. Default is `true`; set `false` to skip it. |
 
@@ -53,6 +55,45 @@ Within each custom configuration file the following variables can be defined:
 - **FASTQs in the samplesheet**: a relative path is read from the samplesheet's own folder, so a samplesheet can sit next to its data. Samplesheets written for older versions, with paths relative to the launch directory, still work: such a path is used when it is not found next to the samplesheet, with a warning. Globs (e.g. `name_I*` in `fastq_indices`) are expanded.
 - Absolute paths and cloud URIs (`s3://`, `gs://`, `az://`) are used as they are; in the samplesheet, `~/` is expanded to the home directory. Every input file is staged into the tasks, so it does not have to be visible at the same path on the compute nodes. The exceptions are the external installations (`rhapsody_installation`, `splitpipe_demultiplex_script`, `splitpipe_conda_env`), the Kraken database and `demuxafy_sif`, which are used where they are.
 - A given path that does not exist stops the run before anything is scheduled. A FASTQ named in the samplesheet but missing does too, except with `run_method = "post_mapping"`, which reads only the sample names.
+
+
+### Added rRNA reference
+
+`ref_fasta_addfeature` and `ref_gtf_addfeature` add rRNA to the read-level rRNA metrics
+(`rRNA_mtDNA/`). Neither changes the count matrices. `PREPARE_ADDFEATURE` checks them against
+`ref_fasta` first, and writes `genome/rrna_regions.tsv` and `genome/addfeature_report.tsv`.
+
+- **`ref_gtf_addfeature`**: rRNA loci, as GTF rows of any feature type (`gene` rows from Rfam
+  are fine), on contigs of `ref_fasta` or `ref_fasta_addfeature`. Every read overlapping a locus
+  counts as rRNA. The rows are not added to the mapping annotation, so neither mapper counts them as genes, leaving the rRNA biotypes out, and rRNA is measured as a read fraction instead. Rows on a contig of
+  neither FASTA are ignored, with a warning.
+- **`ref_fasta_addfeature`**: sequences appended to the genome for mapping. Every read on one
+  of them counts as rRNA, over its whole length. A record that copies sequence already in the
+  reference is dropped, because two copies of a locus turn every read on it into a
+  multimapper. A record counts as a copy when it is identical to:
+  - a `ref_fasta` contig;
+  - an earlier added record;
+  - the locus of the `ref_gtf_addfeature` row whose `gene_id` or `transcript_id` is the
+    record's name, reverse-complemented on the minus strand.
+
+  A record with the name of a `ref_fasta` contig but a different sequence stops the run.
+
+**Rfam annotations of the assembly.** When the rRNA sequences were cut out of the same
+assembly, as with Rfam annotations of the genome, set only `ref_gtf_addfeature`. Use
+`ref_fasta_addfeature` for sequence the assembly lacks, such as a consensus rDNA unit of a
+collapsed rDNA array.
+
+**Copies that are not detected.** A copy is only detected when it matches a whole contig, an
+earlier added record, or a locus named after it. A consensus unit that is also partly present
+in the assembly under another name is not detected. Check new sequence against the assembly
+(BLAST or minimap2) before adding it.
+
+**Reading the metric.**
+- An rRNA locus can overlap the exon of another gene. Reads there count as rRNA in the metrics
+  and as that gene in the matrix, so the rRNA percentage is an upper bound.
+- Rfam's bacterial and archaeal models also hit mitochondrial rRNA, nuclear copies of it, and
+  contaminant contigs; all of them count as rRNA. `rrna_regions.tsv` lists every region counted.
+- A locus on a `mt_contig` makes its reads both mtDNA and rRNA reads.
 
 
 
@@ -363,7 +404,7 @@ report exports that decision as a `metacell_selection.json`, which a second run 
 | `perform_cellranger`   | Optional          | Boolean flag to enable or disable the CellRanger pipeline. Default is `false`. |
 | `rhapsody_installation` | Optional          | Path to the BD-Rhapsody pipeline installation folder. |
 | `splitpipe_installation`| Optional        | Path to the split-pipe installation folder. |
-| `splitpipe_conda_env`   | Required (if `splitpipe_installation` is provided)         | Path to the split-pipe conda environment created by following these [instructions](docs/INSTALLATION_EXTERNAL_PIPELINES.md), required if running the split-pipe pipeline. |
+| `splitpipe_conda_env`   | Required (if `splitpipe_installation` is provided)         | Path to the split-pipe conda environment created by following these [instructions](INSTALLATION_EXTERNAL_PIPELINES.md), required if running the split-pipe pipeline. |
 
 
 ## Execution Reports

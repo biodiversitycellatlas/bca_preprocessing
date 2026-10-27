@@ -17,8 +17,8 @@ include { bam_inspection_workflow as bam_inspection_geneext_workflow        } fr
 include { bam_inspection_workflow as bam_inspection_geneext_input_workflow  } from '../subworkflows/local/post-processing/bam_inspection'
 include { geneext_workflow                                                  } from '../subworkflows/local/mapping/geneext'
 
+include { PREPARE_ADDFEATURE                                                } from '../modules/local/custom/manipulate/prepare_addfeature/main'
 include { MERGE_REF_FASTA                                                   } from '../modules/local/custom/manipulate/merge_ref_fasta/main'
-include { MERGE_REF_GTF                                                     } from '../modules/local/custom/manipulate/merge_ref_gtf/main'
 include { MERGE_REF_GTF as MERGE_REF_GTF_GENEEXT                            } from '../modules/local/custom/manipulate/merge_ref_gtf/main'
 include { FASTQC                                                            } from '../modules/local/tools/fastqc/main'
 include { SUBSAMPLE_FASTQS                                                  } from '../modules/local/tools/seqtk/main'
@@ -95,23 +95,27 @@ workflow QC_mapping_workflow {
         // The analytical runs to map, see lib/AnalyticalRuns.groovy
         def runs = AnalyticalRuns.plan(params)
 
-        // Conditionally bypass MERGE_REF_GTF/FASTA when no additional features are provided
-        def ref_gtf_ch
-        if (params.ref_gtf_addfeature) {
-            MERGE_REF_GTF(file(params.ref_gtf, checkIfExists: true), file(params.ref_gtf_addfeature, checkIfExists: true), '')
-            ref_gtf_ch = MERGE_REF_GTF.out.gtf
-            ch_versions = ch_versions.mix(MERGE_REF_GTF.out.versions)
-        } else {
-            ref_gtf_ch = channel.value(file(params.ref_gtf, checkIfExists: true))
-        }
+        // ref_gtf_addfeature only feeds the read-level rRNA metrics, so both mappers count
+        // genes of the base annotation. ref_fasta_addfeature is appended to the genome once
+        // its copies of reference sequence are dropped: they would turn every read there
+        // into a multimapper.
+        def ref_gtf_ch      = channel.value(file(params.ref_gtf, checkIfExists: true))
+        def ref_fasta_ch    = channel.value(file(params.ref_fasta, checkIfExists: true))
+        def ch_rrna_regions = channel.value([])
+        if (params.ref_fasta_addfeature || params.ref_gtf_addfeature) {
+            PREPARE_ADDFEATURE(
+                file(params.ref_fasta, checkIfExists: true),
+                params.ref_fasta_addfeature ? file(params.ref_fasta_addfeature, checkIfExists: true) : [],
+                params.ref_gtf_addfeature ? file(params.ref_gtf_addfeature, checkIfExists: true) : []
+            )
+            ch_rrna_regions = PREPARE_ADDFEATURE.out.rrna_regions
+            ch_versions = ch_versions.mix(PREPARE_ADDFEATURE.out.versions)
 
-        def ref_fasta_ch
-        if (params.ref_fasta_addfeature) {
-            MERGE_REF_FASTA(file(params.ref_fasta, checkIfExists: true), file(params.ref_fasta_addfeature, checkIfExists: true))
-            ref_fasta_ch = MERGE_REF_FASTA.out.fasta
-            ch_versions = ch_versions.mix(MERGE_REF_FASTA.out.versions)
-        } else {
-            ref_fasta_ch = channel.value(file(params.ref_fasta, checkIfExists: true))
+            if (params.ref_fasta_addfeature) {
+                MERGE_REF_FASTA(file(params.ref_fasta, checkIfExists: true), PREPARE_ADDFEATURE.out.fasta)
+                ref_fasta_ch = MERGE_REF_FASTA.out.fasta
+                ch_versions = ch_versions.mix(MERGE_REF_FASTA.out.versions)
+            }
         }
 
         // The GeneExt reference, set once GeneExt has run, so both mappers re-map against
@@ -152,6 +156,7 @@ workflow QC_mapping_workflow {
             // but not reported: the pass is not one of the analytical runs.
             if (!params.geneext_bam_only && params.star_generateBAM) {
                 bam_inspection_geneext_input_workflow(mapping_starsolo_geneext_input_workflow.out.starsolo_bam, ref_gtf_ch,
+                                                        ch_rrna_regions,
                                                         mapping_starsolo_geneext_input_workflow.out.star_summaries,
                                                         mapping_starsolo_geneext_input_workflow.out.star_final_log,
                                                         mapping_starsolo_geneext_input_workflow.out.secondderiv_stats,
@@ -191,6 +196,7 @@ workflow QC_mapping_workflow {
             // Run BAM inspection workflow on STARsolo output
             if (params.star_generateBAM) {
                 bam_inspection_workflow(mapping_starsolo_workflow.out.starsolo_bam, ref_gtf_ch,
+                                            ch_rrna_regions,
                                             mapping_starsolo_workflow.out.star_summaries,
                                             mapping_starsolo_workflow.out.star_final_log,
                                             mapping_starsolo_workflow.out.secondderiv_stats,
@@ -216,9 +222,7 @@ workflow QC_mapping_workflow {
                 ? mapping_starsolo_workflow.out.starsolo_bam
                 : mapping_starsolo_geneext_input_workflow.out.starsolo_bam
 
-            // Collect ALL BAMs from all samples before running geneext. GeneExt extends the
-            // base annotation: ref_gtf_addfeature is appended to its output below, so handing
-            // it the merged GTF would add those features twice.
+            // Collect ALL BAMs from all samples before running geneext
             geneext_workflow(ch_geneext_input_bam, file(params.ref_gtf, checkIfExists: true))
 
             // GeneExt's own run statistics, summarised in the dashboard
@@ -228,15 +232,9 @@ workflow QC_mapping_workflow {
 
             if (runs.star_geneext || runs.alevin_geneext) {
 
-                // Same conditional bypass for geneext GTF
-                if (params.ref_gtf_addfeature) {
-                    MERGE_REF_GTF_GENEEXT(geneext_workflow.out.ref_gtf, file(params.ref_gtf_addfeature, checkIfExists: true), '_geneext')
-                    ref_gtf_geneext_ch = MERGE_REF_GTF_GENEEXT.out.gtf
-                } else {
-                    // Geneext always extends from the geneext output, no bypass possible here
-                    MERGE_REF_GTF_GENEEXT(geneext_workflow.out.ref_gtf, channel.value([]), '_geneext')
-                    ref_gtf_geneext_ch = MERGE_REF_GTF_GENEEXT.out.gtf
-                }
+                // Nothing is merged: this publishes the GeneExt annotation as ref_geneext.gtf
+                MERGE_REF_GTF_GENEEXT(geneext_workflow.out.ref_gtf, channel.value([]), '_geneext')
+                ref_gtf_geneext_ch = MERGE_REF_GTF_GENEEXT.out.gtf
                 ch_versions = ch_versions.mix(MERGE_REF_GTF_GENEEXT.out.versions)
 
                 // GeneExt only extends the annotation, so the genome is the standard one
@@ -280,6 +278,7 @@ workflow QC_mapping_workflow {
             if (params.star_generateBAM) {
                 bam_inspection_geneext_workflow(mapping_starsolo_geneext_workflow.out.starsolo_bam,
                                             ref_gtf_geneext_ch,
+                                            ch_rrna_regions,
                                             mapping_starsolo_geneext_workflow.out.star_summaries,
                                             mapping_starsolo_geneext_workflow.out.star_final_log,
                                             mapping_starsolo_geneext_workflow.out.secondderiv_stats,

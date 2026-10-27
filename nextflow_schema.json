@@ -34,7 +34,7 @@
                     "type": "string",
                     "description": "Sequencing technology, which selects the pre-processing and the read layout in conf/seqtech_parameters.config.",
                     "enum": [
-                        "10xv1", "10xv2", "10xv3", "10xv4", "ultima_genomics", "oak_v1",
+                        "10xv1", "10xv2", "10xv3", "10xv4", "oak_v1",
                         "parse_biosciences_WT_mini", "parse_biosciences_WT",
                         "bd_rhapsody_v1", "bd_rhapsody_enhancedbeads",
                         "sciRNAseq3", "marsseq_v1", "marsseq_v2", "seqspec"
@@ -61,13 +61,13 @@
                     "type": "string",
                     "format": "file-path",
                     "exists": true,
-                    "description": "Extra sequences (e.g. rRNA) appended to 'ref_fasta' for mapping."
+                    "description": "Extra sequences (e.g. a consensus rDNA unit) appended to 'ref_fasta' for mapping. Records that copy sequence already in 'ref_fasta' are dropped. Every read on an added contig counts as an rRNA read."
                 },
                 "ref_gtf_addfeature": {
                     "type": "string",
                     "format": "file-path",
                     "exists": true,
-                    "description": "Extra annotation (e.g. rRNA) appended to 'ref_gtf' for mapping."
+                    "description": "rRNA loci (GTF rows of any feature type) on contigs of 'ref_fasta' or 'ref_fasta_addfeature', counted in the read-level rRNA metrics. Not added to the mapping annotation, so the count matrices are unaffected."
                 },
                 "bc_whitelist": {
                     "type": "string",
@@ -125,7 +125,7 @@
                 },
                 "alevin_resolution": {
                     "type": "string",
-                    "default": "cr-like",
+                    "default": "cr-like-em",
                     "enum": ["cr-like", "cr-like-em"],
                     "description": "alevin-fry UMI resolution. cr-like discards UMIs that stay ambiguous between genes, as Cell Ranger and STARsolo with star_soloMultiMappers 'Unique' do; cr-like-em splits them by expectation-maximisation, the counterpart of STARsolo's default 'EM'."
                 },

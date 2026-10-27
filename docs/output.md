@@ -53,9 +53,9 @@ and the dashboard shows all of them together. With the default `geneext_downstre
 then holds just the alignment GeneExt read (BAM and logs), and appears nowhere else. See
 [Which runs GeneExt adds](CONFIGURATION_PARAMETERS.md#which-runs-geneext-adds).
 
-Both mappers are built on the same reference: `ref_fasta` and `ref_gtf` merged with
-`ref_fasta_addfeature` and `ref_gtf_addfeature` when those are set, and the GeneExt annotation for
-the `_geneext_` runs. 
+Both mappers are built on the same reference: `ref_fasta`, with `ref_fasta_addfeature` appended
+when it is set, and `ref_gtf`, or the GeneExt annotation for the `_geneext_` runs.
+`ref_gtf_addfeature` is used only by the rRNA metrics.
 
 ## Directory structure
 
@@ -142,8 +142,10 @@ Generated reference files, reusable across runs on the same species.
 | `star_index_<gtf_name>/` | `STARSOLO_INDEX` | STAR genome index, built once per run (`star_index_<gtf_name>_geneext/` for the GeneExt remap). |
 | `splici_index/` | `SALMON_SPLICI` | Spliced + intronic (splici) reference (`*_splici*.fa`) and its three-column transcript-to-gene map (`*_t2g_3col.tsv`), used by alevin-fry (`splici_index_geneext/` for the GeneExt remap). |
 | `salmon_index/` | `SALMON_INDEX` | Salmon index built on the splici reference (`salmon_index_geneext/` for the GeneExt remap). |
-| `ref.fasta`, `ref.gtf` | `MERGE_REF_FASTA`, `MERGE_REF_GTF` | Reference merged with `ref_fasta_addfeature` / `ref_gtf_addfeature`, when those are set. |
-| `ref_geneext.gtf` | `MERGE_REF_GTF_GENEEXT` | The GeneExt annotation merged with `ref_gtf_addfeature`, used by the GeneExt remap (`perform_geneext = true`). |
+| `ref.fasta` | `MERGE_REF_FASTA` | `ref_fasta` with the records of `ref_fasta_addfeature` appended, when it is set, except those that copy reference sequence. |
+| `rrna_regions.tsv` | `PREPARE_ADDFEATURE` | The added rRNA regions the rRNA metrics count, 0-based: the loci of `ref_gtf_addfeature` (`feature`), the records of `ref_fasta_addfeature` (`added_contig`), and the records dropped as copies (`duplicate_contig`). See [Added rRNA reference](CONFIGURATION_PARAMETERS.md#added-rrna-reference). |
+| `addfeature_report.tsv` | `PREPARE_ADDFEATURE` | Each added record, kept or dropped as a copy and of what, and each `ref_gtf_addfeature` contig ignored because neither FASTA holds it. |
+| `ref_geneext.gtf` | `MERGE_REF_GTF_GENEEXT` | The GeneExt annotation, used by the GeneExt remap (`perform_geneext = true`). |
 | `cellranger_ref/` | `CELLRANGER_MKREF` | Cell Ranger reference, only when `perform_cellranger = true`. |
 
 > [!TIP]
@@ -579,8 +581,12 @@ on the mitochondrial genome. The name describes where the read maps, not the mol
 from. In RNA-seq nearly all of these reads come from mitochondrially encoded transcripts. This
 is the read-level counterpart of `percent.mt` / `pct_counts_mt`.
 
-**rRNA reads** are reads overlapping any feature whose biotype contains "rRNA" (rRNA, Mt_rRNA,
-rRNA_pseudogene, …), plus every read on a contig of `ref_gtf_addfeature`. Mt_rRNA (MT-RNR1/2)
+**rRNA reads** are reads with an aligned block overlapping, by at least 1 bp, either:
+- a feature of `ref_gtf` whose biotype contains "rRNA" (rRNA, Mt_rRNA, rRNA_pseudogene, …);
+- a locus of `ref_gtf_addfeature`;
+- a contig of `ref_fasta_addfeature`, over its whole length (`genome/rrna_regions.tsv`).
+
+Mt_rRNA (MT-RNR1/2)
 is polyadenylated and is often most of the rRNA signal in poly(A)-captured libraries. A read on
 it is both an mtDNA and an rRNA read, so the two percentages overlap and must not be summed.
 

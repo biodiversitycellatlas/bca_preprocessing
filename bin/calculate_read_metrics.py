@@ -50,7 +50,7 @@ import pysam
 FEATURE_TYPES = ("gene", "transcript", "exon")
 BIOTYPE_ATTRS = ("gene_biotype", "gene_type", "transcript_biotype", "transcript_type")
 
-# Every spelling at once: a concatenation of ref_gtf and ref_gtf_addfeature may mix them
+# Every spelling at once: an annotation assembled from several sources may mix them
 _ANY_BIOTYPE_RE = re.compile(r'(?:gene_biotype|gene_type|transcript_biotype|transcript_type) "([^"]*)"')
 _ATTR_VALUE_RE = {a: re.compile(a + r' "([^"]*)"', re.IGNORECASE) for a in BIOTYPE_ATTRS}
 
@@ -172,7 +172,7 @@ def parse_gtf(gtf_path, mt_contigs):
       mt_exon_rows                number of those exon rows
 
     The winning pair is the one annotating the MOST rows, rather than the first
-    one occurring anywhere: in a concatenation of ref_gtf and ref_gtf_addfeature,
+    one occurring anywhere: in an annotation assembled from several sources,
     a handful of hand-written spike-in lines using gene_biotype must not outvote an
     entire GENCODE annotation using gene_type, or every rRNA gene of the base
     annotation would be skipped.
@@ -221,22 +221,18 @@ def parse_gtf(gtf_path, mt_contigs):
     }
 
 
-def added_contigs(rrna_gtf_path, contig_lengths):
-    """Contigs of the added rRNA reference, split into ``(present, missing)`` in the BAM.
+def read_rrna_regions(path):
+    """Rows of PREPARE_ADDFEATURE's ``rrna_regions.tsv`` as ``(contig, start0, end, kind)``.
 
-    Those files are the added rRNA reference (ref_fasta_addfeature carries the
-    sequences), so every read aligning to one of their contigs is an rRNA read,
-    whether or not the added GTF spells out a biotype -- it commonly does not.
+    ``feature`` rows are the loci of ref_gtf_addfeature. ``added_contig`` rows are
+    the records of ref_fasta_addfeature, which count as rRNA over their full length,
+    and ``duplicate_contig`` rows the records dropped as copies of reference
+    sequence: absent from a fresh BAM, but present in one mapped before they were
+    dropped.
     """
-    contigs = set()
-    with open(rrna_gtf_path) as gtf:
-        for line in gtf:
-            cols = line.split("\t")
-            if not line.startswith("#") and len(cols) >= 9:
-                contigs.add(cols[0])
-    ordered = sorted(contigs)
-    return ([c for c in ordered if c in contig_lengths],
-            [c for c in ordered if c not in contig_lengths])
+    with open(path, newline="") as fh:
+        return [(r["contig"], int(r["start"]), int(r["end"]), r["kind"])
+                for r in csv.DictReader(fh, delimiter="\t")]
 
 
 def load_barcodes(path):
@@ -291,33 +287,46 @@ def warn_biotypes(ann, gtf):
         warn(f"{ann['biotype_attr']} annotates only {ann['biotype_rows']} of "
              f"{ann['feature_rows']} {ann['feature_type']} rows in {gtf}",
              "rows spelling the biotype differently are not counted -- typical when",
-             "ref_gtf and ref_gtf_addfeature follow different GTF conventions")
+             "an annotation is assembled from sources with different GTF conventions")
     if not ann["rrna_biotypes"]:
         warn(f"no rRNA biotype found in {gtf}",
              f"biotype attribute detected: '{ann['biotype_attr'] or 'none'}', "
              f"feature type: '{ann['feature_type'] or 'none'}'")
 
 
-def rrna_intervals(rrna_rows, rrna_gtf, lengths):
-    """``({contig: [intervals]}, added_present)``: the rRNA regions to count.
+def rrna_intervals(rrna_rows, rrna_regions, lengths):
+    """``({contig: [intervals]}, added_present, n_features)``: the rRNA regions to count.
 
-    The rRNA features of the main annotation plus the whole of every contig of the
-    added rRNA reference. Overlapping regions are merged later, so a read covered
-    by both still counts once.
+    The rRNA features of the main annotation, the loci of ref_gtf_addfeature, and
+    the whole of every added contig present in the BAM. Overlapping regions are
+    merged later, so a read covered by several still counts once.
     """
     rrna = defaultdict(list)
     for contig, start, end in rrna_rows:
         rrna[contig].append((start, end))
-    added_present = []
-    if rrna_gtf and usable_file(rrna_gtf, "added rRNA annotation"):
-        added_present, added_missing = added_contigs(rrna_gtf, lengths)
-        for contig in added_present:
-            rrna[contig].append((0, lengths[contig]))
-        if added_missing:
-            warn("contig(s) of the added rRNA reference are absent from the BAM header: "
-                 + " ".join(added_missing),
-                 "the reads were mapped against a reference built without ref_fasta_addfeature")
-    return rrna, added_present
+    added_present, n_features = [], 0
+    missing = {"feature": set(), "added_contig": set()}
+    if rrna_regions and usable_file(rrna_regions, "added rRNA regions"):
+        for contig, start, end, kind in read_rrna_regions(rrna_regions):
+            if contig not in lengths:
+                # A dropped copy is expected to be absent from a BAM mapped without it
+                if kind in missing:
+                    missing[kind].add(contig)
+            elif kind == "feature":
+                rrna[contig].append((start, end))
+                n_features += 1
+            else:
+                rrna[contig].append((0, lengths[contig]))
+                added_present.append(contig)
+    if missing["added_contig"]:
+        warn("contig(s) of ref_fasta_addfeature are absent from the BAM header: "
+             + " ".join(sorted(missing["added_contig"])),
+             "the reads were mapped against a reference built without ref_fasta_addfeature")
+    if missing["feature"]:
+        warn("ref_gtf_addfeature annotates contig(s) absent from the BAM header: "
+             + " ".join(sorted(missing["feature"])),
+             "check that its contig names match the reference the reads were mapped to")
+    return rrna, sorted(added_present), n_features
 
 
 def mt_strand_sense(strand, has_mt_genes, gtf):
@@ -340,11 +349,11 @@ def load_regions(args, bam):
 
     ann = parse_gtf(args.gtf, mt_present)
     warn_biotypes(ann, args.gtf)
-    rrna, added_present = rrna_intervals(ann["rrna_rows"], args.rrna_gtf, lengths)
-    n_rrna_regions = len(ann["rrna_rows"]) + len(added_present)
+    rrna, added_present, n_features = rrna_intervals(ann["rrna_rows"], args.rrna_regions, lengths)
+    n_rrna_regions = len(ann["rrna_rows"]) + n_features + len(added_present)
     if n_rrna_regions == 0:
-        warn(f"no rRNA regions to count: no rRNA biotype in {args.gtf} and no usable",
-             "ref_gtf_addfeature contigs; all rRNA metrics will be reported as N/A")
+        warn(f"no rRNA regions to count: no rRNA biotype in {args.gtf} and no added",
+             "rRNA regions in the BAM; all rRNA metrics will be reported as N/A")
 
     has_mt_genes = ann["mt_exon_rows"] > 0
     regions = Regions(
@@ -724,11 +733,12 @@ def write_antisense(args, cells):
 def parse_args():
     p = argparse.ArgumentParser(description=__doc__, formatter_class=argparse.RawDescriptionHelpFormatter)
     p.add_argument("--bam", required=True, help="STARsolo BAM (coordinate-sorted)")
-    p.add_argument("--gtf", required=True, help="Annotation the reads were mapped with (merged with ref_gtf_addfeature)")
+    p.add_argument("--gtf", required=True, help="Annotation the reads were mapped with (ref_gtf)")
     p.add_argument("--mt-contig", nargs="*", default=[],
                    help="Mitochondrial contig names; also accepts one space-separated string")
     p.add_argument("--strand", default="", help="star_soloStrand: Forward, Reverse or Unstranded")
-    p.add_argument("--rrna-gtf", default="", help="The added rRNA reference (ref_gtf_addfeature)")
+    p.add_argument("--rrna-regions", default="",
+                   help="rrna_regions.tsv of PREPARE_ADDFEATURE: the added rRNA loci and contigs")
     p.add_argument("--cell-barcodes", default="", help="barcodes.tsv of the filtered matrix; adds the called-cell rows")
     p.add_argument("--cellreads", default="", help="STARsolo GeneFull_Ex50pAS/CellReads.stats, for the antisense metrics")
     p.add_argument("--out-mt-rrna", required=True, help="Output: mtDNA / rRNA metrics")

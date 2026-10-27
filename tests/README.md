@@ -371,11 +371,15 @@ It contains:
 - an mtDNA multimapper on mitochondrial rRNA;
 - reads sense, antisense and outside the mitochondrial genes;
 - an rRNA read on an added rRNA contig;
+- an rRNA read on an added rRNA locus, and reads on the same contig outside it, which must
+  not count;
 - reads from a called and an uncalled barcode.
 
 The cases assert exact values for:
 
 - the library-level rows;
+- the added rRNA regions (`rrna_regions.tsv`): which count, and that only regions expected
+  in the BAM are warned about when absent;
 - the split of mtDNA reads by strand;
 - the called-cell rows;
 - the antisense rows, from a hand-written `CellReads.stats`, and their absence for an
@@ -394,6 +398,38 @@ matplotlib; it no longer needs pysam itself. Each case is skipped when its tools
 ```bash
 bash tests/run_tests.sh mt_rrna_metrics
 bash tests/run_tests.sh mt_rrna_metrics -- --python /path/to/env/bin/python --keep
+```
+
+## `addfeature_prepare`
+
+Checks [`bin/prepare_addfeature.py`](../bin/prepare_addfeature.py) (PREPARE_ADDFEATURE),
+which drops the records of `ref_fasta_addfeature` that copy reference sequence and writes the
+rRNA regions `CALC_READ_METRICS` counts.
+
+Rfam-derived references annotate loci of the genome itself, with `gene` rows only, and carry
+the same loci, cut out of the same assembly, as the added FASTA. The check writes a small
+genome and such a reference, with one record of every kind:
+
+- an exact copy, named by its GTF row;
+- an exact reverse-complement copy;
+- a copy with one base changed;
+- a new sequence, and a second record identical to it;
+- a record named like a base contig and identical to it;
+- an identical copy of a base contig under another name.
+
+Part of the genome is soft-masked, so the comparison must ignore case. The cases assert:
+
+- the records kept in the FASTA;
+- every decision in `addfeature_report.tsv`;
+- every row of `rrna_regions.tsv`;
+- the warnings for the changed copy and for a GTF row on a contig of neither FASTA;
+- the output with only `ref_gtf_addfeature` given;
+- that a record named like a base contig but differing from it stops the run.
+
+The check needs only a Python, with the standard library.
+
+```bash
+bash tests/run_tests.sh addfeature_prepare
 ```
 
 ## `velocity_matrix`

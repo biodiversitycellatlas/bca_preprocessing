@@ -24,7 +24,7 @@ include { DOWNLOAD_WHITELIST            } from '../modules/local/custom/manipula
         Sequencing-specific pre-processing of the data:
         - Parse Bioscience: Demultiplexing using groups of wells and mapping using split-pipe
         - BD Rhapsody: Removing variable bases and mapping using BD rhapsody pipeline
-        - 10x & Ultima Genomics : Mapping using CellRanger
+        - 10x Genomics: Mapping using CellRanger
         - OAK: Demultiplexing the aliquots on their i7/i5 index, then mapping using CellRanger
         - Sci-RNA-seq3: Pre-processing based on the sci-rocket pipeline
         - MARS-seq: Rebuilding the reads so the batch barcode joins the cell barcode and UMI
@@ -80,7 +80,7 @@ workflow preprocessing_workflow {
             bc_whitelist_ch  = resolved_whitelist
             ch_versions = ch_versions.mix(bd_rhapsody_workflow.out.versions)
 
-        } else if (params.protocol in ['10xv1', '10xv2', '10xv3', '10xv4', 'ultima_genomics']) {
+        } else if (params.protocol in ['10xv1', '10xv2', '10xv3', '10xv4']) {
             tenx_genomics_workflow(merged_samplesheet)
             data_output_ch = tenx_genomics_workflow.out.data_output
             bc_whitelist_ch  = resolved_whitelist
@@ -129,7 +129,6 @@ workflow preprocessing_workflow {
             - '10xv2'
             - '10xv3'
             - '10xv4'
-            - 'ultima_genomics'
             - 'oak_v1'
             - 'sciRNAseq3'
             - 'marsseq_v1'

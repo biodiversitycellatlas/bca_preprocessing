@@ -11,7 +11,7 @@ process CALC_READ_METRICS {
     input:
     tuple val(meta), path(bam_file), path(filtered_matrix_dir), path(cellreads_stats)
     path(ref_gtf)
-    path(rrna_gtf)
+    path(rrna_regions)
 
     output:
     path("${meta.id}_mt_rrna_metrics.txt"),                   emit: mt_rrna_metrics
@@ -20,8 +20,9 @@ process CALC_READ_METRICS {
     path "versions.yml",                                      emit: versions
 
     script:
-    // The added features are the rRNA reference: every read on their contigs counts as rRNA
-    def rrna_arg      = rrna_gtf ? "--rrna-gtf ${rrna_gtf}" : ""
+    // PREPARE_ADDFEATURE's rRNA regions: the loci of ref_gtf_addfeature, and every
+    // contig of ref_fasta_addfeature over its full length
+    def rrna_arg      = rrna_regions ? "--rrna-regions ${rrna_regions}" : ""
 
     // The filtered matrix's barcodes add the called-cell rows; runs without one
     // (bam_only, or no cell calling) report those rows as N/A
@@ -34,7 +35,7 @@ process CALC_READ_METRICS {
     echo "Sample ID: ${meta.id}"
     echo "BAM file: ${bam_file}"
     echo "GTF: ${ref_gtf}"
-    echo "Added rRNA reference: ${rrna_gtf ?: 'none'}"
+    echo "Added rRNA regions: ${rrna_regions ?: 'none'}"
     echo "Called-cell barcodes: ${filtered_matrix_dir ? "${filtered_matrix_dir}/barcodes.tsv" : 'none'}"
     echo "CellReads.stats: ${cellreads_stats ?: 'none'}"
     echo "STARsolo strand: ${params.star_soloStrand}"
