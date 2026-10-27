@@ -12,3 +12,4 @@ dependencies:
   - pandas
   - pyyaml
   - rich
+  - macs2
