@@ -12,4 +12,4 @@ dependencies:
   - pandas
   - pyyaml
   - rich
-  - macs2
+  - macs2=2.2.9.1=py39hff71179_1
