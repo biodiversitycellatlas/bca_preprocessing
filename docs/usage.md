@@ -165,7 +165,7 @@ Available with `run_method` `"standard"` or `"post_mapping"`.
 
 1. Run with `perform_metacells = true`. The run ends with `<outdir>/filtering_report.html`.
 2. Open the report and set the cell-, metacell- and gene-level filters for each sample. *Apply settings to all samples* copies them to the rest.
-3. Download `metacell_selection.json` from the *Export selection* tab. It holds the samples whose settings were applied at both levels.
+3. Download `metacell_selection.json` from the *Export selection* tab. It holds the samples whose settings were applied at all three levels.
 4. Rerun the same command with `-resume` and the selection:
 
 ```

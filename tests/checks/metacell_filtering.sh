@@ -53,19 +53,25 @@ Cases:
                         protein ids with versions stripped
   match_genes           gene id, gene name and alevin-fry's cut id all match
   summary_qc            pooled mito %, doublet % and the lifted alpha_hat per metacell
+  summary_cells         the per-cell arrays the cell level filters on, in obs order
+  summary_tau           gene specificity over the real metacells
+  summary_expression    the markers' metacell profiles, in CP10k
   summary_modes         doublet % is null, not 0, when calls are absent or removed
   cells_h5ad            the per-cell annotations and CellSweep's layer land by barcode
   fingerprint           the fingerprint is stable and stored with the cells
   report_escape         every JSON block parses; no gene name can close the script
   report_payload        one shared gene universe; featureCounts as percentages,
-                        called cells preferred, borrowed from STARsolo for alevin-fry
+                        called cells preferred, borrowed from STARsolo for alevin-fry;
+                        per-cell reads and saturation from CellReads.stats
   report                featureCounts falls back to whole BAM, ignores legacy rows,
-                        and pairs GeneExt runs
-  report_js             the page's own filtering yields the expected selection and
-                        survives a download -> load round trip
-  apply_keep            exactly the kept metacells' cells, counts unchanged
+                        and pairs GeneExt runs; a CellReads.stats of other barcodes is unused
+  report_js             the page's own filtering at the cell, metacell and gene levels
+                        yields the expected selection and survives a download -> load
+                        round trip
+  apply_keep            exactly the kept metacells' cells less the excluded cells,
+                        counts unchanged
   apply_genes           listed and unexpressed genes dropped, or flagged
-  apply_guards          a stale fingerprint, unknown metacell or absent sample fails
+  apply_guards          a stale fingerprint, unknown metacell or cell, or absent sample fails
   mc2_smoke             Metacell2 groups the fixture, deterministically (needs metacells)
 EOF
 }
@@ -295,6 +301,46 @@ assert "summary_qc.markers" \
     "the most enriched gene leads; mitochondrial genes are never markers" \
     "$SUMMARY"
 
+# The per-cell arrays the cell level filters on, in obs order, each cell pointing at its group
+assert "summary_cells" \
+    "((lambda s: (lambda c, X: (
+        c['barcodes'] == F.barcodes()
+        and [s['metacells'][g]['id'] for g in c['group']] == F.groups()
+        and np.allclose(c['umis'], X.sum(axis=1)) and c['n_genes'] == list((X > 0).sum(axis=1))
+        and np.allclose(c['mito_umis'], X[:, [F.GENE_IDS.index(g) for g in F.MITO_GENES]].sum(axis=1))
+        and np.allclose(c['rrna_umis'], X[:, [F.GENE_IDS.index(g) for g in F.RRNA_GENES]].sum(axis=1))
+        and c['doublet'] == [int(d == 'doublet') for d in F.doublet_status()]
+        and np.allclose(c['alpha'], F.alpha_hat()) and s['schema_version'] == 1,
+        f\"{len(c['barcodes'])} cells, {sum(c['doublet'])} doublets\"))(s['cells'], F.counts()))(load(A[0])))" \
+    "barcodes, groups, UMIs, genes, mito and rRNA UMIs, doublet calls and alpha per cell" \
+    "$SUMMARY"
+
+# Specificity over the real metacells: GENE011 lies in one metacell only (tau 1), the
+# silent gene has none
+assert "summary_tau" \
+    "((lambda s: (lambda t, e: (
+        all((a is None and b is None) or close(a, b) for a, b in zip(t, e))
+        and t[F.GENE_IDS.index(F.LOW_GENE)] == 1.0 and t[F.GENE_IDS.index(F.ZERO_GENE)] is None,
+        dict(zip(F.GENE_IDS, t))))(s['genes']['tau'], F.expected_tau()))(load(A[0])))" \
+    "tau from log1p(CP10k) of the real metacells; 1 for a one-metacell gene, null for a silent one" \
+    "$SUMMARY"
+
+# Every marker has a metacell profile, over real metacells only: log1p(CP10k) as a
+# percentage of the gene's peak, so to 0.5 % of log1p(peak)
+assert "summary_expression" \
+    "((lambda s: (lambda e, X: (lambda cp: (
+        {F.GENES[j][1] or F.GENE_IDS[j] for j in e['genes']} >= {m for r in s['metacells'] for m in r['markers']}
+        and [s['metacells'][i]['id'] for i in e['mc']] == F.GROUPS
+        and all(len(q) == len(e['mc']) and max(q) == 100 for q in e['q'])
+        and all(abs(q / 100 * np.log1p(e['max'][k]) - np.log1p(cp[g][j])) <= 0.005 * np.log1p(e['max'][k]) + 1e-3
+                for k, j in enumerate(e['genes']) for g, q in zip(F.GROUPS, e['q'][k])),
+        f\"{len(e['genes'])} genes profiled\"))(
+            {g: 1e4 * X[[i for i, x in enumerate(F.groups()) if x == g]].sum(axis=0)
+                / X[[i for i, x in enumerate(F.groups()) if x == g]].sum() for g in F.GROUPS}))(
+        s['expression'], F.counts()))(load(A[0])))" \
+    "the markers' profiles, real metacells only, CP10k on a log1p scale of each gene's peak" \
+    "$SUMMARY"
+
 assert "summary_modes" \
     "((lambda r, a: (r['sample']['doublet_mode'] == 'removed' and a['sample']['doublet_mode'] == 'absent'
                      and all(x['doublet_pct'] is None for x in r['metacells'] + a['metacells'])
@@ -343,6 +389,7 @@ step "report.run" report "$PYTHON" "$REPORT_TOOL" \
     --summaries "$OUT/S1_starsolo_mc_summary.json" "$OUT/S1_alevinfry_mc_summary.json" \
     --mt_rrna_metrics "$FIX/S1_starsolo_mt_rrna_metrics.txt" \
     --antisense_metrics "$FIX/S1_starsolo_antisense_metrics.txt" \
+    --cellreads_stats "S1_starsolo=$FIX/S1_starsolo_CellReads.stats" \
     --max_mito_pct 20 --max_doublet_pct 50 --min_gene_umis 2 \
     --pfam_presets '^Ribosomal;^PF00125' --version test \
     --logo "$PROJECT_ROOT/assets/bca_logo.svg" --output "$REPORT"
@@ -382,6 +429,28 @@ assert "report_payload.featurecounts" \
         fc))({s['id']: s['featurecounts'] for s in p['samples']}))($PAYLOAD_EXPR))" \
     "fractions shown as %, called cells preferred, alevin-fry labelled as borrowing STARsolo's" \
     "$REPORT"
+
+# Each cell's reads and saturation from STARsolo's CellReads.stats, joined by barcode; the
+# alevin-fry run of the same sample borrows them, labelled so
+assert "report_payload.cell_reads" \
+    "((lambda p: (lambda c: (
+        c['S1_starsolo']['reads'] == F.cell_reads() and c['S1_starsolo']['reads_source'] == 'S1_starsolo'
+        and all(close(sat, 1 - u / r, 1e-4) for sat, u, r in zip(c['S1_starsolo']['saturation'], c['S1_starsolo']['umis'], F.cell_reads()))
+        and c['S1_alevinfry']['reads'] == F.cell_reads() and c['S1_alevinfry']['reads_source'] == 'S1_starsolo'
+        and c['S1_starsolo']['barcodes'] == F.barcodes(),
+        f\"{len(c['S1_starsolo']['reads'])} cells with reads\"))({s['id']: s['cells'] for s in p['samples']}))($PAYLOAD_EXPR))" \
+    "reads per cell, saturation 1 - UMIs / reads; borrowed by the alevin-fry run" \
+    "$REPORT"
+
+# A CellReads.stats holding too few of a sample's cells names barcodes another way: unused.
+# The tool logs to stdout, which would land before the verdict, so logging is off here.
+assert "report.cell_reads_match" \
+    "((lambda g: (lambda r: (r == (None, None, None), str(r)))(
+        (__import__('logging').disable(__import__('logging').CRITICAL),
+         g.cell_reads_for('S1_starsolo', ['BC0000', 'AAAC-1', 'AAAG-1'], {'S1_starsolo': A[0]}, {}))[1]))(
+        __import__('generate_filtering_report')))" \
+    "below 90 % of the cells found, no per-cell reads" \
+    "$FIX/S1_starsolo_CellReads.stats"
 
 # Without called-cell rows the whole-BAM value is shown and labelled so. A file from
 # an earlier version is not read at all: its mtDNA row counted alignment records and
@@ -432,16 +501,17 @@ assert "report.expected_cells" \
 # --------------------------------------------------------------------------
 # The selection: from the page's own script when possible
 #
-# Choices, S1_starsolo: mito > 20 % excludes M1.2 (30 %); doublets > 70 % keeps
-# M2.3 (66.7 %) and M0.1. S1_alevinfry: thresholds off, outliers kept, M0.1
+# Choices, S1_starsolo: the cell level excludes the 23 doublets (M0.1's first 3, M2.3's
+# first 20); mito > 20 % excludes M1.2 (30 %); doublets > 70 % keeps M2.3 and M0.1,
+# whose doublets are gone. S1_alevinfry: thresholds off, outliers kept, M0.1
 # blacklisted. Genes: fewer than 2 UMIs (GENE011), domain PF00125 (GENE004), and
 # Actb by name.
 # --------------------------------------------------------------------------
 
 CHOICES="$WORKDIR/choices.json"
 cat >"$CHOICES" <<'EOF'
-{"samples": {"S1_starsolo": {"maxMito": 20, "maxDoublet": 70},
-             "S1_alevinfry": {"maxMito": null, "maxDoublet": null, "includeOutliers": true, "blacklist": ["M0.1"]}},
+{"samples": {"S1_starsolo": {"maxMito": 20, "maxDoublet": 70, "cells": {"excludeDoublets": true}},
+             "S1_alevinfry": {"maxMito": null, "maxDoublet": null, "blacklist": ["M0.1", "__excluded__"]}},
  "genes": {"minUmis": 2, "pfam": ["PF00125"], "manual": "Actb"}}
 EOF
 
@@ -459,7 +529,7 @@ if [[ "$HAVE_NODE" -eq 1 ]]; then
         exit 1
     fi
 
-    assert "report_js.cells" \
+    assert "report_js.metacells" \
         "((lambda s: (s['samples']['S1_starsolo']['keep_metacells'] == ['M0.1', 'M2.3']
                       and s['samples']['S1_alevinfry']['keep_metacells'] == ['M1.2', 'M2.3', '__outliers__']
                       and not any('whitelist' in v for v in s['samples'].values()),
@@ -467,75 +537,94 @@ if [[ "$HAVE_NODE" -eq 1 ]]; then
         "thresholds, the blacklist and the outlier toggle; no whitelist in the export" \
         "$SELECTION"
 
+    # Only the cell level's own exclusions are listed: the cells of an excluded pseudo-group
+    # leave with it
+    assert "report_js.cells" \
+        "((lambda s: (s['samples']['S1_starsolo']['excluded_cells'] == {b: ['doublet'] for b in F.doublet_barcodes()}
+                      and s['samples']['S1_alevinfry']['excluded_cells'] == {}
+                      and s['samples']['S1_starsolo']['cell_rules']['exclude_doublets'] is True
+                      and s['samples']['S1_starsolo']['metacell_rules']['max_mito_pct'] == 20,
+                      f\"{len(s['samples']['S1_starsolo']['excluded_cells'])} cells excluded\"))(load(A[0])))" \
+        "the doublets excluded by barcode, with why; cell and metacell rules apart" \
+        "$SELECTION"
+
     assert "report_js.genes" \
         "((lambda s: (s['samples']['S1_starsolo']['excluded_genes'] == {'GENE001': ['manual'], 'GENE004': ['pfam:PF00125'], 'GENE011': ['min_umi']}
-                      and s['schema_version'] == 2
+                      and s['schema_version'] == 1
                       and s['samples']['S1_starsolo']['gene_rules']['min_total_umis'] == 2
                       and s['samples']['S1_starsolo']['fingerprint'].startswith('sha256:'),
                       s['samples']['S1_starsolo']['excluded_genes']))(load(A[0])))" \
         "minimum UMIs, ticked domain and a gene given by name" \
         "$SELECTION"
 
-    # The summary panel shows the first sample, S1_alevinfry: of 100 cells, M0.1 (30,
-    # blacklisted) and __excluded__ (5) go; M1.2, M2.3 and the 5 outliers stay. Of the
-    # 10 expressed genes, GENE001, GENE004 and GENE011 go.
+    # The summary panel shows the first sample, S1_alevinfry: the cell level keeps all 100
+    # cells; the metacell level drops __excluded__ (5) and M0.1 (30, blacklisted); M1.2, M2.3
+    # and the 5 outliers stay. Of the 10 expressed genes, GENE001, GENE004 and GENE011 go.
     assert "report_js.summary" \
-        "((lambda p: (all(x in p['stats'] for x in ('Called cells', '>100<', 'Metacells', 'Outlier cells'))
+        "((lambda p: (all(x in p['stats'] for x in ('Called cells', '>100<', 'Metacells', 'Outlier cells', 'UMIs per cell'))
                       and not any(x in p['stats'] for x in ('Doublet calls', 'Ambient RNA'))
-                      and all(x in p['settings'] for x in ('Cell level', 'Gene level', 'Blacklist', '>1 metacell<',
-                                                            'PFAM domains', '>1 domain<', '>≥ 2<'))
+                      and all(x in p['settings'] for x in ('Cell level', 'Metacell level', 'Gene level', 'Blacklist',
+                                                            '>1 metacell + 1 pseudo-group<', 'PFAM domains', '>1 domain<', '>≥ 2<',
+                                                            '>all off<'))
                       and not any(x in p['settings'] for x in ('excludes', 'Outlier cells', 'Ungrouped cells'))
-                      and all(x in p['totals'] for x in ('2 included<span class=\"sub\">1 excluded',
+                      and all(x in p['totals'] for x in ('65 included<span class=\"sub\">35 excluded</span>'
+                                                          '<span class=\"sub\">0 by cell filters · 35 with their metacell',
+                                                          '2 included<span class=\"sub\">1 excluded',
                                                           '65 included<span class=\"sub\">35 excluded',
                                                           '7 included<span class=\"sub\">3 excluded',
                                                           '% of UMIs kept'))
                       and 'UMIs in excluded genes' not in p['totals'],
-                      'statistics, both settings tables and running totals'))(load(A[0])))" \
-        "both columns of the summary panel, with totals across both levels" \
+                      'statistics, the three settings tables and running totals'))(load(A[0])))" \
+        "both columns of the summary panel, with totals across the levels" \
+        "$PANEL"
+
+    # Neither a metacell nor a gene a setting excludes can be blacklisted, by any route; a
+    # kept metacell can
+    assert "report_js.blacklist_blocked" \
+        "((lambda b: (b == {'metacell': True, 'gene': True, 'kept_allowed': True, 'matching': ['GENE002'], 'matching_skips_excluded': True}, b))(load(A[0])['blocked']))" \
+        "M1.2 (high mito) and GENE011 (below min. UMIs) stay off the blacklist; M2.3 (kept) goes on; a regex search blacklists the kept genes it matches" \
         "$PANEL"
 
     # A dragged line sets its threshold from x alone (rounded to 0.1 %); the rank plot's
-    # line sets the minimum in UMIs; a bar click at log10(UMIs + 1) = 2 means 99 UMIs.
+    # line sets the minimum in UMIs; a bar click at log10(UMIs + 1) = 2 means 99 UMIs. On
+    # the UMIs-per-cell histogram (log10 axis) the second line is the maximum: dragged to
+    # 2 it is 100 UMIs; the first, the minimum, dragged to 1.5 is 32.
     assert "report_js.drag" \
-        "((lambda d: (d['mito'] == 12.4 and d['rank'] == 50 and d['click'] == 99, d))(load(A[0])['drag']))" \
-        "dragging the threshold lines and clicking a bar move the thresholds" \
+        "((lambda d: (d['mito'] == 12.4 and d['rank'] == 50 and d['click'] == 99
+                      and d['cellMax'] == 100 and d['cellMin'] == 32, d))(load(A[0])['drag']))" \
+        "dragging the threshold lines and clicking a bar move the thresholds, each line its own" \
         "$PANEL"
 
-    # Every sample has its own settings at both levels. With S1_starsolo's gene level pending,
+    # Every sample has its own settings at each level. With S1_starsolo's gene level pending,
     # the selection holds S1_alevinfry alone and the export table shows its genes kept as
     # pending. Opening the gene tab with S1_starsolo selected applies its gene level only.
     # Applying S1_alevinfry's settings to all copies the mito threshold (33) and the minimum
-    # UMIs (7) and applies both levels, while S1_starsolo keeps its own blacklists. A
-    # version-1 selection (one set of gene rules for the run) reads back the same choices.
+    # UMIs (7) and applies every level, while S1_starsolo keeps its own blacklists.
     assert "report_js.flow" \
         "((lambda f: (f['with_pending'] == ['S1_alevinfry'] and f['export_pending'] == 1
-                      and f['visited'] == {'cells': False, 'genes': True}
-                      and f['applied'] == {'maxMito': 33, 'minUmis': 7, 'set': {'cells': True, 'genes': True}, 'kept_blacklist': True}
-                      and f['v1_problems'] == [] and f['v1_same'],
+                      and f['visited'] == {'cells': False, 'metacells': False, 'genes': True}
+                      and f['applied'] == {'maxMito': 33, 'minUmis': 7, 'set': {'cells': True, 'metacells': True, 'genes': True}, 'kept_blacklist': True},
                       f))(load(A[0])['flow']))" \
-        "per-sample levels: a pending level leaves its sample out, a visit applies it, Apply to all keeps blacklists, version 1 reads back" \
+        "per-sample levels: a pending level leaves its sample out, a visit applies it, Apply to all keeps blacklists" \
         "$PANEL"
 else
     record SKIP "report_js" "no JavaScript runtime (pass --node, or set BCA_NODE); selection built in Python"
-    "$PYTHON" - "$SUMMARY" "$OUT/S1_alevinfry_mc_summary.json" "$SELECTION" <<'PYEOF'
+    "$PYTHON" - "$SUMMARY" "$OUT/S1_alevinfry_mc_summary.json" "$SELECTION" "$TESTS_DIR/lib" <<'PYEOF'
 import json, sys
-s1, s2, out = sys.argv[1:4]
+s1, s2, out, lib = sys.argv[1:5]
+sys.path.insert(0, lib)
+import make_metacell_fixture as F
 fp = lambda p: json.load(open(p))["sample"]["fingerprint"]
 excluded = {"GENE001": ["manual"], "GENE004": ["pfam:PF00125"], "GENE011": ["min_umi"]}
 rules = {"min_total_umis": 2}
-json.dump({"schema": "bca_metacell_selection", "schema_version": 2,
-           "samples": {"S1_starsolo": {"fingerprint": fp(s1), "keep_metacells": ["M0.1", "M2.3"], "excluded_genes": excluded, "gene_rules": rules},
-                       "S1_alevinfry": {"fingerprint": fp(s2), "keep_metacells": ["M1.2", "M2.3", "__outliers__"], "excluded_genes": excluded, "gene_rules": rules}}},
+json.dump({"schema": "bca_metacell_selection", "schema_version": 1,
+           "samples": {"S1_starsolo": {"fingerprint": fp(s1), "keep_metacells": ["M0.1", "M2.3"], "excluded_genes": excluded, "gene_rules": rules,
+                                       "excluded_cells": {b: ["doublet"] for b in F.doublet_barcodes()}},
+                       "S1_alevinfry": {"fingerprint": fp(s2), "keep_metacells": ["M1.2", "M2.3", "__outliers__"], "excluded_genes": excluded, "gene_rules": rules,
+                                        "excluded_cells": {}}}},
           open(out, "w"))
 PYEOF
 fi
-
-# Version 2 carries each sample's gene rules; a version-1 selection's one set still applies
-assert "apply_gene_rules" \
-    "((lambda a: (a.gene_rules_for({'gene_rules': {'min_total_umis': 1}}, {'gene_rules': {'min_total_umis': 5}}) == {'min_total_umis': 5}
-                  and a.gene_rules_for({'gene_rules': {'min_total_umis': 1}}, {}) == {'min_total_umis': 1},
-                  'the sample own rules first, else the run rules'))(__import__('apply_metacell_filter')))" \
-    "per-sample gene rules (version 2), the run's (version 1) otherwise"
 
 # --------------------------------------------------------------------------
 # The apply step
@@ -550,7 +639,8 @@ step "apply.run_flag" apply_flag "$PYTHON" "$APPLY_TOOL" \
     --cells_h5ad "$OUT/S1_starsolo_mc2_cells.h5ad" --selection "$SELECTION" \
     --sample_id S1_starsolo --outdir "$FLAGGED" --gene_mode flag --compression none
 
-KEPT_EXPR="[i for i, g in enumerate(F.groups()) if g in ('M0.1', 'M2.3')]"
+# The kept metacells' cells, less the doublets the cell level excludes: M0.1's 27 and M2.3's 10
+KEPT_EXPR="[i for i, (g, d) in enumerate(zip(F.groups(), F.doublet_status())) if g in ('M0.1', 'M2.3') and d != 'doublet']"
 DROPPED_EXPR="['GENE001', 'GENE004', 'GENE011', F.ZERO_GENE]"
 
 assert "apply_keep" \
@@ -560,12 +650,13 @@ assert "apply_keep" \
         f'{len(m[1])} cells x {m[0].shape[0]} genes'))(
             [j for j, g in enumerate(F.GENE_IDS) if g not in $DROPPED_EXPR]))(
         __import__('mtx_io').read_triplet(A[0] + '/matrix.mtx', A[0] + '/barcodes.tsv', A[0] + '/features.tsv'), $KEPT_EXPR))" \
-    "the kept metacells' cells in order, every count unchanged" \
+    "the kept metacells' cells in order, less the excluded cells, every count unchanged" \
     "$FINAL"
 
 assert "apply_genes.drop" \
     "((lambda a, s: (sorted(set(F.GENE_IDS) - set(a.var_names)) == sorted($DROPPED_EXPR)
-                     and s['genes_excluded'] == 4 and s['cells_kept'] == 60 and s['groups_kept'] == 2,
+                     and s['genes_excluded'] == 4 and s['cells_kept'] == 37 and s['groups_kept'] == 2
+                     and s['cells_excluded_cell_level'] == 23,
                      f\"dropped {sorted(set(F.GENE_IDS) - set(a.var_names))}\"))(
         read_h5ad(A[0] + '/S1_starsolo_final.h5ad'), load(A[0] + '/S1_starsolo_filter_summary.json')))" \
     "listed genes and the unexpressed one (by the min-UMI rule) are dropped" \
@@ -581,7 +672,7 @@ assert "apply_genes.flag" \
 
 assert "apply_metacell_sums" \
     "((lambda m: (list(m.obs_names) == ['M0.1', 'M2.3']
-                  and np.allclose(dense(m.X)[0].sum(), F.counts()[[i for i, g in enumerate(F.groups()) if g == 'M0.1']][:, [j for j, g in enumerate(F.GENE_IDS) if g not in $DROPPED_EXPR]].sum()),
+                  and np.allclose(dense(m.X)[0].sum(), F.counts()[[i for i in $KEPT_EXPR if F.groups()[i] == 'M0.1']][:, [j for j, g in enumerate(F.GENE_IDS) if g not in $DROPPED_EXPR]].sum()),
                   list(m.obs_names)))(read_h5ad(A[0] + '/S1_starsolo_final_metacells.h5ad')))" \
     "metacell x gene sums of the kept cells" \
     "$FINAL"
@@ -596,10 +687,12 @@ unknown = json.loads(json.dumps(sel)); unknown["samples"]["S1_starsolo"]["keep_m
 json.dump(unknown, open(sys.argv[2] + "/sel_unknown.json", "w"))
 other = json.loads(json.dumps(sel)); other["schema"] = "something_else"
 json.dump(other, open(sys.argv[2] + "/sel_schema.json", "w"))
+cell = json.loads(json.dumps(sel)); cell["samples"]["S1_starsolo"]["excluded_cells"]["BC9999"] = ["doublet"]
+json.dump(cell, open(sys.argv[2] + "/sel_cell.json", "w"))
 PYEOF
 
 GUARDS_OK=1
-for guard in stale:S1_starsolo unknown:S1_starsolo schema:S1_starsolo stale:S1_missing; do
+for guard in stale:S1_starsolo unknown:S1_starsolo cell:S1_starsolo schema:S1_starsolo stale:S1_missing; do
     kind="${guard%%:*}" sid="${guard#*:}"
     set +e
     run_logged "$BCA_TEST_LOGDIR/metacell_filtering_guard_${kind}_${sid}.log" "$PYTHON" "$APPLY_TOOL" \
@@ -615,7 +708,7 @@ for guard in stale:S1_starsolo unknown:S1_starsolo schema:S1_starsolo stale:S1_m
         GUARDS_OK=0
     fi
 done
-[[ "$GUARDS_OK" -eq 1 ]] && record PASS "apply_guards" "stale fingerprint, unknown metacell, foreign schema, absent sample: exit 2, nothing written"
+[[ "$GUARDS_OK" -eq 1 ]] && record PASS "apply_guards" "stale fingerprint, unknown metacell, unknown cell, foreign schema, absent sample: exit 2, nothing written"
 
 # --------------------------------------------------------------------------
 # Case: mc2_smoke -- the real grouping, where metacells is installed

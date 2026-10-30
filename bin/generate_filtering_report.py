@@ -7,6 +7,8 @@ Fills the template ``filtering_report.html`` with one JSON payload, assembled fr
     *_mc_summary.json          run_metacells.py, one per sample
     *_mt_rrna_metrics.txt      CALC_READ_METRICS (BAM), STARsolo samples only
     *_antisense_metrics.txt    CALC_READ_METRICS (STARsolo CellReads.stats), STARsolo samples only
+    CellReads.stats            STARsolo's per-barcode read counts, given as id=path pairs, for
+                               the reads and sequencing saturation of every cell
 
 the samplesheet's expected cells per sample (``--expected_cells``), shown beside the
 called cells, and the default thresholds the report's sliders start at. The page does the
@@ -75,6 +77,14 @@ ANTISENSE_KEYS = (
     "Percentage of antisense reads (of reads assigned to genes)",
 )
 
+# Columns of CellReads.stats, as secondderiv_filter_matrices.py reads them: the reads counted
+# into the matrix (unique-gene reads, in preference order) and their deduplicated UMIs
+CELLREADS_READ_COLUMNS = ("countedU", "featureU")
+CELLREADS_UMI_COLUMN = "nUMIunique"
+# The share of a sample's cells that must be found in a CellReads.stats before its reads
+# are used; below it the barcodes are not the same cells (another mapper's barcode form)
+CELLREADS_MIN_MATCH = 0.9
+
 
 # --------------------------------------------------------------------------
 # Inputs
@@ -131,19 +141,26 @@ def pick_scoped(metrics, cells_key, bam_key, library_scope="whole BAM"):
     return None, None
 
 
-def featurecounts_for(sample_id, mt_files, antisense_files):
+def starsolo_candidates(sample_id):
     """
-    The sample's read metrics, or those of the STARsolo run of the same sample
-    (they are read from STARsolo's BAM and CellReads.stats), labelled so.
-    A GeneExt run takes the STARsolo run mapped against the same extended annotation.
+    The runs whose STARsolo outputs can stand in for this sample's: the sample itself,
+    then the STARsolo run of the same sample. A GeneExt run takes the STARsolo run
+    mapped against the same extended annotation first.
     """
     candidates = [sample_id]
     b = base_id(sample_id)
     if sample_id.endswith("_geneext_alevinfry"):
         candidates += [b + "_geneext_starsolo", b + "_geneext_subsampled_starsolo"]
     candidates += [b + "_starsolo", b + "_subsampled_starsolo"]
+    return candidates
 
-    for cid in candidates:
+
+def featurecounts_for(sample_id, mt_files, antisense_files):
+    """
+    The sample's read metrics, or those of the STARsolo run of the same sample
+    (they are read from STARsolo's BAM and CellReads.stats), labelled so.
+    """
+    for cid in starsolo_candidates(sample_id):
         if cid in mt_files or cid in antisense_files:
             mt = parse_metrics(mt_files.get(cid))
             anti = parse_metrics(antisense_files.get(cid))
@@ -158,16 +175,69 @@ def featurecounts_for(sample_id, mt_files, antisense_files):
     return None
 
 
-def parse_expected_cells(pairs):
-    """``{sample_id: expected_cells}`` from ``id=n`` pairs: the samplesheet's numbers,
-    for the samples that give one."""
+def parse_pairs(pairs, option):
+    """``{sample_id: value}`` from ``id=value`` pairs."""
     out = {}
     for pair in pairs or []:
         sample_id, sep, value = pair.rpartition("=")
         if not sep:
-            raise ValueError(f"--expected_cells takes id=n pairs, got {pair!r}")
-        out[sample_id] = int(value)
+            raise ValueError(f"{option} takes id=value pairs, got {pair!r}")
+        out[sample_id] = value
     return out
+
+
+def parse_expected_cells(pairs):
+    """``{sample_id: expected_cells}`` from ``id=n`` pairs: the samplesheet's numbers,
+    for the samples that give one."""
+    return {k: int(v) for k, v in parse_pairs(pairs, "--expected_cells").items()}
+
+
+def parse_cellreads(path):
+    """
+    ``{barcode: (reads, umis)}`` from a STARsolo CellReads.stats: the reads counted into
+    the matrix and their unique UMIs. Empty when the file lacks the columns.
+    """
+    out = {}
+    with open(path, newline="") as fh:
+        reader = csv.reader(fh, delimiter="\t")
+        header = next(reader, None) or []
+        reads_col = next((header.index(c) for c in CELLREADS_READ_COLUMNS if c in header), None)
+        if reads_col is None or CELLREADS_UMI_COLUMN not in header:
+            logger.warning(f"{path} has none of {CELLREADS_READ_COLUMNS} or no {CELLREADS_UMI_COLUMN}; "
+                           "no per-cell reads from it")
+            return out
+        umi_col = header.index(CELLREADS_UMI_COLUMN)
+        for rec in reader:
+            try:
+                out[rec[0]] = (float(rec[reads_col]), float(rec[umi_col]))
+            except (IndexError, ValueError):
+                continue
+    return out
+
+
+def cell_reads_for(sample_id, barcodes, cellreads_files, cache):
+    """
+    ``(reads, saturation, source_id)`` per cell from the sample's CellReads.stats, or that
+    of the STARsolo run of the same sample. A file is used only when it holds at least
+    CELLREADS_MIN_MATCH of the sample's cells, as another mapper names barcodes its own way.
+    Saturation is 1 - unique UMIs / counted reads; None where a cell has no counted read.
+    *cache* keeps each parsed file for the other samples that borrow it.
+    """
+    for cid in starsolo_candidates(sample_id):
+        if cid not in cellreads_files:
+            continue
+        if cid not in cache:
+            cache[cid] = parse_cellreads(cellreads_files[cid])
+        stats = cache[cid]
+        found = [stats.get(b) for b in barcodes]
+        n_found = sum(1 for f in found if f is not None)
+        if not barcodes or n_found < CELLREADS_MIN_MATCH * len(barcodes):
+            logger.info(f"{sample_id}: {cid}'s CellReads.stats holds {n_found} of {len(barcodes)} cells; not used")
+            continue
+        reads = [int(f[0]) if f else None for f in found]
+        saturation = [round(1.0 - f[1] / f[0], 4) if f and f[0] > 0 else None for f in found]
+        return reads, saturation, cid
+    return None, None, None
 
 
 def load_summaries(paths):
@@ -193,6 +263,7 @@ def columnar(records, keys):
 
 METACELL_KEYS = ["id", "pseudo", "n_cells", "umis", "median_umis", "mito_pct", "median_cell_mito_pct",
                  "rrna_pct", "n_doublets", "doublet_pct", "alpha_hat_mean", "x", "y", "markers"]
+CELL_KEYS = ["barcodes", "group", "umis", "n_genes", "mito_umis", "rrna_umis", "doublet", "alpha"]
 
 
 def build_universes(summaries):
@@ -253,9 +324,38 @@ def build_universes(summaries):
     return universes, domains, per_sample
 
 
-def build_payload(summaries, mt_files, antisense_files, defaults, run_info, expected_cells=None):
+def cells_block(s, cellreads_files, cache):
+    """
+    The summary's per-cell arrays, with the reads and saturation of each cell from
+    CellReads.stats where a matching one was given; None for a summary without them
+    (written before per-cell arrays, or a skipped sample).
+    """
+    cells = s.get("cells")
+    if not cells:
+        return None
+    out = {k: cells.get(k) for k in CELL_KEYS}
+    out["reads"], out["saturation"], out["reads_source"] = cell_reads_for(
+        s["sample"]["id"], cells["barcodes"], cellreads_files, cache)
+    return out
+
+
+def expression_block(expression, keep):
+    """The summary's metacell profiles, their gene positions moved onto the universe's."""
+    if not expression:
+        return None
+    position = {j: k for k, j in enumerate(keep)}
+    rows = [(position[j], peak, q) for j, peak, q in zip(expression["genes"], expression["max"], expression["q"])
+            if j in position]
+    return {"mc": expression["mc"], "genes": [r[0] for r in rows],
+            "max": [r[1] for r in rows], "q": [r[2] for r in rows]}
+
+
+def build_payload(summaries, mt_files, antisense_files, defaults, run_info, expected_cells=None,
+                  cellreads_files=None):
     universes, domains, per_sample = build_universes(summaries)
     expected_cells = expected_cells or {}
+    cellreads_files = cellreads_files or {}
+    cellreads_cache = {}
 
     samples = []
     for s, placement in zip(summaries, per_sample):
@@ -263,6 +363,7 @@ def build_payload(summaries, mt_files, antisense_files, defaults, run_info, expe
         sample["expected_cells"] = expected_cells.get(sample["id"])
         sample["featurecounts"] = featurecounts_for(sample["id"], mt_files, antisense_files)
         sample["metacells"] = columnar(s.get("metacells") or [], METACELL_KEYS)
+        sample["cells"] = cells_block(s, cellreads_files, cellreads_cache)
 
         if placement is not None:
             u, keep = placement
@@ -272,10 +373,13 @@ def build_payload(summaries, mt_files, antisense_files, defaults, run_info, expe
                 "total_umi": [g["total_umi"][j] for j in keep],
                 "n_cells": [g["n_cells"][j] for j in keep],
                 "ambient_hat": [g["ambient_hat"][j] for j in keep] if g.get("ambient_hat") else None,
+                "tau": [g["tau"][j] for j in keep] if g.get("tau") else None,
             }
+            sample["expression"] = expression_block(s.get("expression"), keep)
         else:
             sample["universe"] = None
             sample["genes"] = None
+            sample["expression"] = None
         samples.append(sample)
 
     return {
@@ -329,6 +433,8 @@ def main():
     parser.add_argument("--antisense_metrics", nargs="*", default=[], help="*_antisense_metrics.txt files")
     parser.add_argument("--expected_cells", nargs="*", default=[],
                         help="The samplesheet's expected cells as id=n pairs, for the samples that give one")
+    parser.add_argument("--cellreads_stats", nargs="*", default=[],
+                        help="STARsolo CellReads.stats files as id=path pairs, for per-cell reads and saturation")
     parser.add_argument("--max_mito_pct", type=float, default=None, help="Initial mito %% threshold")
     parser.add_argument("--max_doublet_pct", type=float, default=None, help="Initial doublet %% threshold")
     parser.add_argument("--max_alpha_hat", type=float, default=None, help="Initial ambient-fraction threshold")
@@ -363,19 +469,24 @@ def main():
         index_by_suffix(args.antisense_metrics, "_antisense_metrics.txt"),
         defaults, run_info,
         parse_expected_cells(args.expected_cells),
+        parse_pairs(args.cellreads_stats, "--cellreads_stats"),
     )
 
     with open(args.template, encoding="utf-8") as fh:
         template = fh.read()
-    html = render(template, {"REPORT_DATA": safe_json(payload), "LOGO": logo_tag(args.logo)})
+    data = safe_json(payload)
+    html = render(template, {"REPORT_DATA": data, "LOGO": logo_tag(args.logo)})
 
     with open(args.output, "w", encoding="utf-8") as fh:
         fh.write(html)
 
     n_ok = sum(1 for s in payload["samples"] if s.get("status") == "ok")
+    n_cells = sum(1 for s in payload["samples"] if s.get("cells"))
+    n_reads = sum(1 for s in payload["samples"] if s.get("cells") and s["cells"]["reads"])
     logger.info(
-        f"Wrote {args.output}: {len(payload['samples'])} samples ({n_ok} with metacells), "
-        f"{len(payload['universes'])} gene universe(s), {len(payload['domains'])} domains"
+        f"Wrote {args.output}: {len(payload['samples'])} samples ({n_ok} with metacells, {n_cells} with "
+        f"per-cell data, {n_reads} with per-cell reads), {len(payload['universes'])} gene universe(s), "
+        f"{len(payload['domains'])} domains; {len(data) / 1e6:.1f} MB of data"
     )
 
 

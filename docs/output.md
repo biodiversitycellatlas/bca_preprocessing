@@ -495,7 +495,7 @@ selection. See
 | `gene_table/gene_table_stats.json` | How many genes are mitochondrial or rRNA, and how many annotation rows resolved to a gene. |
 | `<id>/<id>_mc2_cells.h5ad` | Every called cell. `X` holds the raw counts, `obs["metacell"]` its group, plus per-cell `total_umis`, `pct_mito`, `pct_rrna`, the doublet call, CellSweep's `alpha_hat` and `layers["cellsweep"]` when available. `var["is_mito"]`, `var["is_rrna"]` and `var["pfam"]` come from the gene table; `var["gene_name"]` keeps the matrix's own symbol and takes the gene table's only where the matrix has none (all of alevin-fry's). A gene the two name differently is logged. `uns["mc_fingerprint"]` identifies the assignment. |
 | `<id>/<id>_mc2_metacells.h5ad` | One row per group, with summed raw UMIs over every gene and the group's QC in `obs`: cells, UMIs, mito %, doublet %, mean `alpha_hat`, UMAP coordinates and top markers. |
-| `<id>/<id>_mc_summary.json` | The report's input for this sample. For a sample with too few cells it holds `status: skipped` and the reason, and the two h5ad files are absent. |
+| `<id>/<id>_mc_summary.json` | The report's input for this sample: per metacell, per cell (barcode, group, UMIs, genes, mito and rRNA UMIs, doublet call, `alpha_hat`) and per gene (totals, cells, specificity τ), plus the metacell profiles of every marker and the 500 most expressed genes. About 3–5 MB per 100,000 cells. For a sample with too few cells it holds `status: skipped` and the reason, and the two h5ad files are absent. |
 
 Besides the metacells (named as Metacell2 names them, e.g. `M12.34`), `obs["metacell"]` uses two
 pseudo-groups: `__outliers__` for cells Metacell2 left out of every metacell, and `__excluded__`
@@ -511,14 +511,24 @@ its CDN, so the first view needs an internet connection.
 
 | Tab | Contents |
 | --- | -------- |
-| Cell-level filtering | Histograms of mitochondrial %, doublet % and mean ambient fraction per metacell, with a draggable threshold line, Metacell2's UMAP (click or lasso to blacklist) beside the current blacklist, and a sortable metacell table. |
-| Gene-level filtering | Ranked total UMIs per gene and their histogram, with a draggable minimum on both, PFAM domains by tick-box, preset or regular expression, mitochondrial genes, a gene blacklist beside the genes those settings exclude, and a sortable table of all genes with their status. |
-| Export selection | *Apply settings to all samples* and *Reset all samples to defaults*, then three steps: a table of every sample with the status of its two levels (*Applied* or *Pending*) and what it keeps, the download of `metacell_selection.json`, and the rerun that applies it. Below them, *Load selection* continues from an earlier export. |
+| Cell-level filtering | Per-cell histograms with draggable thresholds: UMIs and genes detected (a minimum and a maximum each, with Metacell2's UMI range marked), mitochondrial and rRNA %, CellSweep α, and reads per cell (STARsolo). UMIs against genes detected, and sequencing depth against UMIs per cell, shaded by saturation band (0–50, 50–80, 80–90, > 90 %) with rays at 0, 50, 80 and 90 %, axes to the 99th percentile, and a toggle for doublet-called cells. |
+| Metacell-level filtering | Histograms of mitochondrial %, rRNA %, doublet %, mean ambient fraction and size per metacell, each over the cells the cell level keeps, with a draggable threshold line. Metacell2's UMAP (click or lasso to blacklist), coloured by status, a QC metric, the top marker's log2 fold change or a gene, beside a heatmap of each metacell's markers: clicking a marker there, or in the table, colours the UMAP by it. A sortable metacell table with each metacell's status (Metacell2's two pseudo-groups, `__outliers__` and `__excluded__`, are on the blacklist by default; untick one to keep its cells) and the log2 fold change of its strongest marker over the median metacell. |
+| Gene-level filtering | Ranked total UMIs per gene and their histogram, with a draggable minimum and/or maximum. A histogram of the cells expressing each gene, with a minimum. Every PFAM domain by its share of UMIs, with its number of genes: a search field narrows the chart and excludes the domains a name or regular expression matches, and a click selects a domain, to exclude or keep it and to list its genes below. The most expressed genes (or the selected domain's genes) by share of UMIs, and a gene view: one gene's expression across metacells, with its specificity τ. The bar charts scroll under a fixed axis. CellSweep ambient genes above a share, and a sortable table of all genes with their status and τ, searched with text or a regular expression (e.g. `^mt-`), whose kept matches can be blacklisted at once. |
 
-Each sample has its own cell- and gene-level settings. A level is *pending* until you open its
-tab with the sample selected, which applies it, or copy another sample's settings with *Apply
-settings to all samples* (which leaves each sample's blacklists alone). Only samples with both
-levels applied go into the selection.
+Every plot and table shows what the current settings exclude, and the summary at the top lists the settings in force and the running totals; there is no separate list of excluded items.
+| Export selection | *Apply settings to all samples* and *Reset all samples to defaults*, then three steps: a table of every sample with the status of its three levels (*Applied* or *Pending*) and what it keeps, the download of `metacell_selection.json`, and the rerun that applies it. Below them, *Load selection* continues from an earlier export. |
+
+The levels act in the pipeline's order. The cell level removes single cells. The metacell level
+judges each metacell on the cells left (Metacell2 is not rerun; its numbers are summed again).
+A cell is kept when it passes the cell level and its metacell is kept. Gene totals are over all
+called cells. Per-cell reads and saturation come from STARsolo's `CellReads.stats`. An
+alevin-fry run borrows the STARsolo run's of the same sample when at least 90 % of its barcodes
+match.
+
+Each sample has its own settings at each level. A level is *pending* until you open its tab
+with the sample selected, which applies it, or copy another sample's settings with *Apply
+settings to all samples* (which leaves each sample's blacklists alone). Only samples with every
+level applied go into the selection.
 
 The report remembers your choices in the browser between visits. *Reset all samples to
 defaults* clears them.
@@ -535,7 +545,7 @@ Written by the `-resume --metacell_selection metacell_selection.json` rerun.
 | `matrix.mtx`, `barcodes.tsv`, `features.tsv` | The kept cells × kept genes, raw UMIs, in the 10x orientation. |
 | `<id>_final.h5ad` | The same cells, with `obs["metacell"]`, the per-cell QC and annotations, and `layers["cellsweep"]` when present. Under `metacell_gene_mode = "flag"` every gene is kept, with `var["pass_filter"]` and `var["exclusion_reasons"]`. |
 | `<id>_final_metacells.h5ad` | The kept metacells × genes, summed raw UMIs. |
-| `<id>_filter_summary.json` | What was kept and from what (cells, metacells, genes, UMIs), with the rules the selection recorded. |
+| `<id>_filter_summary.json` | What was kept and from what (cells, metacells, genes, UMIs), the cells the cell level excluded, and the cell, metacell and gene rules the selection recorded. |
 
 </details>
 

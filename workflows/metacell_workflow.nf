@@ -33,6 +33,7 @@ workflow metacell_workflow {
         ref_gtf
         mt_rrna_metrics
         antisense_metrics
+        cellreads_stats
 
     main:
         def ch_final_h5ad = channel.empty()
@@ -102,10 +103,17 @@ workflow metacell_workflow {
             pfam_presets    : params.mcfilter_pfam_presets,
         ]
 
+        // One list of [id, file] pairs, sorted by id, split into the ids and the files
+        def ch_cellreads = cellreads_stats
+            .map { meta, f -> [meta.id, f] }
+            .toSortedList { a, b -> a[0] <=> b[0] }
+
         GENERATE_FILTERING_REPORT(
             METACELL2.out.summary.map { _meta, summary -> summary }.collect(sort: true).ifEmpty([]),
             mt_rrna_metrics.collect(sort: true).ifEmpty([]),
             antisense_metrics.collect(sort: true).ifEmpty([]),
+            ch_cellreads.map { pairs -> pairs.collect { p -> p[0] } },
+            ch_cellreads.map { pairs -> pairs.collect { p -> p[1] } },
             file("${projectDir}/bin/filtering_report.html", checkIfExists: true),
             file("${projectDir}/assets/bca_logo.svg", checkIfExists: true),
             METACELL2.out.summary

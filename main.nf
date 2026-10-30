@@ -165,7 +165,8 @@ workflow BCA_PREPROCESSING {
                     filtering_workflow.out.h5ad,
                     mapping_out.ref_gtf,
                     mapping_out.featurecount_txt,
-                    mapping_out.antisense_txt
+                    mapping_out.antisense_txt,
+                    mapping_out.star_cellreads
                 )
                 ch_versions = ch_versions.mix(metacell_workflow.out.versions)
             }

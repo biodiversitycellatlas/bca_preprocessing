@@ -4,11 +4,13 @@ Apply a selection made in ``filtering_report.html`` to one sample's metacells, a
 write the filtered UMI matrices for downstream analysis.
 
 The selection is the JSON the report's export button downloads. Its per-sample
-``keep_metacells`` and ``excluded_genes`` are authoritative: they were resolved in
-the report from the thresholds and the blacklist the user set, and
-are applied here as they stand. The rules are carried along as a record of how
-the lists were made; of them, only the sample's ``gene_rules.min_total_umis`` is
-read, to drop the genes with no UMI that the report could not list.
+``keep_metacells``, ``excluded_cells`` and ``excluded_genes`` are
+authoritative: they were resolved in the report from the thresholds and the
+blacklists the user set, and are applied here as they stand -- a cell is kept when
+its metacell is kept and it is not excluded itself. The rules are carried along as a
+record of how the lists were made; of them, only the sample's
+``gene_rules.min_total_umis`` is read, to drop the genes with no UMI that the report
+could not list.
 
 A selection is only meaningful for the assignment it was made on: metacell names
 are reused between runs, so the same name applied to a regrouped sample would keep
@@ -60,8 +62,7 @@ logging.basicConfig(
 logger = logging.getLogger("ApplyMetacellFilter")
 
 SELECTION_SCHEMA = "bca_metacell_selection"
-# Version 2 gives each sample its own gene_rules; version 1 had one set for the run
-SELECTION_VERSIONS = (1, 2)
+SELECTION_VERSION = 1
 
 EXIT_INVALID_SELECTION = 2
 
@@ -82,10 +83,10 @@ def load_selection(path):
             f"{path} is not a metacell selection (schema '{selection.get('schema')}', "
             f"expected '{SELECTION_SCHEMA}'). Export it from filtering_report.html."
         )
-    if selection.get("schema_version") not in SELECTION_VERSIONS:
+    if selection.get("schema_version") != SELECTION_VERSION:
         raise SelectionError(
             f"{path} has schema_version {selection.get('schema_version')}; this pipeline "
-            f"reads {list(SELECTION_VERSIONS)}."
+            f"reads {SELECTION_VERSION}."
         )
     if not isinstance(selection.get("samples"), dict):
         raise SelectionError(f"{path} carries no 'samples' object")
@@ -129,14 +130,10 @@ def check_fingerprint(adata, entry, sample_id):
     return recomputed
 
 
-def gene_rules_for(selection, entry):
-    """The sample's gene rules: its own (version 2), else the run's (version 1)."""
-    return entry.get("gene_rules") or selection.get("gene_rules")
-
-
 def resolve(adata, entry, sample_id, gene_rules=None):
     """
-    Boolean masks of the cells and genes to keep, after checking every name exists.
+    Boolean masks of the cells and genes to keep, after checking every name exists,
+    and the excluded genes and cells with their reasons.
 
     Genes with no UMI in any called cell are not in the report's payload, so they
     cannot be listed; a minimum-UMI rule excludes them by definition, and they are
@@ -150,6 +147,14 @@ def resolve(adata, entry, sample_id, gene_rules=None):
     if unknown:
         raise SelectionError(
             f"The selection for '{sample_id}' keeps {len(unknown)} metacell(s) this sample does not "
+            f"have, e.g. {unknown[:5]}"
+        )
+
+    excluded_cells = {str(b): reasons for b, reasons in (entry.get("excluded_cells") or {}).items()}
+    unknown = sorted(set(excluded_cells) - set(map(str, adata.obs_names)))
+    if unknown:
+        raise SelectionError(
+            f"The selection for '{sample_id}' excludes {len(unknown)} cell(s) this sample does not "
             f"have, e.g. {unknown[:5]}"
         )
 
@@ -167,9 +172,9 @@ def resolve(adata, entry, sample_id, gene_rules=None):
         for g in adata.var_names[totals == 0]:
             excluded.setdefault(str(g), ["min_umi"])
 
-    cell_mask = groups.isin(keep).to_numpy()
+    cell_mask = groups.isin(keep).to_numpy() & ~adata.obs_names.isin(list(excluded_cells))
     gene_mask = ~adata.var_names.isin(list(excluded))
-    return cell_mask, gene_mask, excluded
+    return cell_mask, gene_mask, excluded, excluded_cells
 
 
 def features_frame(var):
@@ -226,7 +231,8 @@ def main():
             raise SelectionError(f"{args.cells_h5ad} has no obs['{qcs.METACELL_COL}']")
 
         fp = check_fingerprint(adata, entry, args.sample_id)
-        cell_mask, gene_mask, excluded = resolve(adata, entry, args.sample_id, gene_rules_for(selection, entry))
+        cell_mask, gene_mask, excluded, excluded_cells = resolve(
+            adata, entry, args.sample_id, entry.get("gene_rules"))
     except SelectionError as exc:
         logger.error(str(exc))
         sys.exit(EXIT_INVALID_SELECTION)
@@ -272,6 +278,7 @@ def main():
         "gene_mode": args.gene_mode,
         "cells_in": int(adata.n_obs),
         "cells_kept": int(cell_mask.sum()),
+        "cells_excluded_cell_level": len(excluded_cells),
         "groups_in": int(groups.nunique()),
         "groups_kept": int(groups[cell_mask].nunique()),
         "kept_groups": sorted(set(groups[cell_mask])),
@@ -282,7 +289,8 @@ def main():
         "umis_kept": round(kept_umis, 2),
         "umis_kept_pct": round(100.0 * kept_umis / total_umis, 3) if total_umis else 0.0,
         "cell_rules": entry.get("cell_rules"),
-        "gene_rules": gene_rules_for(selection, entry),
+        "metacell_rules": entry.get("metacell_rules"),
+        "gene_rules": entry.get("gene_rules"),
     }
     with open(os.path.join(args.outdir, f"{args.sample_id}_filter_summary.json"), "w") as fh:
         json.dump(summary, fh, indent=2)

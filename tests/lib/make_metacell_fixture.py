@@ -33,7 +33,8 @@ The gene axis carries the awkward cases the matching has to handle:
     GENE011                 one UMI, named like the report's placeholder
 
 The ambient (raw) h5ad holds the called cells shuffled among empty droplets, so a
-lift by position instead of by barcode gives wrong values.
+lift by position instead of by barcode gives wrong values. S1_starsolo_CellReads.stats
+gives every called cell its reads (cell_reads), for the per-cell saturation.
 
 Usage: make_metacell_fixture.py OUTDIR
 """
@@ -189,6 +190,21 @@ def expected_doublet_pct(group):
     return 100.0 * DOUBLETS[group] / group_sizes()[group]
 
 
+def expected_tau():
+    """The specificity of every gene over the real metacells, from the dense counts:
+    tau = sum(1 - x / max x) / (n - 1), x = log1p(CP10k); None for a gene with no UMI."""
+    X = counts()
+    sums = np.array([X[[i for i, g in enumerate(groups()) if g == grp]].sum(axis=0) for grp in GROUPS])
+    x = np.log1p(1e4 * sums / sums.sum(axis=1, keepdims=True))
+    peak = x.max(axis=0)
+    return [float((1 - x[:, j] / peak[j]).sum() / (len(GROUPS) - 1)) if peak[j] > 0 else None
+            for j in range(X.shape[1])]
+
+
+def doublet_barcodes():
+    return [bc for bc, d in zip(barcodes(), doublet_status()) if d == "doublet"]
+
+
 def write_gtf(path):
     with open(path, "w") as fh:
         fh.write("#!genome-build fixture\n")
@@ -226,6 +242,28 @@ def write_metrics(outdir, sample_id):
     with open(os.path.join(outdir, f"{sample_id}_antisense_metrics.txt"), "w") as fh:
         fh.write("Metric,Count\n")
         fh.write(f"Percentage of antisense reads (of reads assigned to genes),{FC_ANTISENSE_FRACTION:.4f}\n")
+
+
+def cell_reads():
+    """The reads STARsolo counted into the matrix for each called cell (countedU): three per
+    UMI plus the cell's position, so no two cells share a saturation."""
+    X = counts()
+    return [int(3 * X[i].sum() + i) for i in range(X.shape[0])]
+
+
+def write_cellreads(path):
+    """A STARsolo CellReads.stats: its pass-list row, every called cell, and empty droplets."""
+    X = counts()
+    cols = ["CB", "cbMatch", "cbPerfect", "exonic", "intronic", "mito", "genomicNoGene",
+            "countedU", "countedM", "nGenesUnique", "nGenesMulti", "nUMIunique", "nUMImulti"]
+    with open(path, "w") as fh:
+        fh.write("\t".join(cols) + "\n")
+        fh.write("CBnotInPasslist\t500\t0\t0\t0\t0\t0\t0\t0\t0\t0\t0\t0\n")
+        for i, (bc, reads) in enumerate(zip(barcodes(), cell_reads())):
+            umis, genes = int(X[i].sum()), int((X[i] > 0).sum())
+            fh.write(f"{bc}\t{reads}\t{reads}\t{reads}\t0\t0\t0\t{reads}\t0\t{genes}\t0\t{umis}\t0\n")
+        for i in range(N_EMPTY):
+            fh.write(f"EMPTY{i:03d}\t2\t2\t2\t0\t0\t0\t2\t0\t1\t0\t1\t0\n")
 
 
 SMOKE_TYPES = 4
@@ -272,6 +310,7 @@ def main(outdir):
     write_gtf(os.path.join(outdir, "genes.gtf"))
     write_annotation(os.path.join(outdir, "pfam.tsv"))
     write_metrics(outdir, "S1_starsolo")
+    write_cellreads(os.path.join(outdir, "S1_starsolo_CellReads.stats"))
 
     X = counts()
     bcs = barcodes()

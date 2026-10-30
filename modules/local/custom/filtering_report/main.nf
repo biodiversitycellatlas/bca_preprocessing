@@ -11,6 +11,8 @@ process GENERATE_FILTERING_REPORT {
     path(summaries)
     path(mt_rrna_metrics)
     path(antisense_metrics)
+    val(cellreads_ids)
+    path(cellreads_stats, stageAs: 'cellreads*/*')
     path(template)
     path(logo)
     val(expected_cells)
@@ -32,12 +34,17 @@ process GENERATE_FILTERING_REPORT {
         .findAll { key, _flag -> thresholds[key] != null }
         .collect { key, flag -> "${flag} ${thresholds[key]}" }
         .join(' ')
+    def cellreads = cellreads_stats instanceof List ? cellreads_stats : [cellreads_stats]
+    def cellreads_args = [cellreads_ids, cellreads].transpose()
+        .collect { id, f -> "${id}=${f}" }
+        .join(' ')
     """
     generate_filtering_report.py \\
         --template ${template} \\
         --summaries ${summaries} \\
         --mt_rrna_metrics ${mt_rrna_metrics} \\
         --antisense_metrics ${antisense_metrics} \\
+        --cellreads_stats ${cellreads_args} \\
         --expected_cells ${expected_cells.join(' ')} \\
         ${threshold_args} \\
         --pfam_presets '${thresholds.pfam_presets ?: ''}' \\

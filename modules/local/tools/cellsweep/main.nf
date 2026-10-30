@@ -2,7 +2,6 @@ process CELLSWEEP {
     publishDir path: { "${params.outdir}/cellsweep/${meta.id}" }, mode: 'copy', saveAs: { filename -> filename == 'versions.yml' ? null : filename }
     tag "${meta.id} | ${meta.mapping_method}"
     label 'process_low2'
-    debug true
 
     // A matrix with too few cells to cluster exits 3 from bin/run_cellsweep.py; the
     // sample is then dropped from this step and published without denoised counts.
