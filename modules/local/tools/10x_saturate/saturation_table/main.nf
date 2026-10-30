@@ -6,9 +6,9 @@ process SATURATION_TABLE {
     // Memory tracks the size of the BAM being read. Coefficients live in
     // params.dynamic_memory; without an entry the request is process_single_mem2's 10 GB.
     // Deliberately no resource label, since a withLabel setting would take precedence over
-    // these: cpus and time are process_single_mem2's.
-    cpus   1
-    time   { 30.m * task.attempt }
+    // these.
+    cpus   4
+    time   { 4.h * task.attempt }
     memory { BcaResources.scaledMemory(
         params.dynamic_memory?.SATURATION_TABLE, [bam_file], task.attempt, 10) }
 
@@ -16,6 +16,7 @@ process SATURATION_TABLE {
     container "${ workflow.containerEngine in ['singularity', 'apptainer'] && !task.ext.singularity_pull_docker_container ?
         'oras://community.wave.seqera.io/library/pysam_samtools_bc_python_pruned:82a1e27e868113f0' :
         'community.wave.seqera.io/library/pysam_samtools_bc_python_pruned:d34a762142fc1075' }"
+        
     // The script lives in a submodule. A container only sees the task directory and bin/,
     // unless the pipeline happens to share a parent directory with the work directory
     containerOptions { "${workflow.containerEngine in ['docker', 'podman'] ? '-v' : '-B'} ${projectDir}/submodules/10x_saturate:${projectDir}/submodules/10x_saturate" }
@@ -69,6 +70,9 @@ process SATURATION_TABLE {
 
     map_rate=\$( echo "scale=4; \${MAPREADS}/\${n_reads}" | bc )
     temp_folder="_tmp"
+
+    # data.table otherwise sizes its thread pool from the node's cores, not the task's
+    export R_DATATABLE_NUM_THREADS=${task.cpus}
 
     echo "cells:\${n_cells} reads:\${n_reads} mapreads:\${MAPREADS} maprate:\${map_rate}"
 

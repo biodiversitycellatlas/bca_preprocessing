@@ -91,7 +91,7 @@ they scale with it instead of using a fixed amount of resources:
 | `MTX_TO_H5AD` | Matrix size, plus CellSweep's denoised matrix where it ran | ~3 GB small, up to 96 GB |
 | `MTX_TO_10X` | Matrix size | ~3 GB small, up to 48 GB |
 | `DOUBLET_FILTER` | Matrix size | ~3 GB small, up to 48 GB |
-| `SATURATION_TABLE` | STARsolo BAM size | ~13 GB small, up to 128 GB |
+| `SATURATION_TABLE` | STARsolo BAM size | ~4 GB small, up to 96 GB |
 | `SUBSET_VELOCYTO_MATRICES` | Velocyto matrix size | ~3 GB small, up to 48 GB |
 | `VELOCITY_H5AD` | Velocyto or USA matrix size | ~3 GB small, up to 48 GB |
 
@@ -107,12 +107,13 @@ That writes a `resources_dynamic_*.config` you can pass with `-c`, or copy into
 `nextflow.config`.
 
 
-One thing to watch when copying an entry across: `--dynamic` calibrates `ref_gb` from
-the trace's `rchar`, the total bytes a task read, while the module measures the file
-as it was staged. For a step that reads its input more than once the two differ —
-`SATURATION_TABLE` reads its BAM roughly seven times — so a generated `ref_gb` has to
-be converted back to staged size first, or the anchor sits far too high and every
-request collapses to the floor.
+`--dynamic` calibrates from the trace's `rchar`, the total bytes a task read, while
+the module measures the file as it was staged. For a step that reads its input more
+than once the two differ: `SATURATION_TABLE` reads its BAM roughly seven times. The
+tool divides `rchar` by that count (`INPUT_READ_PASSES` in
+`bin/resource_efficiency.py`) before setting `ref_gb`. A new step that rereads its
+input needs an entry there, or its anchor sits far too high and every request
+collapses to the floor.
 
 
 ## Tips

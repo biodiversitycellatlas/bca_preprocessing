@@ -55,6 +55,8 @@ Cases:
   coverage_guard          a partly observed tier is never lowered
   dynamic_memory          no input-size scaled module carries a resource label,
                           and the generated config never overrides its memory
+  read_passes             --dynamic divides rchar by a process's read passes
+                          before anchoring ref_gb, leaving mem_gb as fitted
   emitted_config          the generated config is valid Nextflow (needs nextflow)
 EOF
 }
@@ -518,6 +520,71 @@ then
     [[ "$n" -ge 2 ]] || record FAIL "dynamic_memory" "$(tail -3 "$DYN_OUT" | tr '\n' ' ')"
 else
     record FAIL "dynamic_memory" "$(tail -3 "$DYN_OUT" | tr '\n' ' ')"
+fi
+
+# --------------------------------------------------------------------------
+# Case: read_passes
+#
+# rchar counts every pass over the input, while BcaResources.scaledMemory() measures
+# the staged file once. For a process that reads its input N times, ref_gb taken
+# straight from rchar sits N times too high and every request collapses onto the
+# floor -- which is how SATURATION_TABLE was handed 4 GB for a 600 M-read BAM. The
+# generator must divide the anchor's size by N and leave mem_gb and the exponent alone.
+# --------------------------------------------------------------------------
+
+PASSES_OUT="$WORKDIR/read_passes.txt"
+if "$PYTHON" - "$PROJECT_ROOT" "$MULTI_DIR" "$WORKDIR/read_passes" >"$PASSES_OUT" 2>&1 <<'PYEOF'
+import contextlib
+import glob
+import importlib.util
+import io
+import os
+import re
+import sys
+
+root, results, outdir = sys.argv[1:4]
+spec = importlib.util.spec_from_file_location(
+    "re_mod", os.path.join(root, "bin", "resource_efficiency.py"))
+mod = importlib.util.module_from_spec(spec)
+spec.loader.exec_module(mod)
+
+# STARSOLO_ALIGN carries the fixture's trusted fit, so it stands in for any process.
+PROCESS, PASSES = "STARSOLO_ALIGN", 7
+entry_re = re.compile(PROCESS + r": \[ exponent: ([0-9.]+), ref_gb: ([0-9.e+-]+), "
+                      r"mem_gb: ([0-9]+),")
+
+def emitted(passes_table, tag):
+    mod.INPUT_READ_PASSES = passes_table
+    out = os.path.join(outdir, tag)
+    sys.argv = ["resource_efficiency.py", "--results", results, "--no-plots",
+                "--dynamic", "--output", out]
+    # The tool reports on stdout, which would land ahead of the verdict line.
+    with contextlib.redirect_stdout(io.StringIO()), contextlib.redirect_stderr(io.StringIO()):
+        mod.main()
+    configs = glob.glob(os.path.join(out, "resources_dynamic_*.config"))
+    match = entry_re.search(open(configs[0], encoding="utf-8").read()) if configs else None
+    return match.groups() if match else None
+
+plain = emitted({}, "plain")
+divided = emitted({PROCESS: PASSES}, "divided")
+if plain is None or divided is None:
+    print(f"FAIL\tno {PROCESS} entry emitted (plain={plain}, divided={divided})")
+    raise SystemExit(0)
+
+ratio = float(plain[1]) / float(divided[1])
+if abs(ratio - PASSES) > 0.05 * PASSES:
+    print(f"FAIL\tref_gb {plain[1]} -> {divided[1]}, ratio {ratio:.2f}, want {PASSES}")
+elif plain[0] != divided[0] or plain[2] != divided[2]:
+    print(f"FAIL\texponent/mem_gb changed: {plain[0]}/{plain[2]} -> {divided[0]}/{divided[2]}")
+else:
+    print(f"PASS\tref_gb {plain[1]} -> {divided[1]} over {PASSES} passes; "
+          f"exponent {plain[0]} and mem_gb {plain[2]} unchanged")
+PYEOF
+then
+    IFS=$'\t' read -r status detail <"$PASSES_OUT" || status=FAIL
+    record "${status:-FAIL}" "read_passes" "${detail:-no result produced}"
+else
+    record FAIL "read_passes" "$(tail -3 "$PASSES_OUT" | tr '\n' ' ')"
 fi
 
 # --------------------------------------------------------------------------

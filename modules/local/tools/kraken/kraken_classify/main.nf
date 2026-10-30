@@ -1,7 +1,7 @@
 process KRAKEN {
     publishDir path: { "${params.outdir}/kraken/" }, mode: 'copy', saveAs: { filename -> filename == 'versions.yml' ? null : filename }
     tag "${meta.id}"
-    label 'process_single_high2'
+    label 'process_high_memory2'
 
     conda "${moduleDir}/environment.yml"
     container "${ workflow.containerEngine in ['singularity', 'apptainer'] && !task.ext.singularity_pull_docker_container ?
