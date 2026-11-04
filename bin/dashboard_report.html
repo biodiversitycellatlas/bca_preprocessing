@@ -569,7 +569,7 @@
         }
 
         .ge-panel {
-            background: white;
+            background: transparent;
             border: 1px solid var(--border);
             border-radius: 10px;
             padding: 12px 14px;
@@ -1093,8 +1093,7 @@
                         { label: mappedPctLabel, value: m.pct_uniquely_mapped },
                         { label: "% multi-mapped reads", value: m.pct_multi_mapped },
                         { label: "% multi-mapped reads: too many", value: m.pct_multi_too_many },
-                        { label: "% unmapped: too short", value: m.pct_unmapped_short },
-                        { label: "% unmapped: other", value: m.pct_unmapped_other }
+                        { label: "% unmapped reads", value: m.pct_unmapped }
                     ]
                 },
                 {
@@ -1105,22 +1104,9 @@
                         { label: "Noise (% UMIs in non-cell barcodes)", value: m.noise_pct },
                         { label: "% intronic reads (of uniquely mapped reads)", value: m.intronic_pct },
                         { label: "% rRNA reads (of mapped reads, primary alignment)", value: m.rrna_mapped_pct },
-                        { label: "% rRNA reads (of uniquely mapped reads)", value: m.rrna_unique_pct },
                         { label: "% rRNA reads (of multimapped reads, primary alignment)", value: m.rrna_multi_primary_pct },
-                        { label: "% rRNA alignments (of multimapped read alignments, all alignments)", value: m.rrna_multi_aln_pct },
                         { label: "% mtDNA reads (of mapped reads, primary alignment)", value: m.mtdna_mapped_pct },
-                        { label: "% mtDNA reads (of uniquely mapped reads)", value: m.mtdna_unique_pct },
                         { label: "% mtDNA reads (of multimapped reads, primary alignment)", value: m.mtdna_multi_primary_pct },
-                        { label: "% mtDNA alignments (of multimapped read alignments, all alignments)", value: m.mtdna_multi_aln_pct },
-                        // Rows whose inputs are optional: the called-cell values need the
-                        // filtered matrix, the strand split a stranded run
-                        ...[
-                            { label: "% rRNA reads (of mapped reads, primary alignment, called cells)", value: m.rrna_mapped_cells_pct },
-                            { label: "% mtDNA reads (of mapped reads, primary alignment, called cells)", value: m.mtdna_mapped_cells_pct },
-                            { label: "% mtDNA reads sense to mitochondrial genes (of mtDNA reads)", value: m.mtdna_sense_pct },
-                            { label: "% mtDNA reads antisense to mitochondrial genes (of mtDNA reads)", value: m.mtdna_antisense_pct },
-                            { label: "% mtDNA reads outside mitochondrial genes (of mtDNA reads)", value: m.mtdna_outside_pct },
-                        ].filter(r => r.value != null),
                         // Not counted for unstranded runs, so the row is left out there
                         ...(m.antisense_pct != null
                             ? [{ label: "% Antisense reads (of gene-assigned reads)", value: m.antisense_pct }]
@@ -1745,9 +1731,12 @@
             }
             document.getElementById("percell").innerHTML = `
             <h3>Per-Cell Visualizations</h3>
-            <div style="display:grid; grid-template-columns:repeat(2,1fr); gap:15px; width:100%;">
+            <div class="ge-panels">
                 ${[1, 2, 3, 4, 5, 6].map(i =>
-                `<div id="plot${i}" style="width:100%; height:350px;"></div>`
+                `<div class="ge-panel">
+                    <h4 id="plot${i}-title"></h4>
+                    <div id="plot${i}" style="width:100%; height:320px;"></div>
+                </div>`
             ).join("")}
             </div>
         `;
@@ -1818,6 +1807,7 @@
 
             combos.forEach(c => {
                 Plotly.purge(c.id);
+                document.getElementById(`${c.id}-title`).textContent = c.title;
 
                 const below = perCellData.filter(d => !isCell(d));
                 const above = perCellData.filter(d => isCell(d));
@@ -1841,11 +1831,6 @@
                 };
 
                 Plotly.newPlot(c.id, [traceBelow, traceAbove], {
-                    title: {
-                        text: c.title,
-                        font: { family: 'Arial, sans-serif', size: 14, color: '#1e1e1e' },
-                        pad: { b: 10 }
-                    },
                     xaxis: {
                         title: { text: c.xLabel, font: { color: '#1e1e1e', size: 12 } }, // Uses new label
                         tickfont: { color: '#1e1e1e' },
@@ -1857,7 +1842,7 @@
                         gridcolor: '#eee'
                     },
 
-                    margin: { l: 60, r: 30, b: 60, t: 90 },
+                    margin: { l: 60, r: 30, b: 60, t: 30 },
                     paper_bgcolor: 'white',
                     plot_bgcolor: 'white',
                     showlegend: true,

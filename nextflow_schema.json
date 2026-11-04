@@ -399,7 +399,7 @@
                 },
                 "mc2_target_metacell_size": {
                     "type": "integer",
-                    "default": 48,
+                    "default": 96,
                     "minimum": 2
                 },
                 "mc2_random_seed": {
