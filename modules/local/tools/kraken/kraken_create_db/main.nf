@@ -3,40 +3,31 @@
  * used to classify the unmapped reads. The database is created using the
  * pre-built database PlusPF_16GB, which is downloaded and selected from:
  * https://benlangmead.github.io/aws-indexes/k2
- * It will only install the database if the kraken_db_path is empty,
- * and returns a file with the path to the (existing or downloaded) database.
+ * It only runs when kraken_db_path is empty; a given database is staged into KRAKEN
+ * directly. The database is returned as a directory, so KRAKEN can size its memory from it.
 */
 
 process KRAKEN_CREATE_DB {
-    publishDir path: { "${params.outdir}/kraken/kraken_db" }, mode: 'copy', overwrite: false, saveAs: { filename -> filename == 'versions.yml' ? null : filename }
     tag "kraken_db"
     label 'process_single2'
 
 
     output:
-    path 'kraken_db_path.txt', emit: db_path_file
-    path "versions.yml",       emit: versions
+    path 'k2_pluspf_16gb', emit: db
+    path "versions.yml",   emit: versions
 
     script:
-    def default_db_name = 'k2_pluspf_16gb'
     def db_url = 'https://genome-idx.s3.amazonaws.com/kraken/k2_pluspf_16gb_20241228.tar.gz'
-
-    // Made absolute, since the path is read back in another task's work directory; empty when
-    // unset (a null would reach the script as the text 'null')
-    def db_path = params.kraken_db_path ? file(params.kraken_db_path).toString() : ''
 
     """
     echo -e "\\n\\n==================  KRAKEN CREATE DB  =================="
+    echo "No kraken_db_path provided. Downloading default database..."
 
-    if [ -z "${db_path}" ]; then
-        echo "No kraken_db_path provided. Downloading default database..."
-        wget -q ${db_url} -O db.tar.gz
-        tar -xvzf db.tar.gz
-        echo "\$(pwd)/${default_db_name}" > kraken_db_path.txt
-    else
-        echo "Using existing Kraken DB path: ${db_path}"
-        echo "${db_path}" > kraken_db_path.txt
-    fi
+    # The archive holds the database files at its top level, without a directory
+    mkdir -p k2_pluspf_16gb
+    wget -q ${db_url} -O db.tar.gz
+    tar -xzf db.tar.gz -C k2_pluspf_16gb
+    rm db.tar.gz
 
     cat <<-END_VERSIONS > versions.yml
     "${task.process}":

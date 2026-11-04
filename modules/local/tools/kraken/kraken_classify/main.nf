@@ -1,7 +1,16 @@
 process KRAKEN {
     publishDir path: { "${params.outdir}/kraken/" }, mode: 'copy', saveAs: { filename -> filename == 'versions.yml' ? null : filename }
     tag "${meta.id}"
-    label 'process_high_memory2'
+
+    // kraken2 loads the database's *.k2d files whole, so memory follows the database
+    // actually used, downloaded or given in kraken_db_path, rather than the reads. Only
+    // those files are measured: a database built in place also keeps its library/.
+    // Coefficients live in params.dynamic_memory; without an entry the request is
+    // process_high_memory2's 128 GB. 
+    cpus   8
+    time   { 45.m * task.attempt }
+    memory { BcaResources.scaledMemory(
+        params.dynamic_memory?.KRAKEN, BcaResources.filesEndingWith(kraken_db, '.k2d'), task.attempt, 128) }
 
     conda "${moduleDir}/environment.yml"
     container "${ workflow.containerEngine in ['singularity', 'apptainer'] && !task.ext.singularity_pull_docker_container ?
@@ -9,7 +18,7 @@ process KRAKEN {
         'community.wave.seqera.io/library/kraken2:2.17.1--beecc0e7e3db7c8b' }"
 
     input:
-    path db_path_file
+    path kraken_db
     tuple val(meta), path(filtered_fasta)
 
     output:
@@ -19,15 +28,13 @@ process KRAKEN {
     script:
     """
     echo -e "\\n\\n==================  KRAKEN  =================="
-    echo "Kraken db path file: ${db_path_file}"
+    echo "Kraken database: ${kraken_db}"
     echo "Running KRAKEN for ${meta.id}"
     echo "FASTA file: ${filtered_fasta}"
 
-    kraken_db_path=\$(cat ${db_path_file})
-
     kraken2 \\
         --threads ${task.cpus} \\
-        --db \${kraken_db_path} \\
+        --db ${kraken_db} \\
         --report ${meta.id}.k2report \\
         --output ${meta.id}.kraken \\
         ${filtered_fasta}

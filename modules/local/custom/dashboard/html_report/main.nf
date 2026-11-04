@@ -1,6 +1,20 @@
 process GENERATE_DASHBOARD {
     publishDir path: { "${params.outdir}" }, mode: 'copy', overwrite: true, saveAs: { filename -> filename == 'versions.yml' ? null : filename }
-    label 'process_single_mem2'
+    
+    // The dashboard reads and embeds everything it is given, so memory tracks the total
+    // size of its inputs, which grows with the number of runs. Coefficients live in
+    // params.dynamic_memory; without an entry the request is process_single_mem2's 10 GB.
+    cpus   1
+    time   { 30.m * task.attempt }
+    memory { BcaResources.scaledMemory(
+        params.dynamic_memory?.GENERATE_DASHBOARD,
+        [samplesheet, run_config, analytical_manifest, star_logs, star_summaries, star_full_logs,
+         saturation_logs, cell_stats, af_meta_info, af_quant_json, af_cell_meta, af_mat_cols,
+         sankey_files, saturation_imgs, residuals_imgs, knee_files, mt_rrna_metrics,
+         antisense_metrics, secondderiv_knee, secondderiv_stats, matrix_stats, per_cell_files,
+         cellsweep_plots_contrib, cellsweep_plots_umap, cellsweep_top_genes, geneext_report,
+         geneext_log],
+        task.attempt, 10) }
 
     input:
     path(samplesheet)

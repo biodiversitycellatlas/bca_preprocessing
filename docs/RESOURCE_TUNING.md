@@ -81,8 +81,8 @@ A label like `process_low` gives every step the same memory, and it has to be bi
 enough for the largest dataset you will ever run. On everything smaller, most of that
 is reserved and left idle.
 
-For eight steps we noticed that memory tracks the size of their input, so
-they scale with it instead of using a fixed amount of resources:
+For these steps memory tracks the size of their input, so they scale with it instead of
+using a fixed amount of resources:
 
 | Step | Dependent on | Scale |
 | --- | --- | --- |
@@ -94,6 +94,13 @@ they scale with it instead of using a fixed amount of resources:
 | `SATURATION_TABLE` | STARsolo BAM size | ~4 GB small, up to 96 GB |
 | `SUBSET_VELOCYTO_MATRICES` | Velocyto matrix size | ~3 GB small, up to 48 GB |
 | `VELOCITY_H5AD` | Velocyto or USA matrix size | ~3 GB small, up to 48 GB |
+| `METACELL2` | Cell-called h5ad size | ~8 GB small, up to 96 GB |
+| `SALMON_SPLICI` | Reference genome size | ~3 GB small, up to 64 GB |
+| `SALMON_INDEX` | splici transcriptome size | ~2 GB small, up to 64 GB |
+| `ALEVIN_FRY` | FASTQ size, at least the salmon index × 1.3 | ~4 GB small, up to 64 GB |
+| `KRAKEN` | The database's `*.k2d` files | ~21 GB for the default PlusPF_16GB, up to 256 GB |
+| `GENERATE_DASHBOARD` | Everything it embeds | ~1 GB, up to 16 GB |
+| `GENERATE_FILTERING_REPORT` | Summaries and `CellReads.stats` | ~1 GB, up to 16 GB |
 
 
 The numbers live in `dynamic_memory` in [`nextflow.config`](../nextflow.config), and you can refresh them

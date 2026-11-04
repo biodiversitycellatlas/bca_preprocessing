@@ -103,23 +103,54 @@ class BcaResources {
         return total
     }
 
-    /** Total bytes across a single input or a collection of them. */
+    /**
+     * Total bytes across a single input or a collection of them.
+     *
+     * Recurses, because a multi-file input (a `path` that received a collected list)
+     * reaches the directive as a list of its own, so `[star_logs, cell_stats]` is a list
+     * of lists. Read as one entry, such a list measures as 0.
+     */
     static long totalBytes(Object files) {
         long total = 0L
         if (files instanceof Collection) {
             for (Object entry : (Collection) files) {
-                total += fileSize(entry)
+                total += totalBytes(entry)
             }
         }
         else if (files instanceof Object[]) {
             for (Object entry : (Object[]) files) {
-                total += fileSize(entry)
+                total += totalBytes(entry)
             }
         }
         else {
             total = fileSize(files)
         }
         return total
+    }
+
+    /**
+     * The files directly inside a staged directory whose name ends with `suffix`.
+     *
+     * For an input of which only some files are held in memory: a Kraken2 database
+     * loads its `*.k2d` files, while a database built in place may also hold the
+     * `library/` and `taxonomy/` it was built from, many times larger. Anything that
+     * cannot be listed yields an empty list, which measures as 0.
+     */
+    static List<Path> filesEndingWith(Object dir, String suffix) {
+        List<Path> found = []
+        try {
+            Path path = dir instanceof Path ? realPath((Path) dir) : Paths.get(dir.toString())
+            Files.list(path).withCloseable { stream ->
+                for (Path entry : stream) {
+                    if (entry.fileName.toString().endsWith(suffix) && !Files.isDirectory(entry)) {
+                        found << entry
+                    }
+                }
+            }
+        }
+        catch (Exception ignored) {
+        }
+        return found
     }
 
     /**

@@ -1,7 +1,7 @@
 process COLLAPSE_ALEVIN_USA {
     publishDir path: { "${params.outdir}/mapping_alevin/${meta.id}/gene_level_matrix/${meta.datatype}" }, mode: 'copy', saveAs: { filename -> filename == 'versions.yml' ? null : filename }
     tag "${meta.id} | ${meta.datatype} | ${usa_counts}"
-    label 'process_low'
+    label 'process_single_mem2'
 
     conda "${moduleDir}/environment.yml"
     container "${ workflow.containerEngine in ['singularity', 'apptainer'] && !task.ext.singularity_pull_docker_container ?

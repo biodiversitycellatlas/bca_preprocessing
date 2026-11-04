@@ -1,7 +1,12 @@
 process SALMON_INDEX {
     publishDir path: { "${params.outdir}/genome" }, mode: 'copy', saveAs: { filename -> filename == 'versions.yml' ? null : filename }
-    label 'process_high'
-
+    
+    // Memory tracks the size of the splici transcriptome being indexed. Coefficients live in
+    // params.dynamic_memory; without an entry the request is process_high's 64 GB.
+    cpus   8
+    time   { 2.h * task.attempt }
+    memory { BcaResources.scaledMemory(
+        params.dynamic_memory?.SALMON_INDEX, [splici_index_reference], task.attempt, 64) }
 
     conda "${moduleDir}/environment.yml"
     container "${ workflow.containerEngine in ['singularity', 'apptainer'] && !task.ext.singularity_pull_docker_container ?

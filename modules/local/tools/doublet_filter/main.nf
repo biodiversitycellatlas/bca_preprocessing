@@ -5,8 +5,8 @@ process DOUBLET_FILTER {
     // Memory tracks the size of the matrix being sliced. Coefficients live in
     // params.dynamic_memory; without an entry the request is process_low's 12 GB.
     // Deliberately no resource label, since a withLabel setting would take precedence over
-    // these: cpus and time are process_low's.
-    cpus   { 2 * task.attempt }
+    // these: time is process_low's. The script runs on one thread.
+    cpus   1
     time   { 4.h * task.attempt }
     memory { BcaResources.scaledMemory(
         params.dynamic_memory?.DOUBLET_FILTER, [mtx, barcodes, features], task.attempt, 12) }

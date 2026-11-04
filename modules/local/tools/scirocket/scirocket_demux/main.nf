@@ -1,8 +1,10 @@
 process SCIROCKET_DEMUX {
     publishDir path: { "${params.outdir}" }, mode: 'copy', saveAs: { filename -> filename == 'versions.yml' ? null : filename }
     tag "${meta.id}, ${fastq_cDNA}, ${fastq_BC_UMI}"
-    label 'process_medium'
-    debug true
+    
+    cpus   1
+    memory { 4.GB * task.attempt }
+    time   { 4.h  * task.attempt }
 
     conda "${moduleDir}/environment.yml"
     container "${ workflow.containerEngine in ['singularity', 'apptainer'] && !task.ext.singularity_pull_docker_container ?

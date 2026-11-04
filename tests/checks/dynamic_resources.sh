@@ -45,6 +45,8 @@ Cases:
   retry_ladder      task.attempt still multiplies the request
   staged_input      an input arriving as a staged TaskPath is measured, not read as 0
   staged_resident_floor  the resident floor survives that same trip
+  nested_inputs     a list of multi-file inputs is measured in full, not read as 0
+  files_ending_with only a directory's matching files are measured (Kraken2 *.k2d)
   bamsort_derived   STAR's BAM sort budget is the allocation minus index and slack
   bamsort_pinned    params.star_limitBAMsortRAM is used verbatim
   bamsort_no_memory no allocation to derive from leaves STAR its own default
@@ -82,10 +84,15 @@ if [[ -z "$JAR" || ! -f "$JAR" ]]; then
 fi
 
 WORKDIR="$BCA_TEST_LOGDIR/dynamic_resources"
-mkdir -p "$WORKDIR/small_input" "$WORKDIR/big_reference"
+mkdir -p "$WORKDIR/small_input" "$WORKDIR/big_reference" "$WORKDIR/kraken_db/library"
 # 256 MB of input, 2 GB of resident reference.
 head -c 268435456 /dev/zero >"$WORKDIR/small_input/data.mtx" 2>/dev/null || true
 head -c 2147483648 /dev/zero >"$WORKDIR/big_reference/SA" 2>/dev/null || true
+# A Kraken2 database built in place: 3 MB of *.k2d, plus build leftovers that are not loaded.
+head -c 2097152 /dev/zero >"$WORKDIR/kraken_db/hash.k2d"
+head -c 1048576 /dev/zero >"$WORKDIR/kraken_db/taxo.k2d"
+head -c 4194304 /dev/zero >"$WORKDIR/kraken_db/seqid2taxid.map"
+head -c 8388608 /dev/zero >"$WORKDIR/kraken_db/library/library.fna"
 
 cat >"$WORKDIR/Spec.groovy" <<'GROOVY'
 import java.nio.file.Paths
@@ -164,6 +171,21 @@ check("staged_input", stagedBytes == BcaResources.totalBytes(bigRef) && stagedBy
 // reaches STARSOLO_ALIGN as a staged directory and nothing else.
 check("staged_resident_floor", BcaResources.scaledMemory(tiny, input, 1, 48, staged) == "3 GB",
       BcaResources.scaledMemory(tiny, input, 1, 48, staged) + " (want 3 GB)")
+
+// A path input that received a collected list reaches the directive as a list of its
+// own (a BlankSeparatedList), so GENERATE_DASHBOARD's inputs are a list of lists.
+def multi       = new nextflow.util.BlankSeparatedList([staged, input.resolve("data.mtx")])
+def nestedBytes = BcaResources.totalBytes([multi, [input]])
+check("nested_inputs", nestedBytes == 2147483648L + 2L * 268435456L,
+      "nested=" + nestedBytes + " (want " + (2147483648L + 2L * 268435456L) + ")")
+
+// Only the *.k2d files of a Kraken2 database are loaded; the library/ a database built
+// in place keeps, and its maps, must not count. The directory arrives staged.
+def k2d      = BcaResources.filesEndingWith(new TaskPath(new FileHolder(work.resolve("kraken_db"))), ".k2d")
+def k2dBytes = BcaResources.totalBytes(k2d)
+def noDir    = BcaResources.filesEndingWith(Paths.get("does-not-exist"), ".k2d")
+check("files_ending_with", k2d.size() == 2 && k2dBytes == 3145728L && noDir.isEmpty(),
+      k2d.size() + " files, " + k2dBytes + " bytes (want 2 files, 3145728 bytes); missing dir gives " + noDir.size())
 
 // --limitBAMsortRAM: the allocation, less the genome index STAR keeps resident and
 // its own working memory. A value too large here is not caught by the scheduler --

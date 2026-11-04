@@ -106,16 +106,26 @@ workflow bam_inspection_workflow {
             // Extract unmapped reads
             SAMTOOLS_VIEW_UNMAPPED(bam_file)
 
+            // The database is staged into KRAKEN as a directory, so its memory can be sized
+            // from it: the one given in kraken_db_path, or else the downloaded default
+            def ch_kraken_db
+            if (params.kraken_db_path) {
+                ch_kraken_db = channel.value(file(params.kraken_db_path, type: 'dir', checkIfExists: true))
+            }
+            else {
+                KRAKEN_CREATE_DB()
+                ch_kraken_db = KRAKEN_CREATE_DB.out.db
+                ch_versions = ch_versions.mix(KRAKEN_CREATE_DB.out.versions)
+            }
+
             // Perform kraken tools plus visualization with Pavian
-            KRAKEN_CREATE_DB()
-            KRAKEN(KRAKEN_CREATE_DB.out.db_path_file, SAMTOOLS_VIEW_UNMAPPED.out.filtered_unmapped_fasta)
+            KRAKEN(ch_kraken_db, SAMTOOLS_VIEW_UNMAPPED.out.filtered_unmapped_fasta)
             PAVIAN(KRAKEN.out.k2report)
             ch_pavian_sankey = PAVIAN.out.sankey
             ch_kraken_report = KRAKEN.out.k2report
 
             ch_versions = ch_versions.mix(
                 SAMTOOLS_VIEW_UNMAPPED.out.versions,
-                KRAKEN_CREATE_DB.out.versions,
                 KRAKEN.out.versions,
                 PAVIAN.out.versions
             )

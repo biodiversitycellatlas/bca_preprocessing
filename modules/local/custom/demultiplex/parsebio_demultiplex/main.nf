@@ -1,7 +1,10 @@
 process PARSEBIO_CUSTOM_DEMUX {
     publishDir path: { "${params.outdir}/demultiplex/demux_custom/${meta.id}" }, mode: 'copy', saveAs: { filename -> filename == 'versions.yml' ? null : filename }
     tag "${meta.id}"
-    label 'process_medium'
+
+    cpus   1
+    memory { 2.GB * task.attempt }
+    time   { 4.h  * task.attempt }
 
     conda "${moduleDir}/environment.yml"
     container "${ workflow.containerEngine in ['singularity', 'apptainer'] && !task.ext.singularity_pull_docker_container ?

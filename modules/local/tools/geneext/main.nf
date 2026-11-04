@@ -1,16 +1,15 @@
 process GENE_EXT {
     publishDir path: { "${params.outdir}/gene_ext" }, mode: 'copy', saveAs: { filename -> filename == 'versions.yml' ? null : filename }
-    // GeneExt runs samtools and its coverage pool on -j cores. No resource label, since a
-    // withLabel setting would take precedence over cpus: memory and time are process_long's.
+    
     cpus   4
     memory { 18.GB * task.attempt }
     time   { 7.h   * task.attempt }
 
-    // conda "${projectDir}/submodules/GeneExt/environment.yaml"
     conda "${moduleDir}/environment.yml"
     container "${ workflow.containerEngine in ['singularity', 'apptainer'] && !task.ext.singularity_pull_docker_container ?
         'oras://community.wave.seqera.io/library/python_bedtools_samtools_pysam_pruned:f0dc809bbf3297e3' :
         'community.wave.seqera.io/library/python_bedtools_samtools_pysam_pruned:924a6b1d51a277f5' }"
+    
     // The script lives in a submodule. A container only sees the task directory and bin/,
     // unless the pipeline happens to share a parent directory with the work directory
     containerOptions { "${workflow.containerEngine in ['docker', 'podman'] ? '-v' : '-B'} ${projectDir}/submodules/GeneExt:${projectDir}/submodules/GeneExt" }

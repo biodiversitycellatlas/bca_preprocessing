@@ -1,5 +1,5 @@
 process BDRHAP_PIPELINE_MKREF {
-    label 'process_medium'
+    label 'process_single_long2'
 
     conda "${moduleDir}/environment.yml"
     container "${ workflow.containerEngine in ['singularity', 'apptainer'] && !task.ext.singularity_pull_docker_container ?

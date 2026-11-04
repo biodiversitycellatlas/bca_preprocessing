@@ -1,7 +1,12 @@
 process ALEVIN_QC {
     publishDir path: { "${params.outdir}/mapping_alevin/${meta.id}" }, mode: 'copy', saveAs: { filename -> filename == 'versions.yml' ? null : filename }
     tag "${meta.id}"
-    label 'process_medium'
+    // alevinQC runs on one thread, but its memory follows the permit list (over 12 GB for
+    // a 6.8 M-barcode one). No resource label, since a withLabel setting would take
+    // precedence over cpus: memory and time are process_medium's.
+    cpus   1
+    memory { 36.GB * task.attempt }
+    time   { 6.h   * task.attempt }
 
     conda "${moduleDir}/environment.yml"
     container "${ workflow.containerEngine in ['singularity', 'apptainer'] && !task.ext.singularity_pull_docker_container ?
