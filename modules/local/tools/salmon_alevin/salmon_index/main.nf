@@ -24,7 +24,8 @@ process SALMON_INDEX {
     salmon index \\
         -t ${splici_index_reference}/*.fa \\
         -i ./salmon_index${index_suffix} \\
-        -k 31
+        -k 31 \\
+        -p ${task.cpus}
 
     cat <<-END_VERSIONS > versions.yml
     "${task.process}":

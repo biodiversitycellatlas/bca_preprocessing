@@ -27,7 +27,9 @@ process CR_PIPELINE_MKREF {
     cellranger mkref \\
         --genome cellranger_ref \\
         --fasta=${fasta} \\
-        --genes=\$GTF_FILE
+        --genes=\$GTF_FILE \\
+        --nthreads=${task.cpus} \\
+        --memgb=${task.memory.toGiga()}
 
     cat <<-END_VERSIONS > versions.yml
     "${task.process}":

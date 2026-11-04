@@ -22,8 +22,7 @@ process SUBSAMPLE_FASTQS {
 
     SEED=100
     NREADS=${params.subsample_nreads}
-    # COMPRESSOR="pigz -p ${task.cpus}"
-    COMPRESSOR="gzip"
+    COMPRESSOR="pigz -p ${task.cpus}"
 
     echo "[1/2] Subsampling paired reads..."
     seqtk sample -s\$SEED ${fastq_cDNA} \$NREADS | \$COMPRESSOR > ${meta.id}_subsampled_cDNA.fastq.gz

@@ -4,9 +4,10 @@ process STARSOLO_INDEX {
     // Memory tracks the size of the reference being indexed. Coefficients live in
     // params.dynamic_memory; without an entry the request is process_single_mem2's 10 GB.
     // Deliberately no resource label, since a withLabel setting would take precedence over
-    // these: cpus and time are process_single_mem2's.
-    cpus   1
-    time   { 30.m * task.attempt }
+    // these. genomeGenerate is multi-threaded; on one thread a vertebrate-size genome needs
+    // well over the 30 min it used to get, even on the retry.
+    cpus   8
+    time   { 2.h * task.attempt }
     memory { BcaResources.scaledMemory(
         params.dynamic_memory?.STARSOLO_INDEX, [ref_fasta, ref_gtf], task.attempt, 10) }
 
@@ -55,6 +56,7 @@ process STARSOLO_INDEX {
 
     echo "Generating genome index with STAR"
     STAR --runMode genomeGenerate \\
+        --runThreadN ${task.cpus} \\
         --genomeFastaFiles ${ref_fasta} \\
         --sjdbGTFfile ${ref_gtf} \\
         --sjdbOverhang "\${sjdb_overhang}" \\

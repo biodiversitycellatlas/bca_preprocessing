@@ -46,7 +46,9 @@ process CR_PIPELINE {
         --fastqs=fastqs \\
         --sample=${meta.id} \\
         --chemistry=auto \\
-        --create-bam true
+        --create-bam true \\
+        --localcores=${task.cpus} \\
+        --localmem=${task.memory.toGiga()}
 
     cat <<-END_VERSIONS > versions.yml
     "${task.process}":

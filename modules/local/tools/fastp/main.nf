@@ -33,7 +33,7 @@ process FASTP {
     fastp \\
         --html fastp_${meta.id}.html \\
         --json fastp_${meta.id}.json \\
-        --thread 8 \\
+        --thread ${task.cpus} \\
         --in1 ${fastq_cDNA} \\
         --in2 ${fastq_BC_UMI} \\
         --out1 trimmed_${fastq_cDNA} \\

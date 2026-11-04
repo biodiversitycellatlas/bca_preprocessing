@@ -19,6 +19,7 @@ process RM_VARBASES {
     """
     # Run cutadapt to remove the variable bases
     cutadapt \\
+        -j ${task.cpus} \\
         -g "^A" -g "^GT" -g "^TCA" \\
         --quality-cutoff 0 \\
         -o noVB_${meta.id}_R1_001.fastq.gz -p noVB_${meta.id}_R2_001.fastq.gz \\

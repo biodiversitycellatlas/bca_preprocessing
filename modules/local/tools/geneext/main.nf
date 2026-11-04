@@ -1,6 +1,10 @@
 process GENE_EXT {
     publishDir path: { "${params.outdir}/gene_ext" }, mode: 'copy', saveAs: { filename -> filename == 'versions.yml' ? null : filename }
-    label 'process_long'
+    // GeneExt runs samtools and its coverage pool on -j cores. No resource label, since a
+    // withLabel setting would take precedence over cpus: memory and time are process_long's.
+    cpus   4
+    memory { 18.GB * task.attempt }
+    time   { 7.h   * task.attempt }
 
     // conda "${projectDir}/submodules/GeneExt/environment.yaml"
     conda "${moduleDir}/environment.yml"
@@ -39,7 +43,7 @@ process GENE_EXT {
         -b ${bam_file} \\
         -o geneext.gtf \\
         -t tmp_geneext \\
-        -j 4 \\
+        -j ${task.cpus} \\
         -force ${subsamplebam}
 
     cat <<-END_VERSIONS > versions.yml

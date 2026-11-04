@@ -1774,6 +1774,12 @@ def main() -> None:
         if per_cell_cols:
             per_cell_data[s_id] = per_cell_cols
 
+        # Total unmapped: STARsolo reports too-short and other separately
+        try:
+            pct_unmapped = f"{float(str(pct_short).rstrip('%')) + float(str(pct_other).rstrip('%')):.2f}%"
+        except ValueError:
+            pct_unmapped = "N/A"
+
         samples_json_list.append({
             "sample_id": s_id,
             "config":    combined_config,
@@ -1788,6 +1794,7 @@ def main() -> None:
                 "pct_multi_too_many":   pct_multi_too_many,
                 "pct_unmapped_short":   pct_short,
                 "pct_unmapped_other":   pct_other,
+                "pct_unmapped":         pct_unmapped,
                 "noise_pct":            noise_pct,
                 "intronic_pct":         intronic_pct,
                 **mt_rrna,
