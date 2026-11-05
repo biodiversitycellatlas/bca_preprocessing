@@ -3,12 +3,10 @@ process SATURATION_TABLE {
     tag "${meta.id}"
     label 'error_retry'
 
-    // Memory tracks the size of the BAM being read. Coefficients live in
-    // params.dynamic_memory; without an entry the request is process_single_mem2's 10 GB.
-    // Deliberately no resource label, since a withLabel setting would take precedence over
-    // these.
+    // Memory and time track the size of the BAM file
     cpus   4
-    time   { 4.h * task.attempt }
+    time   { BcaResources.scaledTime(
+        params.dynamic_time?.SATURATION_TABLE, [bam_file], task.attempt, 4) }
     memory { BcaResources.scaledMemory(
         params.dynamic_memory?.SATURATION_TABLE, [bam_file], task.attempt, 10) }
 

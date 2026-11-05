@@ -1,7 +1,12 @@
 process FASTQC {
     publishDir path: { "${params.outdir}/fastqc" }, mode: 'copy', saveAs: { filename -> filename == 'versions.yml' ? null : filename }
     tag "${fastq_cDNA}, ${fastq_BC_UMI}"
-    label 'process_single_long2'
+
+    // Time follows the FASTQs file size
+    cpus   { 1 * task.attempt }
+    memory { 4.GB * task.attempt }
+    time   { BcaResources.scaledTime(
+        params.dynamic_time?.FASTQC, [fastq_cDNA, fastq_BC_UMI], task.attempt, 2) }
 
     conda "${moduleDir}/environment.yml"
     container "${ workflow.containerEngine in ['singularity', 'apptainer'] && !task.ext.singularity_pull_docker_container ?

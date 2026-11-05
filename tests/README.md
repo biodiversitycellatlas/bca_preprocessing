@@ -253,13 +253,17 @@ Notes:
   formatting change to that file.
 - `coverage_guard` asserts that a tier only partly exercised by the runs is never
   *lowered*, since the members that did not run would be under-provisioned.
+- `dynamic_memory` and `dynamic_time` assert that no module sizing its memory, time
+  or cpus from its input carries a resource label, and that the generated config
+  never writes those directives for it: either would override the scaled request.
+  `dynamic_time` also checks that `--dynamic` writes a complete `dynamic_time` map.
 - `emitted_config` runs `nextflow config` over the generated file and skips, rather
   than fails, when Nextflow is not installed.
 
 ## `dynamic_resources`
 
 Unit-tests [`lib/BcaResources.groovy`](../lib/BcaResources.groovy), which turns the
-size of a process's input into its memory request, and an allocation into STAR's
+size of a process's input into its memory, time and cpus requests, and an allocation into STAR's
 `--limitBAMsortRAM`. That code decides what tasks ask the scheduler for, and a
 mistake in it does not throw — it produces a plausible number that is too small, and
 the task is killed part-way through a long run.
@@ -279,6 +283,12 @@ one that owns it, so every `java.nio.file.Files` call on it throws. Measured
 carelessly through one of those, *every* input reads as 0 bytes and every request
 falls back to its label without a word in the log — so the cases construct one and
 assert the size comes back the same as for the path it stands for.
+
+The `time_*` cases hold `scaledTime()` to the same properties, plus two of its own:
+without `floor_h` the label is the floor, so an entry can lengthen a limit but never
+shorten it, and every value it returns parses as a Nextflow `Duration`. `cpus_off` and
+`cpus_tiered` cover `tieredCpus()`, which must give the base count while its threshold
+is unset, including when the entry comes from a config block without `above_gb`.
 
 The `bamsort_*` cases cover the STAR sort budget: the allocation less the resident
 genome index and STAR's own working memory, a pinned `params.star_limitBAMsortRAM`

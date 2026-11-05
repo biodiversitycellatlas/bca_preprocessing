@@ -15,6 +15,10 @@
     retuning never means editing a module. With no entry for a process, the cap is
     returned unchanged and the process behaves exactly as its label always did.
 
+    Time follows the same model for the steps that stream their reads
+    (`params.dynamic_time`, `scaledTime()`), and `tieredCpus()` steps a thread count
+    up above an input size (`params.dynamic_cpus`).
+
     The same allocation also has to be divided up *inside* a task: `bamSortRam()`
     turns it into STAR's `--limitBAMsortRAM`, so that arithmetic lives here under
     unit test rather than inside the module.
@@ -214,14 +218,10 @@ class BcaResources {
 
         if (spec && spec.exponent != null && spec.ref_gb && spec.mem_gb) {
             int cap = Math.max(1, (spec.cap_gb ?: labelGb) as int)
-            long bytes = totalBytes(files)
-            // A zero here means the input could not be measured. Falling through to
-            // the label is the safe reading: it is the behaviour it already had.
-            if (bytes > 0L) {
-                double inputGb = bytes / (1024.0d * 1024.0d * 1024.0d)
-                double estimate = (spec.mem_gb as double) *
-                        Math.pow(inputGb / (spec.ref_gb as double), spec.exponent as double)
-
+            Double estimate = powerLaw(spec, 'mem_gb', totalBytes(files))
+            // Null means the input could not be measured. Falling through to the
+            // label is the safe reading: it is the behaviour it already had.
+            if (estimate != null) {
                 int floor = Math.max(1, (spec.floor_gb ?: defaultFloorGb) as int)
                 if (residentFiles != null) {
                     long residentBytes = totalBytes(residentFiles)
@@ -237,6 +237,82 @@ class BcaResources {
         }
 
         return "${gb * Math.max(1, attempt)} GB"
+    }
+
+    /**
+     * The anchored power law shared by the scaled requests: at `ref_gb` of input the
+     * process needed `spec[valueKey]`, and from there it grows as size**exponent.
+     * Null when the input measured 0 bytes, which means it could not be measured.
+     */
+    private static Double powerLaw(Map spec, String valueKey, long bytes) {
+        if (bytes <= 0L) {
+            return null
+        }
+        double inputGb = bytes / (1024.0d * 1024.0d * 1024.0d)
+        return (spec[valueKey] as double) *
+                Math.pow(inputGb / (spec.ref_gb as double), spec.exponent as double)
+    }
+
+    /**
+     * A time limit scaled from the size of a process's own input.
+     *
+     * The streaming FASTQ and BAM steps take time in proportion to the reads they
+     * pass over, so a fixed limit sized for an ordinary sample kills a deep one
+     * halfway through. Same anchored model as scaledMemory(): at `ref_gb` of input
+     * the process took `time_h` hours.
+     *
+     * Unlike memory, the floor defaults to the label rather than to a token minimum:
+     * an entry without `floor_h` can lengthen a limit but never shorten one, so a
+     * step that was finishing in time keeps finishing in time.
+     *
+     * @param spec       params.dynamic_time entry: exponent, ref_gb, time_h and
+     *                   optionally floor_h and cap_h. Null or incomplete means
+     *                   "not measured".
+     * @param files      The input this process's run time scales with.
+     * @param attempt    task.attempt, so the retry ladder still escalates.
+     * @param labelHours The process's current limit, in hours (0.75 for 45 min). Used
+     *                   verbatim when there is no spec, and as the ceiling unless the
+     *                   spec raises it with `cap_h`.
+     * @return A duration string in whole minutes, such as "45m", which Nextflow parses.
+     */
+    static String scaledTime(Map spec, Object files, int attempt, Number labelHours) {
+        double label = Math.max(1.0d / 60.0d, labelHours as double)
+        double hours = label
+
+        if (spec && spec.exponent != null && spec.ref_gb && spec.time_h) {
+            Double estimate = powerLaw(spec, 'time_h', totalBytes(files))
+            if (estimate != null) {
+                double floor = (spec.floor_h ?: label) as double
+                double cap = (spec.cap_h ?: label) as double
+                hours = Math.min(Math.max(estimate, floor), cap)
+            }
+        }
+
+        long minutes = Math.max(1L, (long) Math.ceil(hours * 60.0d - 1e-9d))
+        return "${minutes * Math.max(1, attempt)}m"
+    }
+
+    /**
+     * A CPU count that steps up above an input size.
+     *
+     * For a multi-threaded tool whose wall time is worth buying down on a large input
+     * but not a small one. The spec is `[above_gb: X, cpus: N]`; with no threshold set,
+     * or an input that cannot be measured, the request is `baseCpus`, as before.
+     *
+     * @return The CPU count, already multiplied by task.attempt.
+     */
+    static int tieredCpus(Map spec, Object files, int attempt, int baseCpus) {
+        int cpus = Math.max(1, baseCpus)
+        // instanceof rather than != null: a ConfigObject answers a missing key with an
+        // empty ConfigObject, not null.
+        if (spec && spec.above_gb instanceof Number && spec.cpus instanceof Number) {
+            long bytes = totalBytes(files)
+            double threshold = (spec.above_gb as double) * 1024.0d * 1024.0d * 1024.0d
+            if (bytes > 0L && bytes > threshold) {
+                cpus = Math.max(1, spec.cpus as int)
+            }
+        }
+        return cpus * Math.max(1, attempt)
     }
 
     /** Bytes from a MemoryUnit (`task.memory`), a plain number, or a numeric string. */

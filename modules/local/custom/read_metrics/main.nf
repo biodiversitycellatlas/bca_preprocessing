@@ -1,7 +1,12 @@
 process CALC_READ_METRICS {
     publishDir path: { "${params.outdir}/rRNA_mtDNA" }, mode: 'copy', saveAs: { filename -> filename == 'versions.yml' ? null : filename }
     tag "${meta.id}"
-    label 'process_single_long2'
+
+    // Time follows the BAM (params.dynamic_time), never below 2 h
+    cpus   { 1 * task.attempt }
+    memory { 4.GB * task.attempt }
+    time   { BcaResources.scaledTime(
+        params.dynamic_time?.CALC_READ_METRICS, [bam_file], task.attempt, 2) }
 
     conda "${moduleDir}/environment.yml"
     container "${ workflow.containerEngine in ['singularity', 'apptainer'] && !task.ext.singularity_pull_docker_container ?

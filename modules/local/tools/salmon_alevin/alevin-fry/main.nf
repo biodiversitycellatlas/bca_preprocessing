@@ -2,12 +2,12 @@ process ALEVIN_FRY {
     publishDir path: { "${params.outdir}/mapping_alevin/${meta.id}" }, mode: 'copy', saveAs: { filename -> filename == 'versions.yml' ? null : filename }
     tag "${meta.id}"
     
-    // Mapping holds the salmon index in memory; collate and quant work in bounded
-    // batches, so the reads add little on top. Coefficients live in params.dynamic_memory;
-    // without an entry the request is process_high's 64 GB. salmon's mapping stops gaining
-    // at about 8 threads (66 s for 30 M pairs at 8, 12 and 16), so more only adds cost.
+
+    // Time follows the FASTQs and memory follows the salmon index size.
+    // Salmon's mapping stops gaining at about 8 threads (66 s for 30 M pairs at 8, 12 and 16), so more only adds cost.
     cpus   8
-    time   { 4.h * task.attempt }
+    time   { BcaResources.scaledTime(
+        params.dynamic_time?.ALEVIN_FRY, [fastq_cDNA, fastq_BC_UMI], task.attempt, 4) }
     memory { BcaResources.scaledMemory(
         params.dynamic_memory?.ALEVIN_FRY, [fastq_cDNA, fastq_BC_UMI], task.attempt, 64, salmon_index) }
 

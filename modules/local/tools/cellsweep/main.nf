@@ -2,10 +2,10 @@ process CELLSWEEP {
     publishDir path: { "${params.outdir}/cellsweep/${meta.id}" }, mode: 'copy', saveAs: { filename -> filename == 'versions.yml' ? null : filename }
     tag "${meta.id} | ${meta.mapping_method}"
 
-    // Memory tracks the raw matrix, which is loaded in full. Coefficients live in
-    // params.dynamic_memory; without an entry the request is process_low2's 6 GB.
+    // Memory tracks the size of the raw matrix, which is loaded in full
     cpus   2
-    time   { 45.m * task.attempt }
+    time   { BcaResources.scaledTime(
+        params.dynamic_time?.CELLSWEEP, [mtx, barcodes, features], task.attempt, 0.75) }
     memory { BcaResources.scaledMemory(
         params.dynamic_memory?.CELLSWEEP, [mtx, barcodes, features], task.attempt, 6) }
 

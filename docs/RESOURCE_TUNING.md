@@ -75,72 +75,27 @@ nextflow run
     ...
 ```
 
-## Dynamic memory
+## Dynamic time and memory
 
 A label like `process_low` gives every step the same memory, and it has to be big
 enough for the largest dataset you will ever run. On everything smaller, most of that
 is reserved and left idle.
 
 For these steps memory tracks the size of their input, so they scale with it instead of
-using a fixed amount of resources:
-
-| Step | Dependent on | Scale |
-| --- | --- | --- |
-| `STARSOLO_ALIGN` | FASTQ size | ~5 GB small, ~160 GB very large |
-| `STARSOLO_INDEX` | Reference genome size |  ~4 GB small, ~34 GB large |
-| `MTX_TO_H5AD` | Matrix size, plus CellSweep's denoised matrix where it ran | ~3 GB small, up to 96 GB |
-| `MTX_TO_10X` | Matrix size | ~3 GB small, up to 48 GB |
-| `DOUBLET_FILTER` | Matrix size | ~3 GB small, up to 48 GB |
-| `SATURATION_TABLE` | STARsolo BAM size | ~4 GB small, up to 96 GB |
-| `SUBSET_VELOCYTO_MATRICES` | Velocyto matrix size | ~3 GB small, up to 48 GB |
-| `VELOCITY_H5AD` | Velocyto or USA matrix size | ~3 GB small, up to 48 GB |
-| `METACELL2` | Cell-called h5ad size; the raw h5ad it reads annotations from raises the floor | ~8 GB small, up to 96 GB |
-| `CELLSWEEP` | Raw matrix size | 6 GB small, up to 96 GB |
-| `PERCELL_METRICS` | STARsolo's raw barcode list (the whitelist), `CellReads.stats` and the called cells, plus the Velocyto matrices with `perform_velocity` | ~6 GB for a 10xv3 whitelist, up to 96 GB |
-| `FILTER_MATRICES` | The analysed raw matrix (and `CellReads.stats`) | 10 GB small, up to 96 GB |
-| `SECONDDERIV_CELLCALLING` | The raw matrix the UMI curve is derived from; 500 MB when STARsolo's own curve is used | 10 GB small, up to 96 GB |
-| `SUBSET_STARSOLO_CELLS` | The multi-gene raw matrix | 10 GB small, up to 96 GB |
-| `COLLAPSE_ALEVIN_USA` | alevin-fry's USA matrix | 10 GB small, up to 96 GB |
-| `APPLY_METACELL_FILTER` | Cell-called h5ad size | 10 GB small, up to 96 GB |
-| `MAPPING_STATS` | The largest STARsolo raw matrix among the runs | 10 GB small, up to 96 GB |
-| `SALMON_SPLICI` | Reference genome size | ~3 GB small, up to 64 GB |
-| `SALMON_INDEX` | splici transcriptome size | ~2 GB small, up to 64 GB |
-| `ALEVIN_FRY` | The salmon index × 1.3, plus a little for the FASTQ size | ~2 GB small, up to 64 GB |
-| `KRAKEN` | The database's `*.k2d` files | ~21 GB for the default PlusPF_16GB, up to 256 GB |
-| `GENERATE_DASHBOARD` | Everything it embeds | ~1 GB, up to 16 GB |
-| `GENERATE_FILTERING_REPORT` | Summaries and `CellReads.stats` | ~1 GB, up to 16 GB |
-
-
-The numbers live in `dynamic_memory` in [`nextflow.config`](../nextflow.config), and you can refresh them
-based on your own runs:
+using a fixed amount of resources. The numbers live in `dynamic_memory` in 
+[`nextflow.config`](../nextflow.config), and you can refresh them based on your own runs:
 
 ```bash
 bin/resource_efficiency.py --results /path/to/outdir --dynamic
 ```
 
 That writes a `resources_dynamic_*.config` you can pass with `-c`, or copy into
-`nextflow.config`.
+`nextflow.config`. It holds the `dynamic_time` and `dynamic_memory`.
 
-
-`--dynamic` calibrates from the trace's `rchar`, the total bytes a task read, while
-the module measures the file as it was staged. For a step that reads its input more
-than once the two differ: `SATURATION_TABLE` reads its BAM roughly seven times. The
-tool divides `rchar` by that count (`INPUT_READ_PASSES` in
-`bin/resource_efficiency.py`) before setting `ref_gb`. A new step that rereads its
-input needs an entry there, or its anchor sits far too high and every request
-collapses to the floor.
-
-Steps that stage a directory measure only the files they load: the analysed matrix
-in STARsolo's `raw/`, not the other matrices next to it. `rchar` cannot make that
-distinction for `MAPPING_STATS`, which reads every run's matrix but is sized on the
-largest one, so its fitted anchor reads high. A generated config also leaves out
-`resident_factor`, so `METACELL2` falls back to the default of 1.3; copy it over by
-hand.
-
-The steps that load a raw matrix (`CELLSWEEP` to `MAPPING_STATS` in the table) are
-anchored on a single 30 M-pair fly run (`PERCELL_METRICS` on the 10x example) and
-floored at the fixed request they had before, so for now they mostly ask for more
-only on larger inputs.
+`dynamic_cpus` steps a CPU count up above an input size. It has one entry,
+`STARSOLO_ALIGN: [ above_gb: null, cpus: 16 ]`, which does nothing while `above_gb` is
+`null`: the size at which 16 threads pay off has to come from a thread sweep on the
+cluster. With a threshold set, a larger input gets 16 cores, and shorter runs.
 
 
 ## Tips

@@ -1,7 +1,12 @@
 process MARSSEQ_BUILD_READS {
     publishDir path: { "${params.outdir}/demultiplex/${meta.id}" }, mode: 'copy', saveAs: { filename -> filename == 'versions.yml' ? null : filename }
     tag "${meta.id}"
-    label 'process_low2'
+
+    // Time follows the FASTQs (params.dynamic_time), never below 45 min
+    cpus   { 2 * task.attempt }
+    memory { 6.GB * task.attempt }
+    time   { BcaResources.scaledTime(
+        params.dynamic_time?.MARSSEQ_BUILD_READS, [fastq_cDNA, fastq_BC_UMI], task.attempt, 0.75) }
 
     conda "${moduleDir}/environment.yml"
     container "${ workflow.containerEngine in ['singularity', 'apptainer'] && !task.ext.singularity_pull_docker_container ?

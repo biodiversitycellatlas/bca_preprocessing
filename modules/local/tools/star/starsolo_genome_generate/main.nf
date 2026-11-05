@@ -1,13 +1,10 @@
 process STARSOLO_INDEX {
     publishDir path: { "${params.outdir}/genome/star_index_${ref_gtf.simpleName}${index_suffix}" }, mode: 'copy', saveAs: { filename -> filename == 'versions.yml' ? null : filename }
 
-    // Memory tracks the size of the reference being indexed. Coefficients live in
-    // params.dynamic_memory; without an entry the request is process_single_mem2's 10 GB.
-    // Deliberately no resource label, since a withLabel setting would take precedence over
-    // these. genomeGenerate is multi-threaded; on one thread a vertebrate-size genome needs
-    // well over the 30 min it used to get, even on the retry.
+    // Memory and time track the size of the reference being indexed
     cpus   8
-    time   { 2.h * task.attempt }
+    time   { BcaResources.scaledTime(
+        params.dynamic_time?.STARSOLO_INDEX, [ref_fasta, ref_gtf], task.attempt, 2) }
     memory { BcaResources.scaledMemory(
         params.dynamic_memory?.STARSOLO_INDEX, [ref_fasta, ref_gtf], task.attempt, 10) }
 

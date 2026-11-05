@@ -57,6 +57,9 @@ Cases:
                           and the generated config never overrides its memory
   read_passes             --dynamic divides rchar by a process's read passes
                           before anchoring ref_gb, leaving mem_gb as fitted
+  dynamic_time            no module scaling time or cpus carries a resource label,
+                          the generated config never overrides them, and
+                          --dynamic writes a complete dynamic_time map
   emitted_config          the generated config is valid Nextflow (needs nextflow)
 EOF
 }
@@ -585,6 +588,96 @@ then
     record "${status:-FAIL}" "read_passes" "${detail:-no result produced}"
 else
     record FAIL "read_passes" "$(tail -3 "$PASSES_OUT" | tr '\n' ' ')"
+fi
+
+# --------------------------------------------------------------------------
+# Case: dynamic_time
+#
+# The time limits and CPU counts a module scales from its input (scaledTime,
+# tieredCpus) are lost to a resource label or a withName block just as memory is.
+# --dynamic must also write a complete dynamic_time map, which read_passes above
+# has already generated from the multi-run fixture.
+# --------------------------------------------------------------------------
+
+DYNT_OUT="$WORKDIR/dynamic_time.txt"
+DYNT_CONFIG="$(ls -1 "$WORKDIR/read_passes/plain"/resources_dynamic_*.config 2>/dev/null | head -1)"
+if "$PYTHON" - "$PROJECT_ROOT" "${MULTI_CONFIG:-}" "${DYNT_CONFIG:-}" >"$DYNT_OUT" 2>&1 <<'PYEOF'
+import importlib.util
+import os
+import re
+import sys
+
+root, config, dynamic_config = sys.argv[1:4]
+spec = importlib.util.spec_from_file_location(
+    "re_mod", os.path.join(root, "bin", "resource_efficiency.py"))
+mod = importlib.util.module_from_spec(spec)
+spec.loader.exec_module(mod)
+mod.adopt_resource_labels(mod.parse_base_config(os.path.join(root, "conf", "base.config")))
+labels = mod.scan_module_labels(root)
+
+scaled = {name: info.scaled - {"memory"} for name, info in labels.items()
+          if info.dynamic_time or info.dynamic_cpus}
+if not scaled:
+    print("FAIL\tno module calling BcaResources.scaledTime() or tieredCpus() was found")
+else:
+    labelled = sorted(f"{name} ({labels[name].tier})" for name in scaled
+                      if labels[name].tier != mod.DEFAULT_TIER)
+    if labelled:
+        print("FAIL\tresource label overrides the scaled time/cpus of: " + "; ".join(labelled))
+    else:
+        print(f"PASS\t{len(scaled)} modules scale time or cpus, none with a resource label")
+
+if not config or not os.path.exists(config):
+    print("FAIL\tno emitted config to inspect")
+else:
+    text = open(config, encoding="utf-8").read()
+    blocks = re.findall(r"withName:'\.\*:([A-Za-z0-9_]+)'\s*\{([^}]*)\}", text)
+    seen, leaked = [], []
+    for name, body in blocks:
+        directives = scaled.get(mod.resolve_label(name, labels)[0], set())
+        if directives:
+            seen.append(name)
+            leaked += [f"{name}.{d}" for d in sorted(directives)
+                       if re.search(r"^\s*" + d + r"\s*=", body, re.MULTILINE)]
+    if leaked:
+        print("FAIL\tthe tuned config overrides scaled directives: " + ", ".join(leaked))
+    elif not seen:
+        print("FAIL\tthe fixture emitted no withName block for a time-scaled process, nothing was tested")
+    else:
+        print(f"PASS\t{len(seen)} withName block(s) for time-scaled processes, none sets time or cpus")
+
+if not dynamic_config or not os.path.exists(dynamic_config):
+    print("FAIL\tno --dynamic output to inspect")
+else:
+    text = open(dynamic_config, encoding="utf-8").read()
+    block = text[text.find("dynamic_time = ["):]
+    entries = re.findall(r"^\s*([A-Z0-9_]+): \[ (.*) \],$", block, re.MULTILINE)
+    incomplete = [name for name, body in entries
+                  if not all(key + ":" in body for key in ("exponent", "ref_gb", "time_h", "floor_h", "cap_h"))]
+    if "dynamic_time = [" not in text:
+        print("FAIL\t--dynamic wrote no dynamic_time map")
+    elif not entries:
+        print("FAIL\tdynamic_time map is empty for a fixture with a known time scaling")
+    elif incomplete:
+        print("FAIL\tincomplete dynamic_time entries: " + ", ".join(incomplete))
+    else:
+        print(f"PASS\t{len(entries)} dynamic_time entries: " + ", ".join(n for n, _ in entries))
+PYEOF
+then
+    n=0
+    while IFS=$'\t' read -r status detail; do
+        n=$((n + 1))
+        case "$n" in
+            1) name="dynamic_time.unlabelled" ;;
+            2) name="dynamic_time.tuned_config" ;;
+            3) name="dynamic_time.generated" ;;
+            *) name="dynamic_time.extra_$n" ;;
+        esac
+        record "$status" "$name" "$detail"
+    done <"$DYNT_OUT"
+    [[ "$n" -ge 3 ]] || record FAIL "dynamic_time" "$(tail -3 "$DYNT_OUT" | tr '\n' ' ')"
+else
+    record FAIL "dynamic_time" "$(tail -3 "$DYNT_OUT" | tr '\n' ' ')"
 fi
 
 # --------------------------------------------------------------------------

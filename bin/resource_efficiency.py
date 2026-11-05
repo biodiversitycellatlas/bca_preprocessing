@@ -205,6 +205,8 @@ _PROCESS_DECL_RE = re.compile(r"^\s*process\s+([A-Za-z_][A-Za-z0-9_]*)\s*\{")
 _LABEL_RE = re.compile(r"""^\s*label\s*:?\s*['"]([A-Za-z0-9_]+)['"]""")
 _SECTION_RE = re.compile(r"^\s*(input|output|script|shell|exec|when|stub)\s*:")
 _DYNAMIC_MEMORY_RE = re.compile(r"BcaResources\.scaledMemory\s*\(")
+_DYNAMIC_TIME_RE = re.compile(r"BcaResources\.scaledTime\s*\(")
+_DYNAMIC_CPUS_RE = re.compile(r"BcaResources\.tieredCpus\s*\(")
 
 
 # ---------------------------------------------------------------------------
@@ -484,13 +486,24 @@ class ProcessLabels:
     """Labels declared by one ``process`` block in a module file."""
 
     def __init__(self, name: str, labels: List[str], source: str,
-                 dynamic_memory: bool = False) -> None:
+                 dynamic_memory: bool = False, dynamic_time: bool = False,
+                 dynamic_cpus: bool = False) -> None:
         self.name = name
         self.labels = labels
         self.source = source
         # True when the module sizes its memory from its input through
         # BcaResources.scaledMemory(), so a flat memory override must never be emitted.
         self.dynamic_memory = dynamic_memory
+        # The same for time (BcaResources.scaledTime()) and cpus (tieredCpus()).
+        self.dynamic_time = dynamic_time
+        self.dynamic_cpus = dynamic_cpus
+
+    @property
+    def scaled(self) -> Set[str]:
+        """The directives this module sizes from its input, which no config may override."""
+        return {directive for directive, on in (("memory", self.dynamic_memory),
+                                                ("time", self.dynamic_time),
+                                                ("cpus", self.dynamic_cpus)) if on}
 
     @property
     def tier(self) -> str:
@@ -552,28 +565,32 @@ def scan_module_labels(pipeline_dir: str) -> Dict[str, ProcessLabels]:
 
         current: Optional[str] = None
         labels: List[str] = []
-        dynamic = False
+        dynamic: Dict[str, bool] = {}
         for line in lines:
             decl = _PROCESS_DECL_RE.match(line)
             if decl:
                 if current:
-                    found[current] = ProcessLabels(current, labels, path, dynamic)
-                current, labels, dynamic = decl.group(1), [], False
+                    found[current] = ProcessLabels(current, labels, path, **dynamic)
+                current, labels, dynamic = decl.group(1), [], {}
                 continue
             if current is None:
                 continue
             # Labels and directives are declared in the directive block, before input:/script:.
             if _SECTION_RE.match(line):
-                found[current] = ProcessLabels(current, labels, path, dynamic)
-                current, labels, dynamic = None, [], False
+                found[current] = ProcessLabels(current, labels, path, **dynamic)
+                current, labels, dynamic = None, [], {}
                 continue
             label = _LABEL_RE.match(line)
             if label:
                 labels.append(label.group(1))
             if _DYNAMIC_MEMORY_RE.search(line):
-                dynamic = True
+                dynamic["dynamic_memory"] = True
+            if _DYNAMIC_TIME_RE.search(line):
+                dynamic["dynamic_time"] = True
+            if _DYNAMIC_CPUS_RE.search(line):
+                dynamic["dynamic_cpus"] = True
         if current:
-            found[current] = ProcessLabels(current, labels, path, dynamic)
+            found[current] = ProcessLabels(current, labels, path, **dynamic)
 
     return found
 
@@ -1723,7 +1740,7 @@ def render_config(plans: Dict[str, TierPlan],
                   n_tasks: int,
                   cap_findings: Sequence[CapFinding],
                   args: argparse.Namespace,
-                  dynamic_processes: Optional[Set[str]] = None) -> str:
+                  dynamic_processes: Optional[Dict[str, Set[str]]] = None) -> str:
     """Render the tuned ``withLabel``/``withName`` blocks as a Nextflow config.
 
     Every block carries its provenance -- task and run counts, the observed
@@ -1731,12 +1748,13 @@ def render_config(plans: Dict[str, TierPlan],
     statistic -- because a resource number a reader cannot audit will not be
     trusted, and rightly so.
 
-    *dynamic_processes* names the module processes that size their memory from their
-    input. Their ``withName`` blocks carry ``cpus``/``time`` only: a ``memory`` setting
-    there would take precedence over the module's scaled request and flatten it again.
-    Their memory is retuned through ``params.dynamic_memory`` (``--dynamic``) instead.
+    *dynamic_processes* maps each module process that sizes directives from its input
+    to those directives (``memory``, ``time``, ``cpus``; :attr:`ProcessLabels.scaled`).
+    Its ``withName`` block leaves them out: a setting there would take precedence over
+    the module's scaled request and flatten it again. They are retuned through
+    ``params.dynamic_memory`` and ``params.dynamic_time`` (``--dynamic``) instead.
     """
-    dynamic_processes = dynamic_processes or set()
+    dynamic_processes = dynamic_processes or {}
     stamp = datetime.datetime.now().strftime("%Y-%m-%d %H:%M:%S")
     lines: List[str] = [
         "/*",
@@ -1843,20 +1861,23 @@ def render_config(plans: Dict[str, TierPlan],
         if not plan:
             continue
         for stats in sorted(plan.outliers, key=lambda s: -(s.max_peak_rss or 0.0)):
-            dynamic = (stats.module_process or stats.name) in dynamic_processes
-            directives = emit_directives("        ", stats.rec_cpus,
-                                         None if dynamic else stats.rec_memory,
-                                         stats.rec_time)
+            scaled = dynamic_processes.get(stats.module_process or stats.name, set())
+            dynamic = bool(scaled)
+            scaled_names = "/".join(d for d in ("cpus", "memory", "time") if d in scaled)
+            directives = emit_directives("        ",
+                                         None if "cpus" in scaled else stats.rec_cpus,
+                                         None if "memory" in scaled else stats.rec_memory,
+                                         None if "time" in scaled else stats.rec_time)
             if dynamic and not directives:
                 lines.append("")
-                lines.append(f"    // {stats.name}: memory is sized from its input "
-                             "(params.dynamic_memory), cpus and time need no change.")
+                lines.append(f"    // {stats.name}: {scaled_names} sized from its input, "
+                             "the rest needs no change.")
                 continue
             emitted = True
             origin = ("unlabelled, inherits the shared process{} default"
                       if label == DEFAULT_TIER else f"outlier within {label}")
             if dynamic:
-                origin = "sizes its memory from its input"
+                origin = f"sizes its {scaled_names} from its input"
             lines.append("")
             lines.append(f"    // {stats.name}: {origin}. "
                          f"{stats.n_tasks} task(s), {stats.n_runs} run(s).")
@@ -1870,7 +1891,7 @@ def render_config(plans: Dict[str, TierPlan],
             if stats.clamped:
                 lines.append(f"    // clamped to --max-{'/'.join(stats.clamped)}.")
             if dynamic:
-                lines.append("    // memory left to params.dynamic_memory: a memory setting here would "
+                lines.append(f"    // {scaled_names} left to the module: a setting here would "
                              "override the input-size scaling. Retune it with --dynamic.")
             lines.append(f"    withName:'.*:{stats.name}' {{")
             lines += directives
@@ -1909,21 +1930,26 @@ def render_dynamic(ordered: Sequence[ProcessStats],
 
     Only a process whose fit passed every quality gate gets an entry; the rest keep
     a flat request, which is what the evidence supports.
+
+    A ``params.dynamic_time`` block follows, anchored the same way on the time fit.
+    Its floor is the shortest limit the process was given, not the shortest run: the
+    floors are the former fixed limits, and lowering them is a separate decision.
     """
     stamp = datetime.datetime.now().strftime("%Y-%m-%d %H:%M:%S")
     lines: List[str] = [
         "/*",
         "~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~",
-        "    Input-size dependent memory -- GENERATED FILE, DO NOT EDIT BY HAND",
+        "    Input-size dependent memory and time -- GENERATED FILE, DO NOT EDIT BY HAND",
         "~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~",
         f"    Generated by bin/resource_efficiency.py on {stamp}",
         "",
-        "    Replaces the `dynamic_memory` map in nextflow.config. A process only",
-        "    honours its entry if its module calls BcaResources.scaledMemory(); the",
-        "    entries below for processes that do not are inert until one does.",
+        "    Replaces the `dynamic_memory` and `dynamic_time` maps in nextflow.config. A",
+        "    process only honours its entry if its module calls BcaResources.scaledMemory()",
+        "    or scaledTime(); the entries below for processes that do not are inert until",
+        "    one does.",
         "",
-        "    Reading: at `ref_gb` of input the process needed `mem_gb`, and memory",
-        "    grows as size**`exponent` from there, clamped to [floor_gb, cap_gb].",
+        "    Reading: at `ref_gb` of input the process needed `mem_gb` (or took `time_h`",
+        "    hours), and grows as size**`exponent` from there, clamped to the floor and cap.",
         "",
         "    Apply with:  nextflow run ... -c <this file>",
         "----------------------------------------------------------------------------------------",
@@ -1933,27 +1959,34 @@ def render_dynamic(ordered: Sequence[ProcessStats],
         "    dynamic_memory = [",
     ]
 
+    def anchor(stats: ProcessStats, fit: FitResult):
+        """Observed sizes, read passes, ref_gb and a predictor in the fit's units."""
+        sizes = [task.rchar for task in stats.tasks if task.rchar and task.rchar > 0]
+        if not sizes:
+            return None
+        # Anchor at the geometric mean of the observed sizes: on log axes that is
+        # the centre of the fitted range, so it is where the fit is best supported.
+        log_mean = sum(math.log10(size) for size in sizes) / len(sizes)
+        # The fit is in rchar; the module scales on the staged file. Dividing the
+        # anchor's size only moves the intercept, so the slope stays as fitted.
+        passes = INPUT_READ_PASSES.get(stats.module_process or stats.name, 1)
+        ref_gb = max(0.001, 10 ** log_mean / passes / 1024 ** 3)
+        predict = lambda size: 10 ** (fit.intercept + fit.slope * math.log10(size))  # noqa: E731
+        return sizes, passes, ref_gb, predict(10 ** log_mean), predict(max(sizes))
+
     emitted = 0
     for stats in ordered:
         fit = stats.fits.get("memory")
         if fit is None or not fit.trusted or not stats.rec_memory:
             continue
 
-        sizes = [task.rchar for task in stats.tasks if task.rchar and task.rchar > 0]
-        if not sizes:
+        anchored = anchor(stats, fit)
+        if anchored is None:
             continue
+        sizes, passes, ref_gb, at_ref, at_max = anchored
         emitted += 1
 
-        # Anchor at the geometric mean of the observed sizes: on log axes that is
-        # the centre of the fitted range, so it is where the fit is best supported.
-        log_mean = sum(math.log10(size) for size in sizes) / len(sizes)
-        anchor_bytes = (10 ** (fit.intercept + fit.slope * log_mean)) * args.safety_memory
-        # The fit is in rchar; the module scales on the staged file. Dividing the
-        # anchor's size only moves the intercept, so the slope stays as fitted.
-        passes = INPUT_READ_PASSES.get(stats.module_process or stats.name, 1)
-        ref_bytes = 10 ** log_mean / passes
-
-        ref_gb = max(0.001, ref_bytes / 1024 ** 3)
+        anchor_bytes = at_ref * args.safety_memory
         mem_gb = max(1, int(math.ceil(anchor_bytes / 1024 ** 3)))
 
         # The floor is the *smallest* peak ever observed, not a fraction of the
@@ -1965,8 +1998,7 @@ def render_dynamic(ordered: Sequence[ProcessStats],
         # The cap has to clear both the largest prediction and the declared tier --
         # a process already close to exhausting its tier needs room above it, or the
         # cap simply reinstates the failure the scaling was meant to avoid.
-        predicted_hi = (10 ** (fit.intercept + fit.slope * math.log10(max(sizes)))) \
-            * args.safety_memory
+        predicted_hi = at_max * args.safety_memory
         tier = tiers.get(stats.tier)
         tier_gb = (tier.memory / 1024 ** 3) if tier and tier.memory else 0
         cap_gb = max(1, int(math.ceil(max(predicted_hi * 2 / 1024 ** 3, tier_gb))))
@@ -1990,6 +2022,42 @@ def render_dynamic(ordered: Sequence[ProcessStats],
     if not emitted:
         lines.append("        // Nothing qualified: no process had a scaling fit that passed")
         lines.append("        // every quality gate, so sizing from input would be guesswork.")
+
+    lines += ["    ]", "", "    dynamic_time = ["]
+
+    emitted = 0
+    for stats in ordered:
+        fit = stats.fits.get("time")
+        if fit is None or not fit.trusted:
+            continue
+        anchored = anchor(stats, fit)
+        if anchored is None:
+            continue
+        sizes, passes, ref_gb, at_ref, at_max = anchored
+        emitted += 1
+
+        time_h = max(1.0 / 60.0, at_ref * args.safety_time / 3600.0)
+        # The shortest limit a first attempt was given is the floor that was in force;
+        # the declared tier stands in when the trace recorded no requests.
+        requested = [task.req_time for task in stats.first_attempt_tasks if task.req_time]
+        tier = tiers.get(stats.tier)
+        floor_s = min(requested) if requested else (tier.time if tier and tier.time else 3600.0)
+        floor_h = floor_s / 3600.0
+        cap_h = max(1, int(math.ceil(max(at_max * args.safety_time * 2 / 3600.0, floor_h))))
+        passes_note = f" rchar divided by {passes:g} read passes." if passes != 1 else ""
+
+        lines += [
+            f"        // {stats.name}: {stats.n_tasks} task(s), {stats.n_runs} run(s); "
+            f"exponent {fit.slope:.2f}, r2 {fit.r2:.2f}.{passes_note}",
+            f"        //   observed input {fmt_bytes(min(sizes) / passes)} to "
+            f"{fmt_bytes(max(sizes) / passes)}; longest run {fmt_duration(stats.max_realtime)}.",
+            f"        {stats.name}: [ exponent: {fit.slope:.2f}, ref_gb: {ref_gb:.3g}, "
+            f"time_h: {time_h:.3g}, floor_h: {floor_h:.3g}, cap_h: {cap_h} ],",
+        ]
+
+    if not emitted:
+        lines.append("        // Nothing qualified: no process had a time fit that passed")
+        lines.append("        // every quality gate.")
 
     lines += ["    ]", "}", ""]
     return "\n".join(lines)
@@ -2617,11 +2685,10 @@ def parse_args(argv: Optional[List[str]] = None) -> argparse.Namespace:
                         help="Write the tuned config to <pipeline-dir>/conf/resources_tuned.config, "
                              "where submit_nextflow.sh picks it up on the next run.")
     parser.add_argument("--dynamic", action="store_true",
-                        help="Also write input-size dependent `memory` directives for the "
-                             "processes whose usage provably tracks their input, as "
-                             "paste-ready snippets for the module files. A flat request "
-                             "has to cover the largest dataset; a closure over the input "
-                             "size does not.")
+                        help="Also write params.dynamic_memory and params.dynamic_time "
+                             "entries for the processes whose memory or run time provably "
+                             "tracks their input. A flat request has to cover the largest "
+                             "dataset; a request scaled on the input size does not.")
     parser.add_argument("--no-plots", action="store_true",
                         help="Skip the figures and the HTML report. Needs no matplotlib.")
     parser.add_argument("--max-panels", type=int, default=40, metavar="N",
@@ -2782,7 +2849,7 @@ def main() -> None:
     write_tsv(tsv_path, ordered)
 
     plans = build_tier_plans(stats_by_name, tiers, module_labels, args)
-    dynamic_processes = {name for name, info in module_labels.items() if info.dynamic_memory}
+    dynamic_processes = {name: info.scaled for name, info in module_labels.items() if info.scaled}
     config_text = render_config(plans, tiers, runs, len(all_tasks), cap_findings, args,
                                 dynamic_processes)
     config_path = os.path.join(args.output, f"resources_tuned_{stamp}.config")

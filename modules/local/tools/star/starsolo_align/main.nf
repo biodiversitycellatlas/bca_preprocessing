@@ -8,12 +8,12 @@ process STARSOLO_ALIGN {
     publishDir path: { "${params.outdir}/mapping_STARsolo/${meta.id}" }, mode: 'copy', saveAs: { filename -> filename == 'versions.yml' ? null : filename }
     tag "${meta.id}"
 
-    // Memory tracks the size of the FASTQs being read, never below what the genome index
-    // needs. Coefficients live in params.dynamic_memory; without an entry the request is
-    // process_high2's 32 GB. Deliberately no resource label, since a withLabel setting would
-    // take precedence over these: cpus and time are process_high2's.
-    cpus   { 8 * task.attempt }
-    time   { 7.h * task.attempt }
+    // Memory and time track the size of the FASTQs being read, never below what the genome index needs.
+    // CPUs step up above a size in params.dynamic_cpus, and by default 8 while unset.
+    cpus   { BcaResources.tieredCpus(
+        params.dynamic_cpus?.STARSOLO_ALIGN, [fastq_cDNA, fastq_BC_UMI], task.attempt, 8) }
+    time   { BcaResources.scaledTime(
+        params.dynamic_time?.STARSOLO_ALIGN, [fastq_cDNA, fastq_BC_UMI], task.attempt, 7) }
     memory { BcaResources.scaledMemory(
         params.dynamic_memory?.STARSOLO_ALIGN,
         [fastq_cDNA, fastq_BC_UMI], task.attempt, 32, genome_index_files) }
