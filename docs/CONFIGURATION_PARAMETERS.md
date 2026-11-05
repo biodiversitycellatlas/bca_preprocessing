@@ -350,7 +350,7 @@ would leave GeneExt with nothing to read.
 | Variable               | Required/Optional | Description |
 |------------------------|-------------------|-------------|
 | `perform_kraken`       | Optional          | Boolean flag to enable or disable Kraken2 classification of unmapped reads. Default is `false`. |
-| `kraken_db_path`       | Optional          | Path to the Kraken2 database used for taxonomic classification of unmapped reads, if empty, a default database will be installed. |
+| `kraken_db_path`       | Optional          | Path to the Kraken2 database used for taxonomic classification of unmapped reads, if empty, a default database will be installed. `KRAKEN` requests memory from the size of the database's `*.k2d` files, which kraken2 loads whole. |
 
 
 

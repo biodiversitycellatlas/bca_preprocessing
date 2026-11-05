@@ -47,6 +47,7 @@ Cases:
   staged_resident_floor  the resident floor survives that same trip
   nested_inputs     a list of multi-file inputs is measured in full, not read as 0
   files_ending_with only a directory's matching files are measured (Kraken2 *.k2d)
+  files_in          only the named files of a staged directory are measured (STARsolo raw/)
   bamsort_derived   STAR's BAM sort budget is the allocation minus index and slack
   bamsort_pinned    params.star_limitBAMsortRAM is used verbatim
   bamsort_no_memory no allocation to derive from leaves STAR its own default
@@ -93,6 +94,11 @@ head -c 2097152 /dev/zero >"$WORKDIR/kraken_db/hash.k2d"
 head -c 1048576 /dev/zero >"$WORKDIR/kraken_db/taxo.k2d"
 head -c 4194304 /dev/zero >"$WORKDIR/kraken_db/seqid2taxid.map"
 head -c 8388608 /dev/zero >"$WORKDIR/kraken_db/library/library.fna"
+# A STARsolo Solo.out: 3 MB in the files a step reads, a 4 MB matrix next to them it does not.
+mkdir -p "$WORKDIR/solo_out/Gene/raw"
+head -c 2097152 /dev/zero >"$WORKDIR/solo_out/Gene/raw/matrix.mtx"
+head -c 1048576 /dev/zero >"$WORKDIR/solo_out/Gene/raw/barcodes.tsv"
+head -c 4194304 /dev/zero >"$WORKDIR/solo_out/Gene/raw/UniqueAndMult-EM.mtx"
 
 cat >"$WORKDIR/Spec.groovy" <<'GROOVY'
 import java.nio.file.Paths
@@ -186,6 +192,18 @@ def k2dBytes = BcaResources.totalBytes(k2d)
 def noDir    = BcaResources.filesEndingWith(Paths.get("does-not-exist"), ".k2d")
 check("files_ending_with", k2d.size() == 2 && k2dBytes == 3145728L && noDir.isEmpty(),
       k2d.size() + " files, " + k2dBytes + " bytes (want 2 files, 3145728 bytes); missing dir gives " + noDir.size())
+
+// Only the named files of a staged directory are measured: STARsolo's raw/ holds every
+// multi-gene matrix next to matrix.mtx, and only the analysed one is loaded. Absent
+// names, empty names and subdirectories are left out; nested paths resolve.
+def soloDir  = new TaskPath(new FileHolder(work.resolve("solo_out")))
+def named    = BcaResources.filesIn(soloDir,
+        ["Gene/raw/matrix.mtx", "Gene/raw/barcodes.tsv", "Velocyto/raw/spliced.mtx", "", null, "Gene/raw"])
+def namedBytes = BcaResources.totalBytes(named)
+def noSolo   = BcaResources.filesIn(Paths.get("does-not-exist"), ["matrix.mtx"])
+check("files_in", named.size() == 2 && namedBytes == 3145728L && noSolo.isEmpty(),
+      named.size() + " files, " + namedBytes + " bytes (want 2 files, 3145728 bytes; the 4 MB " +
+      "UniqueAndMult-EM.mtx left out); missing dir gives " + noSolo.size())
 
 // --limitBAMsortRAM: the allocation, less the genome index STAR keeps resident and
 // its own working memory. A value too large here is not caught by the scheduler --

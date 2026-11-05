@@ -1,7 +1,13 @@
 process CELLSWEEP {
     publishDir path: { "${params.outdir}/cellsweep/${meta.id}" }, mode: 'copy', saveAs: { filename -> filename == 'versions.yml' ? null : filename }
     tag "${meta.id} | ${meta.mapping_method}"
-    label 'process_low2'
+
+    // Memory tracks the raw matrix, which is loaded in full. Coefficients live in
+    // params.dynamic_memory; without an entry the request is process_low2's 6 GB.
+    cpus   2
+    time   { 45.m * task.attempt }
+    memory { BcaResources.scaledMemory(
+        params.dynamic_memory?.CELLSWEEP, [mtx, barcodes, features], task.attempt, 6) }
 
     // A matrix with too few cells to cluster exits 3 from bin/run_cellsweep.py; the
     // sample is then dropped from this step and published without denoised counts.

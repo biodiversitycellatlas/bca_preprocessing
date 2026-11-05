@@ -30,6 +30,7 @@ tests/
 │   ├── metacell_filtering.sh
 │   ├── mt_rrna_metrics.sh
 │   ├── nextflow_versions.sh
+│   ├── parse_demux.sh
 │   ├── resource_efficiency.sh
 │   ├── starsolo_em_matrix.sh
 │   └── velocity_matrix.sh

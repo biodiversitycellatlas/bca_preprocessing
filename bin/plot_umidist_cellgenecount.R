@@ -81,11 +81,14 @@ read_star_data <- function(directory, dataset_name) {
   # A gene counts as detected from one UMI on, so EM fractions do not count as genes
   cell_genes <- Matrix::colSums(mat >= 1)
 
-  # Create a data.table for cells
+  # Create a data.table for cells. Only barcodes with counts are kept: raw/ lists the whole
+  # whitelist, every plot below drops the empty ones anyway, and keeping them would hold a
+  # whitelist-sized table per run until the end
+  counted <- cell_umis > 0
   cell_dt <- data.table(
-    cells      = colnames(mat),
-    cell_sizes = cell_umis,
-    cell_genes = cell_genes
+    cells      = colnames(mat)[counted],
+    cell_sizes = cell_umis[counted],
+    cell_genes = cell_genes[counted]
   )
 
   # Compute per-gene summaries

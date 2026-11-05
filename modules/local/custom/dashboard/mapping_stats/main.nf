@@ -1,6 +1,20 @@
 process MAPPING_STATS {
     publishDir path: { "${params.outdir}/summary_results" }, mode: 'copy', saveAs: { filename -> filename == 'versions.yml' ? null : filename }
-    label 'process_single_mem2'
+
+    // plot_umidist_cellgenecount.R reads every STARsolo run's raw matrix in turn and keeps
+    // only its counted barcodes, so memory tracks the largest one: the analysed matrix of
+    // each raw/ is measured, not the others next to it nor the rest of the staged files.
+    // Coefficients live in params.dynamic_memory; without an entry the request is
+    // process_single_mem2's 10 GB. 
+    cpus   1
+    time   { 30.m * task.attempt }
+    memory { BcaResources.scaledMemory(
+        params.dynamic_memory?.MAPPING_STATS,
+        [dests, files instanceof List ? files : [files]].transpose()
+            .findAll { dest, _f -> dest.toString().endsWith('/raw') }
+            .collect { _dest, f -> BcaResources.filesIn(f, [star_raw_matrix, 'barcodes.tsv', 'features.tsv']) }
+            .max { run -> BcaResources.totalBytes(run) } ?: [],
+        task.attempt, 10) }
 
     conda "${moduleDir}/environment.yml"
     container "${ workflow.containerEngine in ['singularity', 'apptainer'] && !task.ext.singularity_pull_docker_container ?

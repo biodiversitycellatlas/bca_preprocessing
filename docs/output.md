@@ -709,7 +709,6 @@ reads are extracted from the BAM.
 | ---- | ----------- |
 | `<analytical_run>.k2report` | Kraken 2 report: reads assigned per taxon, with the standard rank hierarchy. |
 | `<analytical_run>*.sankey.html` | Pavian Sankey diagram of the classification. |
-| `kraken_db/kraken_db_path.txt` | The resolved path of the database used. |
 
 The Sankey data are embedded into the dashboard's Taxonomic Classification tab, so you do not
 need to open these files separately.

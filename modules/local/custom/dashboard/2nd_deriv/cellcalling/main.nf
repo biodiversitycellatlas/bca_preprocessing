@@ -7,11 +7,23 @@ process SECONDDERIV_CELLCALLING {
 
     // STARsolo hands over its own UMI curve, a small text file (process_single2's 500 MB),
     // unless the analysed matrix is a multi-gene one; then the curve is derived here from that
-    // raw matrix, as alevin-fry's always is (process_single_mem2's 10 GB). Set here rather than
-    // through a label: a withLabel block in the config takes precedence over a directive in the
+    // raw matrix, as alevin-fry's always is, and memory tracks the matrix (only the analysed
+    // one in STARsolo's raw/ is measured). Coefficients live in params.dynamic_memory; without
+    // an entry that request is process_single_mem2's 10 GB. Set here rather than through a
+    // label: a withLabel block in the config takes precedence over a directive in the
     // process, so a label would pin both mappers to one size.
     cpus   1
-    memory { (matrix_name || mapper == 'alevin-fry' ? 10.GB : 500.MB) * task.attempt }
+    memory {
+        if (!matrix_name && mapper != 'alevin-fry') {
+            return 500.MB * task.attempt
+        }
+        BcaResources.scaledMemory(
+            params.dynamic_memory?.SECONDDERIV_CELLCALLING,
+            mapper == 'alevin-fry'
+                ? [curve_source]
+                : BcaResources.filesIn(curve_source, [matrix_name, 'barcodes.tsv', 'features.tsv']),
+            task.attempt, 10)
+    }
     time   { 30.m * task.attempt }
 
     conda "${moduleDir}/environment.yml"

@@ -1,7 +1,14 @@
 process COLLAPSE_ALEVIN_USA {
     publishDir path: { "${params.outdir}/mapping_alevin/${meta.id}/gene_level_matrix/${meta.datatype}" }, mode: 'copy', saveAs: { filename -> filename == 'versions.yml' ? null : filename }
     tag "${meta.id} | ${meta.datatype} | ${usa_counts}"
-    label 'process_single_mem2'
+
+    // Memory tracks the USA matrix, which is loaded in full; the directory holds only that one.
+    // Coefficients live in params.dynamic_memory; without an entry the request is
+    // process_single_mem2's 10 GB. 
+    cpus   1
+    time   { 30.m * task.attempt }
+    memory { BcaResources.scaledMemory(
+        params.dynamic_memory?.COLLAPSE_ALEVIN_USA, [alevin_mtx_dir], task.attempt, 10) }
 
     conda "${moduleDir}/environment.yml"
     container "${ workflow.containerEngine in ['singularity', 'apptainer'] && !task.ext.singularity_pull_docker_container ?

@@ -81,7 +81,6 @@ FALLBACK_RESOURCE_LABELS: List[str] = [
     "process_medium",
     "process_high",
     "process_high_memory",
-    "process_long",
 ]
 
 RESOURCE_LABELS: List[str] = list(FALLBACK_RESOURCE_LABELS)
@@ -160,6 +159,16 @@ TOOL_MEMORY_CAPS: Dict[str, Tuple[str, str]] = {
         "STAR's ceiling for suffix-array construction. A pinned value neither grows "
         "with a larger tier nor shrinks with a smaller one.",
     ),
+}
+
+# How many times a process reads its input over. The trace's rchar counts every
+# pass, while BcaResources.scaledMemory() measures the staged file once, so a
+# `ref_gb` taken straight from rchar sits this many times too high and every request
+# collapses to the floor. `--dynamic` divides rchar by this before anchoring.
+#   {process: passes}
+INPUT_READ_PASSES: Dict[str, float] = {
+    # samtools count, a pysam flagstat, a filtered rewrite and sort, then the tag dump
+    "SATURATION_TABLE": 7,
 }
 
 # Values of a cap param that mean "derive it from task.memory" rather than a pin.
@@ -1938,8 +1947,11 @@ def render_dynamic(ordered: Sequence[ProcessStats],
         # Anchor at the geometric mean of the observed sizes: on log axes that is
         # the centre of the fitted range, so it is where the fit is best supported.
         log_mean = sum(math.log10(size) for size in sizes) / len(sizes)
-        ref_bytes = 10 ** log_mean
         anchor_bytes = (10 ** (fit.intercept + fit.slope * log_mean)) * args.safety_memory
+        # The fit is in rchar; the module scales on the staged file. Dividing the
+        # anchor's size only moves the intercept, so the slope stays as fitted.
+        passes = INPUT_READ_PASSES.get(stats.module_process or stats.name, 1)
+        ref_bytes = 10 ** log_mean / passes
 
         ref_gb = max(0.001, ref_bytes / 1024 ** 3)
         mem_gb = max(1, int(math.ceil(anchor_bytes / 1024 ** 3)))
@@ -1962,11 +1974,13 @@ def render_dynamic(ordered: Sequence[ProcessStats],
         note = ""
         if fit.slope < 0.15:
             note = "  // exponent near zero: barely scales, a flat request is nearly as good"
+        passes_note = f" rchar divided by {passes:g} read passes." if passes != 1 else ""
 
         lines += [
             f"        // {stats.name}: {stats.n_tasks} task(s), {stats.n_runs} run(s); "
-            f"exponent {fit.slope:.2f}, r2 {fit.r2:.2f}.",
-            f"        //   observed input {fmt_bytes(min(sizes))} to {fmt_bytes(max(sizes))}; "
+            f"exponent {fit.slope:.2f}, r2 {fit.r2:.2f}.{passes_note}",
+            f"        //   observed input {fmt_bytes(min(sizes) / passes)} to "
+            f"{fmt_bytes(max(sizes) / passes)}; "
             f"peak memory {fmt_bytes(stats.max_peak_rss)}; flat would be "
             f"{fmt_bytes(stats.rec_memory)}.{note}",
             f"        {stats.name}: [ exponent: {fit.slope:.2f}, ref_gb: {ref_gb:.3g}, "

@@ -154,6 +154,34 @@ class BcaResources {
     }
 
     /**
+     * The files at `relPaths` under a staged directory, those that exist.
+     *
+     * For a directory of which a step reads only named files: STARsolo's raw/ holds
+     * matrix.mtx next to every UniqueAndMult-*.mtx, and only the analysed one is loaded;
+     * a Solo.out directory holds every feature's matrices. A path that is absent or a
+     * directory is left out, and anything that cannot be resolved yields an empty list,
+     * which measures as 0.
+     */
+    static List<Path> filesIn(Object dir, List relPaths) {
+        List<Path> found = []
+        try {
+            Path path = dir instanceof Path ? realPath((Path) dir) : Paths.get(dir.toString())
+            for (Object rel : relPaths) {
+                if (!rel) {
+                    continue
+                }
+                Path entry = path.resolve(rel.toString())
+                if (Files.isRegularFile(entry)) {
+                    found << entry
+                }
+            }
+        }
+        catch (Exception ignored) {
+        }
+        return found
+    }
+
+    /**
      * A memory request scaled from the size of a process's own input.
      *
      * The model is anchored on a measured point rather than an abstract

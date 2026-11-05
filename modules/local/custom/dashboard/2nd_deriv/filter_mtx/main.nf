@@ -3,8 +3,20 @@ process FILTER_MATRICES {
                         ? "${params.outdir}/mapping_alevin/${meta.id}/${meta.id}_counts/alevin/filtered_secondderiv"
                         : "${params.outdir}/mapping_STARsolo/${meta.id}/${meta.id}_Solo.out/GeneFull_Ex50pAS/filtered_secondderiv" },
                mode: 'copy', saveAs: { filename -> filename == 'versions.yml' ? null : filename }
-    label 'process_single_mem2'
     tag "${meta.id} | ${mapper}"
+
+    // Memory tracks the raw matrix, which is loaded in full: for STARsolo only the analysed
+    // matrix in raw/ is measured, not the others next to it; alevin-fry's directory holds
+    // just its one. Coefficients live in params.dynamic_memory; without an entry the request
+    // is process_single_mem2's 10 GB.
+    cpus   1
+    time   { 30.m * task.attempt }
+    memory { BcaResources.scaledMemory(
+        params.dynamic_memory?.FILTER_MATRICES,
+        mapper == 'alevin-fry'
+            ? [matrix_dir]
+            : [BcaResources.filesIn(matrix_dir, [matrix_name, 'barcodes.tsv', 'features.tsv']), cellreads_stats],
+        task.attempt, 10) }
 
     conda "${moduleDir}/environment.yml"
     container "${ workflow.containerEngine in ['singularity', 'apptainer'] && !task.ext.singularity_pull_docker_container ?

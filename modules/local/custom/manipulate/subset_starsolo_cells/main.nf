@@ -5,7 +5,17 @@ process SUBSET_STARSOLO_CELLS {
                                    : filename == 'filtered' ? "filtered_${matrix_name.replaceAll(/\.mtx$/, '')}"
                                    : filename }
     tag "${meta.id}"
-    label 'process_single_mem2'
+
+    // Memory tracks the multi-gene matrix, which is loaded in full; only that one is measured,
+    // not the others in raw/. Coefficients live in params.dynamic_memory; without an entry the
+    // request is process_single_mem2's 10 GB. Deliberately no resource label, since a
+    // withLabel setting would take precedence over these: cpus and time are process_single_mem2's.
+    cpus   1
+    time   { 30.m * task.attempt }
+    memory { BcaResources.scaledMemory(
+        params.dynamic_memory?.SUBSET_STARSOLO_CELLS,
+        [BcaResources.filesIn(raw_dir, [matrix_name, 'barcodes.tsv', 'features.tsv']), cell_barcodes],
+        task.attempt, 10) }
 
     conda "${moduleDir}/environment.yml"
     container "${ workflow.containerEngine in ['singularity', 'apptainer'] && !task.ext.singularity_pull_docker_container ?

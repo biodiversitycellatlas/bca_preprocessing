@@ -1,7 +1,13 @@
 process APPLY_METACELL_FILTER {
     publishDir path: { "${params.outdir}/metacell_filtering/${meta.id}" }, mode: 'copy', saveAs: { filename -> filename == 'versions.yml' ? null : filename }
     tag "${meta.id} | ${meta.mapping_method}"
-    label 'process_single_mem2'
+
+    // Memory tracks the cell-called h5ad, which is loaded in full. Coefficients live in
+    // params.dynamic_memory; without an entry the request is process_single_mem2's 10 GB.
+    cpus   1
+    time   { 30.m * task.attempt }
+    memory { BcaResources.scaledMemory(
+        params.dynamic_memory?.APPLY_METACELL_FILTER, [cells_h5ad], task.attempt, 10) }
 
     container "${ workflow.containerEngine in ['singularity', 'apptainer'] && !task.ext.singularity_pull_docker_container ?
         'oras://community.wave.seqera.io/library/scanpy:1.12--45f1dccaf83880df' :
