@@ -3,7 +3,7 @@
 Split paired FASTQs by group using a whitelist and edit-distance (≤2) barcode matching.
 """
 
-import argparse, gzip, os
+import argparse, gzip, itertools, os
 from collections import Counter
 from typing import Dict, Iterable, Tuple, Optional, Set, List
 import re
@@ -61,10 +61,15 @@ def deduce_fq2(fq1: str) -> str:
     return "R1".join(parts[:-1]) + "R2" + parts[-1]
 
 def open_out(path: str, sample_id: str, sample_name: str, read: str):
-    """Open gzip text output as <sample_id>_group_<sample_name>_<read>.fastq.gz."""
+    """
+    Open gzip text output as <sample_id>_group_<sample_name>_<read>.fastq.gz.
+
+    Level 2, as SCIROCKET_DEMUX writes: gzip's default level 9 compressed real reads
+    18x slower for files only a fifth smaller, and took most of the run time.
+    """
     os.makedirs(path, exist_ok=True)
     fn = os.path.join(path, f"{sample_id}_group_{sample_name}_{read}.fastq.gz")
-    return gzip.open(fn, "wt"), fn
+    return gzip.open(fn, "wt", compresslevel=2), fn
 
 # --------------------- Chemistry → bc1 bounds ---------------------
 
@@ -126,6 +131,46 @@ def best_matches_all(bc: str, wl_seqs: Iterable[str], max_ed: int = 2) -> Tuple[
     return best_list, best_d
 
 
+# Read bases the match table covers. A barcode with any other character takes the scan.
+TABLE_ALPHABET = "ACGTN"
+
+def build_match_table(wl_seqs: Iterable[str], max_ed: int = 2) -> Dict[str, Tuple[int, List[str]]]:
+    """
+    Return {sequence: (best_distance, best_seqs)} for every sequence over TABLE_ALPHABET
+    within max_ed of a whitelist entry: exactly what best_matches_all returns for it,
+    computed once instead of once per read. A sequence not in the table, and made only
+    of TABLE_ALPHABET, has no match within max_ed.
+    """
+    table: Dict[str, Tuple[int, List[str]]] = {}
+    for w in wl_seqs:
+        w = w.upper()
+        for d in range(max_ed + 1):
+            for positions in itertools.combinations(range(len(w)), d):
+                options = [[c for c in TABLE_ALPHABET if c != w[p]] for p in positions]
+                for subs in itertools.product(*options):
+                    s = list(w)
+                    for p, c in zip(positions, subs):
+                        s[p] = c
+                    key = "".join(s)
+                    hit = table.get(key)
+                    if hit is None or d < hit[0]:
+                        table[key] = (d, [w])
+                    elif d == hit[0]:
+                        hit[1].append(w)
+    return table
+
+def best_matches(bc: str, table: Dict[str, Tuple[int, List[str]]], wl_seqs: List[str],
+                 max_ed: int = 2) -> Tuple[List[str], Optional[int]]:
+    """best_matches_all, answered from the match table where it covers the barcode."""
+    bc = bc.upper()
+    hit = table.get(bc)
+    if hit is not None:
+        return hit[1], hit[0]
+    if all(c in TABLE_ALPHABET for c in bc):
+        return [], None
+    return best_matches_all(bc, wl_seqs, max_ed=max_ed)
+
+
 def fastq_pairs(fq1: str, fq2: str):
     """Yield paired FASTQ records as (r1_lines, r2_lines) 4-tuples; stops at EOF."""
     with open_fastq(fq1) as f1, open_fastq(fq2) as f2:
@@ -164,6 +209,7 @@ def process_fastq(
         no_group_match=0,   # valid barcode, but no best match in this group
     )
     wl_seqs = list(wl_full.keys())
+    table = build_match_table(wl_seqs, max_ed=max_ed)
 
     for r1, r2 in fastq_pairs(fq1, fq2):
         stats["total"] += 1
@@ -176,7 +222,7 @@ def process_fastq(
         if "N" in bc:
             stats["n_in_bc"] += 1
 
-        best_list, dist = best_matches_all(bc, wl_seqs, max_ed=max_ed)
+        best_list, dist = best_matches(bc, table, wl_seqs, max_ed=max_ed)
         if not best_list:
             stats["unmatched"] += 1
             continue
