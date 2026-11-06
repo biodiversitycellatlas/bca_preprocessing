@@ -4,7 +4,9 @@ Report HPC resource efficiency across Nextflow runs and retune the scheduled
 resources for the next one.
 
 Reads the ``execution_trace_*.txt`` files that this pipeline writes into
-``<outdir>/pipeline_info/`` and compares, per process, what each task actually
+``execution_reports/`` in the launch directory, pairs each with the run config,
+samplesheet and params in ``<outdir>/pipeline_info/`` (traces written there by
+earlier versions are read too), and compares, per process, what each task actually
 consumed against what the scheduler was asked for. Because the trace records
 every task's own input volume (``rchar``), usage can be plotted against dataset
 size -- within one run across samples of differing depth, and across runs on
@@ -26,6 +28,9 @@ Usage modes
 -----------
 Report only (default; writes nothing outside --output):
     resource_efficiency.py --results /path/to/outdir
+
+Runs launched from somewhere other than the pipeline checkout:
+    resource_efficiency.py --results /path/to/outdir --traces /launch/dir/execution_reports
 
 Several runs, for a scaling fit:
     resource_efficiency.py --results /path/run_A --results /path/run_B --results /path/run_C
@@ -882,28 +887,98 @@ def _pair_by_suffix(pipeline_info: str, prefix: str, extension: str,
     return earlier[-1] if earlier else candidates[0][1]
 
 
-def _pair_params_json(pipeline_info: str, run_key: str) -> Dict[str, Any]:
-    """Find the ``params_*.json`` belonging to *run_key*.
+TRACE_PREFIX = "execution_trace_"
+TRACE_SUFFIX = ".txt"
 
-    These files are timestamped by their own ``new Date()`` call, not by
-    ``params.trace_report_suffix``, so their filename is off by seconds from the
-    trace's. They do however *contain* ``trace_report_suffix``, so the pairing is
-    done on that value rather than on filename proximity.
+
+def _trace_key(trace_path: str) -> str:
+    """The timestamp suffix of an ``execution_trace_<suffix>.txt`` path."""
+    return os.path.basename(trace_path)[len(TRACE_PREFIX):-len(TRACE_SUFFIX)]
+
+
+def _index_params_json(pipeline_info: str) -> Dict[str, Dict[str, Any]]:
+    """Map each ``trace_report_suffix`` recorded in *pipeline_info* to its params JSON.
+
+    Every launch writes a ``params_*.json``, ``-resume`` included, timestamped by its
+    own ``new Date()`` call rather than by ``params.trace_report_suffix``, so the
+    filename is off by seconds from the trace's. The file does however *contain*
+    ``trace_report_suffix``, which is exactly the trace's filename suffix. That makes
+    it both the way to pair a trace with its params and the way to tell which of the
+    traces in a shared launch-directory ``execution_reports/`` belong to this outdir.
     """
+    index: Dict[str, Dict[str, Any]] = {}
     for path in sorted(glob.glob(os.path.join(pipeline_info, "params_*.json"))):
         try:
             with open(path, "r", encoding="utf-8", errors="replace") as handle:
                 payload = json.load(handle)
         except (OSError, ValueError):
             continue
-        for container in (payload, payload.get("params", {}) if isinstance(payload, dict) else {}):
-            if isinstance(container, dict) and container.get("trace_report_suffix") == run_key:
-                return payload
-    return {}
+        if not isinstance(payload, dict):
+            continue
+        for container in (payload, payload.get("params", {})):
+            suffix = container.get("trace_report_suffix") if isinstance(container, dict) else None
+            if isinstance(suffix, str) and suffix:
+                index.setdefault(suffix, payload)
+                break
+    return index
 
 
-def discover_runs(results_dirs: Sequence[str], results_root: Optional[str]) -> List[RunContext]:
+def _index_traces(trace_dirs: Sequence[str]) -> Dict[str, str]:
+    """Map each trace's timestamp suffix to its path, over every folder in *trace_dirs*.
+
+    Folders are searched in the order given, and the first folder holding a suffix wins.
+    """
+    index: Dict[str, str] = {}
+    for trace_dir in trace_dirs:
+        pattern = os.path.join(trace_dir, f"{TRACE_PREFIX}*{TRACE_SUFFIX}")
+        for path in sorted(glob.glob(pattern)):
+            index.setdefault(_trace_key(path), path)
+    return index
+
+
+def _attach_metadata(run: RunContext, pipeline_info: str,
+                     params_index: Dict[str, Dict[str, Any]]) -> None:
+    """Fill *run* with the run config, samplesheet and params JSON from *pipeline_info*."""
+    run_config = _pair_by_suffix(pipeline_info, "run_config_", ".txt", run.key)
+    if run_config:
+        run.run_config_path = run_config
+        run.params = dict(_read_run_config(run_config))
+
+    samplesheet = _pair_by_suffix(pipeline_info, "samplesheet_", ".csv", run.key)
+    if samplesheet:
+        run.samplesheet_path = samplesheet
+        run.samples = _read_samplesheet(samplesheet)
+
+    payload = params_index.get(run.key, {})
+    for field in ("pipeline_version", "version", "git_commit", "commit"):
+        if field in payload:
+            run.params.setdefault(field, str(payload[field]))
+
+
+def default_trace_dirs(pipeline_dir: str) -> List[str]:
+    """The ``execution_reports/`` folders searched when no ``--traces`` is given.
+
+    ``nextflow.config`` writes the trace into ``execution_reports/`` under the launch
+    directory. ``submit_nextflow.sh`` launches from the pipeline checkout, so that is
+    searched first, then the current directory in case the run was launched from here.
+    """
+    dirs: List[str] = []
+    for base in (pipeline_dir, os.getcwd()):
+        candidate = os.path.join(base, "execution_reports")
+        if all(os.path.realpath(candidate) != os.path.realpath(seen) for seen in dirs):
+            dirs.append(candidate)
+    return dirs
+
+
+def discover_runs(results_dirs: Sequence[str], results_root: Optional[str],
+                  trace_dirs: Sequence[str] = ()) -> List[RunContext]:
     """Collect every run whose trace is reachable from the given directories.
+
+    A run's trace sits in the launch directory's ``execution_reports/``, while its run
+    config, samplesheet and params JSON sit in ``<outdir>/pipeline_info/``. A trace is
+    taken for an outdir when that outdir's params JSON names its suffix, so traces of
+    other outdirs launched from the same directory are left out. Traces still inside
+    ``pipeline_info/``, where earlier versions of the pipeline wrote them, are read too.
 
     Parameters
     ----------
@@ -911,6 +986,9 @@ def discover_runs(results_dirs: Sequence[str], results_root: Optional[str]) -> L
         Explicit ``params.outdir`` paths.
     results_root:
         A directory whose immediate children are treated as result directories.
+    trace_dirs:
+        Folders holding ``execution_trace_*.txt`` files. When no results directory is
+        given at all, every trace in them is analysed, without sample or protocol details.
 
     Returns
     -------
@@ -923,7 +1001,19 @@ def discover_runs(results_dirs: Sequence[str], results_root: Optional[str]) -> L
             if os.path.isdir(full):
                 candidates.append(full)
 
+    trace_index = _index_traces(trace_dirs)
     runs: Dict[str, RunContext] = {}
+
+    if not results_dirs and not results_root:
+        for key, trace_path in trace_index.items():
+            runs[key] = RunContext(key, trace_path, os.path.dirname(trace_path))
+        if runs:
+            sys.stderr.write(
+                "Warning: no --results given, so the runs have no sample or protocol details.\n"
+                "         Pass --results <outdir> as well to attach them.\n")
+        return [runs[key] for key in sorted(runs)]
+
+    searched = ", ".join(trace_dirs) if trace_dirs else "(none)"
     for results_dir in candidates:
         pipeline_info = os.path.join(results_dir, "pipeline_info")
         if not os.path.isdir(pipeline_info):
@@ -935,36 +1025,44 @@ def discover_runs(results_dirs: Sequence[str], results_root: Optional[str]) -> L
                 sys.stderr.write(f"Warning: no pipeline_info/ under {results_dir}, skipping\n")
                 continue
 
-        traces = sorted(glob.glob(os.path.join(pipeline_info, "execution_trace_*.txt")))
-        if not traces:
-            sys.stderr.write(
-                f"Warning: no execution_trace_*.txt in {pipeline_info}.\n"
-                f"         Runs from before the trace block was restored in nextflow.config\n"
-                f"         produce no trace; re-run the pipeline to collect one.\n")
-            continue
+        params_index = _index_params_json(pipeline_info)
 
-        for trace_path in traces:
-            base = os.path.basename(trace_path)
-            key = base[len("execution_trace_"):-len(".txt")]
+        # Traces left in pipeline_info/ by earlier versions of the pipeline come
+        # first: they can only belong to this outdir.
+        traces: Dict[str, str] = {
+            _trace_key(path): path
+            for path in sorted(glob.glob(
+                os.path.join(pipeline_info, f"{TRACE_PREFIX}*{TRACE_SUFFIX}")))
+        }
+        unmatched = []
+        for key in params_index:
+            if key in traces:
+                continue
+            if key in trace_index:
+                traces[key] = trace_index[key]
+            else:
+                unmatched.append(key)
+
+        if not traces:
+            if params_index:
+                sys.stderr.write(
+                    f"Warning: none of the {len(params_index)} run(s) recorded in {pipeline_info}\n"
+                    f"         has a trace in the folders searched: {searched}.\n"
+                    f"         Pass --traces <launch dir>/execution_reports for runs launched elsewhere.\n")
+            else:
+                sys.stderr.write(
+                    f"Warning: no execution trace and no params_*.json in {pipeline_info}, skipping.\n")
+            continue
+        if unmatched:
+            sys.stderr.write(
+                f"Note: {len(unmatched)} of the {len(params_index)} run(s) recorded in "
+                f"{pipeline_info} have no trace in the folders searched; they are left out.\n")
+
+        for key in sorted(traces):
             if key in runs:
                 continue
-            run = RunContext(key, trace_path, results_dir)
-
-            run_config = _pair_by_suffix(pipeline_info, "run_config_", ".txt", key)
-            if run_config:
-                run.run_config_path = run_config
-                run.params = dict(_read_run_config(run_config))
-
-            samplesheet = _pair_by_suffix(pipeline_info, "samplesheet_", ".csv", key)
-            if samplesheet:
-                run.samplesheet_path = samplesheet
-                run.samples = _read_samplesheet(samplesheet)
-
-            payload = _pair_params_json(pipeline_info, key)
-            for field in ("pipeline_version", "version", "git_commit", "commit"):
-                if isinstance(payload, dict) and field in payload:
-                    run.params.setdefault(field, str(payload[field]))
-
+            run = RunContext(key, traces[key], results_dir)
+            _attach_metadata(run, pipeline_info, params_index)
             runs[key] = run
 
     return [runs[key] for key in sorted(runs)]
@@ -2664,11 +2762,17 @@ def parse_args(argv: Optional[List[str]] = None) -> argparse.Namespace:
     # ── Inputs ──────────────────────────────────────────────────────────────
     parser.add_argument("-r", "--results", action="append", default=[], metavar="DIR",
                         help="Pipeline result directory (a params.outdir) holding "
-                             "pipeline_info/. Repeatable; more runs give a better "
-                             "scaling fit.")
+                             "pipeline_info/. Its runs are matched to their traces in "
+                             "--traces. Repeatable; more runs give a better scaling fit.")
     parser.add_argument("-R", "--results-root", metavar="DIR",
                         help="Directory whose immediate subdirectories are result "
                              "directories. Convenient when every run went to its own outdir.")
+    parser.add_argument("-t", "--traces", action="append", default=[], metavar="DIR",
+                        help="Folder holding execution_trace_*.txt files: the "
+                             "execution_reports/ in the directory the pipeline was launched "
+                             "from. Repeatable. Default: execution_reports/ in --pipeline-dir "
+                             "and in the current directory. Given without --results, every "
+                             "trace in it is analysed, without sample or protocol details.")
     parser.add_argument("-p", "--pipeline-dir", metavar="DIR",
                         help="Pipeline checkout holding modules/ and conf/base.config, used "
                              "to recover the process->label mapping. Default: the parent of "
@@ -2718,11 +2822,16 @@ def parse_args(argv: Optional[List[str]] = None) -> argparse.Namespace:
 
     args = parser.parse_args(argv)
 
-    if not args.results and not args.results_root:
-        parser.error("give at least one --results DIR (or --results-root DIR)")
+    if not args.results and not args.results_root and not args.traces:
+        parser.error("give at least one --results DIR (or --results-root DIR, or --traces DIR)")
 
     if not args.pipeline_dir:
         args.pipeline_dir = os.path.dirname(os.path.dirname(os.path.abspath(__file__)))
+
+    for trace_dir in args.traces:
+        if not os.path.isdir(trace_dir):
+            parser.error(f"--traces {trace_dir}: no such directory")
+    args.trace_dirs = args.traces or default_trace_dirs(args.pipeline_dir)
 
     if not args.output:
         stamp = datetime.datetime.now().strftime("%Y-%m-%d_%H-%M-%S")
@@ -2739,13 +2848,14 @@ def main() -> None:
     args = parse_args()
 
     # ── Discover runs ───────────────────────────────────────────────────────
-    runs = discover_runs(args.results, args.results_root)
+    runs = discover_runs(args.results, args.results_root, args.trace_dirs)
     if not runs:
         sys.stderr.write(
             "Error: no execution traces found.\n"
-            "  Each run writes <outdir>/pipeline_info/execution_trace_<timestamp>.txt.\n"
-            "  If that file is missing, the run predates the trace block in nextflow.config;\n"
-            "  re-run the pipeline and try again.\n")
+            "  Each run writes execution_reports/execution_trace_<timestamp>.txt in the\n"
+            "  directory it was launched from (older versions: <outdir>/pipeline_info/).\n"
+            f"  Searched: {', '.join(args.trace_dirs)}\n"
+            "  Point --traces at the launch directory's execution_reports/ if it is elsewhere.\n")
         sys.exit(1)
 
     print(f"Found {len(runs)} run(s):")
