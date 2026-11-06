@@ -27,6 +27,7 @@ tests/
 │   ├── containers.sh
 │   ├── dashboard_geneext.sh
 │   ├── dynamic_resources.sh
+│   ├── merge_fastqs.sh
 │   ├── metacell_filtering.sh
 │   ├── mt_rrna_metrics.sh
 │   ├── nextflow_versions.sh
@@ -445,6 +446,31 @@ The check needs only a Python, with the standard library.
 
 ```bash
 bash tests/run_tests.sh addfeature_prepare
+```
+
+## `merge_fastqs`
+
+Runs [`MERGE_FASTQS`](../modules/local/custom/manipulate/merge_files/main.nf) through a minimal
+Nextflow project on small FASTQs whose read names show where each read came from. The module
+joins a sample's files per read. Gzipped inputs are appended byte for byte, since a run of gzip
+members is a valid gzip file, and only plain inputs are compressed. The cases assert:
+
+- three gzipped inputs give exactly their bytes, concatenated, so nothing was recompressed;
+- gzipped and plain inputs mixed give every read in input order, with the gzipped parts unchanged;
+- plain inputs give one gzipped output;
+- a lone gzipped input is symlinked;
+- compression follows the content, not the extension, in both directions;
+- I1 and I2 over two lanes each go to their own output, and samples without index reads get none;
+- Python's `gzip` reads every read of a multi-member output.
+
+The mislabelled case guards against a silent failure: `pigz` skips a file whose name ends in
+`.gz`, with exit status 0, so the module passes plain input on stdin.
+
+Needs `nextflow` and `pigz`, and is skipped without them; `multi_member_read` also needs a Python.
+
+```bash
+bash tests/run_tests.sh merge_fastqs
+bash tests/run_tests.sh merge_fastqs -- --keep    # keep the FASTQs and the work directory
 ```
 
 ## `velocity_matrix`

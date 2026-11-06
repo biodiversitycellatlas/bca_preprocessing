@@ -19,40 +19,38 @@ process MERGE_FASTQS {
     echo "================== MERGE FASTQs =================="
     echo "Sample ID: ${meta.id}"
 
-    COMPRESSOR="pigz -p ${task.cpus}"
     CDNA=( ${fastq_cDNA_list} )
     BCUMI=( ${fastq_BC_UMI_list} )
     IND=( ${fastq_indices} )
 
     echo "Counts: cDNA=\${#CDNA[@]} BC_UMI=\${#BCUMI[@]} Index=\${#IND[@]}"
 
-    # Inputs may be plain (.fastq/.fq) or gzipped (.fastq.gz/.fq.gz), and a sample may mix both. 
-    # Compression is detected from the gzip magic bytes rather than the file name, so mislabelled extensions are handled too. 
+    # Inputs may be plain (.fastq/.fq) or gzipped (.fastq.gz/.fq.gz), and a sample may mix both.
+    # Compression is detected from the gzip magic bytes rather than the file name, so mislabelled extensions are handled too.
     # Whatever comes in, the merged output is always gzipped, which is what every downstream module expects.
     is_gzipped() {
         [ "\$(od -An -N2 -tx1 "\$1" | tr -d ' \\n')" = "1f8b" ]
     }
 
-    # Stream the plain-text contents of one or more FASTQs to stdout
-    cat_fastqs() {
-        for f in "\$@"; do
-            if is_gzipped "\$f"; then
-                pigz -dc -p ${task.cpus} "\$f"
-            else
-                cat "\$f"
-            fi
-        done
-    }
-
-    # A lone gzipped input is symlinked instead of recompressed.
+    # A lone gzipped input is symlinked. Otherwise each gzipped input is appended as it is
+    # (a run of gzip members is itself a valid gzip file) and each plain one is compressed on
+    # its own, so gzipped input is never decompressed. The decompressed output is the inputs'
+    # reads in order. pigz reads plain files from stdin: given a file name ending
+    # in .gz it skips the file, with exit status 0.
     merge_fastqs() {
         local out=\$1
         shift
         if [ "\$#" -eq 1 ] && is_gzipped "\$1"; then
             ln -s "\$1" "\$out"
-        else
-            cat_fastqs "\$@" | \$COMPRESSOR -c > "\$out"
+            return
         fi
+        for f in "\$@"; do
+            if is_gzipped "\$f"; then
+                cat "\$f"
+            else
+                pigz -c -p ${task.cpus} < "\$f"
+            fi
+        done > "\$out"
     }
 
     merge_fastqs "${meta.id}_merged_cDNA.fastq.gz" "\${CDNA[@]}"
