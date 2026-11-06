@@ -155,7 +155,7 @@ output_directory/
 ├── dashboard.html                  # Portable HTML dashboard — start here
 ├── filtering_report.html           # (Optional) Interactive metacell filtering report
 ├── versions.yml                    # Software versions of every process that ran
-├── pipeline_info/                  # Run configuration, samplesheet, execution traces
+├── pipeline_info/                  # Run configuration, samplesheet, parameters
 |
 ├── genome/                         # Generated reference indices
 ├── demultiplex/                    # Demultiplexed FASTQ files (Protocol-dependent)

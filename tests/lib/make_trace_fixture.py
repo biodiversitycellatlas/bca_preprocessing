@@ -24,6 +24,9 @@ Several runs of increasing size, into one outdir (what a user accumulates):
 One run per directory, for --results-root:
     make_trace_fixture.py --outdir /tmp/fx --runs 3 --separate-dirs
 
+Traces in a launch-directory execution_reports/, as the pipeline writes them now:
+    make_trace_fixture.py --outdir /tmp/fx --traces-dir /tmp/launch/execution_reports
+
 Example
 -------
     make_trace_fixture.py --outdir /tmp/fx --runs 5 --exponent 0.85 --seed 1
@@ -153,7 +156,8 @@ def make_run(rng: random.Random,
              size_gb: float,
              exponent: float,
              noise: float,
-             inject_kill: bool) -> Tuple[str, List[str], List[Dict[str, str]]]:
+             inject_kill: bool,
+             day_offset: int = 0) -> Tuple[str, List[str], List[Dict[str, str]]]:
     """Build one run's trace rows.
 
     Parameters
@@ -173,12 +177,16 @@ def make_run(rng: random.Random,
         Lognormal sigma applied to memory and runtime.
     inject_kill:
         Add a killed STARSOLO_ALIGN attempt followed by a successful retry.
+    day_offset:
+        Days added to every timestamp, so two fixtures sharing a trace folder get
+        different run keys.
 
     Returns
     -------
     ``(run_key, trace_lines, sample_rows)``.
     """
-    base_time = datetime.datetime(2026, 3, 1) + datetime.timedelta(days=7 * run_index)
+    base_time = (datetime.datetime(2026, 3, 1)
+                 + datetime.timedelta(days=7 * run_index + day_offset))
     run_key = base_time.strftime("%Y-%m-%d_%H-%M-%S")
 
     lines: List[str] = ["\t".join(TRACE_FIELDS)]
@@ -280,11 +288,19 @@ def make_run(rng: random.Random,
 
 
 def write_run(pipeline_info: str, run_key: str, lines: List[str],
-              samples: List[Dict[str, str]], params: Dict[str, object]) -> None:
-    """Write one run's trace, run_config, samplesheet and params JSON."""
-    os.makedirs(pipeline_info, exist_ok=True)
+              samples: List[Dict[str, str]], params: Dict[str, object],
+              traces_dir: Optional[str] = None) -> None:
+    """Write one run's trace, run_config, samplesheet and params JSON.
 
-    with open(os.path.join(pipeline_info, f"execution_trace_{run_key}.txt"),
+    The trace goes to *traces_dir* when given (the launch directory's
+    ``execution_reports/``, where the pipeline writes it now), otherwise into
+    *pipeline_info* as earlier versions of the pipeline did.
+    """
+    os.makedirs(pipeline_info, exist_ok=True)
+    trace_dir = traces_dir or pipeline_info
+    os.makedirs(trace_dir, exist_ok=True)
+
+    with open(os.path.join(trace_dir, f"execution_trace_{run_key}.txt"),
               "w", encoding="utf-8") as handle:
         handle.write("\n".join(lines) + "\n")
 
@@ -340,6 +356,13 @@ def parse_args() -> argparse.Namespace:
                         help="Give each run its own results directory, for testing "
                              "--results-root. Default: all runs share one outdir, "
                              "which is what a user accumulates in practice.")
+    parser.add_argument("--traces-dir", metavar="DIR",
+                        help="Write the traces here instead of into pipeline_info/, as "
+                             "the pipeline does with its launch-directory execution_reports/. "
+                             "Run config, samplesheet and params JSON stay in pipeline_info/.")
+    parser.add_argument("--day-offset", type=int, default=0,
+                        help="Days added to every run timestamp, so fixtures sharing a "
+                             "--traces-dir get distinct run keys. Default: 0.")
     parser.add_argument("--no-kill", action="store_true",
                         help="Do not inject a killed task into the first run.")
     parser.add_argument("--star-limit-bamsort", default="0",
@@ -364,7 +387,8 @@ def main() -> None:
     for index, size in enumerate(sizes):
         run_key, lines, samples = make_run(
             rng, index, args.samples, size, args.exponent, args.noise,
-            inject_kill=(index == 0 and not args.no_kill))
+            inject_kill=(index == 0 and not args.no_kill),
+            day_offset=args.day_offset)
 
         results_dir = (os.path.join(args.outdir, f"outdir_run{index}")
                        if args.separate_dirs else args.outdir)
@@ -377,7 +401,7 @@ def main() -> None:
             "star_limitGenomeGenerateRAM": "null",
         }
         write_run(os.path.join(results_dir, "pipeline_info"),
-                  run_key, lines, samples, params)
+                  run_key, lines, samples, params, traces_dir=args.traces_dir)
         print(f"run {index}: {run_key}  ~{size:.1f} GB  "
               f"{len(lines) - 1} rows -> {results_dir}")
 

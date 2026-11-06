@@ -65,7 +65,7 @@ output_directory/
 ├── filtering_report.html           # (Optional) Interactive metacell filtering report
 ├── versions.yml                    # Software versions of every process that ran
 │
-├── pipeline_info/                  # Run configuration, samplesheet, execution traces
+├── pipeline_info/                  # Run configuration, samplesheet, parameters
 ├── genome/                         # Generated reference indices
 │
 ├── demultiplex/                    # (Protocol-dependent) demultiplexed FASTQ files
@@ -107,19 +107,28 @@ output_directory/
 | ---- | ----------- |
 | `run_config_<timestamp>.txt` | The full resolved configuration of the run — every parameter as it was actually used. |
 | `samplesheet_<timestamp>.csv` | A copy of the samplesheet used. |
-| `execution_report_<timestamp>.html` | Nextflow's execution report: resource usage per process. |
-| `execution_timeline_<timestamp>.html` | Nextflow's timeline of task execution. |
-| `execution_trace_<timestamp>.txt` | Per-task trace: CPU, memory, I/O, exit status, retries. |
+| `params_<timestamp>.json` | The run's parameters. Its `trace_report_suffix` names the run's execution trace. |
 | `pipeline_dag_<timestamp>.html` | The workflow DAG. |
 | `mapping_rate_check.tsv` | One row per sample with the verdict of the [mapping-rate check](CONFIGURATION_PARAMETERS.md#mapping-rate-check): mapper, stage (`mid-run` or `final`), reads processed, percentage mapped and threshold. Only written when the check ran, and overwritten by each run. |
 
 Files are timestamp-suffixed rather than overwritten, so repeated runs into the same output
 directory accumulate rather than replace.
 
+### Execution reports
+
+Nextflow's execution report, timeline and trace are not in the output directory: they are
+written to `execution_reports/` in the directory the pipeline was launched from.
+
+| File | Description |
+| ---- | ----------- |
+| `execution_report_<timestamp>.html` | Nextflow's execution report: resource usage per process. |
+| `execution_timeline_<timestamp>.html` | Nextflow's timeline of task execution. |
+| `execution_trace_<timestamp>.txt` | Per-task trace: CPU, memory, I/O, exit status, retries. |
+
 > [!IMPORTANT]
-> **Keep the `execution_trace_*.txt` files.** They are the input to
-> `bin/resource_efficiency.py`, which reports what your cluster actually used per process and
-> recommends adjusted resource requests. See [Resource tuning](RESOURCE_TUNING.md).
+> **Keep the `execution_trace_*.txt` files and `pipeline_info/`.** Together they are the
+> input to `bin/resource_efficiency.py`, which reports what your cluster actually used per
+> process and recommends adjusted resource requests. See [Resource tuning](RESOURCE_TUNING.md).
 
 The run configuration and samplesheet are also embedded in `dashboard.html`, so a dashboard
 found on its own remains self-describing.

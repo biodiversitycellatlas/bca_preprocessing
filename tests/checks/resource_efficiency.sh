@@ -707,6 +707,103 @@ else
 fi
 
 # --------------------------------------------------------------------------
+# Case: launchdir_traces
+#
+# The pipeline writes its traces into execution_reports/ under the launch
+# directory, which every run launched from there shares, whatever its outdir.
+# The tool must take from it only the traces whose suffix the outdir's own
+# params JSON records, and leave the other outdirs' traces out.
+# --------------------------------------------------------------------------
+
+LD_DIR="$WORKDIR/launchdir"
+LD_TRACES="$LD_DIR/execution_reports"
+if "$PYTHON" "$FIXTURE_GEN" --outdir "$LD_DIR/outdir_A" --traces-dir "$LD_TRACES" \
+        --runs 2 --samples 2 --seed 3 --no-kill \
+        >"$BCA_TEST_LOGDIR/resource_efficiency_launchdir_fixture.log" 2>&1 \
+    && "$PYTHON" "$FIXTURE_GEN" --outdir "$LD_DIR/outdir_B" --traces-dir "$LD_TRACES" \
+        --runs 2 --samples 3 --seed 4 --no-kill --day-offset 1 \
+        >>"$BCA_TEST_LOGDIR/resource_efficiency_launchdir_fixture.log" 2>&1; then
+    # A trace from a third outdir that was never passed to the tool.
+    cp "$(ls -1 "$LD_TRACES"/execution_trace_*.txt | head -1)" \
+        "$LD_TRACES/execution_trace_2027-01-01_00-00-00.txt"
+
+    if [[ -n "$(ls -A "$LD_DIR/outdir_A/pipeline_info"/execution_trace_* 2>/dev/null)" ]]; then
+        record FAIL "launchdir_traces.fixture" "the fixture wrote traces into pipeline_info/"
+    fi
+
+    # Every run must carry the outdir it was found under and that outdir's samples.
+    LD_EXPECT="lambda want: (sorted(r['results_dir'].rstrip('/').rsplit('/', 1)[-1] for r in d['runs']) == want
+                             and all(r['protocol'] == '10xv3' and r['n_samples'] > 0 for r in d['runs'])
+                             and all('/execution_reports/' in r['trace'] for r in d['runs']),
+                             [(r['key'], r['results_dir'], r['n_samples']) for r in d['runs']])"
+
+    if run_logged "$BCA_TEST_LOGDIR/resource_efficiency_launchdir_A.log" \
+            "$PYTHON" "$TOOL" --results "$LD_DIR/outdir_A" --traces "$LD_TRACES" \
+            --no-plots --output "$WORKDIR/launchdir_A_report" --json "$WORKDIR/launchdir_A.json"; then
+        assert_json "launchdir_traces.one_outdir" "$WORKDIR/launchdir_A.json" \
+            "($LD_EXPECT)(['outdir_A', 'outdir_A'])" \
+            "only outdir_A's 2 runs taken from the shared folder, with their samples"
+    else
+        record FAIL "launchdir_traces.one_outdir" "see resource_efficiency_launchdir_A.log"
+    fi
+
+    if run_logged "$BCA_TEST_LOGDIR/resource_efficiency_launchdir_AB.log" \
+            "$PYTHON" "$TOOL" --results "$LD_DIR/outdir_A" --results "$LD_DIR/outdir_B" \
+            --traces "$LD_TRACES" \
+            --no-plots --output "$WORKDIR/launchdir_AB_report" --json "$WORKDIR/launchdir_AB.json"; then
+        assert_json "launchdir_traces.two_outdirs" "$WORKDIR/launchdir_AB.json" \
+            "($LD_EXPECT)(['outdir_A', 'outdir_A', 'outdir_B', 'outdir_B'])" \
+            "each outdir gets its own 2 runs; the stray trace is left out"
+    else
+        record FAIL "launchdir_traces.two_outdirs" "see resource_efficiency_launchdir_AB.log"
+    fi
+
+    # The default trace folder is execution_reports/ in --pipeline-dir or in the
+    # current directory; run from the launch directory, no --traces is needed.
+    if (cd "$LD_DIR" && run_logged "$BCA_TEST_LOGDIR/resource_efficiency_launchdir_default.log" \
+            "$PYTHON" "$TOOL" --results "$LD_DIR/outdir_B" --pipeline-dir "$PROJECT_ROOT" \
+            --no-plots --output "$WORKDIR/launchdir_default_report" \
+            --json "$WORKDIR/launchdir_default.json"); then
+        assert_json "launchdir_traces.default_dir" "$WORKDIR/launchdir_default.json" \
+            "($LD_EXPECT)(['outdir_B', 'outdir_B'])" \
+            "./execution_reports/ searched without --traces"
+    else
+        record FAIL "launchdir_traces.default_dir" "see resource_efficiency_launchdir_default.log"
+    fi
+
+    LD_ALONE_LOG="$BCA_TEST_LOGDIR/resource_efficiency_launchdir_alone.log"
+    if run_logged "$LD_ALONE_LOG" \
+            "$PYTHON" "$TOOL" --traces "$LD_TRACES" \
+            --no-plots --output "$WORKDIR/launchdir_alone_report" --json "$WORKDIR/launchdir_alone.json"; then
+        assert_json "launchdir_traces.traces_only" "$WORKDIR/launchdir_alone.json" \
+            "(len(d['runs']) == 5 and all(r['n_samples'] == 0 for r in d['runs']),
+              [(r['key'], r['n_samples']) for r in d['runs']])" \
+            "--traces alone analyses all 5 traces, without sample details"
+        if grep -q "no --results given" "$LD_ALONE_LOG"; then
+            record PASS "launchdir_traces.traces_only_warning" "missing metadata is reported"
+        else
+            record FAIL "launchdir_traces.traces_only_warning" "no warning about missing sample details"
+        fi
+    else
+        record FAIL "launchdir_traces.traces_only" "see $(basename "$LD_ALONE_LOG")"
+    fi
+
+    # Traces that cannot be found must stop the tool with a pointer to --traces.
+    mkdir -p "$LD_DIR/empty_reports"
+    LD_MISSING_LOG="$BCA_TEST_LOGDIR/resource_efficiency_launchdir_missing.log"
+    if "$PYTHON" "$TOOL" --results "$LD_DIR/outdir_A" --traces "$LD_DIR/empty_reports" \
+            --no-plots --output "$WORKDIR/launchdir_missing_report" >"$LD_MISSING_LOG" 2>&1; then
+        record FAIL "launchdir_traces.missing" "the tool succeeded without any trace"
+    elif grep -q -- "--traces" "$LD_MISSING_LOG"; then
+        record PASS "launchdir_traces.missing" "fails and points at --traces"
+    else
+        record FAIL "launchdir_traces.missing" "failed without mentioning --traces, see $(basename "$LD_MISSING_LOG")"
+    fi
+else
+    record FAIL "launchdir_traces.fixture" "see resource_efficiency_launchdir_fixture.log"
+fi
+
+# --------------------------------------------------------------------------
 # Case: emitted_config
 #
 # A config the tool cannot itself validate is a config that breaks the next run.
@@ -718,7 +815,7 @@ elif [[ -z "$MULTI_CONFIG" ]]; then
     record FAIL "emitted_config" "no config was emitted"
 else
     if run_logged "$BCA_TEST_LOGDIR/resource_efficiency_config.log" \
-            nextflow config -c "$MULTI_CONFIG" "$PROJECT_ROOT"; then
+            nextflow -c "$MULTI_CONFIG" config "$PROJECT_ROOT"; then
         record PASS "emitted_config" "nextflow config parses the generated file"
     else
         record FAIL "emitted_config" "see resource_efficiency_config.log"
