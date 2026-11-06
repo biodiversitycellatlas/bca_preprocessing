@@ -89,7 +89,18 @@ Parse pools several samples into one library, which are told apart by the RT wel
 - `C4` is a single well;
 - selections are joined by commas without spaces, e.g. `A1-A6,B1:D3,C4`.
 
-**Demultiplexing.** By default, `PARSEBIO_CUSTOM_DEMUX` matches the RT barcode against the well whitelist given in `bc_whitelist_parse_splitwells` (a CSV with the columns `bci,sequence,uid,well,stype`, as shipped with split-pipe), allowing up to 2 mismatches. Set `splitpipe_demultiplex_script` to use split-pipe's own demultiplexing script instead.
+**Demultiplexing.** By default, `PARSEBIO_CUSTOM_DEMUX` matches the RT barcode against the well whitelist given in `bc_whitelist_parse_splitwells` (a CSV with the columns `bci,sequence,uid,well,stype`, as shipped with split-pipe), at the smallest edit distance, at most 2.
+
+Set `splitpipe_demultiplex_script` to use split-pipe's own demultiplexing script instead.
+
+**Round-1 barcodes.** Each round-1 well holds an oligo-dT (`T`) and a random-hexamer (`R`) RT primer, and in some kits targeted (`X`) primers, each with its own barcode (the `stype` column of the CSV). split-pipe names cells by well, so these reads form one cell. A mapper given every round-1 barcode would split each cell into a T and an R barcode (in a typical run, about 40% and 60% of its reads). With `parse_collapse_bc1 = true` (the default), `PARSEBIO_COLLAPSE_BC1` therefore rewrites the round-1 barcode in the barcode read to its well's T barcode before mapping:
+
+- the barcode is matched against `bc_whitelist_parse_splitwells` like in the demultiplexing (smallest edit distance, at most 2; no match with an `N`), so it is also corrected;
+- reads whose best matches lie in different wells, unmatched reads and reads too short to hold the barcode keep their barcode;
+- the mappers get the T barcodes of the CSV as round-1 whitelist instead of the first `bc_whitelist` file; the round-2 and round-3 files are used as given;
+- split-pipe, if enabled, still receives the original reads.
+
+The rewrite runs after the demultiplexing, whichever is used, and also with `perform_demultiplexing = false`.
 
 
 ## BD Rhapsody

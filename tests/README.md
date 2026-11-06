@@ -30,6 +30,7 @@ tests/
 │   ├── metacell_filtering.sh
 │   ├── mt_rrna_metrics.sh
 │   ├── nextflow_versions.sh
+│   ├── parse_collapse.sh
 │   ├── parse_demux.sh
 │   ├── resource_efficiency.sh
 │   ├── starsolo_em_matrix.sh
@@ -222,7 +223,10 @@ kinds of input:
   process no module declares.
 - `tests/lib/make_trace_fixture.py`, which generates whole runs whose memory follows a
   **known** power law, so the recovered scaling exponent can be compared against the
-  one that was asked for. Deterministic under `--seed`.
+  one that was asked for. Deterministic under `--seed`. With `--traces-dir` it writes
+  the traces into a separate folder, as the pipeline does with the launch directory's
+  `execution_reports/`. The `launchdir_traces` cases put two outdirs' traces and a stray
+  one in one such folder, and check that each outdir gets only its own runs.
 
 ```bash
 bash tests/run_tests.sh resource_efficiency

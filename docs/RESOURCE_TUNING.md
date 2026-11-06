@@ -17,14 +17,26 @@ ready-to-use config that fixes over- or under-sized requests for your next run.
 ## Quick start
 
 1. **Run the pipeline as normal.** 
-  Each run automatically creates the files required into `<outdir>/pipeline_info/`, named with the run's
-  timestamp, so repeated runs into the same directory accumulate instead of overwriting. 
+  Each run writes its execution trace into `execution_reports/` in the directory you
+  launched it from, and its run config, samplesheet and parameters into
+  `<outdir>/pipeline_info/`. All are named with the run's timestamp, so repeated runs
+  accumulate instead of overwriting.
 
 
 2. **Run the tool** against your results directory:
 
    ```bash
    bin/resource_efficiency.py --results /path/to/outdir
+   ```
+
+   The tool looks for the traces in `execution_reports/` in the pipeline folder (where
+   `submit_nextflow.sh` launches from) and in the current folder. It only takes the
+   traces of runs recorded in that outdir's `pipeline_info/`, so runs with other outdirs
+   launched from the same folder are left out. If you launched from somewhere else, say
+   where:
+
+   ```bash
+   bin/resource_efficiency.py --results /path/to/outdir --traces /launch/dir/execution_reports
    ```
 
    This prints a summary table and writes an HTML report you can open in a browser.
@@ -103,7 +115,8 @@ cluster. With a threshold set, a larger input gets 16 cores, and shorter runs.
 - **The more runs, the better.** A single run still gives useful numbers, but seeing a
   few runs on different-sized datasets lets the tool predict resource needs for future
   larger or smaller datasets too.
-- **Don't delete `pipeline_info/`** in your results folders, that's where the usage
-  data comes from.
+- **Don't delete `execution_reports/`** in your launch folder, or `pipeline_info/` in
+  your results folders. The first holds the usage data, the second tells the tool which
+  run each trace belongs to and what data it processed.
 - **A step marked "insufficient data"** hasn't run enough times yet for a reliable
   recommendation; its current setting is left unchanged.

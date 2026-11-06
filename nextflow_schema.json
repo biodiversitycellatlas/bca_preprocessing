@@ -79,6 +79,11 @@
                     "exists": true,
                     "description": "Well whitelist the Parse Biosciences demultiplexing splits the reads on."
                 },
+                "parse_collapse_bc1": {
+                    "type": "boolean",
+                    "default": true,
+                    "description": "Parse Biosciences: rewrite each read's round-1 barcode to its well's oligo-dT barcode before mapping, so a cell's oligo-dT, random-hexamer and targeted reads form one cell. Needs 'bc_whitelist_parse_splitwells'."
+                },
                 "run_method": {
                     "type": "string",
                     "default": "standard",

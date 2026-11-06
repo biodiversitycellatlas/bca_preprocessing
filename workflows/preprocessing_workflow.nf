@@ -70,7 +70,12 @@ workflow preprocessing_workflow {
         if (params.protocol in ['parse_biosciences_WT_mini', 'parse_biosciences_WT']) {
             parse_workflow(merged_samplesheet)
             data_output_ch = parse_workflow.out.data_output
-            bc_whitelist_ch  = resolved_whitelist
+            // With the round-1 barcodes merged per well, the reads carry only T barcodes in
+            // bc1: their list replaces the first whitelist file, bc2 and bc3 stay as given
+            bc_whitelist_ch  = params.parse_collapse_bc1
+                ? resolved_whitelist.map { files -> [files] }.combine(parse_workflow.out.bc1_whitelist)
+                    .map { files, t_list -> [t_list] + files.drop(1) }.first()
+                : resolved_whitelist
             ch_versions = ch_versions.mix(parse_workflow.out.versions)
             ch_vendor_results = parse_workflow.out.splitpipe_stats.map { meta, f -> ['splitpipe', meta, f] }
 

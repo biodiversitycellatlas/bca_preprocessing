@@ -173,10 +173,15 @@ triggers.
 <summary><code>demultiplex/</code>, <code>marsseq_reformat/</code>, <code>fastp/</code></summary>
 
 **`demultiplex/demux_custom/<sample>/`** — Parse Biosciences. Reads assigned to samples by
-matching the first barcode against the split-well definition within a Hamming distance of 2.
+matching the first barcode against the split-well definition within an edit distance of 2.
 
 **`demultiplex/demux_spipe/`** — Parse Biosciences, when demultiplexing with split-pipe instead
 of the built-in demultiplexer.
+
+**`demultiplex/bc1_collapse/<sample>/<sample>_bc1_collapse.log`** — Parse Biosciences, with
+`parse_collapse_bc1`: the barcode reads whose round-1 barcode was rewritten to its well's
+oligo-dT barcode (by primer type and edit distance), tied between wells, unmatched or too short.
+The rewritten reads themselves are not published.
 
 **`demultiplex/<sample>/`** — OAK, written by `OAK_DEMUX`: the reads of one aliquot, selected
 on its i7 (optional) and i5 index, as `<sample>_S1_L001_{R1,R2,I1,I2}_001.fastq.gz`, plus
