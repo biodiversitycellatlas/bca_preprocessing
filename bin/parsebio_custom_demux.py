@@ -1,13 +1,17 @@
 #!/usr/bin/env python3
 """
 Split paired FASTQs by group using a whitelist and edit-distance (≤2) barcode matching.
+
+The round-1 barcode is matched like its correction tables do 
+(smallest Levenshtein distance, A/C/G/T only), a read is kept
+when any of its best-matching wells is in the group, and wells are given in Parse's
+notation ('A1:C6' block, 'A1-B6' range in plate order, 'C4' single well).
 """
 
 import argparse, gzip, itertools, os
 from collections import Counter
 from typing import Dict, Iterable, Tuple, Optional, Set, List
 import re
-import string
 
 # --------------------------- Utilities ---------------------------
 
@@ -22,31 +26,39 @@ def load_whitelist_csv(path: str) -> Dict[str, str]:
                 wl[p[1].strip().upper()] = p[3].strip().upper()
     return wl
 
+PLATE_ROWS = "ABCDEFGH"
+PLATE_COLS = 12
+WELL_RE = re.compile(r"([A-H])(1[012]|[1-9])$")
+
 def parse_well_range(rng_str):
-    """Parse expanded well ranges into list of well IDs (e.g., ['A1','A2',...])"""
+    """
+    Expand a well specification on a 96-well plate:
+      'A1:C6' is a block, top-left to bottom-right: A1-A6, B1-B6, C1-C6;
+      'A1-B6' is a range in plate order: A1-A12, B1-B6;
+      'C4' is a single well; selections are joined by commas, e.g. 'A1-A6,B1:D3,C4'.
+    Return the wells in plate order, each once. A block or range that runs backwards
+    (e.g. 'B3:A1') selects nothing; a malformed well raises ValueError.
+    """
     rng_str = rng_str.replace(" ", "").replace(";", ",").upper()
-    wells = []
 
-    def col_row(w):
-        m = re.match(r"([A-Z]+)(\d+)", w)
-        return m.group(1), int(m.group(2)) if m else (None, None)
+    def row_col(w):
+        m = WELL_RE.match(w)
+        if not m:
+            raise ValueError(f"Not a well of a 96-well plate (A1-H12): '{w}' in '{rng_str}'")
+        return PLATE_ROWS.index(m.group(1)), int(m.group(2)) - 1
 
-    for part in rng_str.split(","):
-        if ":" in part:  # block e.g., A1:C6
-            start, end = part.split(":")
-        elif "-" in part:  # range e.g., A1-B6
-            start, end = part.split("-")
-        else:  # single well
-            wells.append(part)
-            continue
-
-        start_col, start_row = col_row(start)
-        end_col, end_row = col_row(end)
-        for c in string.ascii_uppercase[string.ascii_uppercase.index(start_col):string.ascii_uppercase.index(end_col)+1]:
-            for r in range(start_row, end_row+1):
-                wells.append(f"{c}{r}")
-
-    return wells
+    selected = set()
+    for part in filter(None, rng_str.split(",")):
+        if ":" in part:    # block
+            (r0, c0), (r1, c1) = (row_col(w) for w in part.split(":", 1))
+            selected |= {r * PLATE_COLS + c for r in range(r0, r1 + 1) for c in range(c0, c1 + 1)}
+        elif "-" in part:  # range in plate order
+            (r0, c0), (r1, c1) = (row_col(w) for w in part.split("-", 1))
+            selected |= set(range(r0 * PLATE_COLS + c0, r1 * PLATE_COLS + c1 + 1))
+        else:
+            r, c = row_col(part)
+            selected.add(r * PLATE_COLS + c)
+    return [f"{PLATE_ROWS[i // PLATE_COLS]}{i % PLATE_COLS + 1}" for i in sorted(selected)]
 
 def open_fastq(path: str):
     """Open a FASTQ for reading as text, gzipped or not (detected from the magic bytes)."""
@@ -105,70 +117,87 @@ def bc1_bounds_from_chem(chem: Optional[str]) -> Optional[Tuple[int, int]]:
 
 # ------------------------ Edit-distance matching ----------------------------
 
-def hamming(a: str, b: str) -> int:
-    """Return Hamming distance for equal-length strings, large int if lengths differ."""
-    if len(a) != len(b): return 10**9
-    return sum(x != y for x, y in zip(a, b))
+# The distance between the read's barcode slice and a
+# whitelist barcode (both 8 nt) is the Levenshtein (edit) distance. Between strings of
+# equal length, distance 1 is one substitution, and distance 2 is two substitutions or
+# one deletion plus one insertion, e.g. a base lost inside bc1 with the next base shifted
+# in. The tables hold A/C/G/T sequences only, so a slice with N (or anything else) never
+# matches. Every barcode at the smallest distance is returned, ties included.
+BASES = "ACGT"
+
+def edit_distance(a: str, b: str) -> int:
+    """Levenshtein distance (substitutions, insertions and deletions each cost 1)."""
+    prev = list(range(len(b) + 1))
+    for i, ca in enumerate(a, 1):
+        cur = [i]
+        for j, cb in enumerate(b, 1):
+            cur.append(min(prev[j] + 1, cur[j - 1] + 1, prev[j - 1] + (ca != cb)))
+        prev = cur
+    return prev[-1]
 
 def best_matches_all(bc: str, wl_seqs: Iterable[str], max_ed: int = 2) -> Tuple[List[str], Optional[int]]:
     """
-    Return (list_of_best_seqs, best_distance) where list_of_best_seqs are
-    all whitelist sequences at the minimal Hamming distance ≤ max_ed.
-    If no match within max_ed, returns ([], None).
+    Return (best_seqs, best_distance): all whitelist sequences at the smallest edit distance
+    from bc, if that is at most max_ed, else ([], None). A barcode with a character other
+    than A/C/G/T has no match. Scans the whole whitelist: the reference for the table.
     """
     bc = bc.upper()
-    best_d = None
-    best_list: List[str] = []
+    if not bc or any(c not in BASES for c in bc):
+        return [], None
+    best_d, best_list = None, []
     for w in wl_seqs:
-        d = hamming(bc, w)
+        d = edit_distance(bc, w)
         if best_d is None or d < best_d:
-            best_d = d
-            best_list = [w]
+            best_d, best_list = d, [w]
         elif d == best_d:
             best_list.append(w)
     if best_d is None or best_d > max_ed:
         return [], None
     return best_list, best_d
 
-
-# Read bases the match table covers. A barcode with any other character takes the scan.
-TABLE_ALPHABET = "ACGTN"
+def _neighbours(w: str, max_ed: int) -> Iterable[Tuple[str, int]]:
+    """Yield (sequence, edit distance to w) for the A/C/G/T sequences of w's length within max_ed (<= 2)."""
+    for d in range(min(max_ed, 2) + 1):
+        for positions in itertools.combinations(range(len(w)), d):
+            options = [[c for c in BASES if c != w[p]] for p in positions]
+            for subs in itertools.product(*options):
+                s = list(w)
+                for p, c in zip(positions, subs):
+                    s[p] = c
+                yield "".join(s), d
+    if max_ed >= 2:
+        # One deletion plus one insertion. Between equal-length strings the edit distance
+        # is 0 if equal, 1 if they differ at one position, and 2 otherwise.
+        for i in range(len(w)):
+            short = w[:i] + w[i + 1:]
+            for j in range(len(short) + 1):
+                for c in BASES:
+                    s = short[:j] + c + short[j:]
+                    mism = sum(x != y for x, y in zip(s, w))
+                    yield s, min(mism, 2)
 
 def build_match_table(wl_seqs: Iterable[str], max_ed: int = 2) -> Dict[str, Tuple[int, List[str]]]:
     """
-    Return {sequence: (best_distance, best_seqs)} for every sequence over TABLE_ALPHABET
-    within max_ed of a whitelist entry: exactly what best_matches_all returns for it,
-    computed once instead of once per read. A sequence not in the table, and made only
-    of TABLE_ALPHABET, has no match within max_ed.
+    Return {sequence: (best_distance, best_seqs)} for every A/C/G/T sequence within max_ed
+    of a whitelist entry: exactly what best_matches_all returns for it, computed once
+    instead of once per read. A sequence not in the table has no match.
     """
+    if max_ed > 2:
+        raise ValueError("max_ed is at most 2")
     table: Dict[str, Tuple[int, List[str]]] = {}
-    for w in wl_seqs:
-        w = w.upper()
-        for d in range(max_ed + 1):
-            for positions in itertools.combinations(range(len(w)), d):
-                options = [[c for c in TABLE_ALPHABET if c != w[p]] for p in positions]
-                for subs in itertools.product(*options):
-                    s = list(w)
-                    for p, c in zip(positions, subs):
-                        s[p] = c
-                    key = "".join(s)
-                    hit = table.get(key)
-                    if hit is None or d < hit[0]:
-                        table[key] = (d, [w])
-                    elif d == hit[0]:
-                        hit[1].append(w)
+    for w in dict.fromkeys(s.upper() for s in wl_seqs):
+        for key, d in _neighbours(w, max_ed):
+            hit = table.get(key)
+            if hit is None or d < hit[0]:
+                table[key] = (d, [w])
+            elif d == hit[0] and hit[1][-1] != w:
+                hit[1].append(w)
     return table
 
-def best_matches(bc: str, table: Dict[str, Tuple[int, List[str]]], wl_seqs: List[str],
-                 max_ed: int = 2) -> Tuple[List[str], Optional[int]]:
-    """best_matches_all, answered from the match table where it covers the barcode."""
-    bc = bc.upper()
-    hit = table.get(bc)
-    if hit is not None:
-        return hit[1], hit[0]
-    if all(c in TABLE_ALPHABET for c in bc):
-        return [], None
-    return best_matches_all(bc, wl_seqs, max_ed=max_ed)
+def best_matches(bc: str, table: Dict[str, Tuple[int, List[str]]]) -> Tuple[List[str], Optional[int]]:
+    """(best_seqs, best_distance) for bc from the match table, or ([], None) without a match."""
+    hit = table.get(bc.upper())
+    return (hit[1], hit[0]) if hit is not None else ([], None)
 
 
 def fastq_pairs(fq1: str, fq2: str):
@@ -222,7 +251,7 @@ def process_fastq(
         if "N" in bc:
             stats["n_in_bc"] += 1
 
-        best_list, dist = best_matches(bc, table, wl_seqs, max_ed=max_ed)
+        best_list, dist = best_matches(bc, table)
         if not best_list:
             stats["unmatched"] += 1
             continue
@@ -254,11 +283,11 @@ def main():
     ap.add_argument("--fq2", help="Input R2 FASTQ, plain or gzipped; inferred from R1 if omitted.")
     ap.add_argument("--whitelist", required=True, help="CSV (bci,sequence,uid,well,stype).")
     ap.add_argument("--group", nargs=2, metavar=("SAMPLE", "WELLS"),
-                    help="Sample name and well range (same row), e.g., MYRUN A1-A6.")
+                    help="Sample name and wells, in Parse's notation: A1:C6 block, A1-B6 range in plate order, C4 single; joined by commas.")
     ap.add_argument("--output", required=True, help="Output directory.")
     ap.add_argument("--barcode_start", type=int, default=50, help="0-based start index in R2.")
     ap.add_argument("--barcode_end", type=int, default=58, help="Exclusive end index in R2.")
-    ap.add_argument("--max_edit_dist", type=int, default=2, choices=[0, 1, 2], help="Max Hamming distance (≤2).")
+    ap.add_argument("--max_edit_dist", type=int, default=2, choices=[0, 1, 2], help="Max edit (Levenshtein) distance (≤2).")
     ap.add_argument("--chemistry", choices=["v1", "v2", "v3"], help="Optional: auto-derive bc1 bounds for chemistry.")
     args = ap.parse_args()
 
@@ -313,7 +342,7 @@ def main():
     print(f"  - edit distance 1:         {stats.get('ed1', 0)}")
     print(f"  - edit distance 2:         {stats.get('ed2', 0)}")
     print(f"Unmatched:                   {stats['unmatched']}")
-    print(f"Barcodes with 'N':           {stats['n_in_bc']}\n")
+    print(f"Barcodes with 'N' (never matched): {stats['n_in_bc']}\n")
     print(f"Output R1: {out1}")
     print(f"Output R2: {out2}\n")
 
