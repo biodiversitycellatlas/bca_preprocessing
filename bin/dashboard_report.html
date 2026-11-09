@@ -2139,36 +2139,6 @@
                   </div>
                 </div>`;
 
-            // ── Run metadata ─────────────────────────────────────────────────
-            const paramLines = [];
-            if (E.mode) {
-                paramLines.push(E.mode === "auto"
-                    ? `Maximal extension length (<code>-m</code>/<code>--maxdist</code>) auto-estimated${E.auto_quantile != null
-                        ? ` as the ${Math.round(Number(E.auto_quantile) * 100)}th percentile of gene genomic span` : ""}.`
-                    : `Maximal extension length (<code>-m</code>/<code>--maxdist</code>) set by the user.`);
-            }
-            const GF = D.genome_fix || {};
-            if (GF.mRNA_to_transcript) paramLines.push("Input annotation fixed: <code>mRNA</code> features renamed to <code>transcript</code>.");
-            if (GF.gene_features_added) {
-                paramLines.push(`Input annotation fixed: ${geNum(GF.gene_features_added.n_genes_added)} missing <code>gene</code> features added.`);
-            }
-            if (GF.clip_5prime) {
-                paramLines.push(`5&prime; overlap clipping: ${geNum(GF.clip_5prime.n_events)} events across ${geNum(GF.clip_5prime.n_genes_clipped)} genes.`);
-            }
-            if (S.input_file) paramLines.push(`Input annotation: <code>${geEsc(S.input_file)}</code>`);
-            if (S.output_file) paramLines.push(`Extended annotation: <code>${geEsc(S.output_file)}</code>`);
-            if (S.run_date) paramLines.push(`Run: ${geEsc(S.run_date)}`);
-            if (D.report_file) paramLines.push(`Full GeneExt report, including the per-gene extension table: <code>gene_ext/${geEsc(D.report_file)}</code>`);
-
-            const metaHtml = (paramLines.length === 0 && !S.run_args) ? "" : `
-                <div class="ge-panel" style="margin-bottom:16px">
-                  <h4>Parameters and inputs</h4>
-                  <div class="ge-meta">
-                    ${paramLines.length ? `<ul>${paramLines.map(l => `<li>${l}</li>`).join("")}</ul>` : ""}
-                    ${S.run_args ? `<p style="margin-top:10px"><code>${geEsc(S.run_args)}</code></p>` : ""}
-                  </div>
-                </div>`;
-
             // ── Mapping statistics (only present with GeneExt's --estimate) ───
             let mappingHtml = "";
             if (Array.isArray(D.mapping_stats) && D.mapping_stats.length > 0) {
@@ -2241,8 +2211,6 @@
         </div>
 
         ${chartsHtml}
-
-        ${metaHtml}
 
         ${mappingHtml}
       `;
