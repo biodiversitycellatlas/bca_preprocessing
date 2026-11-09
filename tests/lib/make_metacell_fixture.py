@@ -155,6 +155,29 @@ def doublet_status():
     return ["doublet" if c < DOUBLETS[g] else "singlet" for _, g, c in cells()]
 
 
+# The tools' own calls behind the AnySinglet consensus: both call the consensus doublets,
+# and Scrublet alone also calls the last cell, which the consensus keeps
+def scdblfinder_call():
+    return doublet_status()
+
+
+def scrublet_call():
+    calls = doublet_status()
+    return calls[:-1] + ["doublet"]
+
+
+def doublet_callers():
+    return [int(a == "doublet") | 2 * int(b == "doublet") for a, b in zip(scrublet_call(), scdblfinder_call())]
+
+
+def scrublet_score():
+    return [round(0.01 * (i + 1), 4) for i in range(len(barcodes()))]
+
+
+def scdblfinder_score():
+    return [round(1 - 0.01 * (i + 1), 4) for i in range(len(barcodes()))]
+
+
 def alpha_hat():
     return [ALPHA[g] for g in groups()]
 
@@ -199,6 +222,22 @@ def expected_tau():
     peak = x.max(axis=0)
     return [float((1 - x[:, j] / peak[j]).sum() / (len(GROUPS) - 1)) if peak[j] > 0 else None
             for j in range(X.shape[1])]
+
+
+def expected_enrichment():
+    """Per real metacell, from the dense counts: the highest log2 fold change over the gene's
+    median metacell (fractions, eps 1e-5) of a non-mito gene with at least 5 UMIs in it, and
+    how many such genes are above log2 FC 1."""
+    X = counts()
+    sums = np.array([X[[i for i, g in enumerate(groups()) if g == grp]].sum(axis=0) for grp in GROUPS])
+    frac = sums / sums.sum(axis=1, keepdims=True)
+    score = np.log2((frac + 1e-5) / (np.median(frac, axis=0) + 1e-5))
+    eligible = (sums >= 5) & ~np.isin(GENE_IDS, MITO_GENES)
+    out = {}
+    for k, grp in enumerate(GROUPS):
+        s = score[k][eligible[k]]
+        out[grp] = (float(s.max()) if s.size else None, int((s > 1).sum()))
+    return out
 
 
 def doublet_barcodes():
@@ -320,11 +359,17 @@ def main(outdir):
     obs = pd.DataFrame(index=pd.Index(bcs))
     obs["sample_id"] = "S1"
     obs["doublet_status"] = pd.Categorical(doublet_status(), categories=["singlet", "doublet"])
+    obs["scrublet_call"] = pd.Categorical(scrublet_call(), categories=["singlet", "doublet"])
+    obs["scdblfinder_call"] = pd.Categorical(scdblfinder_call(), categories=["singlet", "doublet"])
+    obs["scrublet_score"] = scrublet_score()
+    obs["scdblfinder_score"] = scdblfinder_score()
     obs["mc_truth"] = groups()
-    ad.AnnData(X=sp.csr_matrix(X), obs=obs, var=var.copy()).write_h5ad(os.path.join(outdir, "cells.h5ad"))
+    ad.AnnData(X=sp.csr_matrix(X), obs=obs, var=var.copy(), uns={"doublet_method": "AnySinglet"}).write_h5ad(
+        os.path.join(outdir, "cells.h5ad"))
 
     # The same without doublet calls, for the 'absent' mode
-    ad.AnnData(X=sp.csr_matrix(X), obs=obs.drop(columns=["doublet_status"]), var=var.copy()).write_h5ad(
+    no_calls = ["doublet_status", "scrublet_call", "scdblfinder_call", "scrublet_score", "scdblfinder_score"]
+    ad.AnnData(X=sp.csr_matrix(X), obs=obs.drop(columns=no_calls), var=var.copy()).write_h5ad(
         os.path.join(outdir, "cells_nodoublets.h5ad"))
 
     # The raw object: called cells shuffled among empty droplets, CellSweep's results on it

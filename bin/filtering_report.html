@@ -28,6 +28,9 @@
             --series-blacklist: #4a3aa7;
             --series-pseudo: #898781;
             --threshold: #d03b3b;
+            /* What is selected (a domain, a gene): UI state, so the brand teal, darkened to stand
+               out on the data colours */
+            --select: #17695f;
             --grid: #e1e0d9;
 
             /* Running-total meters: the share included, red / yellow / green */
@@ -365,6 +368,12 @@
             gap: 16px;
         }
 
+        /* A row with one of its panels hidden: the other takes the row */
+        .grid-2.single,
+        .grid-3-1.single {
+            grid-template-columns: 1fr;
+        }
+
         @media (max-width: 900px) {
             .grid-2,
             .grid-3-1 {
@@ -615,6 +624,75 @@
             height: 230px;
         }
 
+        /* The QC plot's two metrics, each picked in its own threshold bar, as a cell card's */
+        .qc-axis select {
+            max-width: 200px;
+            padding: 3px 6px;
+            border: 1px solid var(--border);
+            border-radius: 6px;
+            font-size: 12px;
+            background: white;
+        }
+
+        .qc-axis .qc-pick {
+            font-weight: 600;
+        }
+
+        /* A row of buttons joined into one control, the chosen one filled */
+        .seg {
+            display: inline-flex;
+            flex-wrap: wrap;
+        }
+
+        .seg button {
+            padding: 3px 9px;
+            font-size: 12px;
+            border-radius: 0;
+            margin-left: -1px;
+            white-space: nowrap;
+        }
+
+        .seg button:first-child {
+            border-radius: 6px 0 0 6px;
+            margin-left: 0;
+        }
+
+        .seg button:last-child {
+            border-radius: 0 6px 6px 0;
+        }
+
+        .seg button:only-child {
+            border-radius: 6px;
+        }
+
+        /* The marker heatmap across the tab's width */
+        .plot.heat {
+            height: 560px;
+        }
+
+        /* The heatmap is an image of whole-pixel blocks: never smoothed into a blur */
+        .plot.heat image {
+            image-rendering: pixelated;
+        }
+
+        /* The marker heatmap's colour key: the DIVERGING scale, -3 to 3 */
+        .heat-key {
+            display: inline-flex;
+            align-items: center;
+            gap: 4px;
+            font-size: 11px;
+            color: var(--text-muted);
+        }
+
+        .heat-ramp {
+            display: inline-block;
+            width: 90px;
+            height: 9px;
+            border-radius: 2px;
+            background: linear-gradient(to right, #3a6ea5, #f7f7f5, #b8433a);
+            border: 1px solid var(--border);
+        }
+
         .panel-head select {
             padding: 3px 6px;
             border: 1px solid var(--border);
@@ -633,7 +711,7 @@
             margin: 0 4px;
         }
 
-        /* Gene ids and names in the gene table open the gene view */
+        /* Gene ids and names in the gene table open the gene's co-expression */
         button.gene-link {
             padding: 0;
             border: none;
@@ -650,16 +728,174 @@
             text-decoration: underline;
         }
 
-        .gv-grid {
+        /* The genes: domains, the top genes' co-expression, and the selected gene's correlations,
+           its curve over its co-expressed genes */
+        .gene-cols {
             display: grid;
-            grid-template-columns: 1fr 1fr;
-            gap: 10px;
+            grid-template-columns: 1fr 1.3fr 1fr;
+            gap: 16px;
         }
 
-        @media (max-width: 560px) {
-            .gv-grid {
+        .gene-cols.single {
+            grid-template-columns: 1.3fr 1fr;
+        }
+
+        @media (max-width: 1100px) {
+            .gene-cols,
+            .gene-cols.single {
                 grid-template-columns: 1fr;
             }
+        }
+
+        /* Each column a card; the selected gene's under a bar in the selection colour */
+        .gene-cols > .panel.card {
+            display: flex;
+            flex-direction: column;
+            background: var(--box-bg);
+            padding: 12px 14px;
+        }
+
+        /* The gene table's top co-expressed genes: on one line, as the other columns are */
+        #gene-table td.coexp {
+            white-space: nowrap;
+        }
+
+        /* The top genes' figure takes the height its card has left, as tall as the columns beside
+           it; the plot is out of the flow, so its own size never sets the row's */
+        .coexp-box {
+            position: relative;
+            flex: 1 1 auto;
+        }
+
+        .coexp-box > .plot {
+            position: absolute;
+            inset: 0;
+            height: auto;
+        }
+
+        /* The selected gene's heads (its name, the co-expressed genes) on the selection's tint,
+           their actions on the right */
+        .sel-head {
+            padding: 6px 10px;
+            border-radius: 6px;
+            background: rgba(35, 145, 132, 0.08);
+        }
+
+        .sel-head .sub-head {
+            margin: 0;
+        }
+
+        /* The co-expressed genes' band of r: its two boxes and the r between them, kept together */
+        .sel-head .band {
+            display: inline-flex;
+            align-items: center;
+            gap: 6px;
+            white-space: nowrap;
+        }
+
+        .nowrap {
+            white-space: nowrap;
+        }
+
+        .sel-head input[type=number] {
+            width: 64px;
+            padding: 3px 6px;
+        }
+
+        .step-num.small {
+            width: 20px;
+            height: 20px;
+            font-size: 11px;
+            padding-bottom: 1px;
+        }
+
+        /* The gene section's strip: the domain narrowing the genes, the gene open, and a finder */
+        .gene-nav {
+            display: flex;
+            flex-wrap: wrap;
+            align-items: center;
+            gap: 8px 10px;
+            padding: 8px 12px;
+            margin-bottom: 14px;
+            border: 1px solid rgba(35, 145, 132, 0.3);
+            border-radius: 8px;
+            background: rgba(35, 145, 132, 0.06);
+            font-size: 13px;
+        }
+
+        .nav-step {
+            display: inline-flex;
+            align-items: center;
+            gap: 6px;
+            font-weight: 600;
+        }
+
+        .nav-sep {
+            color: var(--text-muted);
+            font-size: 18px;
+            line-height: 1;
+        }
+
+        .gene-nav .push {
+            margin-left: auto;
+        }
+
+        .nav-find input[type=text] {
+            width: 300px;
+            max-width: 100%;
+        }
+
+        /* What is selected: outlined in the selection colour, as the selected bar in a plot is */
+        .chip {
+            display: inline-flex;
+            align-items: center;
+            gap: 6px;
+            padding: 2px 4px 2px 10px;
+            border: 2px solid var(--select);
+            border-radius: 999px;
+            background: white;
+            font-size: 12px;
+            font-weight: 600;
+            white-space: nowrap;
+        }
+
+        .chip .muted {
+            font-weight: 400;
+        }
+
+        .chip.none {
+            padding-right: 10px;
+            border: 1px dashed var(--border);
+            color: var(--text-muted);
+            font-weight: 400;
+        }
+
+        .chip button {
+            padding: 0 5px;
+            border: none;
+            background: none;
+            color: var(--text-muted);
+            font-size: 15px;
+            line-height: 1;
+            cursor: pointer;
+        }
+
+        .chip button:hover {
+            color: var(--text-dark);
+        }
+
+        .gene-title {
+            font-size: 16px !important;
+            color: var(--select);
+        }
+
+        .sub-head {
+            margin: 10px 0 0 0;
+            font-size: 13px;
+        }
+
+        .plot.curve {
+            height: 300px;
         }
 
         .control {
@@ -674,6 +910,11 @@
         .control input[type=number] {
             width: 90px;
             padding: 3px 6px;
+        }
+
+        /* An option of the plot beside its threshold (a log scale), on the bar's right */
+        .control .push {
+            margin-left: auto;
         }
 
         /* Buttons, as .plot-btn / the Cell Calling buttons of the dashboard */
@@ -1073,7 +1314,7 @@
                         gene levels apply.</div>
                     <div id="cells-body">
                         <div class="section-head first">
-                            <h3>QC thresholds</h3>
+                            <h3>Selection panel</h3>
                         </div>
                         <div class="grid-3">
                             <div class="panel">
@@ -1092,20 +1333,17 @@
                                 </div>
                                 <div class="plot" id="plot-cumi"></div>
                             </div>
-                            <div class="panel">
+                            <div class="panel" id="panel-cdoublet">
                                 <div class="panel-head">
-                                    <h4>Genes detected per cell</h4>
-                                    <span class="badge push" id="cgenes-count"></span>
+                                    <h4>Doublets</h4>
+                                    <span class="badge push" id="cdoublet-count"></span>
                                 </div>
-                                <div class="panel-sub">Genes with at least one UMI in the cell</div>
+                                <div class="panel-sub" id="cdoublet-sub">Cells each doublet caller called a doublet</div>
                                 <div class="control threshold-bar">
-                                    <label><input type="checkbox" id="cgeneslo-on"> Below</label>
-                                    <input type="number" id="cgeneslo-num" min="0" step="10" aria-label="minimum genes per cell">
-                                    <span class="sep">·</span>
-                                    <label><input type="checkbox" id="cgeneshi-on"> Above</label>
-                                    <input type="number" id="cgeneshi-num" min="0" step="100" aria-label="maximum genes per cell">
+                                    <label><input type="checkbox" id="cdoublet"> Exclude consensus doublets</label>
                                 </div>
-                                <div class="plot" id="plot-cgenes"></div>
+                                <div class="plot" id="plot-cdoublet"></div>
+                                <div class="plot-empty" id="cdoublet-note"></div>
                             </div>
                             <div class="panel">
                                 <div class="panel-head">
@@ -1149,7 +1387,7 @@
                             </div>
                             <div class="panel" id="panel-creads">
                                 <div class="panel-head">
-                                    <h4>Reads per cell</h4>
+                                    <h4>Sequencing depth and saturation</h4>
                                     <span class="badge push" id="creads-count"></span>
                                 </div>
                                 <div class="panel-sub" id="creads-sub">Reads counted into the matrix (STARsolo
@@ -1157,45 +1395,40 @@
                                 <div class="control threshold-bar">
                                     <label><input type="checkbox" id="creads-on"> Exclude below</label>
                                     <input type="number" id="creads-num" min="0" step="100" aria-label="minimum reads per cell">
+                                    <span>reads</span>
+                                    <label class="push" id="csat-log-label"><input type="checkbox" id="csat-log"> Log scale</label>
                                 </div>
-                                <div class="plot" id="plot-creads"></div>
+                                <div class="plot" id="plot-csat"></div>
                                 <div class="plot-empty" id="creads-note"></div>
                             </div>
                         </div>
 
                         <div class="section-head">
                             <h3>Cells</h3>
+                            <span class="muted">Left, a metric against each cell's UMIs; right, two metrics against
+                                each other. The dashed lines are the thresholds set above.</span>
                         </div>
                         <div class="grid-2">
                             <div class="panel plain">
                                 <div class="panel-head">
-                                    <h4>UMIs and genes detected</h4>
+                                    <h4 id="cxy-a-title">Cells</h4>
+                                    <span class="head-actions push">
+                                        <label class="muted" for="cxy-a">Show
+                                            <select id="cxy-a"></select></label>
+                                    </span>
                                 </div>
-                                <div class="panel-sub">Cells with few genes for their UMIs have low complexity: often mitochondrial, rRNA or ambient reads.</div>
-                                <div class="plot tall" id="plot-cscatter"></div>
+                                <div class="plot tall" id="plot-cxy-a"></div>
                             </div>
                             <div class="panel plain">
                                 <div class="panel-head">
-                                    <h4>Sequencing depth and saturation</h4>
+                                    <h4 id="cxy-b-title">Cells</h4>
+                                    <span class="head-actions push">
+                                        <label class="muted" for="cxy-b" id="cxy-b-label">Show
+                                            <select id="cxy-b"></select></label>
+                                    </span>
                                 </div>
-                                <div class="panel-sub">Saturation is 1 &minus; UMIs / reads: in the pale wedges each read
-                                    still finds a new molecule, in the dark ones more reads add few. Axes to the 99th
-                                    percentile.</div>
-                                <div class="plot tall" id="plot-csat"></div>
-                                <div class="plot-empty" id="csat-note"></div>
-                            </div>
-                        </div>
-
-                        <div class="section-head">
-                            <h3>Doublets</h3>
-                            <span class="muted">Cells the consensus of the doublet callers called a doublet.</span>
-                        </div>
-                        <div class="grid-2">
-                            <div class="panel plain">
-                                <label class="group-toggle" id="cdoublet-row"><input type="checkbox" id="cdoublet">
-                                    <span>Exclude cells called doublets</span>
-                                    <span class="muted push" id="cdoublet-n"></span></label>
-                                <div class="muted" id="cdoublet-note"></div>
+                                <div class="plot tall" id="plot-cxy-b"></div>
+                                <div class="plot-empty" id="cxy-b-note"></div>
                             </div>
                         </div>
                     </div>
@@ -1207,103 +1440,61 @@
                         <h3>QC thresholds</h3>
                     </div>
                     <div class="citation-box" id="mc-basis"></div>
-                    <div class="grid-3">
-                        <div class="panel" id="panel-mito">
+                    <div class="grid-2 qc-row" id="qc-row">
+                        <div class="panel" id="panel-qc">
                             <div class="panel-head">
-                                <h4>Mitochondrial UMIs</h4>
-                                <span class="badge push" id="mito-count"></span>
+                                <h4>QC metrics per metacell</h4>
                             </div>
-                            <div class="panel-sub">% of each metacell's UMIs</div>
-                            <div class="control threshold-bar">
-                                <label><input type="checkbox" id="mito-on"> Exclude above</label>
-                                <input type="number" id="mito-num" min="0" max="100" step="0.5" aria-label="mito threshold (%)">
-                                <span>%</span>
+                            <div class="panel-sub">Pick the two metrics to plot; switch a threshold on to exclude the
+                                metacells beyond it, and drag its dashed line. Click a metacell to blacklist it or take
+                                it off again; lasso to blacklist several.</div>
+                            <div class="control threshold-bar qc-axis">
+                                <label class="qc-pick" for="qc-x">X <select id="qc-x"></select></label>
+                                <label><input type="checkbox" id="qcx-on"> <span id="qcx-dir">Exclude below</span></label>
+                                <input type="number" id="qcx-num" min="0" aria-label="x metric threshold">
+                                <span id="qcx-unit"></span>
+                                <span class="badge push" id="qcx-count"></span>
                             </div>
-                            <div class="plot" id="plot-mito"></div>
+                            <div class="control threshold-bar qc-axis">
+                                <label class="qc-pick" for="qc-y">Y <select id="qc-y"></select></label>
+                                <label><input type="checkbox" id="qcy-on"> <span id="qcy-dir">Exclude below</span></label>
+                                <input type="number" id="qcy-num" min="0" aria-label="y metric threshold">
+                                <span id="qcy-unit"></span>
+                                <span class="badge push" id="qcy-count"></span>
+                            </div>
+                            <div class="panel-sub" id="qc-others"></div>
+                            <div class="plot tall" id="plot-qc"></div>
                         </div>
-                        <div class="panel" id="panel-rrna">
+                        <div class="panel" id="umap-view">
                             <div class="panel-head">
-                                <h4>rRNA UMIs</h4>
-                                <span class="badge push" id="rrna-count"></span>
-                            </div>
-                            <div class="panel-sub">% of each metacell's UMIs, on genes flagged rRNA</div>
-                            <div class="control threshold-bar">
-                                <label><input type="checkbox" id="rrna-on"> Exclude above</label>
-                                <input type="number" id="rrna-num" min="0" max="100" step="0.5" aria-label="rRNA threshold (%)">
-                                <span>%</span>
-                            </div>
-                            <div class="plot" id="plot-rrna"></div>
-                            <div class="plot-empty" id="rrna-note"></div>
-                        </div>
-                        <div class="panel" id="panel-doublet">
-                            <div class="panel-head">
-                                <h4>Consensus doublets</h4>
-                                <span class="badge push" id="doublet-count"></span>
-                            </div>
-                            <div class="panel-sub">% of each metacell's cells</div>
-                            <div class="control threshold-bar">
-                                <label><input type="checkbox" id="doublet-on"> Exclude above</label>
-                                <input type="number" id="doublet-num" min="0" max="100" step="1" aria-label="doublet threshold (%)">
-                                <span>%</span>
-                            </div>
-                            <div class="plot" id="plot-doublet"></div>
-                            <div class="plot-empty" id="doublet-note"></div>
-                        </div>
-                        <div class="panel" id="panel-ambient">
-                            <div class="panel-head">
-                                <h4>Ambient RNA fraction</h4>
-                                <span class="badge push" id="alpha-count"></span>
-                            </div>
-                            <div class="panel-sub">mean CellSweep &alpha; of each metacell's cells</div>
-                            <div class="control threshold-bar">
-                                <label><input type="checkbox" id="alpha-on"> Exclude above</label>
-                                <input type="number" id="alpha-num" min="0" max="1" step="0.01" aria-label="ambient threshold">
-                            </div>
-                            <div class="plot" id="plot-alpha"></div>
-                            <div class="plot-empty" id="alpha-note"></div>
-                        </div>
-                        <div class="panel" id="panel-size">
-                            <div class="panel-head">
-                                <h4>Metacell size</h4>
-                                <span class="badge push" id="size-count"></span>
-                            </div>
-                            <div class="panel-sub">Cells in each metacell after the cell level</div>
-                            <div class="control threshold-bar">
-                                <label><input type="checkbox" id="size-on"> Exclude below</label>
-                                <input type="number" id="size-num" min="0" step="1" aria-label="minimum cells per metacell">
-                                <span>cells</span>
-                            </div>
-                            <div class="plot" id="plot-size"></div>
-                        </div>
-                    </div>
-
-                    <div class="section-head">
-                        <h3>Metacells</h3>
-                    </div>
-                    <div class="grid-2">
-                        <div class="panel plain">
-                            <div class="panel-head">
-                                <h4 id="scatter-title">Metacells</h4>
+                                <h4>Metacell2 UMAP</h4>
                                 <span class="head-actions push">
-                                    <label class="muted" for="mc-colour">Colour by
-                                        <select id="mc-colour"></select></label>
+                                    <span class="muted">Colour by</span>
+                                    <span class="seg" id="mc-colour" role="group" aria-label="colour the UMAP by"></span>
                                 </span>
                             </div>
                             <div class="panel-sub">Click a metacell to blacklist it or take it off again; lasso to
                                 blacklist several.</div>
                             <div class="plot tall" id="plot-scatter"></div>
                         </div>
-                        <div class="panel plain" id="panel-heatmap">
-                            <div class="panel-head">
-                                <h4>Marker genes</h4>
-                                <span class="muted push" id="heatmap-n"></span>
-                            </div>
-                            <div class="panel-sub">Click a gene's row to colour the UMAP on the left by it; click the
-                                status strip on top to blacklist a metacell. log2 enrichment over the median
-                                metacell.</div>
-                            <div class="plot tall" id="plot-heatmap"></div>
-                            <div class="plot-empty" id="heatmap-note"></div>
+                    </div>
+
+                    <div class="section-head">
+                        <h3>Metacells</h3>
+                    </div>
+                    <div class="panel plain" id="panel-heatmap">
+                        <div class="panel-head">
+                            <h4>Marker genes</h4>
+                            <span class="muted" id="heatmap-n"></span>
+                            <span class="heat-key push" aria-label="log2 enrichment, -3 to 3">
+                                log2 enrichment <span>−3</span><span class="heat-ramp"></span><span>+3</span>
+                            </span>
                         </div>
+                        <div class="panel-sub">log2 enrichment of each metacell's markers over the median metacell,
+                            metacells in Metacell2's order. Click the status strip on top to blacklist a metacell; a
+                            marker in the table colours the UMAP by it.</div>
+                        <div class="plot heat" id="plot-heatmap"></div>
+                        <div class="plot-empty" id="heatmap-note"></div>
                     </div>
 
                     <div class="panel plain" style="margin-top:24px">
@@ -1320,8 +1511,9 @@
                         <div class="table-scroll list-table" style="margin-top:8px"><table id="mc-table"></table></div>
                         <div class="panel-sub" style="margin-top:6px">Click a column header to sort, a marker to
                             colour the UMAP by it; tick a row to blacklist it. Numbers are over the cells the cell
-                            level keeps; log2 FC is the metacell's strongest marker over the median metacell (all
-                            cells): low means no distinct expression programme.</div>
+                            level keeps, except the fold changes (all cells): max log2 FC is the metacell's most
+                            enriched gene over the median metacell, and low values, or few genes above log2 FC 1,
+                            mean no distinct expression programme.</div>
                     </div>
                 </div>
 
@@ -1330,7 +1522,7 @@
                     <div class="section-head first">
                         <h3>QC thresholds</h3>
                     </div>
-                    <div class="grid-3-1">
+                    <div class="grid-3-1" id="gene-qc-row">
                         <div class="panel">
                             <div class="panel-head">
                                 <h4>Total UMIs per gene</h4>
@@ -1350,95 +1542,106 @@
                                 <div class="plot" id="plot-genehist"></div>
                             </div>
                         </div>
-                        <div class="panel">
+                        <div class="panel" id="panel-ambient-genes">
                             <div class="panel-head">
-                                <h4>Cells per gene</h4>
-                                <span class="badge push" id="mincells-count"></span>
+                                <h4>Ambient genes</h4>
+                                <span class="badge push" id="ambient-genes-n"></span>
                             </div>
-                            <div class="panel-sub">Called cells with at least one UMI of the gene.</div>
+                            <div class="panel-sub">Genes CellSweep finds mostly in the ambient RNA of empty droplets.</div>
                             <div class="control threshold-bar">
-                                <label for="mincells-num">Exclude genes in fewer than</label>
-                                <input type="number" id="mincells-num" min="0" step="1" placeholder="off">
-                                <span>cells</span>
+                                <label><input type="checkbox" id="gene-ambient-on">
+                                    Exclude genes with an ambient share above</label>
+                                <input type="number" id="gene-ambient-num" min="0" max="1" step="0.0005" style="width:90px"
+                                       aria-label="ambient share threshold">
                             </div>
-                            <div class="plot" id="plot-genecells"></div>
+                            <div class="plot" id="plot-geneambient"></div>
                         </div>
                     </div>
 
                     <div class="section-head">
                         <h3>Genes</h3>
                     </div>
-                    <div class="panel plain" id="pfam-views">
-                        <div class="panel-head">
-                            <h4>Protein domains (PFAM)</h4>
-                            <span class="badge blacklist push" id="pfam-count"></span>
-                        </div>
-                        <div class="panel-head">
-                            <div class="panel-sub" style="margin:0">Click a domain to list its genes below; excluding a
-                                domain excludes every gene that carries it.</div>
-                            <span class="head-actions push">
-                                <input type="text" id="pfam-search" style="width:470px"
-                                       placeholder="Filter by domain name or regular expression (e.g. ^Ribosomal)"
-                                       aria-label="filter by domain name or regular expression">
-                                <button class="hidden" id="pfam-add">Exclude matching</button>
-                                <span class="muted" id="dom-selected"></span>
-                                <button class="hidden" id="dom-toggle">Exclude domain</button>
-                                <button class="hidden" id="dom-clear">Deselect</button>
-                            </span>
-                        </div>
-                        <div class="muted" id="pfam-search-msg" style="text-align:right"></div>
-                        <div style="margin-top:6px">
-                            <div class="plot-scroll" style="max-height:420px"><div class="plot" id="plot-domains"></div></div>
-                            <div class="plot-axis" id="axis-domains"></div>
-                        </div>
-                    </div>
                     <div class="plot-empty hidden" id="pfam-missing">No domain annotation was given (gene_annotation),
                         so genes cannot be filtered by domain.</div>
-
-                    <div class="grid-2" style="margin-top:24px">
-                        <div class="panel plain">
+                    <!-- Where the user is: the domain narrowing the genes, the gene open on the right -->
+                    <div class="gene-nav" id="gene-nav">
+                        <span class="nav-step" id="nav-step-domain"><span class="step-num small">1</span>Domain</span>
+                        <span class="chip" id="nav-domain"></span>
+                        <span class="nav-sep" id="nav-sep-domain" aria-hidden="true">&rsaquo;</span>
+                        <span class="nav-step"><span class="step-num small" id="nav-num-gene">2</span>Gene</span>
+                        <span class="chip" id="nav-gene"></span>
+                        <span class="push nav-find">
+                            <input type="text" id="gene-pick" list="gene-pick-list" placeholder="Show a gene by name or ID"
+                                   aria-label="show a gene by name or ID">
+                            <datalist id="gene-pick-list"></datalist>
+                        </span>
+                    </div>
+                    <div class="gene-cols" id="genes-row">
+                        <div class="panel card" id="pfam-views">
                             <div class="panel-head">
-                                <h4 id="top-title">Top genes</h4>
-                                <span class="muted push" id="top-note"></span>
+                                <h4>Protein domains (PFAM)</h4>
+                                <span class="badge blacklist push" id="pfam-count"></span>
                             </div>
-                            <div class="panel-sub">Share of this sample's UMIs; click a bar to open the gene on the
-                                right.</div>
-                            <div class="plot-scroll fill"><div class="fill-inner"><div class="plot" id="plot-topgenes"></div></div></div>
-                            <div class="plot-axis" id="axis-topgenes"></div>
+                            <div class="panel-sub">Click a domain to list only its genes; excluding a domain drops
+                                every gene that carries it.</div>
+                            <div class="control">
+                                <input type="text" id="pfam-search" style="flex:1 1 220px;min-width:0"
+                                       placeholder="Filter by name or regular expression (e.g. ^Ribosomal)"
+                                       aria-label="filter by domain name or regular expression">
+                                <button class="hidden" id="pfam-add">Exclude matching</button>
+                            </div>
+                            <div class="muted" id="pfam-search-msg"></div>
+                            <div class="plot-scroll fill"><div class="fill-inner"><div class="plot" id="plot-domains"></div></div></div>
+                            <div class="plot-axis" id="axis-domains"></div>
                         </div>
-                        <div class="panel plain">
-                            <div class="panel-head">
-                                <h4 id="gv-title">Gene view</h4>
+                        <div class="panel card">
+                            <div class="panel-head sel-head hidden" id="dom-head">
+                                <h4 class="gene-title" id="dom-name"></h4>
+                                <span class="muted" id="dom-genes"></span>
                                 <span class="head-actions push">
-                                    <span class="badge" id="gv-status"></span>
-                                    <button id="gv-black">Blacklist gene</button>
+                                    <span class="badge" id="dom-status"></span>
+                                    <button id="dom-toggle">Blacklist domain</button>
                                 </span>
                             </div>
-                            <div class="panel-sub">Specificity &tau;: 0 for a gene expressed equally in every
-                                metacell (ambient, housekeeping), 1 for one in a single metacell (a marker). CP10k: the
-                                gene's UMIs per 10,000 UMIs of the metacell, so metacells of any size compare.</div>
-                            <div class="table-scroll kv-wrap"><table class="kv" id="gv-table"></table></div>
-                            <div class="gv-grid" style="margin-top:8px">
-                                <div class="plot short" id="plot-gvmap"></div>
-                                <div class="plot short" id="plot-gvbar"></div>
-                            </div>
-                            <div class="plot-empty" id="gv-note"></div>
-                        </div>
-                    </div>
-
-                    <div class="grid-2" style="margin-top:24px">
-                        <div class="panel plain" id="panel-ambient-genes">
                             <div class="panel-head">
-                                <h4>Ambient genes</h4>
+                                <h4 id="coexp-title">Top genes</h4>
                             </div>
-                            <div class="panel-sub">Genes CellSweep finds mostly in the ambient RNA of empty droplets.</div>
-                            <div class="group-toggle" id="ambient-row">
-                                <label><input type="checkbox" id="gene-ambient-on">
-                                    <span>Exclude ambient genes: CellSweep ambient share above</span></label>
-                                <input type="number" id="gene-ambient-num" min="0" max="1" step="0.0005" style="width:90px"
-                                       aria-label="ambient share threshold">
-                                <span class="muted push" id="ambient-genes-n"></span>
+                            <div class="panel-sub" id="coexp-sub">Bars: share of UMIs. Heatmap: Pearson r across
+                                metacells, clustered, so red blocks are co-expressed genes. Click either to open a gene.</div>
+                            <div class="coexp-box" id="coexp-box"><div class="plot" id="plot-coexp"></div></div>
+                            <div class="panel-sub" id="coexp-note" style="margin-top:6px"></div>
+                        </div>
+                        <div class="panel card">
+                            <div class="panel-head sel-head">
+                                <h4 class="gene-title" id="curve-title"></h4>
+                                <span class="muted" id="gene-id"></span>
+                                <span class="head-actions push">
+                                    <span class="badge" id="corr-status"></span>
+                                    <button id="corr-black">Blacklist gene</button>
+                                </span>
                             </div>
+                            <h5 class="sub-head">Correlation curve across all domains</h5>
+                            <div class="panel-sub">Every profiled gene ranked by r with this one (log scale). A plateau
+                                before the drop marks a module. Drag the dashed lines to set the band of r.</div>
+                            <div class="plot curve" id="plot-curve"></div>
+                            <div class="plot-empty" id="corr-empty"></div>
+                            <hr>
+                            <div class="panel-head sel-head" id="corr-controls">
+                                <span class="band">
+                                    <input type="number" id="corr-max" min="-1" max="1" step="0.05" aria-label="highest r">
+                                    <label for="corr-min">&ge; r &ge;</label>
+                                    <input type="number" id="corr-min" min="-1" max="1" step="0.05" aria-label="lowest r">
+                                </span>
+                                <button class="hidden push" id="corr-black-module">Blacklist genes</button>
+                            </div>
+                            <h5 class="sub-head" id="corr-title">Most co-expressed genes</h5>
+                            <div class="panel-sub">Genes that rise and fall with it: a cell type's programme, the mito or
+                                ribosomal genes, a stress or ambient signature: the genes in the band of r, set above or
+                                by dragging the dashed lines (below 0, the genes that fall as it rises). Click a bar to
+                                open that gene.
+                                <span id="corr-note"></span></div>
+                            <div class="plot-scroll fill" id="corr-scroll"><div class="fill-inner"><div class="plot" id="plot-corr"></div></div></div>
+                            <div class="plot-axis" id="axis-corr"></div>
                         </div>
                     </div>
 
@@ -1458,8 +1661,10 @@
                         <div class="table-scroll list-table" style="margin-top:8px"><table id="gene-table"></table></div>
                         <div class="panel-sub" style="margin-top:6px">Search with text or a regular expression (e.g.
                             <code>^mt-</code> for mitochondrial genes); "Blacklist matching" blacklists the kept genes it
-                            matches. Click a column header to sort, a gene to open it in the gene view; tick a row to
-                            blacklist it. "Clear blacklist" unticks every gene and domain.</div>
+                            matches. Click a column header to sort, a gene to see what it is co-expressed with; tick a
+                            row to blacklist it. A gene an excluded domain carries is ticked through the domain: untick
+                            it to keep that gene while the domain's others go. "Clear blacklist" unticks every gene and
+                            domain.</div>
                     </div>
                 </div>
 
@@ -1549,12 +1754,17 @@
         blacklist: "#4a3aa7",
         pseudo: "#898781",
         threshold: "#d03b3b",
+        selected: "#17695f",
         grid: "#e1e0d9",
     };
     // Continuous values (colour-by, gene expression): light to dark in the kept hue
     const SEQUENTIAL = [[0, "#dbe9fb"], [0.5, "#2a78d6"], [1, "#0b2f5c"]];
     // Enrichment, below and above the mean
     const DIVERGING = [[0, "#3a6ea5"], [0.5, "#f7f7f5"], [1, "#b8433a"]];
+    // Correlation, -1 to 1: the same poles through a yellow midpoint, as RdYlBu, so r = 0 stands
+    // off the white plot and a blank square (a gene without a profile) reads as none. The light
+    // blue and orange steps keep RGB blending from muddying the arms on the way to yellow.
+    const CORRELATION = [[0, "#3a6ea5"], [0.25, "#9cc3de"], [0.5, "#fcf3c4"], [0.75, "#ec9a5c"], [1, "#b8433a"]];
 
     // Exclusion reasons: colour says kept / excluded / blacklisted, the marker says why. The cell
     // and metacell levels give one metric the same marker.
@@ -1563,6 +1773,9 @@
         rrna:         { label: "high rRNA %",      color: COLORS.excluded,  symbol: "hexagon" },
         doublet:      { label: "high doublet %",   color: COLORS.excluded,  symbol: "diamond" },
         ambient:      { label: "high ambient",     color: COLORS.excluded,  symbol: "square" },
+        low_umis:     { label: "low median UMIs",  color: COLORS.excluded,  symbol: "star" },
+        low_fc:       { label: "low max log2 FC",  color: COLORS.excluded,  symbol: "pentagon" },
+        few_fc_genes: { label: "few enriched genes", color: COLORS.excluded, symbol: "cross" },
         small:        { label: "few cells",        color: COLORS.excluded,  symbol: "triangle-down" },
         no_cells:     { label: "no cells left",    color: COLORS.excluded,  symbol: "triangle-down" },
         blacklist:    { label: "blacklisted",      color: COLORS.blacklist, symbol: "x" },
@@ -1576,8 +1789,6 @@
     const CELL_REASONS = {
         umis_low:    { label: "few UMIs",         color: COLORS.excluded,  symbol: "star" },
         umis_high:    { label: "many UMIs",        color: COLORS.excluded,  symbol: "star" },
-        genes_low:    { label: "few genes",        color: COLORS.excluded,  symbol: "pentagon" },
-        genes_high:   { label: "many genes",       color: COLORS.excluded,  symbol: "pentagon" },
         mito:         { label: "high mito %",      color: COLORS.excluded,  symbol: "triangle-up" },
         rrna:         { label: "high rRNA %",      color: COLORS.excluded,  symbol: "hexagon" },
         ambient:      { label: "high ambient",     color: COLORS.excluded,  symbol: "square" },
@@ -1588,6 +1799,9 @@
     const CELL_BIT = Object.fromEntries(CELL_REASON_KEYS.map((k, i) => [k, 1 << i]));
 
     const PLOT_CONFIG = { responsive: true, displaylogo: false };
+    // A threshold's plot (a cell card, a gene histogram): no toolbar, as it neither zooms nor
+    // selects; its dashed lines drag
+    const THRESHOLD_CONFIG = Object.assign({}, PLOT_CONFIG, { displayModeBar: false, edits: { shapePosition: true } });
     const PLOT_LAYOUT = {
         margin: { l: 55, r: 15, t: 10, b: 50 },
         paper_bgcolor: "white",
@@ -1656,6 +1870,13 @@
         return base;
     }
 
+    // Clear a plot. Plotly drops its event listeners with it, so the plot binds them again the
+    // next time it is drawn (each binds once, behind _bound)
+    function purgePlot(el) {
+        Plotly.purge(el);
+        el._bound = false;
+    }
+
     function vline(x) {
         return { type: "line", x0: x, x1: x, yref: "paper", y0: 0, y1: 1,
                  line: { color: COLORS.threshold, width: 2, dash: "dash" } };
@@ -1719,7 +1940,6 @@
     const GENE_REASONS = {
         min_umi:   { label: "below min. UMIs", color: COLORS.excluded,  symbol: "circle" },
         max_umi:   { label: "above max. UMIs", color: COLORS.excluded,  symbol: "star" },
-        min_cells: { label: "in few cells",    color: COLORS.excluded,  symbol: "triangle-down" },
         ambient:   { label: "ambient",         color: COLORS.excluded,  symbol: "square" },
         pfam:      { label: "domain",          color: COLORS.blacklist, symbol: "diamond" },
         manual:    { label: "blacklisted",     color: COLORS.blacklist, symbol: "x" },
@@ -1779,6 +1999,9 @@
             maxDoublet: s.doublet_mode === "annotated" ? defaults.max_doublet_pct : null,
             maxAlpha: s.ambient_available ? defaults.max_alpha_hat : null,
             minCells: null,
+            minMedianUmis: null,
+            minMaxLfc: null,
+            minFcGenes: null,
             blacklist: new Set(PSEUDO_GROUPS.filter(id => s.metacells.id.includes(id))),
             genes: defaultGeneState(),
             // A sample without per-cell data has no cell level to set
@@ -1789,7 +2012,7 @@
     // The per-cell rules; null is off. They start off: the pipeline has no defaults for them.
     function defaultCellState() {
         return {
-            minUmis: null, maxUmis: null, minGenes: null, maxGenes: null,
+            minUmis: null, maxUmis: null,
             maxMito: null, maxRrna: null, maxAlpha: null, minReads: null,
             excludeDoublets: false,
         };
@@ -1799,9 +2022,9 @@
     function defaultGeneState() {
         return {
             minUmis: defaults.min_gene_umis == null ? 0 : defaults.min_gene_umis,
-            minCells: 0,
             maxUmis: null,
             pfam: new Set(),       // domain names
+            pfamKeep: new Set(),   // ids of genes kept although an excluded domain carries them
             manual: "",
             maxAmbient: null,
         };
@@ -1825,17 +2048,17 @@
     // fingerprints, so a report of a regrouped run never picks up stale choices, and on the
     // layout of the saved state, so choices saved by an earlier report are left alone rather than
     // half read (bump STATE_VERSION whenever that layout changes).
-    const STATE_VERSION = 4;
+    const STATE_VERSION = 5;
     const STORAGE_KEY = `bca_mc_filter:v${STATE_VERSION}:` + okSamples.map(s => s.fingerprint).join("|").slice(0, 400);
-    const SAMPLE_KEYS = ["maxMito", "maxRrna", "maxDoublet", "maxAlpha", "minCells",
-                         "_last_maxMito", "_last_maxRrna", "_last_maxDoublet", "_last_maxAlpha", "_last_minCells"];
+    const MC_RULE_KEYS = ["maxMito", "maxRrna", "maxDoublet", "maxAlpha", "minCells", "minMedianUmis", "minMaxLfc", "minFcGenes"];
+    const SAMPLE_KEYS = MC_RULE_KEYS.concat(MC_RULE_KEYS.map(k => "_last_" + k));
 
     function serialiseState() {
         const per = {};
         for (const [id, st] of Object.entries(state.perSample)) {
             per[id] = Object.assign({}, st, {
                 blacklist: [...st.blacklist],
-                genes: Object.assign({}, st.genes, { pfam: [...st.genes.pfam] }),
+                genes: Object.assign({}, st.genes, { pfam: [...st.genes.pfam], pfamKeep: [...st.genes.pfamKeep] }),
             });
         }
         return JSON.stringify({ perSample: per });
@@ -1851,9 +2074,9 @@
     function restoreGenes(target, saved, s) {
         Object.assign(target, {
             minUmis: Number(saved.minUmis) || 0,
-            minCells: Number(saved.minCells) || 0,
             maxUmis: num(saved.maxUmis),
             pfam: new Set(saved.pfam || []),
+            pfamKeep: new Set(saved.pfamKeep || []),
             manual: saved.manual || "",
             maxAmbient: num(saved.maxAmbient),
         });
@@ -1926,6 +2149,9 @@
         return {
             doublets: s.doublet_mode === "annotated",
             alpha: s.ambient_available && s.metacells.alpha_hat_mean.some(v => v != null),
+            // The strongest marker stands in for the max fold change of an earlier summary
+            fc: maxLfc(s).some(v => v != null),
+            fcGenes: (s.metacells.n_genes_lfc1 || []).some(v => v != null),
             cells: !!C,
             cellAlpha: !!(C && C.alpha),
             cellReads: !!(C && C.reads),
@@ -1955,9 +2181,11 @@
         for (const s of others) {
             const st = state.perSample[s.id];
             const c = capabilities(s);
-            copyKeys(st, src, ["maxMito", "maxRrna", "minCells"]);
+            copyKeys(st, src, ["maxMito", "maxRrna", "minCells", "minMedianUmis"]);
             if (f.doublets && c.doublets) copyKeys(st, src, ["maxDoublet"]);
             if (f.alpha && c.alpha) copyKeys(st, src, ["maxAlpha"]);
+            if (f.fc && c.fc) copyKeys(st, src, ["minMaxLfc"]);
+            if (f.fcGenes && c.fcGenes) copyKeys(st, src, ["minFcGenes"]);
             // The pseudo-groups are the same two in every sample, so whether they are blacklisted
             // copies; a sample's own metacells stay as they are
             for (const id of PSEUDO_GROUPS) {
@@ -1965,12 +2193,13 @@
                 if (src.blacklist.has(id)) st.blacklist.add(id); else st.blacklist.delete(id);
             }
             if (f.cells && c.cells) {
-                copyKeys(st.cells, src.cells, ["minUmis", "maxUmis", "minGenes", "maxGenes", "maxMito", "maxRrna"]);
+                copyKeys(st.cells, src.cells, ["minUmis", "maxUmis", "maxMito", "maxRrna"]);
                 if (f.cellAlpha && c.cellAlpha) copyKeys(st.cells, src.cells, ["maxAlpha"]);
                 if (f.cellReads && c.cellReads) copyKeys(st.cells, src.cells, ["minReads"]);
                 if (f.cellDoublets && c.cellDoublets) st.cells.excludeDoublets = src.cells.excludeDoublets;
             }
-            Object.assign(st.genes, { minUmis: src.genes.minUmis, maxUmis: src.genes.maxUmis, minCells: src.genes.minCells,
+            // The genes kept despite a domain are this sample's own, as its blacklist is
+            Object.assign(st.genes, { minUmis: src.genes.minUmis, maxUmis: src.genes.maxUmis,
                                       pfam: new Set(src.genes.pfam) });
             if (f.ambientGenes && c.ambientGenes) copyKeys(st.genes, src.genes, ["maxAmbient"]);
             st.set = { cells: true, metacells: true, genes: true };
@@ -2004,8 +2233,8 @@
             const start = (v, q) => Math.round(quantile(v, q) || 0);
             _derived.set(s.id, {
                 mito, rrna, medUmis: median(C.umis), medGenes: median(C.n_genes),
-                start: { minUmis: start(C.umis, 0.02), maxUmis: start(C.umis, 0.995), minGenes: start(C.n_genes, 0.02),
-                         maxGenes: start(C.n_genes, 0.995), minReads: C.reads ? start(C.reads, 0.02) : 0 },
+                start: { minUmis: start(C.umis, 0.02), maxUmis: start(C.umis, 0.995),
+                         minReads: C.reads ? start(C.reads, 0.02) : 0 },
             });
         }
         return _derived.get(s.id);
@@ -2029,11 +2258,9 @@
         let nKept = 0, keptUmis = 0, totalUmis = 0;
         for (let i = 0; i < n; i++) {
             let b = 0;
-            const u = C.umis[i] || 0, g = C.n_genes[i];
+            const u = C.umis[i] || 0;
             if (r.minUmis != null && u < r.minUmis) b |= B.umis_low;
             if (r.maxUmis != null && u > r.maxUmis) b |= B.umis_high;
-            if (r.minGenes != null && g < r.minGenes) b |= B.genes_low;
-            if (r.maxGenes != null && g > r.maxGenes) b |= B.genes_high;
             if (r.maxMito != null && mito[i] > r.maxMito) b |= B.mito;
             if (r.maxRrna != null && rrna[i] > r.maxRrna) b |= B.rrna;
             if (r.maxAlpha != null && C.alpha && C.alpha[i] != null && C.alpha[i] > r.maxAlpha) b |= B.ambient;
@@ -2060,14 +2287,16 @@
     /*
      * Each metacell's numbers over the cells the cell level keeps: Metacell2's grouping stays as it
      * is, only the per-cell numbers are summed again. Without per-cell data, the numbers the
-     * summary stored, over all cells.
+     * summary stored, over all cells. The fold changes are over all cells either way: the
+     * report has no gene counts per cell to sum again.
      */
     function metacellStats(s, cc) {
         const m = s.metacells;
+        const fc = { max_lfc: maxLfc(s), n_genes_lfc1: m.n_genes_lfc1 || m.id.map(() => null) };
         if (!cc) {
-            return { n_cells: m.n_cells, umis: m.umis, mito_pct: m.mito_pct, rrna_pct: m.rrna_pct,
+            return Object.assign({ n_cells: m.n_cells, umis: m.umis, mito_pct: m.mito_pct, rrna_pct: m.rrna_pct,
                      n_doublets: m.n_doublets, doublet_pct: m.doublet_pct, alpha_hat_mean: m.alpha_hat_mean,
-                     median_cell_mito_pct: m.median_cell_mito_pct, median_umis: m.median_umis };
+                     median_cell_mito_pct: m.median_cell_mito_pct, median_umis: m.median_umis }, fc);
         }
         if (cc._stats) return cc._stats;
 
@@ -2102,6 +2331,7 @@
             alpha_hat_mean: aN.map((k, g) => k ? aSum[g] / k : null),
             median_cell_mito_pct: cellMito.map(v => v.length ? median(v) : null),
             median_umis: cellUmis.map(v => v.length ? median(v) : null),
+            ...fc,
         };
         return cc._stats;
     }
@@ -2130,6 +2360,10 @@
                     if (st.maxDoublet != null && s.doublet_mode === "annotated" && ms.doublet_pct[i] != null &&
                         ms.doublet_pct[i] > st.maxDoublet) r.push("doublet");
                     if (st.maxAlpha != null && ms.alpha_hat_mean[i] != null && ms.alpha_hat_mean[i] > st.maxAlpha) r.push("ambient");
+                    const below = (t, v) => t != null && v != null && v < t;
+                    if (below(st.minMedianUmis, ms.median_umis[i])) r.push("low_umis");
+                    if (below(st.minMaxLfc, ms.max_lfc[i])) r.push("low_fc");
+                    if (below(st.minFcGenes, ms.n_genes_lfc1[i])) r.push("few_fc_genes");
                     if (st.minCells != null && ms.n_cells[i] < st.minCells) r.push("small");
                 }
             }
@@ -2180,24 +2414,27 @@
         }
 
         const reasons = new Array(n);
+        // waived[j]: the excluded domain gene j carries, when the gene is kept despite it
+        const waived = new Array(n).fill(null);
         let nExcluded = 0, umisExcluded = 0, umisTotal = 0;
         for (let j = 0; j < n; j++) {
             const r = [];
             const total = G.total_umi[j] || 0;
             if (gs.minUmis > 0 && total < gs.minUmis) r.push("min_umi");
             if (gs.maxUmis != null && total > gs.maxUmis) r.push("max_umi");
-            if (gs.minCells > 0 && G.n_cells[j] < gs.minCells) r.push("min_cells");
             if (gs.maxAmbient != null && G.ambient_hat && G.ambient_hat[j] != null && G.ambient_hat[j] > gs.maxAmbient) r.push("ambient");
             for (const d of U.pfam[j]) {
                 const name = D.domains[d];
-                if (gs.pfam.has(name)) { r.push("pfam:" + name); break; }
+                if (!gs.pfam.has(name)) continue;
+                if (gs.pfamKeep.has(U.ids[j])) waived[j] = name; else r.push("pfam:" + name);
+                break;
             }
             if (manual.has(j)) r.push("manual");
             reasons[j] = r;
             umisTotal += total;
             if (r.length) { nExcluded++; umisExcluded += total; }
         }
-        return { reasons, nExcluded, umisExcluded, umisTotal, unknownManual };
+        return { reasons, waived, nExcluded, umisExcluded, umisTotal, unknownManual };
     }
 
     // The genes by total UMIs, most first; cached per sample
@@ -2231,6 +2468,101 @@
     }
 
     const geneLabel = (U, j) => U.names[j] || U.ids[j];
+
+    /*
+     * Co-expression: Pearson r of two genes' log1p(CP10k) across metacells, for the genes the
+     * summary stored a profile for (every marker, the most expressed and the most variable
+     * genes). The log values come straight from the stored levels, without decoding to CP10k.
+     */
+    const _logProfiles = new Map();
+    function logProfiles(s) {
+        const E = s.expression;
+        if (!E || !E.genes.length) return null;
+        if (!_logProfiles.has(s.id)) {
+            const nmc = s.metacells.id.length;
+            const rows = E.genes.map((_, k) => {
+                const v = new Float32Array(nmc);   // 0 in a pseudo-group
+                const scale = Math.log1p(E.max[k]) / 100;
+                E.mc.forEach((i, t) => { v[i] = E.q[k][t] * scale; });
+                return v;
+            });
+            _logProfiles.set(s.id, { index: new Map(E.genes.map((g, k) => [g, k])), rows });
+        }
+        return _logProfiles.get(s.id);
+    }
+
+    // The metacells genes are correlated over: the kept ones, as a doublet or a damaged metacell
+    // can make unrelated genes rise together; every real metacell when too few are kept
+    const MIN_CORR_METACELLS = 5;
+    function corrMetacells(s, mc) {
+        const real = s.expression.mc;
+        const kept = real.filter(i => mc.keep[i]);
+        return kept.length >= MIN_CORR_METACELLS ? { idx: kept, fallback: false } : { idx: real, fallback: true };
+    }
+
+    // Each profile centred and scaled to unit length over the metacells idx, so that r is a dot
+    // product; null for a gene constant over them. Cached for the last sample and metacells.
+    let _zCache = { key: null, z: null };
+    function zProfiles(s, idx) {
+        const key = s.id + ":" + idx.join(",");
+        if (_zCache.key !== key) {
+            const n = idx.length;
+            const z = logProfiles(s).rows.map(v => {
+                let mean = 0;
+                for (const i of idx) mean += v[i];
+                mean /= n;
+                let ss = 0;
+                for (const i of idx) ss += (v[i] - mean) ** 2;
+                if (!(ss > 1e-12)) return null;
+                const sd = Math.sqrt(ss);
+                const out = new Float32Array(n);
+                idx.forEach((i, t) => { out[t] = (v[i] - mean) / sd; });
+                return out;
+            });
+            _zCache = { key, z };
+        }
+        return _zCache.z;
+    }
+
+    function dot(a, b) {
+        let r = 0;
+        for (let t = 0; t < a.length; t++) r += a[t] * b[t];
+        return r;
+    }
+
+    // Gene j against every other profiled gene, most correlated first; null without a profile
+    function correlatedWith(s, j, idx) {
+        const P = logProfiles(s);
+        const k = P ? P.index.get(j) : null;
+        if (k == null) return null;
+        const z = zProfiles(s, idx);
+        if (!z[k]) return [];
+        const out = [];
+        for (const [g, kk] of P.index) if (kk !== k && z[kk]) out.push({ j: g, r: dot(z[k], z[kk]) });
+        return out.sort((a, b) => b.r - a.r);
+    }
+
+    // The leaf order of an average-linkage clustering on 1 - r, so co-expressed genes sit together
+    function clusterOrder(R) {
+        let clusters = R.map((_, k) => [k]);
+        const dist = (a, b) => {
+            let sum = 0;
+            for (const p of a) for (const q of b) sum += 1 - R[p][q];
+            return sum / (a.length * b.length);
+        };
+        while (clusters.length > 1) {
+            let best = null;
+            for (let a = 0; a < clusters.length; a++) {
+                for (let b = a + 1; b < clusters.length; b++) {
+                    const d = dist(clusters[a], clusters[b]);
+                    if (!best || d < best.d) best = { a, b, d };
+                }
+            }
+            const merged = clusters[best.a].concat(clusters[best.b]);
+            clusters = clusters.filter((_, k) => k !== best.a && k !== best.b).concat([merged]);
+        }
+        return clusters[0] || [];
+    }
 
     /**********************************************************************
      * SUMMARY: sample statistics | filter settings and running totals
@@ -2303,6 +2635,7 @@
     }
 
     const maxText = (v, digits, unit) => v != null ? `≤ ${fmt(v, digits)}${unit || ""}` : "off";
+    const minText = (v, digits, unit) => v != null ? `≥ ${fmt(v, digits)}${unit || ""}` : "off";
 
     // The meter's colour by the share included: below the first bound red, below the
     // second yellow, otherwise green. The legend under the totals is built from this.
@@ -2364,7 +2697,6 @@
 
         const cellRows = cap.cells ? [
             settingRow("UMIs", rangeText(r.minUmis, r.maxUmis, 0), r.minUmis != null || r.maxUmis != null),
-            settingRow("Genes detected", rangeText(r.minGenes, r.maxGenes, 0), r.minGenes != null || r.maxGenes != null),
             settingRow("Mitochondrial UMIs", maxText(r.maxMito, 1, " %"), r.maxMito != null),
             settingRow("rRNA UMIs", hasRrna ? maxText(r.maxRrna, 1, " %") : "not available", hasRrna && r.maxRrna != null),
             settingRow("Ambient α", cap.cellAlpha ? maxText(r.maxAlpha, 3) : "not available", cap.cellAlpha && r.maxAlpha != null),
@@ -2384,20 +2716,25 @@
             settingRow("rRNA UMIs", hasRrna ? maxText(st.maxRrna, 1, " %") : "not available", hasRrna && st.maxRrna != null),
             settingRow("Doublets", !cap.doublets ? "not available" : maxText(st.maxDoublet, 1, " %"),
                        cap.doublets && st.maxDoublet != null),
-            settingRow("Ambient fraction α", !cap.alpha ? "not available" : maxText(st.maxAlpha, 3),
+            settingRow("Ambient RNA", !cap.alpha ? "not available" : maxText(st.maxAlpha == null ? null : 100 * st.maxAlpha, 1, " %"),
                        cap.alpha && st.maxAlpha != null),
-            settingRow("Size", st.minCells != null ? `≥ ${fmt(st.minCells, 0)} cells` : "off", st.minCells != null),
+            settingRow("Median UMIs per cell", minText(st.minMedianUmis, 0), st.minMedianUmis != null),
+            settingRow("Max log2 FC", !cap.fc ? "not available" : minText(st.minMaxLfc, 2), cap.fc && st.minMaxLfc != null),
+            settingRow("Genes log2 FC > 1", !cap.fcGenes ? "not available" : minText(st.minFcGenes, 0),
+                       cap.fcGenes && st.minFcGenes != null),
+            settingRow("Size", minText(st.minCells, 0, " cells"), st.minCells != null),
             settingRow("Blacklist", blackText, st.blacklist.size > 0),
         ];
 
         const gs = st.genes;
         const g = geneCalls(s);
         const nManual = splitList(gs.manual).length;
+        const nWaived = g.waived.filter(x => x != null).length;
         const geneRows = [
             settingRow("Total UMIs", rangeText(gs.minUmis > 0 ? gs.minUmis : null, gs.maxUmis, 0),
                        gs.minUmis > 0 || gs.maxUmis != null),
-            settingRow("Cells expressing", gs.minCells > 0 ? `≥ ${fmt(gs.minCells, 0)}` : "off", gs.minCells > 0),
-            settingRow("PFAM domains", gs.pfam.size ? count(gs.pfam.size, "domain") : "off", gs.pfam.size > 0),
+            settingRow("PFAM domains", !gs.pfam.size ? "off" : count(gs.pfam.size, "domain") +
+                       (nWaived ? `, ${count(nWaived, "gene")} kept back` : ""), gs.pfam.size > 0),
             settingRow("Ambient genes", !cap.ambientGenes ? "not available" : (gs.maxAmbient != null ? `share ≤ ${fmt(gs.maxAmbient, 4)}` : "off"),
                        cap.ambientGenes && gs.maxAmbient != null),
             settingRow("Blacklist", count(nManual, "gene"), nManual > 0),
@@ -2482,9 +2819,13 @@
         const box = document.getElementById(prefix + "-num");
         const max = opts.max == null ? Infinity : opts.max;
         if (opts.max != null) box.max = opts.max;
+        // opts.scale: the box and the setter's values are the stored value times scale (α in %)
+        const scale = opts.scale || 1;
+        const round = (v) => Math.round(v * 10 ** opts.digits) / 10 ** opts.digits;
 
         const t = target();
-        const value = t[key] != null ? t[key] : (t["_last_" + key] != null ? t["_last_" + key] : opts.start);
+        const stored = t[key] != null ? t[key] : t["_last_" + key];
+        const value = stored != null ? round(stored * scale) : opts.start;
         on.checked = t[key] != null;
         // Never rewrite a box mid-edit: "1." would be read back as 1 and lose the dot
         if (document.activeElement !== box) box.value = value;
@@ -2492,7 +2833,8 @@
 
         const set = (v) => {
             const o = target();
-            const clean = Math.round(Math.min(max, Math.max(0, Number(v))) * 10 ** opts.digits) / 10 ** opts.digits;
+            // toPrecision drops the float noise of the division (12.3 / 100)
+            const clean = Number((round(Math.min(max, Math.max(0, Number(v)))) / scale).toPrecision(12));
             o[key] = clean;
             o["_last_" + key] = clean;
             edited(opts.level);
@@ -2572,11 +2914,15 @@
             margin: { l: 50, r: 15, t: 10, b: 45 },
             // The thresholds first, so a shape's index is its line's
             shapes: lines.map(l => vline(l.x)).concat((opts.refs || []).map(refline)),
-            xaxis: Object.assign({ title: { text: opts.xtitle }, range: [lo, hi] }, opts.logTicks ? logTicks(lo, hi) : {}),
-            yaxis: { title: { text: opts.ytitle || unit } },
+            xaxis: Object.assign({ title: { text: opts.xtitle }, range: [lo, hi], fixedrange: true },
+                                 opts.logTicks ? logTicks(lo, hi) : {}),
+            yaxis: { title: { text: opts.ytitle || unit }, fixedrange: true },
+            // A threshold's plot only sets it: its lines drag and its bars click, nothing zooms
+            // or selects
+            dragmode: false,
             // No uirevision: editrevision follows it, and would keep a dragged line where the
             // user dropped it (vertical offset included) instead of where the threshold is
-        }), Object.assign({}, PLOT_CONFIG, { edits: { shapePosition: true } }));
+        }), THRESHOLD_CONFIG);
 
         el._lines = lines;
         el._onClick = opts.onClick;
@@ -2606,7 +2952,7 @@
         document.getElementById(panelId).querySelector(".control").classList.toggle("hidden", !available);
         document.getElementById(plotId).classList.toggle("hidden", !available);
         document.getElementById(noteId).textContent = available ? "" : note;
-        if (!available) Plotly.purge(document.getElementById(plotId));
+        if (!available) purgePlot(document.getElementById(plotId));
     }
 
     /**********************************************************************
@@ -2619,7 +2965,7 @@
         document.getElementById("cells-missing").classList.toggle("hidden", !ok || !!C);
         document.getElementById("cells-body").classList.toggle("hidden", !C);
         if (!C) {
-            document.getElementById("cells").querySelectorAll(".plot").forEach(el => Plotly.purge(el));
+            document.getElementById("cells").querySelectorAll(".plot").forEach(el => purgePlot(el));
             return;
         }
 
@@ -2631,42 +2977,31 @@
         const U = D.universes[s.universe];
         const p = s.params || {};
 
-        // UMIs and genes per cell: a minimum and a maximum each, on a log axis
-        const twoSided = (prefix, values, loKey, hiKey, bits, opts) => {
-            const setLo = bindThreshold(prefix + "lo", cstate, loKey, { start: dv.start[loKey], digits: 0, level: "cells" });
-            const setHi = bindThreshold(prefix + "hi", cstate, hiKey, { start: dv.start[hiKey], digits: 0, level: "cells" });
-            const lines = [];
-            if (r[loKey] != null) lines.push({ x: lg(r[loKey]), onMove: (x) => setLo(10 ** x) });
-            if (r[hiKey] != null) lines.push({ x: lg(r[hiKey]), onMove: (x) => setHi(10 ** x) });
-            const logs = values.map(lg);
-            const [lo, hi] = extent(logs);
-            const refs = (opts.refs || []).filter(v => v != null && v > 0).map(lg);
-            histogram("plot-" + prefix, logs, {
-                xtitle: opts.xtitle, unit: "cells", nbins: 60, logTicks: true, lines, refs,
-                range: [Math.max(0, Math.min(lo, ...refs) - 0.05), Math.max(hi, ...refs) + 0.05],
-                excluded: (v) => (r[loKey] != null && v < lg(r[loKey])) || (r[hiKey] != null && v > lg(r[hiKey])),
-            });
-            setBadge(prefix + "-count", [CELL_REASONS[prefix === "cumi" ? "umis_low" : "genes_low"]],
-                     lines.length ? `${count(cellsWith(cc, bits), "cell")} excluded` : "");
-        };
-        twoSided("cumi", C.umis, "minUmis", "maxUmis", B.umis_low | B.umis_high,
-                 { xtitle: "UMIs per cell (log scale)", refs: [p.min_cell_umis, p.max_cell_umis] });
-        twoSided("cgenes", C.n_genes, "minGenes", "maxGenes", B.genes_low | B.genes_high,
-                 { xtitle: "genes per cell (log scale)" });
+        // UMIs per cell: a minimum and a maximum, on a log axis
+        const setLo = bindThreshold("cumilo", cstate, "minUmis", { start: dv.start.minUmis, digits: 0, level: "cells" });
+        const setHi = bindThreshold("cumihi", cstate, "maxUmis", { start: dv.start.maxUmis, digits: 0, level: "cells" });
+        const umiLines = [];
+        if (r.minUmis != null) umiLines.push({ x: lg(r.minUmis), onMove: (x) => setLo(10 ** x) });
+        if (r.maxUmis != null) umiLines.push({ x: lg(r.maxUmis), onMove: (x) => setHi(10 ** x) });
+        const logUmis = C.umis.map(lg);
+        const [umiLo, umiHi] = extent(logUmis);
+        const refs = [p.min_cell_umis, p.max_cell_umis].filter(v => v != null && v > 0).map(lg);
+        histogram("plot-cumi", logUmis, {
+            xtitle: "UMIs per cell (log scale)", unit: "cells", nbins: 60, logTicks: true, lines: umiLines, refs,
+            range: [Math.max(0, Math.min(umiLo, ...refs) - 0.05), Math.max(umiHi, ...refs) + 0.05],
+            excluded: (v) => (r.minUmis != null && v < lg(r.minUmis)) || (r.maxUmis != null && v > lg(r.maxUmis)),
+        });
+        setBadge("cumi-count", [CELL_REASONS.umis_low],
+                 umiLines.length ? `${count(cellsWith(cc, B.umis_low | B.umis_high), "cell")} excluded` : "");
 
-        // A maximum (or for reads, a minimum) on a linear or log axis
+        // A maximum on a linear axis
         const oneSided = (prefix, key, values, reason, opts) => {
             const set = bindThreshold(prefix, cstate, key, { max: opts.max, start: opts.start, digits: opts.digits, level: "cells" });
             const t = r[key];
-            const tr = (v) => opts.log ? lg(v) : v;
-            const tx = t == null ? null : tr(t);
-            const xs = opts.log ? values.filter(v => v != null).map(lg) : values;
-            const back = (x) => set(opts.log ? 10 ** x : x);
-            histogram("plot-" + prefix, xs, {
-                xtitle: opts.xtitle, unit: "cells", nbins: 50, logTicks: opts.log,
-                range: opts.range || (() => { const [lo, hi] = extent(xs); return [Math.max(0, lo - 0.05), hi + 0.05]; })(),
-                lines: t != null ? [{ x: tx, onMove: back }] : [], onClick: back,
-                excluded: t == null ? null : (v) => opts.below ? v < tx : v > tx,
+            histogram("plot-" + prefix, values, {
+                xtitle: opts.xtitle, unit: "cells", nbins: 50, range: opts.range,
+                lines: t != null ? [{ x: t, onMove: set }] : [], onClick: set,
+                excluded: t == null ? null : (v) => v > t,
             });
             setBadge(prefix + "-count", [CELL_REASONS[reason]], t != null ? `${count(cellsWith(cc, B[reason]), "cell")} excluded` : "");
         };
@@ -2690,34 +3025,77 @@
                      { max: 1, digits: 3, start: Math.min(1, Math.round(amax * 50) / 100), xtitle: "α", range: [0, amax * 1.05] });
         }
 
-        availability("panel-creads", "plot-creads", "creads-note", !!C.reads,
-                     "Per-cell reads come from STARsolo's CellReads.stats, and none matched this sample's cells " +
-                     "(alevin-fry, or no STARsolo run of this sample).");
-        document.getElementById("creads-sub").textContent = "Reads counted into the matrix (STARsolo CellReads.stats" +
-            (C.reads_source && C.reads_source !== s.id ? ` of ${C.reads_source}` : "") + ")";
-        if (C.reads) {
-            oneSided("creads", "minReads", C.reads, "reads",
-                     { digits: 0, start: dv.start.minReads, xtitle: "reads per cell (log scale)", log: true, below: true });
-        }
+        renderDoubletCard(s, cc);
+        renderSaturation(s, cc, dv);
+        renderCellMetricScatters(s, cc, dv);
+    }
 
-        renderCellScatters(s, cc);
+    // Each doublet caller's calls, and which of them the consensus excluded
+    const DOUBLET_METHODS = { AnySinglet: "a doublet where both callers agree", AnyDoublet: "a doublet where either caller calls one" };
+    const DOUBLET_GROUPS = [[1, "Scrublet only"], [2, "scDblFinder only"], [3, "both"]];
 
-        // Doublets: the consensus calls, when they are in the object
-        const nDoublets = C.doublet ? C.doublet.reduce((a, d) => a + (d === 1 ? 1 : 0), 0) : 0;
+    function renderDoubletCard(s, cc) {
+        const C = s.cells;
+        const r = cstate();
         const box = document.getElementById("cdoublet");
         box.checked = !!r.excludeDoublets;
         box.disabled = !C.doublet;
-        document.getElementById("cdoublet-n").textContent = C.doublet ? count(nDoublets, "cell") : "";
-        document.getElementById("cdoublet-note").textContent = {
-            annotated: "",
+        const annotated = !!C.doublet;
+        availability("panel-cdoublet", "plot-cdoublet", "cdoublet-note", annotated, {
             removed: "Doublets were removed before grouping (perform_doublet_filtering), so there are none left to exclude.",
             absent: "No doublet calls for this sample (detection off, or a caller could not run).",
-        }[s.doublet_mode] || "";
+        }[s.doublet_mode] || "No doublet calls for this sample.");
+        setBadge("cdoublet-count", [CELL_REASONS.doublet],
+                 annotated && r.excludeDoublets ? `${count(cellsWith(cc, CELL_BIT.doublet), "cell")} excluded` : "");
+        const sub = document.getElementById("cdoublet-sub");
+        if (!annotated) { sub.textContent = "Cells each doublet caller called a doublet"; return; }
+
+        // One bar per group of callers, split into the cells the consensus calls doublets
+        // (excluded once the box is ticked) and those it keeps
+        const nDoublets = C.doublet.reduce((a, d) => a + (d === 1 ? 1 : 0), 0);
+        const groups = C.doublet_callers ? DOUBLET_GROUPS : [[null, "consensus"]];
+        const inGroup = (i, bits) => bits == null ? C.doublet[i] === 1 : C.doublet_callers[i] === bits;
+        let nEvaluated = 0;
+        const rows = groups.map(([bits, label]) => ({ label, kept: 0, excl: 0 }));
+        for (let i = 0; i < cc.n; i++) {
+            if (C.doublet_callers && C.doublet_callers[i] == null) continue;
+            nEvaluated++;
+            groups.forEach(([bits], g) => {
+                if (!inGroup(i, bits)) return;
+                if (cc.mask[i] & CELL_BIT.doublet) rows[g].excl++; else rows[g].kept++;
+            });
+        }
+        const method = s.doublet_method;
+        sub.textContent = `${C.doublet_callers ? "Scrublet and scDblFinder on" : "Doublet calls of"} ` +
+            `${count(nEvaluated, "cell")}; the consensus${method ? ` (${method})` : ""} calls ` +
+            `${DOUBLET_METHODS[method] || "a doublet"}: ${fmt(nDoublets, 0)} cells (${fmt(pct(nDoublets, nEvaluated), 1)} %).`;
+
+        const ys = rows.map(d => d.label);
+        const bar = (name, color, xs) => ({
+            type: "bar", orientation: "h", name, y: ys, x: xs, marker: { color },
+            hovertemplate: `%{y}: <b>%{x:,} cells</b> ${name}<extra></extra>`,
+        });
+        const totals = rows.map(d => d.kept + d.excl);
+        const xmax = Math.max(1, ...totals);
+        Plotly.react(document.getElementById("plot-cdoublet"), [
+            bar("kept", COLORS.kept, rows.map(d => d.kept)),
+            bar("excluded", COLORS.excluded, rows.map(d => d.excl)),
+        ], layout({
+            barmode: "stack",
+            margin: { l: 110, r: 15, t: 10, b: 45 },
+            xaxis: { title: { text: "cells called doublets" }, range: [0, xmax * 1.35], fixedrange: true },
+            yaxis: { autorange: "reversed", fixedrange: true },
+            dragmode: false,
+            annotations: rows.map((d, g) => ({
+                x: totals[g], y: d.label, xref: "x", yref: "y", xanchor: "left", showarrow: false, xshift: 4,
+                text: `${fmt(totals[g], 0)} (${fmt(pct(totals[g], nEvaluated), 1)} %)`, font: { size: 11, color: "#6b6b6b" },
+            })),
+        }), THRESHOLD_CONFIG);
     }
 
     // The cells in one trace per status (kept, or the first reason), as the metacell UMAP does;
-    // xname and yname label the axes' values in the hover
-    function cellTraces(s, cc, xs, ys, xname, yname) {
+    // xname and yname label the axes' values in the hover, xfmt and yfmt format them
+    function cellTraces(s, cc, xs, ys, xname, yname, xfmt = ",.0f", yfmt = ",.0f") {
         const C = s.cells;
         const m = s.metacells;
         const by = {};
@@ -2733,7 +3111,7 @@
                 type: "scattergl", mode: "markers", name: k === "kept" ? "kept" : "excluded: " + spec.label,
                 x: idx.map(i => xs[i]), y: idx.map(i => ys[i]),
                 text: idx.map(i => C.barcodes[i]), customdata: idx.map(i => m.id[C.group[i]]),
-                hovertemplate: `<b>%{text}</b> · %{customdata}<br>%{x:,.0f} ${xname} · %{y:,.0f} ${yname}` +
+                hovertemplate: `<b>%{text}</b> · %{customdata}<br>%{x:${xfmt}} ${xname} · %{y:${yfmt}} ${yname}` +
                                `<extra>${esc(spec.label)}</extra>`,
                 marker: { size: 5, color: spec.color, symbol: spec.symbol, opacity: k === "kept" ? 0.55 : 0.8 },
             };
@@ -2750,85 +3128,201 @@
     ];
     const SATURATION_RAYS = [0, 0.5, 0.8, 0.9];
 
-    function renderCellScatters(s, cc) {
-        const C = s.cells;
-        const legend = { orientation: "h", y: -0.16, font: { size: 11 } };
-        Plotly.react(document.getElementById("plot-cscatter"), cellTraces(s, cc, C.umis, C.n_genes, "UMIs", "genes"), layout({
-            showlegend: true, legend, margin: { l: 55, r: 15, t: 10, b: 80 },
-            xaxis: { type: "log", dtick: 1, title: { text: "UMIs" } },
-            yaxis: { type: "log", dtick: 1, title: { text: "genes detected" } },
-            uirevision: s.id,
-        }), PLOT_CONFIG);
+    // The saturation plot's axes: linear (to the 99th percentile) or log; a view choice, not a setting
+    let _satLog = false;
 
+    /*
+     * Reads against UMIs per cell over the saturation bands, with the minimum reads as a line
+     * to drag. The bands are filled traces, not shapes: the threshold must be the plot's only
+     * shape, as every shape is draggable. A ray UMIs = k × reads is straight on linear and on
+     * log axes alike, so the same polygons serve both.
+     */
+    function renderSaturation(s, cc, dv) {
+        const C = s.cells;
         const el = document.getElementById("plot-csat");
         const hasReads = !!(C.reads && C.reads.some(v => v != null && v > 0));
-        el.classList.toggle("hidden", !hasReads);
-        document.getElementById("csat-note").textContent = hasReads ? "" :
-            "Needs per-cell reads from STARsolo's CellReads.stats, which no run gave for these cells.";
-        if (!hasReads) { Plotly.purge(el); return; }
+        availability("panel-creads", "plot-csat", "creads-note", hasReads,
+                     "Per-cell reads come from STARsolo's CellReads.stats, and none matched this sample's cells " +
+                     "(alevin-fry, or no STARsolo run of this sample).");
+        const logBox = document.getElementById("csat-log");
+        document.getElementById("csat-log-label").classList.toggle("hidden", !hasReads);
+        logBox.checked = _satLog;
+        document.getElementById("creads-sub").textContent = "Reads counted into the matrix (STARsolo CellReads.stats" +
+            (C.reads_source && C.reads_source !== s.id ? ` of ${C.reads_source}` : "") + "). Saturation is " +
+            "1 − UMIs / reads: in the darker wedges more reads add few new molecules.";
+        const r = cstate();
+        const set = bindThreshold("creads", cstate, "minReads", { start: dv.start.minReads, digits: 0, level: "cells" });
+        setBadge("creads-count", [CELL_REASONS.reads],
+                 r.minReads != null ? `${count(cellsWith(cc, CELL_BIT.reads), "cell")} excluded` : "");
+        if (!hasReads) return;
 
-        // Linear axes to the 99th percentile, so a few deep cells do not flatten the rest
-        const xmax = quantile(C.reads.filter(v => v > 0), 0.99) * 1.05;
-        const ymax = quantile(C.umis, 0.99) * 1.05;
-        const far = 4 * Math.max(xmax, ymax);   // rays and wedges run past the corner; the plot clips them
-        const wedge = (band) => ({
-            type: "path", layer: "below", xref: "x", yref: "y", line: { width: 0 }, fillcolor: band.fill,
-            path: `M0,0 L${far},${far * (1 - band.from)} L${far},${far * (1 - band.to)} Z`,
-        });
+        const log = _satLog;
+        const reads = C.reads.filter(v => v != null && v > 0);
+        const umis = C.umis.filter(v => v > 0);
+        // Linear axes to the 99th percentile, so a few deep cells do not flatten the rest; log
+        // axes over every cell
+        const [x0, xmax] = log ? [Math.min(...reads) / 1.3, Math.max(...reads) * 1.3] : [0, quantile(reads, 0.99) * 1.05];
+        const [y0, ymax] = log ? [Math.min(...umis) / 1.3, Math.max(...umis) * 1.3] : [0, quantile(C.umis, 0.99) * 1.05];
+        // Rays and wedges run past the corners; the plot clips them. On a log axis a ray never
+        // reaches 0, so the last band's floor is below the axis instead.
+        const lo = log ? x0 / 10 : 0, far = 4 * Math.max(xmax, ymax);
+        const floor = log ? y0 / 10 : 0;
+        const at = (k, x) => k > 0 ? k * x : floor;
+        const wedge = (band) => {
+            const k1 = 1 - band.from, k2 = 1 - band.to;
+            return {
+                type: "scatter", mode: "lines", fill: "toself", fillcolor: band.fill, line: { width: 0 },
+                x: [lo, far, far, lo, lo], y: [at(k1, lo), at(k1, far), at(k2, far), at(k2, lo), at(k1, lo)],
+                hoverinfo: "skip", showlegend: false,
+            };
+        };
         const ray = (sat) => ({
-            type: "line", layer: "below", xref: "x", yref: "y", x0: 0, y0: 0, x1: far, y1: far * (1 - sat),
+            type: "scatter", mode: "lines", x: [lo, far], y: [at(1 - sat, lo), at(1 - sat, far)],
             line: { color: sat === 0 ? "#6b6b6b" : "#898781", width: 1.3, dash: sat === 0 ? "dot" : "dash" },
+            hoverinfo: "skip", showlegend: false,
         });
-        // Each ray's label where it leaves the plot: the right edge, or the top for the steep ones
+        // Each ray's label where it leaves the plot: the right edge, or the top for the steep
+        // ones. Annotations on a log axis are placed in log10 units.
+        const pos = (v) => log ? Math.log10(v) : v;
         const label = (sat) => {
             const k = 1 - sat;
             const right = k * xmax <= ymax;
             return {
-                x: right ? xmax : ymax / k, y: right ? k * xmax : ymax, xref: "x", yref: "y", showarrow: false,
+                x: pos(right ? xmax : ymax / k), y: pos(right ? k * xmax : ymax), xref: "x", yref: "y", showarrow: false,
                 text: `${Math.round(100 * sat)} %`, xanchor: right ? "right" : "center", yanchor: "bottom",
                 font: { size: 10, color: "#6b6b6b" },
             };
         };
-        // The legend's keys for the rays, which are shapes and so not in it otherwise; the bands
-        // explain themselves by the labelled rays between them
-        const key = (name, extra) => Object.assign({ type: "scatter", x: [null], y: [null], name, hoverinfo: "skip" }, extra);
-        const keys = [
-            key("equal sequencing saturation (50, 80, 90 %)", { mode: "lines", line: { color: "#898781", dash: "dash" } }),
-            key("0 %: every read a new molecule", { mode: "lines", line: { color: "#6b6b6b", dash: "dot" } }),
-        ];
 
-        Plotly.react(el, keys.concat(cellTraces(s, cc, C.reads, C.umis, "reads", "UMIs")), layout({
-            showlegend: true, legend,
-            margin: { l: 55, r: 15, t: 20, b: 80 },
-            xaxis: { range: [0, xmax], title: { text: "sequencing depth: reads per cell" }, zeroline: false },
-            yaxis: { range: [0, ymax], title: { text: "UMIs per cell" }, zeroline: false },
-            shapes: SATURATION_BANDS.map(wedge).concat(SATURATION_RAYS.map(ray)),
+        const lines = r.minReads != null ? [{ x: r.minReads, onMove: set }] : [];
+        const axis = (title, a, b) => log ? { type: "log", range: [Math.log10(a), Math.log10(b)], title: { text: title }, fixedrange: true }
+                                          : { type: "linear", range: [a, b], title: { text: title }, zeroline: false, fixedrange: true };
+        Plotly.react(el, SATURATION_BANDS.map(wedge).concat(SATURATION_RAYS.map(ray),
+                                                             cellTraces(s, cc, C.reads, C.umis, "reads", "UMIs")), layout({
+            margin: { l: 55, r: 15, t: 22, b: 45 },
+            xaxis: axis("sequencing depth: reads per cell", x0, xmax),
+            yaxis: axis("UMIs per cell", y0, ymax),
+            shapes: lines.map(l => vline(l.x)),
             annotations: SATURATION_RAYS.map(label),
-            uirevision: s.id,
-        }), PLOT_CONFIG);
+            // A threshold's plot: its line drags, nothing zooms or selects. A dragged line must
+            // not persist, so edits get a fresh revision
+            dragmode: false,
+            uirevision: `${s.id}:${log}`,
+            editrevision: ++_editRevision,
+        }), THRESHOLD_CONFIG);
+
+        el._lines = lines;
+        if (!el._bound && typeof el.on === "function") {
+            // Shape positions on a log axis are in data units, so x is the reads themselves
+            el.on("plotly_relayout", ev => {
+                const mv = shapeMove(ev, "x", _satLog);
+                if (mv && el._lines[mv.i]) el._lines[mv.i].onMove(mv.value);
+            });
+            el._bound = true;
+        }
+    }
+
+    /*
+     * The metrics the cell scatters show, against UMIs per cell or pairwise: label names the axis
+     * and the dropdown entry, title the panel; values(C, dv) per cell, ok(s) whether the sample has
+     * them, rule the cell threshold drawn as a line (none for the scores, whose calls the doublet
+     * card filters on), fmt the hover's number format.
+     */
+    const CELL_METRICS = [
+        { key: "mito", label: "mito %", title: "Mitochondrial UMIs", fmt: ".1f",
+          values: (C, dv) => dv.mito, ok: () => true, rule: "maxMito" },
+        { key: "rrna", label: "rRNA %", title: "rRNA UMIs", fmt: ".1f",
+          values: (C, dv) => dv.rrna, ok: (s) => D.universes[s.universe].rrna.some(Boolean), rule: "maxRrna" },
+        { key: "alpha", label: "ambient α", title: "Ambient RNA fraction", fmt: ".3f",
+          values: (C) => C.alpha, ok: (s) => !!s.cells.alpha, rule: "maxAlpha" },
+        { key: "reads", label: "reads per cell", title: "Reads", fmt: ",.0f", log: true,
+          values: (C) => C.reads, ok: (s) => !!s.cells.reads, rule: "minReads" },
+        { key: "scdblfinder", label: "doublet score (scDblFinder)", title: "scDblFinder doublet score", fmt: ".3f",
+          values: (C) => C.scdblfinder_score, ok: (s) => !!s.cells.scdblfinder_score },
+        { key: "scrublet", label: "doublet score (Scrublet)", title: "Scrublet doublet score", fmt: ".3f",
+          values: (C) => C.scrublet_score, ok: (s) => !!s.cells.scrublet_score },
+    ];
+    // What the two scatters show, kept across samples where the sample has it: the first a
+    // metric against UMIs, the second a pair of metrics as "x|y" keys
+    let _cellMetric = "mito";
+    let _cellPair = "mito|rrna";
+
+    function renderCellMetricScatters(s, cc, dv) {
+        const C = s.cells;
+        const r = cstate();
+        const options = CELL_METRICS.filter(m => m.ok(s));
+        const config = Object.assign({}, PLOT_CONFIG, { modeBarButtonsToRemove: ["lasso2d", "select2d"] });
+        const frame = {
+            showlegend: true, legend: { orientation: "h", y: -0.16, font: { size: 11 } },
+            margin: { l: 55, r: 15, t: 10, b: 80 },
+        };
+        const axis = (m) => Object.assign({ title: { text: m.label } }, m.log ? { type: "log" } : {});
+        // The thresholds set in the cards are drawn for reference: they are moved there
+
+        // A metric against UMIs per cell; one the sample lacks gives way to its first
+        if (!options.some(m => m.key === _cellMetric)) _cellMetric = options[0].key;
+        const m = options.find(o => o.key === _cellMetric);
+        const selA = document.getElementById("cxy-a");
+        selA.innerHTML = options.map(o => `<option value="${o.key}">${esc(o.label)}</option>`).join("");
+        selA.value = m.key;
+        document.getElementById("cxy-a-title").textContent = `${m.title} against UMIs`;
+        const shapesA = [r.minUmis, r.maxUmis].filter(v => v != null).map(vline);
+        if (m.rule && r[m.rule] != null) shapesA.push(hline(r[m.rule]));
+        Plotly.react(document.getElementById("plot-cxy-a"),
+            cellTraces(s, cc, C.umis, m.values(C, dv), "UMIs", m.label, ",.0f", m.fmt), layout(Object.assign({}, frame, {
+                xaxis: { type: "log", dtick: 1, title: { text: "UMIs per cell" } },
+                yaxis: axis(m),
+                shapes: shapesA,
+                uirevision: `${s.id}:${m.key}`,
+            })), config);
+
+        // Two metrics against each other: every pair the sample has, x the earlier in the list
+        const pairs = [];
+        options.forEach((x, i) => options.slice(i + 1).forEach(y => pairs.push({ key: `${x.key}|${y.key}`, x, y })));
+        const elB = document.getElementById("plot-cxy-b");
+        document.getElementById("cxy-b-label").classList.toggle("hidden", !pairs.length);
+        elB.classList.toggle("hidden", !pairs.length);
+        document.getElementById("cxy-b-note").textContent = pairs.length ? ""
+            : "Only one per-cell metric (mito %) is available for this sample, so there is no pair to plot.";
+        if (!pairs.length) {
+            document.getElementById("cxy-b-title").textContent = "Cells";
+            purgePlot(elB);
+            return;
+        }
+        if (!pairs.some(p => p.key === _cellPair)) _cellPair = pairs[0].key;
+        const p = pairs.find(o => o.key === _cellPair);
+        const selB = document.getElementById("cxy-b");
+        selB.innerHTML = pairs.map(o => `<option value="${o.key}">${esc(o.y.label)} vs ${esc(o.x.label)}</option>`).join("");
+        selB.value = p.key;
+        document.getElementById("cxy-b-title").textContent = `${p.y.title} against ${p.x.title}`;
+        const shapesB = [];
+        if (p.x.rule && r[p.x.rule] != null) shapesB.push(vline(r[p.x.rule]));
+        if (p.y.rule && r[p.y.rule] != null) shapesB.push(hline(r[p.y.rule]));
+        Plotly.react(elB,
+            cellTraces(s, cc, p.x.values(C, dv), p.y.values(C, dv), p.x.label, p.y.label, p.x.fmt, p.y.fmt),
+            layout(Object.assign({}, frame, {
+                xaxis: axis(p.x),
+                yaxis: axis(p.y),
+                shapes: shapesB,
+                uirevision: `${s.id}:${p.key}`,
+            })), config);
     }
 
     function bindCellLevelTab() {
         const change = (fn) => { if (sstate()) { fn(sstate()); edited("cells"); } };
         document.getElementById("cdoublet").onchange = (e) => change(st => { st.cells.excludeDoublets = e.target.checked; });
+        document.getElementById("csat-log").onchange = (e) => { _satLog = e.target.checked; scheduleRender(); };
+        document.getElementById("cxy-a").onchange = (e) => { _cellMetric = e.target.value; scheduleRender(); };
+        document.getElementById("cxy-b").onchange = (e) => { _cellPair = e.target.value; scheduleRender(); };
     }
 
     /**********************************************************************
      * METACELL TAB
      **********************************************************************/
-    // The metacell map's colourings: [key, label, available(s)]
-    const COLOUR_BY = [
-        ["status", "status", () => true],
-        ["mito_pct", "mito %", () => true],
-        ["rrna_pct", "rRNA %", (s) => D.universes[s.universe].rrna.some(Boolean)],
-        ["doublet_pct", "doublet %", (s) => s.doublet_mode === "annotated"],
-        ["alpha_hat_mean", "mean α", (s) => capabilities(s).alpha],
-        ["median_umis", "median UMIs per cell", () => true],
-        ["n_cells", "cells kept", () => true],
-        ["marker_lfc", "top marker log2 FC", (s) => !!s.expression],
-    ];
-    let _colourBy = "status";
-    // The gene shown in the gene view and on the map: a gene position in its universe
+    // What the metacell map is coloured by: the QC plot's "x" or "y" metric, "status", or "gene"
+    let _colourBy = "x";
+    // The gene whose co-expression the gene tab shows, and the map's: a gene position in its
+    // universe, or null once let go (the strip's cross); a new universe opens its top gene
     let _gene = null;
 
     function selectedGene(s) {
@@ -2836,11 +3330,181 @@
         return _gene.j;
     }
 
+    // The statuses in the plots' drawing (and legend) order, and their colour, marker and name
+    const STATUS_ORDER = ["kept", "mito", "rrna", "doublet", "ambient", "low_umis", "low_fc", "few_fc_genes",
+                          "small", "no_cells", "blacklist"];
+    const statusSpec = (k) => k === "kept" ? KEPT : REASONS[k];
+    const statusName = (k) => k === "kept" ? "kept" : k === "blacklist" ? "blacklisted" : "excluded: " + REASONS[k].label;
+
+    /*
+     * The metacell QC metrics, in the menus' order, each with its threshold: rule is
+     * the state key, below whether it excludes under the threshold. scale turns the stored value
+     * into the shown one (α is stored as a fraction, shown in %); max and digits are the box's.
+     */
+    const MC_METRICS = [
+        { key: "median_umis", prefix: "umis", name: "Median UMIs per cell", label: "median UMIs per cell", unit: "UMIs",
+          rule: "minMedianUmis", below: true, reason: "low_umis", digits: 0, log: true, ok: () => true },
+        { key: "rrna_pct", prefix: "rrna", name: "rRNA UMIs", label: "rRNA UMIs (%)", unit: "%",
+          rule: "maxRrna", reason: "rrna", digits: 1, max: 100,
+          ok: (s) => D.universes[s.universe].rrna.some(Boolean) },
+        { key: "doublet_pct", prefix: "doublet", name: "Doublets", label: "doublets (%)", unit: "%",
+          rule: "maxDoublet", reason: "doublet", digits: 1, max: 100,
+          ok: (s) => capabilities(s).doublets },
+        { key: "max_lfc", prefix: "lfc", name: "Max log2 FC", label: "max log2 FC", unit: "",
+          rule: "minMaxLfc", below: true, reason: "low_fc", digits: 2,
+          ok: (s) => capabilities(s).fc },
+        { key: "n_genes_lfc1", prefix: "fcgenes", name: "Genes with log2 FC > 1", label: "genes log2 FC > 1", unit: "genes",
+          rule: "minFcGenes", below: true, reason: "few_fc_genes", digits: 0,
+          ok: (s) => capabilities(s).fcGenes },
+        { key: "alpha_hat_mean", prefix: "alpha", name: "Ambient RNA", label: "ambient RNA (%)", unit: "%",
+          rule: "maxAlpha", reason: "ambient", digits: 1, max: 100, scale: 100,
+          ok: (s) => capabilities(s).alpha },
+        { key: "mito_pct", prefix: "mito", name: "Mitochondrial UMIs", label: "mito UMIs (%)", unit: "%",
+          rule: "maxMito", reason: "mito", digits: 1, max: 100, ok: () => true },
+        { key: "n_cells", prefix: "size", name: "Cells per metacell", label: "cells", unit: "cells",
+          rule: "minCells", below: true, reason: "small", digits: 0, log: true, ok: () => true },
+    ];
+
+    // Where a threshold starts when first switched on: in the tail it would cut, 5 % of the metacells
+    function startOf(q, values) {
+        const v = quantile(values, q.below ? 0.05 : 0.95);
+        if (v == null) return 0;
+        const r = Math.round(v * 10 ** q.digits) / 10 ** q.digits;
+        return q.below && q.digits === 0 ? Math.max(1, r) : r;
+    }
+
+    // The metrics the QC plot shows, [x, y]; kept across samples where the sample has them
+    const _qcAxes = ["median_umis", "mito_pct"];
+
+    // Ticks of a log axis at 1, 2 and 5 times the powers of ten in its range, in data units:
+    // under a decade, Plotly would label every hundred
+    function logAxisTicks(values) {
+        const [lo, hi] = extent(values.filter(v => v > 0), 1);
+        const ticks = [];
+        for (let e = Math.floor(Math.log10(lo)); e <= Math.ceil(Math.log10(hi)); e++) {
+            for (const f of [1, 2, 5]) if (f * 10 ** e >= lo / 1.2 && f * 10 ** e <= hi * 1.2) ticks.push(f * 10 ** e);
+        }
+        const label = (v) => v >= 1e6 ? `${v / 1e6}M` : v >= 1e3 ? `${v / 1e3}k` : String(v);
+        return ticks.length >= 2 ? { tickvals: ticks, ticktext: ticks.map(label) } : {};
+    }
+
+    /*
+     * Two QC metrics against each other, coloured and marked by status as the UMAP is. Each
+     * metric's threshold is a dashed line, across for x and along for y; dragging it moves the
+     * threshold. A click or a lasso blacklists, as on the UMAP. Returns the two metrics shown.
+     */
+    function renderQcPlot(s, calls, plotted) {
+        const el = document.getElementById("plot-qc");
+        const m = s.metacells;
+        const ms = calls.stats;
+        // A metric the sample lacks gives way to the first other one it has; the two axes differ
+        const axes = _qcAxes;
+        for (const k of [0, 1]) {
+            if (!plotted.some(p => p.q.key === axes[k])) {
+                axes[k] = (plotted.find(p => p.q.key !== axes[1 - k]) || plotted[0]).q.key;
+            }
+        }
+        const [px, py] = axes.map(key => plotted.find(p => p.q.key === key));
+        axes.forEach((key, k) => {
+            const sel = document.getElementById("qc-" + "xy"[k]);
+            sel.innerHTML = plotted.map(p => `<option value="${p.q.key}">${esc(p.q.label)}</option>`).join("");
+            sel.value = key;
+        });
+
+        // Each axis's threshold in its bar, as a cell card has: the switch and exact box of the
+        // metric it shows, and the metacells that threshold excludes
+        const step = (d) => d === 0 ? 1 : d === 1 ? 0.5 : 0.1;
+        [px, py].forEach((p, k) => {
+            const id = "qc" + "xy"[k];
+            const q = p.q;
+            const box = document.getElementById(id + "-num");
+            box.step = step(q.digits);
+            box.max = q.max != null ? q.max : "";
+            document.getElementById(id + "-dir").textContent = q.below ? "Exclude below" : "Exclude above";
+            document.getElementById(id + "-unit").textContent = q.unit;
+            p.set = bindThreshold(id, sstate, q.rule, { max: q.max, digits: q.digits, scale: q.scale || 1,
+                                                       start: startOf(q, p.own), level: "metacells" });
+            setBadge(id + "-count", [REASONS[q.reason]],
+                     p.t != null ? `${fmt(excludedCount(p.own, p.t, q.below), 0)} excluded` : "");
+        });
+        // The thresholds on, on metrics not plotted: each a button that plots its metric on x
+        const others = plotted.filter(p => p.t != null && p !== px && p !== py);
+        document.getElementById("qc-others").innerHTML = !others.length ? "" : "Also on: " + others.map(p =>
+            `<button class="gene-link" data-qc-show="${p.q.key}" title="Plot it on the x axis">${esc(p.q.name)} ` +
+            `${p.q.below ? "≥" : "≤"} ${fmt(p.t, p.q.digits)}${p.q.unit ? " " + esc(p.q.unit) : ""}</button>`).join(", ");
+
+        const byStatus = {};
+        m.id.forEach((_, i) => {
+            if (m.pseudo[i] || px.values[i] == null || py.values[i] == null) return;
+            const k = statusOf(calls, i);
+            (byStatus[k] = byStatus[k] || []).push(i);
+        });
+        const traces = STATUS_ORDER.filter(k => byStatus[k]).map(k => {
+            const idx = byStatus[k];
+            const spec = statusSpec(k);
+            return {
+                type: "scattergl", mode: "markers", name: statusName(k),
+                x: idx.map(i => px.values[i]), y: idx.map(i => py.values[i]),
+                customdata: idx.map(i => m.id[i]),
+                text: idx.map(i => metacellHover(m, ms, calls, i)),
+                hovertemplate: "%{text}<extra></extra>",
+                marker: { size: 8, color: spec.color, symbol: spec.symbol, line: { color: "#ffffff", width: 1 } },
+                selectedpoints: null,
+            };
+        });
+
+        // Shape positions on a log axis are in data units
+        const shapes = [], lines = [];
+        if (px.t != null) { shapes.push(vline(px.t)); lines.push({ rule: px.q.rule, axis: "x", log: px.q.log, onMove: px.set }); }
+        if (py.t != null) { shapes.push(hline(py.t)); lines.push({ rule: py.q.rule, axis: "y", log: py.q.log, onMove: py.set }); }
+        const axis = (p) => Object.assign({ title: { text: p.q.label } },
+                                          p.q.log ? Object.assign({ type: "log" }, logAxisTicks(p.values)) : {});
+
+        Plotly.react(el, traces, layout({
+            showlegend: true,
+            legend: { orientation: "h", y: -0.16, font: { size: 11 } },
+            margin: { l: 55, r: 15, t: 10, b: 80 },
+            xaxis: axis(px),
+            yaxis: axis(py),
+            hovermode: "closest",
+            dragmode: "lasso",
+            shapes,
+            // Zoom persists per pair of metrics; a dragged line goes back to where its threshold
+            // is, and a lasso selection is dropped each redraw (see renderScatter)
+            uirevision: `${s.id}:${axes.join(":")}`,
+            editrevision: ++_editRevision,
+            selectionrevision: ++_editRevision,
+            selections: [],
+        }), Object.assign({}, PLOT_CONFIG, { edits: { shapePosition: true } }));
+
+        el._lines = lines;
+        if (!el._bound && typeof el.on === "function") {
+            // A drag reports the moved shape's ends on both axes; the line's own axis is its threshold
+            el.on("plotly_relayout", ev => {
+                const hit = shapeMove(ev, "x") || shapeMove(ev, "y");
+                if (!hit) return;
+                const l = el._lines[hit.i];
+                const mv = l && shapeMove(ev, l.axis, l.log);
+                if (mv && mv.i === hit.i) l.onMove(mv.value);
+                else scheduleRender();
+            });
+            el.on("plotly_click", ev => {
+                if (ev && ev.points && ev.points.length) markMetacells([ev.points[0].customdata], "toggle");
+            });
+            el.on("plotly_selected", ev => {
+                if (ev && ev.points && ev.points.length) markMetacells(ev.points.map(p => p.customdata), "add");
+                else scheduleRender();
+            });
+            el._bound = true;
+        }
+        return [px, py];
+    }
+
     function renderMetacells() {
         const s = current();
         const pane = document.getElementById("metacells");
         if (!s || s.status !== "ok") {
-            pane.querySelectorAll(".plot").forEach(el => Plotly.purge(el));
+            pane.querySelectorAll(".plot").forEach(el => purgePlot(el));
             document.getElementById("mc-table").innerHTML = "";
             document.getElementById("mc-shown").textContent = "";
             document.getElementById("mc-basis").textContent = "";
@@ -2861,73 +3525,32 @@
               (nEmpty ? `; ${count(nEmpty, "metacell")} with no cell left ${nEmpty === 1 ? "is" : "are"} excluded.` : ".")
             : "Every number on this tab is over all called cells: this sample's summary has no per-cell data.";
 
-        // Checkbox + exact box + histogram with a draggable line, and the live count beside them;
-        // the panel's exclusions carry the marker its reason has in the UMAP
-        const thresholdPanel = (prefix, key, values, reason, opts) => {
-            const set = bindThreshold(prefix, sstate, key, { max: opts.max, digits: opts.digits,
-                                                           start: opts.start != null ? opts.start : opts.max / 2, level: "metacells" });
-            const spec = REASONS[reason];
-            const t = st[key];
-            histogram("plot-" + prefix, values, {
-                xtitle: opts.xtitle, range: opts.range, nbins: opts.nbins,
-                lines: t != null ? [{ x: t, onMove: set }] : [], onClick: set,
-                excluded: t == null ? null : (v) => opts.below ? v < t : v > t,
-            });
-            setBadge(prefix + "-count", [spec], t != null ? `${count(excludedCount(values, t, opts.below), "metacell")} excluded` : "");
-        };
-
-        const mitos = pick(ms.mito_pct);
-        thresholdPanel("mito", "maxMito", mitos, "mito",
-                       { max: 100, digits: 1, xtitle: "mitochondrial UMIs (%)", range: [0, maxOf(mitos, 5) * 1.05] });
-
-        const hasRrna = D.universes[s.universe].rrna.some(Boolean);
-        availability("panel-rrna", "plot-rrna", "rrna-note", hasRrna,
-                     "No gene of this sample is flagged rRNA in the annotation, so there is nothing to filter on.");
-        if (hasRrna) {
-            const rrnas = pick(ms.rrna_pct);
-            thresholdPanel("rrna", "maxRrna", rrnas, "rrna",
-                           { max: 100, digits: 1, start: 20, xtitle: "rRNA UMIs (%)", range: [0, maxOf(rrnas, 5) * 1.05] });
-        }
-
-        const hasDoublets = s.doublet_mode === "annotated";
-        availability("panel-doublet", "plot-doublet", "doublet-note", hasDoublets, {
-            removed: "Doublets were removed before grouping (perform_doublet_filtering), so there is nothing to filter on.",
-            absent: "No doublet calls for this sample (detection off, or a caller could not run).",
-        }[s.doublet_mode] || "");
-        if (hasDoublets) {
-            thresholdPanel("doublet", "maxDoublet", pick(ms.doublet_pct), "doublet",
-                           { max: 100, digits: 1, xtitle: "doublets (%)", range: [0, 100] });
-        }
-
-        const hasAlpha = capabilities(s).alpha;
-        availability("panel-ambient", "plot-alpha", "alpha-note", hasAlpha,
-                     "No CellSweep estimates for this sample (ambient_rna_remover off, or CellSweep could not run).");
-        if (hasAlpha) {
-            const alphas = pick(ms.alpha_hat_mean);
-            const amax = maxOf(alphas, 0.05);
-            thresholdPanel("alpha", "maxAlpha", alphas, "ambient",
-                           { max: Math.min(1, Math.ceil(amax * 100) / 100), digits: 3, xtitle: "mean α", range: [0, amax * 1.05] });
-        }
-
-        const sizes = pick(ms.n_cells);
-        const smax = maxOf(sizes, 10);
-        thresholdPanel("size", "minCells", sizes, "small",
-                       { max: Math.ceil(smax), digits: 0, start: Math.max(1, Math.round(quantile(sizes, 0.05) || 1)),
-                         below: true, xtitle: "cells", range: [0, smax * 1.05] });
-        renderColourBy(s);
-        renderScatter(s, st, calls);
+        // The metrics the sample has, each with its values and threshold as shown (own: the real
+        // metacells'). The QC plot binds the two it shows.
+        const plotted = MC_METRICS.filter(q => q.ok(s)).map(q => {
+            const scale = q.scale || 1;
+            const values = ms[q.key].map(v => v == null ? null : v * scale);
+            const t = st[q.rule] == null ? null : st[q.rule] * scale;
+            return { q, values, own: pick(values), t };
+        });
+        const shown = renderQcPlot(s, calls, plotted);
+        renderColourBy(s, shown);
+        renderScatter(s, st, calls, shown);
         renderHeatmap(s, calls);
         renderMcTable(s, st, calls);
     }
 
-    function renderColourBy(s) {
-        const sel = document.getElementById("mc-colour");
-        const options = COLOUR_BY.filter(([, , ok]) => ok(s)).map(([k, label]) => [k, label]);
-        const j = selectedGene(s);
-        if (geneProfile(s, j)) options.push(["gene", "gene " + geneLabel(D.universes[s.universe], j)]);
-        if (!options.some(([k]) => k === _colourBy)) _colourBy = "status";
-        sel.innerHTML = options.map(([k, label]) => `<option value="${k}">${esc(label)}</option>`).join("");
-        sel.value = _colourBy;
+    // The UMAP's colourings, one button each: the QC plot's two metrics, the status, the gene
+    // a marker was clicked for
+    function renderColourBy(s, shown) {
+        const options = [["x", shown[0].q.label], ["y", shown[1].q.label], ["status", "status"]];
+        if (_gene && _gene.u === s.universe && geneProfile(s, _gene.j)) {
+            options.push(["gene", geneLabel(D.universes[s.universe], _gene.j)]);
+        }
+        if (!options.some(([k]) => k === _colourBy)) _colourBy = "x";
+        document.getElementById("mc-colour").innerHTML = options.map(([k, label]) =>
+            `<button type="button" data-colour="${k}" class="${k === _colourBy ? "active" : ""}" ` +
+            `aria-pressed="${k === _colourBy}">${esc(label)}</button>`).join("");
     }
 
     // Colour the metacell map by gene j and bring the map into view: what a click on a marker does
@@ -2938,40 +3561,32 @@
         document.getElementById("plot-scatter").scrollIntoView({ block: "nearest", behavior: "smooth" });
     }
 
-    // mk (markerStats) adds the strongest marker's log2 fold change, where there are profiles
-    function metacellHover(m, ms, calls, i, mk) {
-        return `<b>${esc(m.id[i])}</b> · ${fmt(ms.n_cells[i], 0)} cells, ${fmt(ms.umis[i], 0)} UMIs<br>` +
+    function metacellHover(m, ms, calls, i) {
+        return `<b>${esc(m.id[i])}</b> · ${fmt(ms.n_cells[i], 0)} cells, ${fmt(ms.umis[i], 0)} UMIs` +
+            (ms.median_umis[i] != null ? ` (median ${fmt(ms.median_umis[i], 0)} per cell)` : "") + `<br>` +
             `mito ${fmt(ms.mito_pct[i], 2)} %` +
             (ms.rrna_pct[i] ? ` · rRNA ${fmt(ms.rrna_pct[i], 2)} %` : "") +
             (ms.doublet_pct[i] != null ? ` · doublets ${fmt(ms.doublet_pct[i], 1)} %` : "") +
-            (ms.alpha_hat_mean[i] != null ? ` · α ${fmt(ms.alpha_hat_mean[i], 3)}` : "") +
+            (ms.alpha_hat_mean[i] != null ? ` · ambient ${fmt(100 * ms.alpha_hat_mean[i], 1)} %` : "") +
             (calls.reasons[i].length ? `<br>excluded: ${esc(calls.reasons[i].map(r => REASONS[r].label).join(", "))}` : "") +
             (m.markers[i] && m.markers[i].length ? `<br>${esc(m.markers[i].join(", "))}` : "") +
-            (mk && mk.lfc[i] != null ? `<br>top marker ${esc(mk.top[i])}: log2 FC ${fmt(mk.lfc[i], 2)}` : "");
+            (ms.max_lfc[i] != null ? `<br>max log2 FC ${fmt(ms.max_lfc[i], 2)}` : "") +
+            (ms.n_genes_lfc1[i] != null ? ` · ${count(ms.n_genes_lfc1[i], "gene")} log2 FC > 1` : "");
     }
 
-    function renderScatter(s, st, calls) {
+    /*
+     * Metacell2's UMAP beside the QC plot, coloured by one of its two metrics, the status or a
+     * gene. Without a UMAP in the summary, the QC plot takes the row.
+     */
+    function renderScatter(s, st, calls, shown) {
         const m = s.metacells;
         const ms = calls.stats;
-        const mk = s.expression ? markerStats(s) : null;
         const el = document.getElementById("plot-scatter");
         const useUmap = m.x.some((v, i) => v != null && !m.pseudo[i]);
-        const hasDoublets = s.doublet_mode === "annotated";
-
-        let xs, ys, xt, yt;
-        if (useUmap) {
-            xs = m.x; ys = m.y; xt = "UMAP 1"; yt = "UMAP 2";
-        } else {
-            xs = ms.mito_pct;
-            ys = hasDoublets ? ms.doublet_pct : ms.umis;
-            xt = "mitochondrial UMIs (%)";
-            yt = hasDoublets ? "doublets (%)" : "UMIs";
-        }
-        // The title says what the colours are, so a click on a marker visibly lands here
-        const by = _colourBy === "status" ? "" : _colourBy === "gene"
-            ? `: ${geneLabel(D.universes[s.universe], selectedGene(s))} expression`
-            : `: ${COLOUR_BY.find(([k]) => k === _colourBy)[1]}`;
-        document.getElementById("scatter-title").textContent = (useUmap ? "Metacell2 UMAP" : "Metacells (QC metrics)") + by;
+        document.getElementById("umap-view").classList.toggle("hidden", !useUmap);
+        document.getElementById("qc-row").classList.toggle("single", !useUmap);
+        if (!useUmap) { purgePlot(el); return; }
+        const xs = m.x, ys = m.y;
 
         // One trace per status, so the legend is the key for both colour and marker
         const byStatus = {};
@@ -2980,20 +3595,17 @@
             const status = statusOf(calls, i);
             (byStatus[status] = byStatus[status] || []).push(i);
         });
-        const order = ["kept", "mito", "rrna", "doublet", "ambient", "small", "no_cells", "blacklist"];
-        const specOf = (k) => k === "kept" ? KEPT : REASONS[k];
-
         let traces;
         if (_colourBy === "status") {
-            traces = order.filter(k => byStatus[k]).map(k => {
+            traces = STATUS_ORDER.filter(k => byStatus[k]).map(k => {
                 const idx = byStatus[k];
-                const spec = specOf(k);
+                const spec = statusSpec(k);
                 return {
                     type: "scattergl", mode: "markers",
-                    name: k === "kept" ? "kept" : (k === "blacklist" ? "blacklisted" : "excluded: " + spec.label),
+                    name: statusName(k),
                     x: idx.map(i => xs[i]), y: idx.map(i => ys[i]),
                     customdata: idx.map(i => m.id[i]),
-                    text: idx.map(i => metacellHover(m, ms, calls, i, mk)),
+                    text: idx.map(i => metacellHover(m, ms, calls, i)),
                     hovertemplate: "%{text}<extra></extra>",
                     marker: { size: 10, color: spec.color, symbol: spec.symbol, line: { color: "#ffffff", width: 2 } },
                     selectedpoints: null,
@@ -3003,27 +3615,31 @@
             // A value per metacell on a sequential scale; an excluded metacell keeps its reason's
             // marker, drawn open, so the status still shows
             const isGene = _colourBy === "gene";
-            const isLfc = _colourBy === "marker_lfc";
-            const values = isGene ? geneProfile(s, selectedGene(s)) : isLfc ? mk.lfc : ms[_colourBy];
-            const label = isGene ? `${geneLabel(D.universes[s.universe], selectedGene(s))} (CP10k)`
-                                 : COLOUR_BY.find(([k]) => k === _colourBy)[1];
-            const idx = order.filter(k => byStatus[k]).flatMap(k => byStatus[k]);
+            const p = isGene ? null : shown[_colourBy === "x" ? 0 : 1];
+            const values = isGene ? geneProfile(s, selectedGene(s)) : p.values;
+            const label = isGene ? `${geneLabel(D.universes[s.universe], selectedGene(s))} (CP10k)` : p.q.label;
+            const isLfc = !isGene && p.q.key === "max_lfc";
+            const idx = STATUS_ORDER.filter(k => byStatus[k]).flatMap(k => byStatus[k]);
             const withValue = idx.filter(i => values[i] != null);
             const without = idx.filter(i => values[i] == null);
-            const symbol = (i) => { const k = statusOf(calls, i); return k === "kept" ? "circle" : specOf(k).symbol + "-open"; };
+            const symbol = (i) => { const k = statusOf(calls, i); return k === "kept" ? "circle" : statusSpec(k).symbol + "-open"; };
             const base = (ids) => ({
                 type: "scattergl", mode: "markers",
                 x: ids.map(i => xs[i]), y: ids.map(i => ys[i]), customdata: ids.map(i => m.id[i]),
-                text: ids.map(i => metacellHover(m, ms, calls, i, mk) + `<br><b>${esc(label)}: ${fmt(values[i], 2)}</b>`),
+                text: ids.map(i => metacellHover(m, ms, calls, i) + `<br><b>${esc(label)}: ${fmt(values[i], 2)}</b>`),
                 hovertemplate: "%{text}<extra></extra>", selectedpoints: null,
             });
+            // A fold change can be below 0; every other colouring starts at 0. The outline takes
+            // the same colour, as it is all an open marker has
+            const colour = withValue.map(i => values[i]);
+            const [lo, hi] = extent(colour);
+            const scale = { colorscale: SEQUENTIAL, cmin: isLfc ? lo : 0, cmax: hi };
             traces = [Object.assign(base(withValue), {
                 name: label,
-                // A fold change can be below 0; every other colouring starts at 0
-                marker: Object.assign({ size: 10, color: withValue.map(i => values[i]), colorscale: SEQUENTIAL,
-                                        symbol: withValue.map(symbol), line: { width: 0 },
+                marker: Object.assign({ size: 9, color: colour, symbol: withValue.map(symbol),
+                                        line: Object.assign({ width: 1, color: colour }, scale),
                                         colorbar: { title: { text: label, side: "right" }, thickness: 10, len: 0.8 } },
-                                      isLfc ? {} : { cmin: 0 }),
+                                      scale),
             })];
             if (without.length) {
                 traces.push(Object.assign(base(without), { name: "no value",
@@ -3035,8 +3651,8 @@
             showlegend: _colourBy === "status",
             legend: { orientation: "h", y: -0.16, font: { size: 11 } },
             margin: { l: 55, r: 15, t: 10, b: 80 },
-            xaxis: { title: { text: xt } },
-            yaxis: { title: { text: yt }, type: !useUmap && !hasDoublets ? "log" : "linear" },
+            xaxis: { title: { text: "UMAP 1" } },
+            yaxis: { title: { text: "UMAP 2" } },
             dragmode: "lasso",
             // Zoom persists while blacklisting; a lasso selection must not. selectionrevision
             // follows uirevision by default, so a kept selection would dim every point outside
@@ -3094,38 +3710,96 @@
         return out;
     }
 
+    // Each metacell's max log2 fold change over the median metacell: the summary's, over every
+    // gene; from an earlier summary without it, its strongest marker's (markerStats)
+    function maxLfc(s) {
+        const m = s.metacells;
+        if (m.max_lfc && m.max_lfc.some(v => v != null)) return m.max_lfc;
+        return s.expression ? markerStats(s).lfc : m.id.map(() => null);
+    }
+
     /*
      * The marker heatmap: every real metacell (columns, Metacell2's order) against the union of
      * their markers (rows, by the column they peak in, so they run down a diagonal), as the
      * log2 fold change of markerStats: the background white, the metacells a gene marks red.
-     * Static per sample, so cached; only the status strip above it follows the settings.
+     *
+     * Painted once per sample into an image, as a large atlas has thousands of rows and columns:
+     * no array of values is kept, and a side longer than HEATMAP_MAX_PX averages blocks of rows
+     * or columns. Only the status strip above it follows the settings. image is null where
+     * there is no canvas (the test harness).
      */
+    const HEATMAP_MAX_PX = 2048;
+    // The size the heatmap is drawn at, about its size on screen
+    const HEATMAP_DRAW_PX = 1400;
     const _heatmaps = new Map();
     function heatmapData(s) {
         if (_heatmaps.has(s.id)) return _heatmaps.get(s.id);
         const m = s.metacells;
-        const U = D.universes[s.universe];
         const cols = m.id.map((_, i) => i).filter(i => !m.pseudo[i]);
         const mk = markerStats(s);
         const rows = mk.genes.map(j => {
             const prof = geneProfile(s, j);
-            const vals = cols.map(i => prof[i]);
-            const background = mk.background.get(j);
-            const z = vals.map(v => Math.max(-3, Math.min(3, Math.log2((v + MARKER_EPS) / (background + MARKER_EPS)))));
             let peak = 0;
-            vals.forEach((v, c) => { if (v > vals[peak]) peak = c; });
-            return { j, z, peak };
+            cols.forEach((i, c) => { if (prof[i] > prof[cols[peak]]) peak = c; });
+            return { j, peak };
         }).sort((a, b) => a.peak - b.peak);
-        // Unique row labels (names repeat), flagged mitochondrial or rRNA
-        const used = new Map();
-        for (const r of rows) {
-            const base = geneLabel(U, r.j) + geneFlag(U, r.j);
-            used.set(base, (used.get(base) || 0) + 1);
-            r.label = used.get(base) > 1 ? `${base} (${U.ids[r.j]})` : base;
-        }
-        const out = { cols, rows };
+        const out = { cols, nRows: rows.length, image: paintHeatmap(s, cols, rows, mk) };
         _heatmaps.set(s.id, out);
         return out;
+    }
+
+    // DIVERGING as 256 RGB steps over -3 .. 3
+    function divergingRamp() {
+        const rgb = (hex) => [1, 3, 5].map(k => parseInt(hex.slice(k, k + 2), 16));
+        const ramp = new Uint8ClampedArray(256 * 3);
+        for (let t = 0; t < 256; t++) {
+            const f = t / 255;
+            let k = 0;
+            while (k < DIVERGING.length - 2 && f > DIVERGING[k + 1][0]) k++;
+            const [f0, c0] = DIVERGING[k], [f1, c1] = DIVERGING[k + 1];
+            const a = rgb(c0), b = rgb(c1), w = (f - f0) / (f1 - f0);
+            for (let ch = 0; ch < 3; ch++) ramp[3 * t + ch] = a[ch] + (b[ch] - a[ch]) * w;
+        }
+        return ramp;
+    }
+
+    function paintHeatmap(s, cols, rows, mk) {
+        const canvas = document.createElement("canvas");
+        const ctx = canvas && typeof canvas.getContext === "function" ? canvas.getContext("2d") : null;
+        if (!ctx || !rows.length || !cols.length) return null;
+        const w = Math.min(cols.length, HEATMAP_MAX_PX), h = Math.min(rows.length, HEATMAP_MAX_PX);
+        const sum = new Float32Array(w * h), n = new Uint32Array(w * h);
+        const xOf = cols.map((_, c) => Math.floor(c * w / cols.length));
+        rows.forEach((r, k) => {
+            const prof = geneProfile(s, r.j);
+            const bg = mk.background.get(r.j) + MARKER_EPS;
+            const at = Math.floor(k * h / rows.length) * w;
+            cols.forEach((i, c) => {
+                sum[at + xOf[c]] += Math.max(-3, Math.min(3, Math.log2((prof[i] + MARKER_EPS) / bg)));
+                n[at + xOf[c]]++;
+            });
+        });
+        const ramp = divergingRamp();
+        canvas.width = w;
+        canvas.height = h;
+        const img = ctx.createImageData(w, h);
+        for (let p = 0; p < w * h; p++) {
+            const t = Math.round(((n[p] ? sum[p] / n[p] : 0) + 3) / 6 * 255);
+            img.data.set(ramp.subarray(3 * t, 3 * t + 3), 4 * p);
+            img.data[4 * p + 3] = 255;
+        }
+        ctx.putImageData(img, 0, 0);
+        // Stretched from one pixel per value, the browser would smooth the image into a blur:
+        // drawn instead at about the size it is shown, each value a block of whole pixels
+        const fx = Math.max(1, Math.floor(HEATMAP_DRAW_PX / w)), fy = Math.max(1, Math.floor(HEATMAP_DRAW_PX / h));
+        if (fx === 1 && fy === 1) return canvas.toDataURL("image/png");
+        const big = document.createElement("canvas");
+        big.width = w * fx;
+        big.height = h * fy;
+        const bctx = big.getContext("2d");
+        bctx.imageSmoothingEnabled = false;
+        bctx.drawImage(canvas, 0, 0, big.width, big.height);
+        return big.toDataURL("image/png");
     }
 
     function renderHeatmap(s, calls) {
@@ -3133,62 +3807,50 @@
         const note = document.getElementById("heatmap-note");
         const m = s.metacells;
         const H = s.expression ? heatmapData(s) : null;
-        const usable = H && H.rows.length && H.cols.length;
+        const usable = H && H.nRows && H.cols.length;
         el.classList.toggle("hidden", !usable);
         note.textContent = usable ? "" : "No marker profiles in this sample's summary (written by an earlier pipeline " +
             "version, or no metacell has markers).";
         document.getElementById("heatmap-n").textContent = usable
-            ? `${count(H.rows.length, "gene")} × ${count(H.cols.length, "metacell")}` : "";
-        if (!usable) { Plotly.purge(el); return; }
+            ? `${count(H.nRows, "gene")} × ${count(H.cols.length, "metacell")}` : "";
+        if (!usable) { purgePlot(el); return; }
 
-        const ids = H.cols.map(i => m.id[i]);
+        const n = H.cols.length;
         const code = { kept: 0, blacklist: 2 };
         const status = H.cols.map(i => { const k = statusOf(calls, i); return k in code ? code[k] : 1; });
         // A click on the strip only blacklists a kept metacell or takes one off; a metacell a
         // threshold excludes says so, and nothing more
         const statusText = H.cols.map(i => {
             const k = statusOf(calls, i);
-            return k === "kept" ? "kept<br>click to add to the blacklist"
+            return `<b>${esc(m.id[i])}</b>: ` + (k === "kept" ? "kept<br>click to add to the blacklist"
                  : k === "blacklist" ? "blacklisted<br>click to remove from the blacklist"
-                 : "excluded: " + calls.reasons[i].map(r => REASONS[r].label).join(", ");
+                 : "excluded: " + calls.reasons[i].map(r => REASONS[r].label).join(", "));
         });
-        // Gene names only while they can be read; the hover names every row
-        const many = H.rows.length > 40;
-        // The gene the map beside it is coloured by, outlined
-        const shown = _colourBy === "gene" ? H.rows.findIndex(r => r.j === selectedGene(s)) : -1;
+        const BODY_TOP = 0.94;
 
-        Plotly.react(el, [
-            {
-                type: "heatmap", x: ids, y: H.rows.map(r => r.label), z: H.rows.map(r => r.z),
-                zmin: -3, zmax: 3, colorscale: DIVERGING,
-                colorbar: { title: { text: "log2 enrichment", side: "right" }, thickness: 10, len: 0.6, y: 0.45 },
-                hovertemplate: "<b>%{y}</b> in %{x}: log2 enrichment %{z:.2f}<br>click: colour the UMAP by %{y}<extra></extra>",
-            },
-            {
-                type: "heatmap", x: ids, y: ["status"], z: [status], yaxis: "y2", zmin: 0, zmax: 2, showscale: false,
-                colorscale: [[0, COLORS.kept], [0.33, COLORS.kept], [0.34, COLORS.excluded], [0.66, COLORS.excluded],
-                             [0.67, COLORS.blacklist], [1, COLORS.blacklist]],
-                text: [statusText], hovertemplate: "<b>%{x}</b>: %{text}<extra></extra>",
-                xgap: 1,
-            },
-        ], layout({
-            margin: { l: many ? 30 : 120, r: 15, t: 10, b: H.cols.length > 60 ? 20 : 70 },
-            xaxis: { showticklabels: H.cols.length <= 60, tickangle: -60, showgrid: false },
-            yaxis: { domain: [0, 0.94], showticklabels: !many, autorange: "reversed", showgrid: false, automargin: !many },
-            yaxis2: { domain: [0.955, 1], showticklabels: false, showgrid: false, fixedrange: true },
-            shapes: shown >= 0 ? [{ type: "rect", xref: "paper", x0: 0, x1: 1, yref: "y", y0: shown - 0.5, y1: shown + 0.5,
-                                    line: { color: COLORS.threshold, width: 2 } }] : [],
-            uirevision: s.id,
-        }), PLOT_CONFIG);
+        // The strip is the figure's only trace, on column positions; the body is an image under
+        // the same x axis, so the two line up whatever the width. Neither zooms.
+        Plotly.react(el, [{
+            type: "heatmap", x: H.cols.map((_, c) => c), y: [0], z: [status], zmin: 0, zmax: 2, showscale: false,
+            colorscale: [[0, COLORS.kept], [0.33, COLORS.kept], [0.34, COLORS.excluded], [0.66, COLORS.excluded],
+                         [0.67, COLORS.blacklist], [1, COLORS.blacklist]],
+            text: [statusText], hovertemplate: "%{text}<extra></extra>",
+            xgap: n > 200 ? 0 : 1,
+        }], layout({
+            margin: { l: 10, r: 10, t: 10, b: 10 },
+            xaxis: { range: [-0.5, n - 0.5], showticklabels: false, showgrid: false, fixedrange: true },
+            yaxis: { domain: [BODY_TOP + 0.015, 1], showticklabels: false, showgrid: false, fixedrange: true },
+            images: H.image ? [{ source: H.image, xref: "x", x: -0.5, sizex: n, xanchor: "left",
+                                 yref: "paper", y: BODY_TOP, sizey: BODY_TOP, yanchor: "top",
+                                 sizing: "stretch", layer: "below" }] : [],
+        }), Object.assign({}, PLOT_CONFIG, { displayModeBar: false }));
 
-        el._rows = new Map(H.rows.map(r => [r.label, r]));
+        el._ids = H.cols.map(i => m.id[i]);
         if (!el._bound && typeof el.on === "function") {
             el.on("plotly_click", ev => {
                 const p = ev && ev.points && ev.points[0];
-                if (!p) return;
-                if (p.curveNumber === 1) { markMetacells([p.x], "toggle"); return; }
-                const row = el._rows.get(p.y);
-                if (row) showGeneOnMap(row.j);
+                const id = p ? el._ids[Math.round(Number(p.x))] : null;
+                if (id != null) markMetacells([id], "toggle");
             });
             el._bound = true;
         }
@@ -3233,14 +3895,14 @@
     function renderMcTable(s, st, calls) {
         const m = s.metacells;
         const ms = calls.stats;
-        const mk = s.expression ? markerStats(s) : null;
         const filter = (document.getElementById("mc-filter").value || "").toLowerCase();
         let rows = m.id.map((id, i) => ({
             i, id, status: statusOf(calls, i), reasons: calls.reasons[i],
-            n_cells_all: m.n_cells[i], n_cells: ms.n_cells[i], umis: ms.umis[i], mito_pct: ms.mito_pct[i],
+            n_cells_all: m.n_cells[i], n_cells: ms.n_cells[i], umis: ms.umis[i], median_umis: ms.median_umis[i],
+            mito_pct: ms.mito_pct[i],
             median_cell_mito_pct: ms.median_cell_mito_pct[i], rrna_pct: ms.rrna_pct[i],
-            doublet_pct: ms.doublet_pct[i], alpha_hat_mean: ms.alpha_hat_mean[i],
-            marker_lfc: mk ? mk.lfc[i] : null,
+            doublet_pct: ms.doublet_pct[i], ambient_pct: ms.alpha_hat_mean[i] == null ? null : 100 * ms.alpha_hat_mean[i],
+            marker_lfc: ms.max_lfc[i], n_genes_lfc1: ms.n_genes_lfc1[i],
             markers: (m.markers[i] || []).join(", "),
         })).filter(r => !filter ||
             r.id.toLowerCase().includes(filter) || r.markers.toLowerCase().includes(filter) ||
@@ -3265,10 +3927,12 @@
         // [key, header, numeric, explanation]: a numeric column's header is right-aligned over its values
         const cols = [
             ["id", "Metacell"], ["status", "Status"], ["n_cells_all", "Cells", true], ["n_cells", "Cells kept", true],
-            ["umis", "UMIs", true], ["mito_pct", "Mito %", true], ["median_cell_mito_pct", "Median cell mito %", true],
-            ["rrna_pct", "rRNA %", true], ["doublet_pct", "Doublet %", true], ["alpha_hat_mean", "Mean α", true],
-            ["marker_lfc", "log2 FC", true, "log2 fold change of the metacell's strongest marker over the median " +
-                                            "metacell, on all cells: low means no distinct expression programme"],
+            ["umis", "UMIs", true], ["median_umis", "Median UMIs per cell", true],
+            ["mito_pct", "Mito %", true], ["median_cell_mito_pct", "Median cell mito %", true],
+            ["rrna_pct", "rRNA %", true], ["doublet_pct", "Doublet %", true], ["ambient_pct", "Ambient %", true],
+            ["marker_lfc", "Max log2 FC", true, "the highest log2 fold change of any gene in the metacell over the " +
+                                            "median metacell, on all cells: low means no distinct expression programme"],
+            ["n_genes_lfc1", "Genes log2 FC > 1", true, "genes enriched over 2-fold over the median metacell, on all cells"],
             ["markers", "Top markers"],
         ];
         const head = `<thead><tr><th class="check">Blacklist</th>` +
@@ -3285,10 +3949,11 @@
             return `<tr><td class="check">${box}</td>` +
                 `<td>${esc(r.id)}</td><td>${statusCell}</td>` +
                 `<td class="num">${fmt(r.n_cells_all, 0)}</td><td class="num">${fmt(r.n_cells, 0)}</td>` +
-                `<td class="num">${fmt(r.umis, 0)}</td>` +
+                `<td class="num">${fmt(r.umis, 0)}</td><td class="num">${fmt(r.median_umis, 0)}</td>` +
                 `<td class="num">${fmt(r.mito_pct, 2)}</td><td class="num">${fmt(r.median_cell_mito_pct, 2)}</td>` +
                 `<td class="num">${fmt(r.rrna_pct, 2)}</td><td class="num">${fmt(r.doublet_pct, 1)}</td>` +
-                `<td class="num">${fmt(r.alpha_hat_mean, 3)}</td><td class="num">${fmt(r.marker_lfc, 2)}</td>` +
+                `<td class="num">${fmt(r.ambient_pct, 1)}</td><td class="num">${fmt(r.marker_lfc, 2)}</td>` +
+                `<td class="num">${fmt(r.n_genes_lfc1, 0)}</td>` +
                 `<td>${markerLinks(m.markers[r.i])}</td></tr>`;
         }).join("");
         document.getElementById("mc-table").innerHTML = head + `<tbody>${body}</tbody>`;
@@ -3302,10 +3967,28 @@
     }
 
     function bindMetacellsTab() {
+        // A threshold on a metric not plotted: its button plots that metric on x
+        document.getElementById("qc-others").addEventListener("click", (e) => {
+            const b = e.target.closest("[data-qc-show]");
+            if (!b) return;
+            _qcAxes[0] = b.dataset.qcShow;
+            scheduleRender();
+        });
+        // A metric picked for the axis the other already shows swaps the two
+        [0, 1].forEach(k => {
+            document.getElementById("qc-" + "xy"[k]).onchange = (e) => {
+                if (e.target.value === _qcAxes[1 - k]) _qcAxes[1 - k] = _qcAxes[k];
+                _qcAxes[k] = e.target.value;
+                scheduleRender();
+            };
+        });
+        document.getElementById("mc-colour").onclick = (e) => {
+            const b = e.target.closest("button[data-colour]");
+            if (b) { _colourBy = b.dataset.colour; scheduleRender(); }
+        };
         document.getElementById("clear-black").onclick = () => { if (sstate()) { sstate().blacklist.clear(); edited("metacells"); } };
         document.getElementById("mc-filter").oninput = () => scheduleRender();
         document.getElementById("mc-excl-only").onclick = () => { _mcExclOnly = !_mcExclOnly; scheduleRender(); };
-        document.getElementById("mc-colour").onchange = (e) => { _colourBy = e.target.value; scheduleRender(); };
 
         const table = document.getElementById("mc-table");
         table.addEventListener("change", (e) => {
@@ -3359,7 +4042,7 @@
     function renderGenes() {
         const s = current();
         if (!s || s.status !== "ok" || s.universe == null) {
-            document.getElementById("genes").querySelectorAll(".plot, .plot-axis").forEach(el => Plotly.purge(el));
+            document.getElementById("genes").querySelectorAll(".plot, .plot-axis").forEach(el => purgePlot(el));
             document.getElementById("gene-table").innerHTML = "";
             return;
         }
@@ -3375,7 +4058,6 @@
         const clamp = (v, hi) => Math.max(0, Math.min(Math.round(Number(v)), hi));
         const setMin = (v) => { gstate().minUmis = v == null ? 0 : clamp(v, Math.ceil(maxTotal)); edited("genes"); };
         const setMax = (v) => { gstate().maxUmis = v == null ? null : clamp(v, Math.ceil(maxTotal)); edited("genes"); };
-        const setMinCells = (v) => { gstate().minCells = v == null ? 0 : clamp(v, s.n_cells || Infinity); edited("genes"); };
         // A minimum of 0 is off, as is a maximum of null; off shows as an empty box
         const numberBox = (id, value, setter, offValue) => {
             const box = document.getElementById(id);
@@ -3387,15 +4069,19 @@
         };
         numberBox("minumi-num", gs.minUmis, setMin, 0);
         numberBox("maxumi-num", gs.maxUmis, setMax, null);
-        numberBox("mincells-num", gs.minCells, setMinCells, 0);
 
         const nBy = (key) => calls.reasons.filter(r => r.includes(key)).length;
         const umiKeys = ["min_umi", "max_umi"].filter(k => nBy(k));
         const nUmi = calls.reasons.filter(r => r.some(x => umiKeys.includes(x))).length;
         setBadge("minumi-count", umiKeys.map(k => GENE_REASONS[k]), nUmi ? `${count(nUmi, "gene")} excluded` : "");
-        setBadge("mincells-count", [GENE_REASONS.min_cells], gs.minCells > 0 ? `${count(nBy("min_cells"), "gene")} excluded` : "");
         document.getElementById("minumi-note").textContent =
             `${fmt(U.n_unexpressed, 0)} more genes with no UMI in any sample are always dropped.`;
+
+        // The row's layout before any plot in it: a plot takes its panel's width as it is when drawn,
+        // and the UMI panel spans the row when the sample has no ambient genes
+        const ambient = G.ambient_hat;
+        document.getElementById("panel-ambient-genes").classList.toggle("hidden", !ambient);
+        document.getElementById("gene-qc-row").classList.toggle("single", !ambient);
 
         // Ranked total UMIs, split into kept and excluded genes; a line for each limit
         const kept = { x: [], y: [], t: [] }, excl = { x: [], y: [], t: [] };
@@ -3448,28 +4134,30 @@
             excluded: (v) => (gs.minUmis > 0 && v < lg1(gs.minUmis)) || (gs.maxUmis != null && v > lg1(gs.maxUmis)),
         });
 
-        const cellsLine = gs.minCells > 0 ? [{ x: lg1(gs.minCells), onMove: (x) => setMinCells(10 ** x - 1) }] : [];
-        histogram("plot-genecells", G.n_cells.map(lg1), {
-            xtitle: "cells expressing + 1 (log scale)", unit: "genes", nbins: 50, logTicks: true,
-            range: [0, lg1(maxOf(G.n_cells, 1)) * 1.02], lines: cellsLine,
-            onClick: (x) => setMinCells(10 ** x - 1),
-            excluded: gs.minCells > 0 ? (v) => v < lg1(gs.minCells) : null,
-        });
+        // The ambient share, on a log axis from AMBIENT_FLOOR: most genes are far below 1 %
+        if (ambient) {
+            const setAmbient = bindThreshold("gene-ambient", gstate, "maxAmbient", { max: 1, digits: 5, start: 0.001, level: "genes" });
+            setBadge("ambient-genes-n", [GENE_REASONS.ambient], gs.maxAmbient != null ? `${count(nBy("ambient"), "gene")} excluded` : "");
+            const lg = (v) => Math.log10(Math.max(v, AMBIENT_FLOOR));
+            const ambLines = gs.maxAmbient != null ? [{ x: lg(gs.maxAmbient), onMove: (x) => setAmbient(10 ** x) }] : [];
+            histogram("plot-geneambient", ambient.map(v => v == null ? null : lg(v)), {
+                xtitle: "ambient share (log scale)", unit: "genes", nbins: 50, logTicks: true,
+                range: [lg(AMBIENT_FLOOR), lg(Math.max(maxOf(ambient, AMBIENT_FLOOR), AMBIENT_FLOOR * 10)) + 0.05],
+                lines: ambLines,
+                onClick: ambLines.length ? null : (x) => setAmbient(10 ** x),
+                excluded: gs.maxAmbient != null ? (v) => v > lg(gs.maxAmbient) : null,
+            });
+        }
 
         renderDomains(s);
-        // With a domain selected, the gene view shows one of its genes: its first, unless one is open
+        // With a domain selected, the co-expression follows one of its genes: its first, unless one is open
         if (selectedDomain(s) != null) {
             const listed = listedGenes(s);
-            if (listed.length && !listed.includes(selectedGene(s))) _gene = { u: s.universe, j: listed[0] };
+            const j = selectedGene(s);
+            if (j != null && listed.length && !listed.includes(j)) _gene = { u: s.universe, j: listed[0] };
         }
-        renderTopGenes(s, calls, setMax);
-        renderGeneView(s, calls);
-
-        document.getElementById("panel-ambient-genes").classList.toggle("hidden", !G.ambient_hat);
-        if (G.ambient_hat) {
-            bindThreshold("gene-ambient", gstate, "maxAmbient", { max: 1, digits: 5, start: 0.001, level: "genes" });
-            document.getElementById("ambient-genes-n").textContent = gs.maxAmbient != null ? `${count(nBy("ambient"), "gene")}` : "";
-        }
+        renderCoexpressionViews(s, calls);
+        renderGeneNav(s, calls);
         renderGeneTable(s, calls);
     }
 
@@ -3485,7 +4173,10 @@
      * with the same left margin (fixed from the longest label, so the two line up).
      *
      *   bars     [{ x, label, color, hover, note }]; note is written after the bar
-     *   opts     shapes (on the bars, e.g. a line to drag), selected (a bar index, outlined)
+     *   opts     shapes (on the bars, e.g. a line to drag), selected (a bar index, outlined), xmin
+     *            and xmax (the x range, for a fixed scale such as a correlation's)
+     *
+     * A bar with faded set is drawn faint, as are the others when one is selected.
      *
      * About 17 px a bar. Plotly is given the height: it does not follow a change of its
      * container's height by itself. The y range is keyed on the bars, or it would keep the old one.
@@ -3494,21 +4185,27 @@
         const o = opts || {};
         const left = Math.min(240, 16 + 6.3 * Math.max(4, ...bars.map(b => b.label.length)));
         const notes = bars.some(b => b.note);
-        const xmax = Math.max(1e-9, ...bars.map(b => b.x)) * (notes ? 1.35 : 1.05);
+        const xmax = o.xmax != null ? o.xmax : Math.max(1e-9, ...bars.map(b => b.x)) * (notes ? 1.35 : 1.05);
+        const xmin = o.xmin || 0;
         const height = Math.max(40, bars.length * 17 + 12);
         el.style.height = `${height}px`;
+        // A selected bar keeps its colour, in a thick outline of the selection colour and with its
+        // label bold in that colour; the other bars fade behind it
+        const sel = o.selected != null && o.selected >= 0 ? o.selected : null;
+        const tick = (b, k) => k === sel ? `<span style="color:${COLORS.selected}"><b>${esc(b.label)}</b></span>` : b.label;
         Plotly.react(el, [{
             type: "bar", orientation: "h", x: bars.map(b => b.x), y: bars.map((_, k) => k),
             marker: { color: bars.map(b => b.color),
-                      line: { color: COLORS.threshold, width: bars.map((_, k) => k === o.selected ? 2.5 : 0) } },
+                      opacity: bars.map((b, k) => (sel == null ? !b.faded : k === sel) ? 1 : 0.35),
+                      line: { color: COLORS.selected, width: bars.map((_, k) => k === sel ? 3 : 0) } },
             text: bars.map(b => b.note || ""), textposition: "outside", cliponaxis: false,
             textfont: { size: 10, color: COLORS.pseudo },
             customdata: bars.map(b => b.hover), hovertemplate: "%{customdata}<extra></extra>",
         }], layout({
             height,
             margin: { l: left, r: 15, t: 6, b: 6 },
-            xaxis: { range: [0, xmax], showticklabels: false, fixedrange: true },
-            yaxis: { tickvals: bars.map((_, k) => k), ticktext: bars.map(b => b.label), autorange: "reversed",
+            xaxis: { range: [xmin, xmax], showticklabels: false, fixedrange: true },
+            yaxis: { tickvals: bars.map((_, k) => k), ticktext: bars.map(tick), autorange: "reversed",
                      showgrid: false, fixedrange: true },
             shapes: o.shapes || [],
             uirevision: `${s.id}:${bars.map(b => b.label).join("|")}`,
@@ -3520,13 +4217,15 @@
                                 marker: { opacity: 0 } }], layout({
             height: 46,
             margin: { l: left, r: 15, t: 0, b: 40 },
-            xaxis: { range: [0, xmax], title: { text: xtitle }, fixedrange: true, showgrid: false },
+            xaxis: { range: [xmin, xmax], title: { text: xtitle }, fixedrange: true, showgrid: false },
             yaxis: { visible: false, fixedrange: true },
         }), Object.assign({}, PLOT_CONFIG, { displayModeBar: false, staticPlot: true }));
     }
 
     // The bar charts list everything up to these; the gene table lists every gene
     const MAX_GENE_BARS = 100;
+    // The ambient share's histogram starts here: a share of 0 is drawn at it
+    const AMBIENT_FLOOR = 1e-5;
     const MAX_DOMAIN_BARS = 150;
 
     /*
@@ -3547,6 +4246,7 @@
         const hasDomains = U.pfam.some(p => p.length);
         document.getElementById("pfam-views").classList.toggle("hidden", !hasDomains);
         document.getElementById("pfam-missing").classList.toggle("hidden", hasDomains);
+        document.getElementById("genes-row").classList.toggle("single", !hasDomains);
         if (!hasDomains) return;
 
         const { stats, total } = cachedDomainStats(s);
@@ -3557,16 +4257,24 @@
         const shown = entries.slice(0, MAX_DOMAIN_BARS);
         const sel = selectedDomain(s);
         const el = document.getElementById("plot-domains");
+        // The genes of an excluded domain that are kept all the same
+        const keptBack = (name, e) => gs.pfam.has(name) ? e.members.filter(j => gs.pfamKeep.has(U.ids[j])).length : 0;
         rankedBars(el, document.getElementById("axis-domains"), s, shown.map(([d, e]) => {
             const name = D.domains[d];
             const share = `${fmt(pct(e.umis, total), 2)} %`;
+            const nBack = keptBack(name, e);
             return {
                 x: pct(e.umis, total), label: name, color: gs.pfam.has(name) ? COLORS.blacklist : COLORS.kept,
-                note: `${count(e.genes, "gene")} · ${share}`,
+                note: `${count(e.genes, "gene")}${nBack ? `, ${fmt(nBack, 0)} kept` : ""} · ${share}`,
                 hover: `<b>${esc(name)}</b>${gs.pfam.has(name) ? " (excluded)" : ""}<br>${count(e.genes, "gene")}, ` +
-                       `${fmt(e.umis, 0)} UMIs (${share})<br>click to ${d === sel ? "deselect" : "list its genes below"}`,
+                       `${fmt(e.umis, 0)} UMIs (${share})` + (nBack ? `<br>${count(nBack, "gene")} kept all the same` : "") +
+                       `<br>click to ${d === sel ? "deselect" : "list its genes beside it"}`,
             };
-        }), "% of the sample's UMIs on genes with the domain", { selected: shown.findIndex(([d]) => d === sel) });
+        }), "% of the sample's UMIs on genes with the domain", {
+            selected: shown.findIndex(([d]) => d === sel),
+            // Room for the longest note in a column a third of the page wide
+            xmax: Math.max(1e-9, ...shown.map(([, e]) => pct(e.umis, total))) * 1.6,
+        });
         el._shown = shown.map(([d]) => d);
         if (!el._bound && typeof el.on === "function") {
             el.on("plotly_click", ev => {
@@ -3579,13 +4287,22 @@
             el._bound = true;
         }
 
-        // The selection, and the exclusion of the selected domain
+        // The selected domain on top of the genes it lists, as the selected gene is on top of its
+        // curve: its genes, whether it is blacklisted, and the button to change that
         const name = sel == null ? null : D.domains[sel];
-        document.getElementById("dom-selected").textContent = name ? `Selected: ${name}` : "";
-        const toggle = document.getElementById("dom-toggle");
-        toggle.classList.toggle("hidden", !name);
-        toggle.textContent = name && gs.pfam.has(name) ? "Keep domain" : "Exclude domain";
-        document.getElementById("dom-clear").classList.toggle("hidden", !name);
+        document.getElementById("dom-head").classList.toggle("hidden", !name);
+        if (name) {
+            const e = stats.get(sel);
+            const listed = gs.pfam.has(name);
+            const back = keptBack(name, e);
+            document.getElementById("dom-name").textContent = name;
+            document.getElementById("dom-genes").textContent = count(e.genes, "gene");
+            if (listed) setBadge("dom-status", [GENE_REASONS.pfam], "blacklisted" + (back ? `, ${fmt(back, 0)} kept back` : ""));
+            else setBadge("dom-status", [KEPT], "kept");
+            // Kept on light blue, the kept colour, as the selected gene's badge
+            document.getElementById("dom-status").classList.toggle("kept", !listed);
+            document.getElementById("dom-toggle").textContent = listed ? "Remove from blacklist" : "Blacklist domain";
+        }
 
         // Excluding by name or expression covers every domain of the run, so the setting carries to
         // samples whose domains differ
@@ -3598,7 +4315,12 @@
                        `${count(entries.length, "domain")} of this sample match${nRun > entries.length ? `, ${fmt(nRun, 0)} across the run` : ""}`
                      : "") +
             (entries.length > shown.length ? `${matcher ? "; " : ""}the first ${fmt(shown.length, 0)} of ${fmt(entries.length, 0)} shown` : "");
-        setBadge("pfam-count", [GENE_REASONS.pfam], gs.pfam.size ? `${count(gs.pfam.size, "domain")} excluded` : "");
+        const nBack = [...gs.pfamKeep].filter(id => {
+            const j = universeLookup(s.universe).get(id);
+            return j != null && U.pfam[j].some(dd => gs.pfam.has(D.domains[dd]));
+        }).length;
+        setBadge("pfam-count", [GENE_REASONS.pfam], !gs.pfam.size ? "" :
+                 `${count(gs.pfam.size, "domain")} excluded` + (nBack ? `, ${count(nBack, "gene")} kept back` : ""));
     }
 
     // The genes the most expressed genes list: the selected domain's, or all, most UMIs first
@@ -3610,117 +4332,366 @@
         return order.filter(j => members.has(j));
     }
 
-    // The genes with most UMIs, as shares of the sample's; the maximum as a line to drag
-    function renderTopGenes(s, calls, setMax) {
+    /*
+     * The strip above the gene columns: the domain the genes are narrowed to (with a cross to let
+     * it go) and the gene open on the right, each outlined in the selection colour as in the
+     * plots; a finder opens any gene with UMIs by name or id. Without domains the steps renumber.
+     */
+    function renderGeneNav(s, calls) {
         const U = D.universes[s.universe];
-        const G = s.genes;
-        const gs = gstate();
+        const hasDomains = U.pfam.some(p => p.length);
+        ["nav-step-domain", "nav-domain", "nav-sep-domain"].forEach(id => document.getElementById(id).classList.toggle("hidden", !hasDomains));
+        document.getElementById("nav-num-gene").textContent = hasDomains ? "2" : "1";
+
         const d = selectedDomain(s);
-        const listed = listedGenes(s).filter(j => (G.total_umi[j] || 0) > 0);
-        const top = listed.slice(0, MAX_GENE_BARS);
-        const total = calls.umisTotal || 1;
-        document.getElementById("top-title").textContent = d == null ? "Top genes" : `Genes with ${D.domains[d]}`;
-        document.getElementById("top-note").textContent = listed.length > top.length
-            ? `the ${fmt(top.length, 0)} with most UMIs of ${fmt(listed.length, 0)}` : count(listed.length, "gene");
+        const dom = document.getElementById("nav-domain");
+        dom.classList.toggle("none", d == null);
+        dom.innerHTML = d == null ? "all genes"
+            : `${esc(D.domains[d])}<button data-clear-domain title="Show all genes again" aria-label="clear the domain">&times;</button>`;
 
-        const el = document.getElementById("plot-topgenes");
-        rankedBars(el, document.getElementById("axis-topgenes"), s, top.map(j => ({
-            x: 100 * (G.total_umi[j] || 0) / total, label: geneLabel(U, j) + geneFlag(U, j), color: geneColour(calls.reasons[j]),
-            hover: `<b>${esc(geneLabel(U, j))}</b> (${esc(U.ids[j])})<br>${fmt(G.total_umi[j], 0)} UMIs ` +
-                   `(${fmt(100 * (G.total_umi[j] || 0) / total, 2)} %) in ${fmt(G.n_cells[j], 0)} cells` +
-                   (G.tau && G.tau[j] != null ? ` · τ ${fmt(G.tau[j], 2)}` : "") +
-                   (calls.reasons[j].length ? `<br>excluded: ${esc(calls.reasons[j].map(r => geneReason(r).label).join(", "))}` : ""),
-        })), "% of the sample's UMIs", {
-            shapes: gs.maxUmis != null ? [vline(100 * gs.maxUmis / total)] : [],
-            // The gene in the gene view, outlined as the selected domain is above
-            selected: top.indexOf(selectedGene(s)),
+        const j = selectedGene(s);
+        const chip = document.getElementById("nav-gene");
+        chip.classList.toggle("none", j == null);
+        chip.innerHTML = j == null ? "none"
+            : `${esc(geneLabel(U, j))}` + (U.names[j] ? ` <span class="muted">${esc(U.ids[j])}</span>` : "") +
+              ` <span class="muted">${calls.reasons[j].length ? "excluded" : "kept"}</span>` +
+              `<button data-clear-gene title="Deselect the gene" aria-label="deselect the gene">&times;</button>`;
+
+        // Every gene with UMIs, by its name (or its id when it has none), once per sample
+        const list = document.getElementById("gene-pick-list");
+        if (list._sample !== s.id) {
+            list.innerHTML = U.ids.map((id, g) => (s.genes.total_umi[g] || 0) > 0
+                ? `<option value="${esc(U.names[g] || id)}">${U.names[g] ? esc(id) : ""}</option>` : "").join("");
+            list._sample = s.id;
+        }
+    }
+
+    /*
+     * Co-expression across metacells: the top genes' correlations among themselves, beside their
+     * share of UMIs; and for the gene picked there or in the table, its correlation curve and the
+     * genes most correlated with it. Every view counts the same metacells (corrMetacells).
+     */
+    const MAX_CORR_LIST = 250;
+    const MAX_COEXP_GENES = 50;
+    // The co-expressed genes' band of r, a view setting: the genes with _corrMax >= r >= _corrMin
+    let _corrMin = 0.8;
+    let _corrMax = 1;
+    let _corrModule = [];    // the kept genes in the band, for "Blacklist N genes"
+    const inBand = (r) => r >= _corrMin && r <= _corrMax;
+    const bandText = () => `${fmt(_corrMax, 2)} ≥ r ≥ ${fmt(_corrMin, 2)}`;
+
+    // One end of the band (0 the lower, 1 the upper) to v, within -1..1 and to 0.01; the other end
+    // follows when this one would pass it
+    function setBand(end, v) {
+        const x = Math.round(Math.min(1, Math.max(-1, v)) * 100) / 100;
+        if (end === 0) { _corrMin = x; if (_corrMax < x) _corrMax = x; }
+        else { _corrMax = x; if (_corrMin > x) _corrMin = x; }
+        scheduleRender();
+    }
+
+    const noProfileNote = (U, j) =>
+        `No metacell profile was stored for ${geneLabel(U, j)}: the summary keeps them for every marker, the most ` +
+        `expressed genes and those that vary most across metacells, as a sparse gene's correlations are noise.`;
+
+    // Each profiled gene's share (%) of the UMIs in the metacells idx: its CP10k in each, times the
+    // metacell's UMIs. The profiles are of all of a metacell's cells, before any cell is filtered.
+    function metacellShares(s, idx) {
+        const P = logProfiles(s);
+        const umis = s.metacells.umis;
+        let total = 0;
+        for (const i of idx) total += umis[i] || 0;
+        const out = new Map();
+        for (const [j, k] of P.index) {
+            const v = P.rows[k];
+            let sum = 0;
+            for (const i of idx) sum += Math.expm1(v[i]) * (umis[i] || 0);
+            out.set(j, total > 0 ? 100 * sum / 1e4 / total : 0);
+        }
+        return out;
+    }
+
+    function renderCoexpressionViews(s, calls) {
+        const P = logProfiles(s);
+        const cm = P ? corrMetacells(s, metacellCalls(s, sstate())) : null;
+        const corr = renderCorrelated(s, calls, cm);
+        renderCorrCurve(s, calls, cm, corr);
+        renderCoexpression(s, calls, cm);
+    }
+
+    // The selected gene's status and blacklisting, and the genes most correlated with it; with
+    // no gene selected, the card says how to pick one
+    function renderCorrelated(s, calls, cm) {
+        const U = D.universes[s.universe];
+        const j = selectedGene(s);
+        const status = document.getElementById("corr-status");
+        const btn = document.getElementById("corr-black");
+        status.classList.toggle("hidden", j == null);
+        if (j == null) {
+            document.getElementById("curve-title").textContent = "No gene selected";
+            document.getElementById("gene-id").textContent = "";
+            btn.classList.add("hidden");
+        } else {
+            const r = calls.reasons[j];
+            document.getElementById("curve-title").textContent = geneLabel(U, j);
+            document.getElementById("gene-id").textContent = U.names[j] ? U.ids[j] : "";
+            if (r.length) setBadge("corr-status", r.map(x => geneReason(x).spec), "excluded: " + r.map(x => geneReason(x).label).join(", "));
+            else setBadge("corr-status", [KEPT], calls.waived[j] ? `kept despite domain ${calls.waived[j]}` : "kept");
+            // Kept on light blue, the kept colour; excluded on the badge's own orange tint
+            status.classList.toggle("kept", !r.length);
+            // As in the gene table: blacklisting is offered for a kept gene, and a gene on the
+            // blacklist can be taken off it. A gene only a setting excludes has no button.
+            const listed = r.includes("manual");
+            btn.classList.toggle("hidden", r.length > 0 && !listed);
+            btn.textContent = listed ? "Remove from blacklist" : "Blacklist gene";
+        }
+
+        const el = document.getElementById("plot-corr");
+        const axisEl = document.getElementById("axis-corr");
+        const corr = cm && j != null ? correlatedWith(s, j, cm.idx) : null;
+        const lo = document.getElementById("corr-min"), hi = document.getElementById("corr-max");
+        if (document.activeElement !== lo) lo.value = _corrMin;
+        if (document.activeElement !== hi) hi.value = _corrMax;
+        const show = !!(corr && corr.length);
+        document.getElementById("corr-scroll").classList.toggle("hidden", !show);
+        axisEl.classList.toggle("hidden", !show);
+        document.getElementById("corr-controls").classList.toggle("hidden", !show);
+        if (!show) {
+            purgePlot(el); purgePlot(axisEl);
+            _corrModule = [];
+            document.getElementById("corr-note").textContent = "";
+            return corr;
+        }
+
+        // Exactly the genes in the band, most correlated first, so moving either end, on the
+        // curve or here, changes the list; an empty band hides it. A band below 0 lists the
+        // anti-correlated genes, their bars to the left.
+        const band = corr.filter(c => inBand(c.r));
+        const shown = band.slice(0, MAX_CORR_LIST);
+        document.getElementById("corr-scroll").classList.toggle("hidden", !shown.length);
+        axisEl.classList.toggle("hidden", !shown.length);
+        if (!shown.length) { purgePlot(el); purgePlot(axisEl); }
+        else drawCorrBars(s, calls, U, el, axisEl, shown);
+        
+        // The module: the genes in the band, and the gene itself when the band reaches r = 1; the
+        // kept ones, as a setting may exclude the others already
+        _corrModule = (_corrMax >= 1 ? [j] : []).concat(band.map(c => c.j)).filter(g => !calls.reasons[g].length);
+        const blackModule = document.getElementById("corr-black-module");
+        blackModule.classList.toggle("hidden", !band.length || !_corrModule.length);
+        blackModule.textContent = `Blacklist ${count(_corrModule.length, "gene")}`;
+        blackModule.title = `${_corrMax >= 1 ? `${geneLabel(U, j)} and the genes` : "The genes"} with ${bandText()} ` +
+                            `that no setting excludes yet`;
+        document.getElementById("corr-note").textContent =
+            `${count(band.length, "gene")} with ${bandText()}, over ${count(cm.idx.length, "metacell")}` +
+            (cm.fallback ? ` (all: fewer than ${MIN_CORR_METACELLS} are kept)` : "") +
+            (band.length > shown.length ? `; the first ${fmt(shown.length, 0)} listed` : "") +
+            (band.length ? "." : ": drag the dashed lines on the curve to widen the band.");
+        return corr;
+    }
+
+    // The co-expressed genes as bars, r on x, with the band's ends as lines to drag
+    function drawCorrBars(s, calls, U, el, axisEl, shown) {
+        const least = Math.min(0, ...shown.map(c => c.r));
+        rankedBars(el, axisEl, s, shown.map(c => ({
+            x: c.r, label: geneLabel(U, c.j) + geneFlag(U, c.j), color: geneColour(calls.reasons[c.j]),
+            note: fmt(c.r, 2),
+            hover: `<b>${esc(geneLabel(U, c.j))}</b> (${esc(U.ids[c.j])})<br>r ${fmt(c.r, 3)}` +
+                   (calls.reasons[c.j].length ? `<br>excluded: ${esc(calls.reasons[c.j].map(x => geneReason(x).label).join(", "))}` : "") +
+                   `<br>click to open this gene`,
+        })), "Pearson r over the metacells", {
+            xmin: least < 0 ? least - 0.25 : 0, xmax: 1.2,
+            // The band's ends: the lower first (index 0), then the upper
+            shapes: [vline(_corrMin), vline(_corrMax)],
         });
-
-        el._top = top;
-        el._onMax = (x) => setMax(x / 100 * (calls.umisTotal || 1));
+        el._shown = shown.map(c => c.j);
         if (!el._bound && typeof el.on === "function") {
             el.on("plotly_relayout", ev => {
                 const mv = shapeMove(ev, "x");
-                if (mv) el._onMax(mv.value);
+                if (mv) setBand(mv.i, mv.value);
             });
             el.on("plotly_click", ev => {
                 const p = ev && ev.points && ev.points[0];
-                if (p && el._top[p.y] != null) { _gene = { u: current().universe, j: el._top[p.y] }; scheduleRender(); }
+                if (p && el._shown[p.y] != null) { _gene = { u: current().universe, j: el._shown[p.y] }; scheduleRender(); }
             });
             el._bound = true;
         }
     }
 
-    // One gene across the metacells: where it is expressed says whether it marks cells or is
-    // everywhere (ambient, housekeeping)
-    function renderGeneView(s, calls) {
+    /*
+     * The selected gene's correlation with every profiled gene, ranked: x the rank (log), y r. A
+     * module shows as a plateau before the drop. The band's ends are lines to drag, the genes in
+     * it drawn in their status colour, the rest grey.
+     */
+    function renderCorrCurve(s, calls, cm, corr) {
+        const U = D.universes[s.universe];
+        const el = document.getElementById("plot-curve");
+        const j = selectedGene(s);
+        const show = !!(corr && corr.length);
+        el.classList.toggle("hidden", !show);
+        document.getElementById("corr-empty").textContent =
+            !cm ? "This sample's summary holds no metacell profiles." :
+            j == null ? "Click a gene in the top genes or the table, or find one by name above, to see what it is co-expressed with." :
+            !corr ? noProfileNote(U, j) :
+            !corr.length ? `${geneLabel(U, j)} is the same in every metacell correlated over.` : "";
+        if (!show) { purgePlot(el); return; }
+
+        const inside = corr.map(c => inBand(c.r));
+        // SVG, not WebGL: a profile count of points draws fine
+        Plotly.react(el, [{
+            type: "scatter", mode: "markers", x: corr.map((_, k) => k + 1), y: corr.map(c => c.r),
+            customdata: corr.map((c, k) => `<b>${esc(geneLabel(U, c.j))}</b> (${esc(U.ids[c.j])})<br>rank ${k + 1}, r ${fmt(c.r, 3)}` +
+                (calls.reasons[c.j].length ? `<br>excluded: ${esc(calls.reasons[c.j].map(x => geneReason(x).label).join(", "))}` : "") +
+                `<br>click to open this gene`),
+            hovertemplate: "%{customdata}<extra></extra>",
+            marker: { size: corr.map((_, k) => inside[k] ? 8 : 4),
+                      color: corr.map((c, k) => inside[k] ? geneColour(calls.reasons[c.j]) : COLORS.pseudo) },
+        }], layout({
+            showlegend: false,
+            margin: { l: 50, r: 10, t: 10, b: 45 },
+            // Ranks on a log axis: the genes at the top, where a module is, spread out
+            xaxis: { type: "log", title: { text: "genes ranked by r (log scale)" }, automargin: true },
+            yaxis: { title: { text: "Pearson r" }, range: [-1.05, 1.05], zeroline: true },
+            // The band's ends: the lower first (index 0), then the upper
+            shapes: [hline(_corrMin), hline(_corrMax)],
+            uirevision: `${s.id}:${j}`,
+            editrevision: ++_editRevision,
+        }), Object.assign({}, PLOT_CONFIG, { edits: { shapePosition: true } }));
+
+        el._corr = corr;
+        if (!el._bound && typeof el.on === "function") {
+            el.on("plotly_relayout", ev => {
+                const mv = shapeMove(ev, "y");
+                if (mv) setBand(mv.i, mv.value);
+            });
+            el.on("plotly_click", ev => {
+                const p = ev && ev.points && ev.points[0];
+                const c = p ? el._corr[p.pointIndex] : null;
+                if (c) { _gene = { u: current().universe, j: c.j }; scheduleRender(); }
+            });
+            el._bound = true;
+        }
+    }
+
+    /*
+     * The listed genes (the top genes, or the selected domain's) in one figure: on the left
+     * each gene's share of the UMIs in the metacells correlated over, on the right their
+     * correlations, both in the order of a clustering, so a gene's bar sits beside its row. The
+     * genes are those with most UMIs in the same metacells, so with the excluded metacells left
+     * out a gene that only they express is not listed. Genes without a stored profile have no
+     * such count: they come last, ranked by their total, with no bar and a blank row.
+     */
+    function renderCoexpression(s, calls, cm) {
         const U = D.universes[s.universe];
         const G = s.genes;
-        const m = s.metacells;
-        const j = selectedGene(s);
-        const r = calls.reasons[j];
-        document.getElementById("gv-title").textContent = `Gene view: ${geneLabel(U, j)}`;
-        if (r.length) setBadge("gv-status", r.map(x => geneReason(x).spec), "excluded: " + r.map(x => geneReason(x).label).join(", "));
-        else setBadge("gv-status", [KEPT], "kept");
-        // Kept on light blue, the kept colour; excluded on the badge's own orange tint
-        document.getElementById("gv-status").classList.toggle("kept", !r.length);
-
-        // As in the gene table: blacklisting is offered for a kept gene, and a gene on the blacklist
-        // can be taken off it. A gene only a setting excludes has no button.
-        const listed = r.includes("manual");
-        const btn = document.getElementById("gv-black");
-        btn.classList.toggle("hidden", r.length > 0 && !listed);
-        btn.textContent = listed ? "Take off the blacklist" : "Blacklist gene";
-
+        const el = document.getElementById("plot-coexp");
+        const d = selectedDomain(s);
+        const P = cm ? logProfiles(s) : null;
+        const shares = P ? metacellShares(s, cm.idx) : null;
+        const listed = listedGenes(s).filter(j => (G.total_umi[j] || 0) > 0);
+        const ranked = shares ? listed.filter(j => shares.has(j)).sort((a, b) => shares.get(b) - shares.get(a))
+                                      .concat(listed.filter(j => !shares.has(j)))
+                              : listed;
+        const genes = ranked.slice(0, MAX_COEXP_GENES);
+        const z = P ? zProfiles(s, cm.idx) : null;
+        const zOf = (j) => { const k = P ? P.index.get(j) : null; return k == null ? null : z[k]; };
+        const profiled = genes.filter(j => zOf(j));
+        const R = profiled.map(a => profiled.map(b => dot(zOf(a), zOf(b))));
+        const g = clusterOrder(R).map(k => profiled[k]).concat(genes.filter(j => !zOf(j)));
+        const nMissing = genes.length - profiled.length;
+        // Without profiles, the shares of all called cells: the only count there is
         const total = calls.umisTotal || 1;
-        document.getElementById("gv-table").innerHTML =
-            `<thead><tr><th>Gene</th><th class="value">Value</th></tr></thead><tbody>` +
-            [["Gene ID", U.ids[j]], ["Name", U.names[j] || "–"],
-             ["Total UMIs", `${fmt(G.total_umi[j], 0)} (${fmt(100 * (G.total_umi[j] || 0) / total, 2)} %)`],
-             ["Cells expressing", `${fmt(G.n_cells[j], 0)} of ${fmt(s.n_cells, 0)}`],
-             ["Specificity τ", G.tau && G.tau[j] != null ? fmt(G.tau[j], 3) : "–"]]
-                .concat(G.ambient_hat ? [["Ambient share (CellSweep)", fmt(G.ambient_hat[j], 5)]] : [])
-                .concat([["Domains", U.pfam[j].map(d => D.domains[d]).join(", ") || "–"]])
-                .map(([k, v]) => `<tr><td>${esc(k)}</td><td class="value">${esc(v)}</td></tr>`).join("") + `</tbody>`;
+        const share = (j) => shares ? (shares.has(j) ? shares.get(j) : null) : 100 * (G.total_umi[j] || 0) / total;
+        const over = !cm ? "all called cells" : cm.idx.length === s.expression.mc.length ? `all ${count(cm.idx.length, "metacell")}`
+                   : `the ${count(cm.idx.length, "kept metacell")}`;
 
-        const prof = geneProfile(s, j);
-        const mapEl = document.getElementById("plot-gvmap");
-        const barEl = document.getElementById("plot-gvbar");
-        const useUmap = m.x.some((v, i) => v != null && !m.pseudo[i]);
-        mapEl.classList.toggle("hidden", !prof || !useUmap);
-        barEl.classList.toggle("hidden", !prof);
-        document.getElementById("gv-note").textContent = !prof
-            ? "No metacell profile was stored for this gene: the summary keeps them for every marker and the 500 most expressed genes."
-            : "";
-        if (!prof) { Plotly.purge(mapEl); Plotly.purge(barEl); return; }
+        document.getElementById("coexp-title").textContent = d == null
+            ? `Top ${fmt(g.length, 0)} genes across all domains` : "Genes across selected domain";
+        document.getElementById("coexp-note").textContent =
+            `Ranked by their UMIs in ${over}` +
+            (listed.length > g.length ? `; the ${fmt(g.length, 0)} with most of ${count(listed.length, "gene")}. ` : ". ") +
+            (!P ? "This sample's summary holds no metacell profiles, so there are no correlations." :
+             nMissing ? `${count(nMissing, "gene")} without a stored metacell profile ${nMissing === 1 ? "comes" : "come"} last, blank.` : "");
+        el.classList.toggle("hidden", !g.length);
+        if (!g.length) { purgePlot(el); return; }
 
-        const real = m.id.map((_, i) => i).filter(i => !m.pseudo[i]);
-        if (useUmap) {
-            const idx = real.filter(i => m.x[i] != null).sort((a, b) => prof[a] - prof[b]);   // high values on top
-            Plotly.react(mapEl, [{
-                type: "scattergl", mode: "markers", x: idx.map(i => m.x[i]), y: idx.map(i => m.y[i]),
-                text: idx.map(i => m.id[i]), customdata: idx.map(i => prof[i]),
-                hovertemplate: "<b>%{text}</b><br>%{customdata:.2f} CP10k<extra></extra>",
-                marker: { size: 6, color: idx.map(i => prof[i]), colorscale: SEQUENTIAL, cmin: 0,
-                          colorbar: { thickness: 8, len: 0.8, title: { text: "CP10k", side: "right" } } },
-            }], layout({
-                margin: { l: 10, r: 10, t: 10, b: 10 },
-                xaxis: { showticklabels: false, showgrid: false }, yaxis: { showticklabels: false, showgrid: false },
-                uirevision: s.id,
-            }), PLOT_CONFIG);
-        }
-
-        const mc = metacellCalls(s, sstate());
-        const top = real.slice().sort((a, b) => prof[b] - prof[a]).slice(0, 10).filter(i => prof[i] > 0);
-        Plotly.react(barEl, [{
-            type: "bar", orientation: "h", x: top.map(i => prof[i]), y: top.map(i => m.id[i]),
-            marker: { color: top.map(i => { const k = statusOf(mc, i); return k === "kept" ? COLORS.kept : k === "blacklist" ? COLORS.blacklist : COLORS.excluded; }) },
-            hovertemplate: "<b>%{y}</b><br>%{x:.2f} CP10k<extra></extra>",
+        const excludedBy = (j) => calls.reasons[j].length ? `<br>excluded: ${esc(calls.reasons[j].map(x => geneReason(x).label).join(", "))}` : "";
+        // The selected gene's label bold in the selection colour; an excluded gene's in its colour
+        const label = (j) => {
+            const text = esc(geneLabel(U, j) + geneFlag(U, j));
+            if (j === jSel) return `<span style="color:${COLORS.selected}"><b>${text}</b></span>`;
+            return calls.reasons[j].length ? `<span style="color:${geneColour(calls.reasons[j])}">${text}</span>` : text;
+        };
+        const r = (a, b) => { const za = zOf(a), zb = zOf(b); return za && zb ? dot(za, zb) : null; };
+        const rr = g.map(b => g.map(a => r(a, b)));
+        const idx = g.map((_, k) => k);
+        const font = { size: g.length > 40 ? 8 : 10 };
+        const jSel = selectedGene(s);
+        // The selected gene framed in the selection colour: its row across the bar and the
+        // heatmap, and its column, so its correlations read along either
+        const xs = g.indexOf(jSel);
+        const frame = { type: "rect", line: { color: COLORS.selected, width: 2 }, fillcolor: "rgba(0,0,0,0)" };
+        const shapes = xs < 0 ? [] : [
+            Object.assign({ xref: "paper", yref: "y", x0: 0, x1: 1, y0: xs - 0.5, y1: xs + 0.5 }, frame),
+            Object.assign({ xref: "x2", yref: "y", x0: xs - 0.5, x1: xs + 0.5, y0: -0.5, y1: g.length - 0.5 }, frame),
+        ];
+        const box = document.getElementById("coexp-box");
+        const need = Math.max(320, g.length * 13 + 160);
+        box.style.minHeight = `${need}px`;
+        const fit = () => Math.min(Math.max(box.clientHeight || 0, need), g.length * 40 + 160);
+        const height = fit();
+        Plotly.react(el, [{
+            type: "bar", orientation: "h", xaxis: "x", yaxis: "y", x: g.map(share), y: idx,
+            marker: { color: g.map(j => geneColour(calls.reasons[j])), opacity: g.map(j => xs < 0 || j === jSel ? 1 : 0.35),
+                      line: { color: COLORS.selected, width: g.map(j => j === jSel ? 3 : 0) } },
+            customdata: g.map(j => `<b>${esc(geneLabel(U, j))}</b> (${esc(U.ids[j])})<br>` +
+                                   (share(j) == null ? "no metacell profile" : `${fmt(share(j), 2)} % of the UMIs in ${esc(over)}`) +
+                                   `<br>${fmt(G.total_umi[j], 0)} UMIs in all called cells` +
+                                   (G.tau && G.tau[j] != null ? ` · τ ${fmt(G.tau[j], 2)}` : "") + excludedBy(j) +
+                                   `<br>click to open this gene`),
+            hovertemplate: "%{customdata}<extra></extra>",
+        }, {
+            type: "heatmap", xaxis: "x2", yaxis: "y", x: idx, y: idx, z: rr,
+            zmin: -1, zmax: 1, colorscale: CORRELATION, hoverongaps: false,
+            customdata: g.map((b, y) => g.map((a, x) => `<b>${esc(geneLabel(U, a))}</b> and <b>${esc(geneLabel(U, b))}</b><br>` +
+                                                        (rr[y][x] == null ? "no metacell profile" : `r ${fmt(rr[y][x], 3)}`) +
+                                                        `<br>click to open ${esc(geneLabel(U, a))}`)),
+            hovertemplate: "%{customdata}<extra></extra>",
+            colorbar: { orientation: "h", thickness: 8, len: 0.45, x: 0.62, xanchor: "center", y: 1.01, yanchor: "bottom",
+                        ypad: 0, outlinewidth: 0, tickfont: { size: 9 }, title: { text: "r", side: "right" } },
         }], layout({
-            margin: { l: 10, r: 10, t: 10, b: 40 },
-            xaxis: { title: { text: "UMIs per 10,000 (CP10k), top metacells" }, rangemode: "tozero" },
-            yaxis: { autorange: "reversed", automargin: true, type: "category" },
+            height,
+            showlegend: false,
+            // The r key above the plot: Plotly makes room for it on top of this margin
+            margin: { l: 10, r: 10, t: 6, b: 10 },
+            xaxis: { domain: [0, 0.2], rangemode: "tozero", fixedrange: true, nticks: 3, tickfont: { size: 9 },
+                     title: { text: "% of UMIs", font: { size: 11 } }, automargin: true },
+            xaxis2: { domain: [0.24, 1], tickvals: idx, ticktext: g.map(label), tickangle: -90, tickfont: font,
+                      showgrid: false, zeroline: false, fixedrange: true, automargin: true },
+            yaxis: { tickvals: idx, ticktext: g.map(label), tickfont: font, autorange: "reversed",
+                     showgrid: false, zeroline: false, fixedrange: true, automargin: true },
+            shapes,
+            uirevision: `${s.id}:${g.join(",")}`,
         }), PLOT_CONFIG);
+
+        el._genes = g;
+        el._fit = fit;
+        // The card's height follows the columns beside it: the figure follows the card
+        if (!box._observed && typeof ResizeObserver === "function") {
+            new ResizeObserver(() => {
+                const h = el._fit && el._fit();
+                if (h && el.layout && Math.abs(h - el.layout.height) > 2) Plotly.relayout(el, { height: h });
+            }).observe(box);
+            box._observed = true;
+        }
+        if (!el._bound && typeof el.on === "function") {
+            // A bar or a square opens its gene (a square, its column's)
+            el.on("plotly_click", ev => {
+                const p = ev && ev.points && ev.points[0];
+                if (!p) return;
+                const j = el._genes[p.curveNumber === 0 ? p.y : p.x];
+                if (j != null) { _gene = { u: current().universe, j }; scheduleRender(); }
+            });
+            el._bound = true;
+        }
     }
 
     // A search: a regular expression (case-insensitive), or plain text when it is not a valid one
@@ -3753,6 +4724,39 @@
         } catch (e) { /* an invalid expression excluded nothing */ }
     }
 
+    /*
+     * Each profiled gene's TOP_COEXP most correlated genes over the metacells idx, for the gene
+     * table: every pair once, so about n^2 / 2 dot products; cached for the last sample and
+     * metacells, as the profiles' z-scores are.
+     */
+    const TOP_COEXP = 3;
+    let _topCoexp = { key: null, value: null };
+    function topCoexpressed(s, idx) {
+        const key = s.id + ":" + idx.join(",");
+        if (_topCoexp.key !== key) {
+            const z = zProfiles(s, idx);
+            const genes = [...logProfiles(s).index.entries()].filter(([, k]) => z[k]);
+            const best = new Map(genes.map(([j]) => [j, []]));
+            const offer = (list, j, r) => {
+                if (list.length === TOP_COEXP && r <= list[TOP_COEXP - 1].r) return;
+                list.push({ j, r });
+                list.sort((a, b) => b.r - a.r);
+                if (list.length > TOP_COEXP) list.pop();
+            };
+            for (let a = 0; a < genes.length; a++) {
+                const [ja, ka] = genes[a];
+                for (let b = a + 1; b < genes.length; b++) {
+                    const [jb, kb] = genes[b];
+                    const r = dot(z[ka], z[kb]);
+                    offer(best.get(ja), jb, r);
+                    offer(best.get(jb), ja, r);
+                }
+            }
+            _topCoexp = { key, value: best };
+        }
+        return _topCoexp.value;
+    }
+
     // Every gene, as the metacell table lists every metacell: tick a gene to blacklist it
     let _geneSort = { key: "total_umi", dir: -1 };
     let _geneExclOnly = false;
@@ -3767,10 +4771,13 @@
         const matcher = searchMatcher(filterText);
         const filter = !!matcher;
         const n = U.ids.length;
-        const statusText = (j) => calls.reasons[j].length
-            ? calls.reasons[j].map(r => geneReason(r).label).join(" ") : "kept";
+        const statusText = (j) => calls.reasons[j].length ? calls.reasons[j].map(r => geneReason(r).label).join(" ")
+            : calls.waived[j] ? `kept despite domain ${calls.waived[j]}` : "kept";
         // Each field on its own, so ^ and $ anchor on a name or an id
         const fields = (j) => [U.ids[j], U.names[j] || "", ...U.pfam[j].map(d => D.domains[d]), statusText(j)];
+        // The genes most correlated with each, over the metacells the co-expression views count
+        const top = logProfiles(s) ? topCoexpressed(s, corrMetacells(s, metacellCalls(s, sstate())).idx) : null;
+        const topOf = (j) => top && top.get(j) && top.get(j).length ? top.get(j) : null;
 
         let rows = [...Array(n).keys()];
         if (_geneExclOnly) rows = rows.filter(j => calls.reasons[j].length);
@@ -3790,6 +4797,7 @@
             tau: (j) => tau ? tau[j] : null,
             ambient: (j) => ambient ? ambient[j] : null,
             domains: (j) => U.pfam[j].map(d => D.domains[d]).join(", ") || null,
+            coexp: (j) => topOf(j) ? topOf(j)[0].r : null,
         }[_geneSort.key];
         const textual = ["id", "name", "status", "domains"].includes(_geneSort.key);
         rows.sort((a, b) => {
@@ -3810,35 +4818,44 @@
         const cols = [["id", "Gene ID"], ["status", "Status"], ["name", "Name"], ["total_umi", "Total UMIs", true],
                       ["n_cells", "Cells", true]].concat(tau ? [["tau", "Specificity τ", true]] : [],
                                                          ambient ? [["ambient", "Ambient (CellSweep)", true]] : [],
+                                                         top ? [["coexp", "Top co-expressed (r)"]] : [],
                                                          [["domains", "Domains"]]);
         const head = `<thead><tr><th class="check">Blacklist</th>` +
             cols.map(([key, label, isNum]) => sortHeader(key, label, isNum, _geneSort)).join("") + `</tr></thead>`;
-        const link = (j, v) => `<button class="gene-link" data-pick="${j}" title="Open in the gene view">${esc(v)}</button>`;
+        const link = (j, v) => `<button class="gene-link" data-pick="${j}" title="See what it is co-expressed with">${esc(v)}</button>`;
         const body = rows.slice(0, MAX_GENE_ROWS).map(j => {
             const r = calls.reasons[j];
-            // A ticked domain blacklists the gene too: shown ticked, and unticked through the domain.
+            // A ticked domain blacklists the gene too: shown ticked, and unticking keeps this gene
+            // only, the domain's others still excluded; ticking it again excludes it with them.
             // A gene another setting excludes cannot be blacklisted too; one on the blacklist can be taken off.
             const listed = r.includes("manual");
             const viaDomain = !listed && r.find(x => x.startsWith("pfam:"));
+            const waived = !listed && calls.waived[j];
             const by = r.filter(x => x !== "manual");
             const box = viaDomain
-                ? `<input type="checkbox" checked disabled aria-label="${esc(U.ids[j])} is blacklisted by a domain" ` +
-                  `title="Blacklisted through the domain ${esc(viaDomain.slice(5))}; untick the domain to keep it">`
+                ? `<input type="checkbox" checked data-domain-keep="${j}" aria-label="keep ${esc(U.ids[j])} despite its domain" ` +
+                  `title="Blacklisted through the domain ${esc(viaDomain.slice(5))}; untick to keep this gene">`
+                : waived
+                ? `<input type="checkbox" data-domain-keep="${j}" aria-label="exclude ${esc(U.ids[j])} with its domain" ` +
+                  `title="Kept despite the excluded domain ${esc(waived)}; tick to exclude it with the domain again">`
                 : by.length && !listed
                 ? `<input type="checkbox" disabled aria-label="${esc(U.ids[j])} is excluded already" ` +
                   `title="Excluded already: ${esc(by.map(x => geneReason(x).label).join(", "))}">`
                 : `<input type="checkbox" data-gene-idx="${j}" aria-label="blacklist ${esc(U.ids[j])}" ${listed ? "checked" : ""}>`;
             return `<tr><td class="check">${box}</td>` +
-                `<td>${link(j, U.ids[j])}</td><td>${r.length ? r.map(geneReasonTag).join("") : keptTag()}</td>` +
+                `<td>${link(j, U.ids[j])}</td><td>${r.length ? r.map(geneReasonTag).join("") : keptTag() +
+                    (calls.waived[j] ? ` <span class="muted">despite domain ${esc(calls.waived[j])}</span>` : "")}</td>` +
                 `<td>${U.names[j] ? link(j, U.names[j]) : ""}</td>` +
                 `<td class="num">${fmt(G.total_umi[j], 0)}</td><td class="num">${fmt(G.n_cells[j], 0)}</td>` +
                 (tau ? `<td class="num">${fmt(tau[j], 3)}</td>` : "") +
                 (ambient ? `<td class="num">${fmt(ambient[j], 4)}</td>` : "") +
+                (top ? `<td class="coexp">${topOf(j) ? topOf(j).map(c => `${link(c.j, geneLabel(U, c.j))} ` +
+                                                       `<span class="muted">(${fmt(c.r, 2)})</span>`).join(", ") : ""}</td>` : "") +
                 `<td>${esc(U.pfam[j].map(d => D.domains[d]).join(", "))}</td></tr>`;
         }).join("");
         document.getElementById("gene-table").innerHTML = head + `<tbody>${body}</tbody>`;
         const gs = gstate();
-        document.getElementById("manual-clear").classList.toggle("hidden", !splitList(gs.manual).length && !gs.pfam.size);
+        document.getElementById("manual-clear").classList.toggle("hidden", !splitList(gs.manual).length && !gs.pfam.size && !gs.pfamKeep.size);
     }
 
     // Blacklist gene j of the selected sample by its id, or drop every listed id or name that means it
@@ -3865,15 +4882,46 @@
             const name = D.domains[_domain.d];
             change(gs => { if (gs.pfam.has(name)) gs.pfam.delete(name); else gs.pfam.add(name); });
         };
-        document.getElementById("dom-clear").onclick = () => { _domain = null; scheduleRender(); };
-        document.getElementById("gv-black").onclick = () => {
+        // The strip: let the domain go, or open a gene by its name or id
+        document.getElementById("gene-nav").addEventListener("click", (e) => {
+            if (e.target.closest("[data-clear-domain]")) { _domain = null; scheduleRender(); }
+            if (e.target.closest("[data-clear-gene]")) { _gene = { u: current().universe, j: null }; scheduleRender(); }
+        });
+        document.getElementById("gene-pick").onchange = (e) => {
+            const s = current();
+            const j = universeLookup(s.universe).get(e.target.value.trim());
+            if (j == null) return;
+            _gene = { u: s.universe, j };
+            e.target.value = "";
+            scheduleRender();
+        };
+        document.getElementById("corr-black").onclick = () => {
             const s = current();
             if (!sstate() || s.universe == null) return;
             const j = selectedGene(s);
+            if (j == null) return;
             markGene(j, !geneCalls(s).reasons[j].includes("manual"));
         };
-        // The blacklist is the ticked genes and the ticked domains
-        document.getElementById("manual-clear").onclick = () => change(gs => { gs.manual = ""; gs.pfam.clear(); });
+        // The co-expressed module onto the blacklist, by id: the gene and its kept genes above the cut-off
+        document.getElementById("corr-black-module").onclick = () => {
+            const s = current();
+            if (!sstate() || !_corrModule.length) return;
+            const U = D.universes[s.universe];
+            change(gs => {
+                const listed = splitList(gs.manual);
+                for (const j of _corrModule) if (!listed.includes(U.ids[j])) listed.push(U.ids[j]);
+                gs.manual = listed.join("\n");
+            });
+        };
+        // The cut-off and the metacells are how the genes are viewed, not settings: no edit
+        ["corr-min", "corr-max"].forEach((id, end) => {
+            document.getElementById(id).oninput = (e) => {
+                const v = Number(e.target.value);
+                if (e.target.value !== "" && Number.isFinite(v)) setBand(end, v);
+            };
+        });
+        // The blacklist is the ticked genes and the ticked domains, less the genes kept despite them
+        document.getElementById("manual-clear").onclick = () => change(gs => { gs.manual = ""; gs.pfam.clear(); gs.pfamKeep.clear(); });
         document.getElementById("gene-filter").oninput = () => scheduleRender();
         // Every kept gene the search matches onto the blacklist, by id
         document.getElementById("gene-black-matching").onclick = () => {
@@ -3892,7 +4940,14 @@
         const table = document.getElementById("gene-table");
         table.addEventListener("change", (e) => {
             const t = e.target;
-            if (!t.dataset || t.dataset.geneIdx == null || !sstate()) return;
+            if (!t.dataset || !sstate()) return;
+            if (t.dataset.domainKeep != null) {
+                // Unticked: kept despite its domain; ticked: excluded with it again
+                const id = D.universes[current().universe].ids[Number(t.dataset.domainKeep)];
+                change(gs => { if (t.checked) gs.pfamKeep.delete(id); else gs.pfamKeep.add(id); });
+                return;
+            }
+            if (t.dataset.geneIdx == null) return;
             markGene(Number(t.dataset.geneIdx), t.checked);
         });
         table.addEventListener("click", (e) => {
@@ -3900,7 +4955,7 @@
             if (pick) {
                 _gene = { u: current().universe, j: Number(pick.dataset.pick) };
                 scheduleRender();
-                document.getElementById("gv-title").scrollIntoView({ block: "center", behavior: "smooth" });
+                document.getElementById("gene-nav").scrollIntoView({ block: "start", behavior: "smooth" });
                 return;
             }
             const th = e.target.closest("th[data-sort]");
@@ -3964,8 +5019,6 @@
                 cell_rules: {
                     min_umis: r.minUmis,
                     max_umis: r.maxUmis,
-                    min_genes: r.minGenes,
-                    max_genes: r.maxGenes,
                     max_mito_pct: r.maxMito,
                     max_rrna_pct: r.maxRrna,
                     max_alpha_hat: r.maxAlpha,
@@ -3978,14 +5031,18 @@
                     max_doublet_pct: st.maxDoublet,
                     max_alpha_hat: st.maxAlpha,
                     min_cells: st.minCells,
+                    min_median_umis: st.minMedianUmis,
+                    min_max_log2fc: st.minMaxLfc,
+                    min_fc_genes: st.minFcGenes,
                     blacklist: [...st.blacklist].sort(),
                 },
                 gene_rules: {
                     min_total_umis: gs.minUmis,
                     max_total_umis: gs.maxUmis,
-                    min_cells: gs.minCells,
                     max_ambient_hat: gs.maxAmbient,
                     pfam_exclude: [...gs.pfam].sort(),
+                    // Only the genes a ticked domain would exclude: a stale exception never leaves the page
+                    pfam_keep: U.ids.filter((_, j) => gcalls.waived[j] != null).sort(),
                     blacklist: splitList(gs.manual),
                 },
             };
@@ -4085,6 +5142,9 @@
                 maxDoublet: num(mr.max_doublet_pct),
                 maxAlpha: num(mr.max_alpha_hat),
                 minCells: num(mr.min_cells),
+                minMedianUmis: num(mr.min_median_umis),
+                minMaxLfc: num(mr.min_max_log2fc),
+                minFcGenes: num(mr.min_fc_genes),
                 blacklist: new Set(mr.blacklist || []),
                 cells: defaultCellState(),
                 set: { cells: true, metacells: true, genes: true },
@@ -4094,15 +5154,17 @@
             const pseudo = "include_outliers" in mr ? mr : "include_outliers" in cr ? cr : null;
             if (pseudo) absorbPseudoSwitches(st.blacklist, !!pseudo.include_outliers, !!pseudo.include_excluded, s);
             restoreCells(st.cells, {
-                minUmis: cr.min_umis, maxUmis: cr.max_umis, minGenes: cr.min_genes, maxGenes: cr.max_genes,
+                minUmis: cr.min_umis, maxUmis: cr.max_umis,
                 maxMito: cr.max_mito_pct, maxRrna: cr.max_rrna_pct, maxAlpha: cr.max_alpha_hat,
                 minReads: cr.min_reads, excludeDoublets: cr.exclude_doublets,
             });
+            // Earlier selections could also exclude genes expressed in few cells
+            if (gr.min_cells > 0) problems.push(`${id}: min_cells ${gr.min_cells} is no longer a gene setting, so it was ignored`);
             restoreGenes(st.genes, {
                 minUmis: gr.min_total_umis,
-                minCells: gr.min_cells,
                 maxUmis: gr.max_total_umis,
                 pfam: gr.pfam_exclude,
+                pfamKeep: gr.pfam_keep,
                 pfamRegex: gr.pfam_regex,
                 manual: (gr.blacklist || []).join("\n"),
                 excludeMito: gr.exclude_mito,

@@ -262,8 +262,9 @@ def columnar(records, keys):
 
 
 METACELL_KEYS = ["id", "pseudo", "n_cells", "umis", "median_umis", "mito_pct", "median_cell_mito_pct",
-                 "rrna_pct", "n_doublets", "doublet_pct", "alpha_hat_mean", "x", "y", "markers"]
-CELL_KEYS = ["barcodes", "group", "umis", "n_genes", "mito_umis", "rrna_umis", "doublet", "alpha"]
+                 "rrna_pct", "n_doublets", "doublet_pct", "alpha_hat_mean", "x", "y", "markers", "max_lfc", "n_genes_lfc1"]
+CELL_KEYS = ["barcodes", "group", "umis", "n_genes", "mito_umis", "rrna_umis", "doublet", "alpha",
+             "doublet_callers", "scrublet_score", "scdblfinder_score"]
 
 
 def build_universes(summaries):

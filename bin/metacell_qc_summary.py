@@ -23,7 +23,8 @@ them and the user can choose to keep them.
 
 The summary JSON is the report's only input per sample:
 
-    sample        id, mapping method, status, doublet mode, fingerprint, counts
+    sample        id, mapping method, status, doublet mode and consensus method,
+                  fingerprint, counts
     metacells     one record per group (see summarize_groups)
     cells         per-cell arrays in obs order (see summarize_cells), so the report can
                   filter single cells and re-sum each metacell over the cells it keeps
@@ -53,6 +54,10 @@ PSEUDO_GROUPS = (PSEUDO_OUTLIERS, PSEUDO_EXCLUDED)
 METACELL_COL = "metacell"
 DOUBLET_COL = "doublet_status"
 ALPHA_COL = "alpha_hat"
+# Each doublet tool's own call and score (doublet_calls.annotate_callers), and its bit
+# in a cell's doublet_callers
+CALLER_BITS = {"scrublet": 1, "scdblfinder": 2}
+DOUBLET_METHOD_UNS = "doublet_method"
 AMBIENT_VAR_COL = "ambient_hat"
 
 SUMMARY_SCHEMA = "bca_metacell_summary"
@@ -61,9 +66,16 @@ SUMMARY_VERSION = 1
 N_MARKERS = 5
 MARKER_MIN_UMIS = 5
 MARKER_EPS = 1e-5
+# A gene counts as enriched in a metacell above this log2 fold change over the median metacell
+FC_LOG2_CUTOFF = 1.0
 
-# Besides every marker, the most expressed genes get a metacell profile in the summary
+# Besides every marker, the most expressed genes and the genes that vary most across metacells
+# get a metacell profile in the summary, so the report can correlate them. A variable gene needs
+# on average this many UMIs per metacell: below it a profile is mostly counting noise, and its
+# correlations shrink towards 0 whatever the biology.
 N_PROFILED_GENES = 500
+N_VARIABLE_GENES = 1000
+VARIABLE_MIN_UMIS_PER_METACELL = 1.0
 
 
 # --------------------------------------------------------------------------
@@ -246,6 +258,39 @@ def marker_indices(sums, usable, n_markers=N_MARKERS):
     return markers
 
 
+def enrichment_stats(sums, usable):
+    """
+    Per metacell (row), how distinct its expression programme is: the highest log2 fold
+    change of any gene over that gene's median metacell, and the number of genes above
+    FC_LOG2_CUTOFF. The genes eligible are the markers' (usable, at least MARKER_MIN_UMIS
+    in the metacell); a metacell with none has None and 0. Over the median, as the
+    report's marker heatmap is, so one strong peak does not raise every gene's background.
+    Columns are densified in chunks for the medians, rows for the scores.
+    """
+    sums = as_csr(sums)
+    n, n_genes = sums.shape
+    totals = np.asarray(sums.sum(axis=1)).ravel()
+    totals[totals == 0] = 1.0
+    fractions = (sp.diags(1.0 / totals) @ sums).tocsr()
+
+    by_gene = fractions.tocsc()
+    median = np.zeros(n_genes)
+    for start in range(0, n_genes, 512):
+        median[start:start + 512] = np.median(by_gene[:, start:start + 512].toarray(), axis=0)
+
+    max_lfc, n_enriched = [], []
+    for start in range(0, n, 256):
+        block_frac = fractions[start:start + 256].toarray()
+        block_sums = sums[start:start + 256].toarray()
+        score = np.log2((block_frac + MARKER_EPS) / (median + MARKER_EPS))
+        score[:, ~usable] = -np.inf
+        score[block_sums < MARKER_MIN_UMIS] = -np.inf
+        top = score.max(axis=1) if n_genes else np.full(len(score), -np.inf)
+        max_lfc += [float(v) if np.isfinite(v) else None for v in top]
+        n_enriched += [int(k) for k in (score > FC_LOG2_CUTOFF).sum(axis=1)]
+    return max_lfc, n_enriched
+
+
 def cp10k(sums):
     """Each row scaled to 10,000 UMIs; an empty row stays empty."""
     sums = as_csr(sums)
@@ -291,7 +336,8 @@ def summarize_groups(adata, info, qc, mode, umap=None):
         id, pseudo, n_cells, umis, median_umis, mito_pct (pooled: mito UMIs over all
         UMIs of the group), median_cell_mito_pct, rrna_pct, n_doublets, doublet_pct
         (null unless the calls are annotated), alpha_hat_mean (null without CellSweep),
-        x, y (Metacell2's UMAP, null when not computed), markers
+        x, y (Metacell2's UMAP, null when not computed), markers, max_lfc and
+        n_genes_lfc1 (see enrichment_stats; null for a pseudo-group)
     """
     groups = adata.obs[METACELL_COL].astype(str).to_numpy()
     order = group_order(groups)
@@ -317,6 +363,7 @@ def summarize_groups(adata, info, qc, mode, umap=None):
     labels = np.where(info["gene_name"].to_numpy() != "", info["gene_name"].to_numpy(), info.index.to_numpy())
     marker_idx = dict(zip(real, marker_indices(sums[real], usable))) if real else {}
     markers = {i: [str(labels[j]) for j in idx] for i, idx in marker_idx.items()}
+    enrichment = dict(zip(real, zip(*enrichment_stats(sums[real], usable)))) if real else {}
 
     cell_mito = qc["pct_mito"].to_numpy()
     cell_umis = qc["total_umis"].to_numpy()
@@ -340,6 +387,8 @@ def summarize_groups(adata, info, qc, mode, umap=None):
             "x": None,
             "y": None,
             "markers": markers.get(i, []),
+            "max_lfc": _r(enrichment[i][0], 3) if i in enrichment else None,
+            "n_genes_lfc1": enrichment[i][1] if i in enrichment else None,
         }
         if umap is not None and g in umap.index:
             rec["x"], rec["y"] = _r(umap.loc[g, "x"]), _r(umap.loc[g, "y"])
@@ -355,7 +404,10 @@ def summarize_cells(adata, qc, order, mode):
         barcodes, group (index into the metacell records), umis, n_genes, mito_umis,
         rrna_umis (rounded to 2 decimals: EM counts are fractional), doublet (1 for a
         consensus doublet, null unless the calls are annotated), alpha (CellSweep's
-        alpha_hat, null without it)
+        alpha_hat, null without it), doublet_callers (which tools called the cell a
+        doublet: 1 Scrublet, 2 scDblFinder, 3 both, 0 neither; null for a cell no tool
+        evaluated, and the whole array null without the tools' calls), scrublet_score
+        and scdblfinder_score (each tool's score, null without it)
 
     The report filters single cells on these and re-sums each metacell over the cells
     it keeps; ``apply_metacell_filter.py`` takes the barcodes it excludes as listed.
@@ -370,6 +422,21 @@ def summarize_cells(adata, qc, order, mode):
     if ALPHA_COL in adata.obs.columns:
         alpha = [_r(v) for v in pd.to_numeric(adata.obs[ALPHA_COL], errors="coerce")]
 
+    callers, scores = None, {}
+    if mode == "annotated":
+        present = {name: bit for name, bit in CALLER_BITS.items() if f"{name}_call" in adata.obs.columns}
+        if present:
+            bits = np.zeros(adata.n_obs, dtype=int)
+            evaluated = np.zeros(adata.n_obs, dtype=bool)
+            for name, bit in present.items():
+                call = adata.obs[f"{name}_call"].astype(object)
+                evaluated |= call.notna().to_numpy()
+                bits |= np.where(call.astype(str).str.lower() == "doublet", bit, 0)
+            callers = [int(b) if e else None for b, e in zip(bits, evaluated)]
+        for name in CALLER_BITS:
+            if f"{name}_score" in adata.obs.columns:
+                scores[name] = [_r(v) for v in pd.to_numeric(adata.obs[f"{name}_score"], errors="coerce")]
+
     return {
         "barcodes": [str(b) for b in adata.obs_names],
         "group": [position[g] for g in groups],
@@ -379,14 +446,22 @@ def summarize_cells(adata, qc, order, mode):
         "rrna_umis": [_r(v, 2) for v in qc["rrna_umis"]],
         "doublet": doublet,
         "alpha": alpha,
+        "doublet_callers": callers,
+        "scrublet_score": scores.get("scrublet"),
+        "scdblfinder_score": scores.get("scdblfinder"),
     }
 
 
-def expression_profiles(sums, order, marker_idx, total_umi, n_top=N_PROFILED_GENES):
+def expression_profiles(sums, order, marker_idx, total_umi, n_top=N_PROFILED_GENES,
+                        n_variable=N_VARIABLE_GENES):
     """
-    CP10k of the genes the report can show across metacells: every marker, plus the
-    n_top genes with most UMIs. Most of these genes are in most metacells, so each is
-    stored dense and as small integers, the summary's largest block kept compact:
+    CP10k of the genes the report can show and correlate across metacells: every marker,
+    the n_top genes with most UMIs, and the n_variable genes whose log1p(CP10k) varies most
+    across the real metacells among those with VARIABLE_MIN_UMIS_PER_METACELL UMIs per
+    metacell on average. The most expressed genes alone are mostly housekeeping, ribosomal
+    and mitochondrial; the variable ones carry the programmes (cell types, stress, ambient)
+    whose co-expression the report looks for. Most of these genes are in most metacells, so
+    each is stored dense and as small integers, the summary's largest block kept compact:
 
         mc      the real metacells (indices into the metacell records), shared
         genes   gene positions
@@ -399,11 +474,22 @@ def expression_profiles(sums, order, marker_idx, total_umi, n_top=N_PROFILED_GEN
     """
     real = [i for i, g in enumerate(order) if g not in PSEUDO_GROUPS]
     top = [int(j) for j in np.argsort(-np.asarray(total_umi))[:n_top] if total_umi[j] > 0]
-    genes = sorted(set(top).union(*marker_idx.values()))
-    if not real or not genes:
+    if not real:
         return {"mc": [], "genes": [], "max": [], "q": []}
 
     x = cp10k(sums[real]).tocsc()
+    # Variance of log1p(CP10k) per gene; log1p keeps the zeros, so the matrix stays sparse
+    logx = x.copy()
+    logx.data = np.log1p(logx.data)
+    mean = np.asarray(logx.mean(axis=0)).ravel()
+    var = np.asarray(logx.multiply(logx).mean(axis=0)).ravel() - mean ** 2
+    umis = np.asarray(as_csr(sums[real]).sum(axis=0)).ravel()
+    var[umis < VARIABLE_MIN_UMIS_PER_METACELL * len(real)] = -np.inf
+    variable = [int(j) for j in np.argsort(-var)[:n_variable] if np.isfinite(var[j]) and var[j] > 0]
+
+    genes = sorted(set(top).union(variable, *marker_idx.values()))
+    if not genes:
+        return {"mc": [], "genes": [], "max": [], "q": []}
     peaks, levels = [], []
     for start in range(0, len(genes), 512):
         block = x[:, genes[start:start + 512]].toarray()
@@ -463,6 +549,7 @@ def build_summary(adata, info, how, sample_id, mapping_method, removed=False, um
             "status": status,
             "reason": reason,
             "doublet_mode": mode,
+            "doublet_method": str(adata.uns[DOUBLET_METHOD_UNS]) if DOUBLET_METHOD_UNS in adata.uns else None,
             "ambient_available": ALPHA_COL in adata.obs.columns,
             "fingerprint": fp,
             "n_cells": int(adata.n_obs),

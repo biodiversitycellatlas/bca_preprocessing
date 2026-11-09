@@ -412,21 +412,18 @@ report exports that decision as a `metacell_selection.json`, which a second run 
 ## Execution Reports
 
 Enabled for every run in [`nextflow.config`](../nextflow.config); there is nothing to
-configure. Each run writes the following into `<outdir>/pipeline_info/`, suffixed with
-the run's timestamp so repeated runs into the same directory accumulate rather than
-overwrite each other:
+configure. Each run writes the following files, suffixed with the run's timestamp so
+repeated runs accumulate rather than overwrite each other:
 
-| File | Contents |
-|------|----------|
-| `execution_trace_<timestamp>.txt`    | One row per task: requested and used cpus, memory and walltime, exit status, attempt, and bytes read |
-| `execution_report_<timestamp>.html`  | Nextflow's own single-run resource report |
-| `execution_timeline_<timestamp>.html`| Nextflow's own single-run timeline |
-| `run_config_<timestamp>.txt`         | Every parameter the run used, written by `SAVE_RUN_CONFIG` |
-| `samplesheet_<timestamp>.csv`        | Copy of the input samplesheet |
+| File | Location | Contents |
+|------|----------|----------|
+| `execution_trace_<timestamp>.txt`    | `execution_reports/` in the launch directory | One row per task: requested and used cpus, memory and walltime, exit status, attempt, and bytes read |
+| `execution_report_<timestamp>.html`  | `execution_reports/` in the launch directory | Nextflow's own single-run resource report |
+| `execution_timeline_<timestamp>.html`| `execution_reports/` in the launch directory | Nextflow's own single-run timeline |
+| `run_config_<timestamp>.txt`         | `<outdir>/pipeline_info/` | Every parameter the run used, written by `SAVE_RUN_CONFIG` |
+| `samplesheet_<timestamp>.csv`        | `<outdir>/pipeline_info/` | Copy of the input samplesheet |
+| `params_<timestamp>.json`            | `<outdir>/pipeline_info/` | The run's parameters, including the `trace_report_suffix` that names its trace |
 
-The trace's `fields` list is written out explicitly rather than left to Nextflow's
-default, because the default records only the resources a task *used* — efficiency is
-used ÷ requested, so the requested columns must be present too.
 
 **Keep these files.** They are the input to `bin/resource_efficiency.py`, which turns
 them into per-process efficiency reports and retuned resource requests. The more runs

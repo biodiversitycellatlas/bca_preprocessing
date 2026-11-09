@@ -301,6 +301,14 @@ assert "summary_qc.markers" \
     "the most enriched gene leads; mitochondrial genes are never markers" \
     "$SUMMARY"
 
+# Over the median metacell, every gene eligible; the pseudo-groups have none
+assert "summary_qc.enrichment" \
+    "((lambda s, e: (all(close(mc(s, g)['max_lfc'], e[g][0]) and mc(s, g)['n_genes_lfc1'] == e[g][1] for g in F.GROUPS)
+                     and all(mc(s, g)['max_lfc'] is None and mc(s, g)['n_genes_lfc1'] is None for g in ('__outliers__', '__excluded__')),
+                     {g: (mc(s, g)['max_lfc'], mc(s, g)['n_genes_lfc1'], e.get(g)) for g in F.PROFILES}))(load(A[0]), F.expected_enrichment()))" \
+    "max log2 FC and genes above log2 FC 1 per metacell equal the dense computation" \
+    "$SUMMARY"
+
 # The per-cell arrays the cell level filters on, in obs order, each cell pointing at its group
 assert "summary_cells" \
     "((lambda s: (lambda c, X: (
@@ -313,6 +321,16 @@ assert "summary_cells" \
         and np.allclose(c['alpha'], F.alpha_hat()) and s['schema_version'] == 1,
         f\"{len(c['barcodes'])} cells, {sum(c['doublet'])} doublets\"))(s['cells'], F.counts()))(load(A[0])))" \
     "barcodes, groups, UMIs, genes, mito and rRNA UMIs, doublet calls and alpha per cell" \
+    "$SUMMARY"
+
+# Each doublet tool's own call (as bits) and score, and the consensus rule they were combined by
+assert "summary_cells.callers" \
+    "((lambda s: (s['cells']['doublet_callers'] == F.doublet_callers()
+                  and np.allclose(s['cells']['scrublet_score'], F.scrublet_score())
+                  and np.allclose(s['cells']['scdblfinder_score'], F.scdblfinder_score())
+                  and s['sample']['doublet_method'] == 'AnySinglet',
+                  f\"callers {s['cells']['doublet_callers']}\"))(load(A[0])))" \
+    "which tools called each cell, their scores, and the consensus method" \
     "$SUMMARY"
 
 # Specificity over the real metacells: GENE011 lies in one metacell only (tau 1), the
@@ -505,12 +523,14 @@ assert "report.expected_cells" \
 # first 20); mito > 20 % excludes M1.2 (30 %); doublets > 70 % keeps M2.3 and M0.1,
 # whose doublets are gone. S1_alevinfry: thresholds off, outliers kept, M0.1
 # blacklisted. Genes: fewer than 2 UMIs (GENE011), domain PF00125 (GENE004), and
-# Actb by name.
+# Actb by name; S1_starsolo also excludes Ribosomal_L3 but keeps its gene, GENE003.
 # --------------------------------------------------------------------------
 
 CHOICES="$WORKDIR/choices.json"
 cat >"$CHOICES" <<'EOF'
-{"samples": {"S1_starsolo": {"maxMito": 20, "maxDoublet": 70, "cells": {"excludeDoublets": true}},
+{"samples": {"S1_starsolo": {"maxMito": 20, "maxDoublet": 70, "minMedianUmis": 1, "minFcGenes": 0,
+                             "cells": {"excludeDoublets": true},
+                             "genes": {"pfam": ["PF00125", "Ribosomal_L3"], "pfamKeep": ["GENE003"]}},
              "S1_alevinfry": {"maxMito": null, "maxDoublet": null, "blacklist": ["M0.1", "__excluded__"]}},
  "genes": {"minUmis": 2, "pfam": ["PF00125"], "manual": "Actb"}}
 EOF
@@ -543,18 +563,25 @@ if [[ "$HAVE_NODE" -eq 1 ]]; then
         "((lambda s: (s['samples']['S1_starsolo']['excluded_cells'] == {b: ['doublet'] for b in F.doublet_barcodes()}
                       and s['samples']['S1_alevinfry']['excluded_cells'] == {}
                       and s['samples']['S1_starsolo']['cell_rules']['exclude_doublets'] is True
-                      and s['samples']['S1_starsolo']['metacell_rules']['max_mito_pct'] == 20,
+                      and s['samples']['S1_starsolo']['metacell_rules']['max_mito_pct'] == 20
+                      and s['samples']['S1_starsolo']['metacell_rules']['min_median_umis'] == 1
+                      and s['samples']['S1_starsolo']['metacell_rules']['min_fc_genes'] == 0
+                      and s['samples']['S1_starsolo']['metacell_rules']['min_max_log2fc'] is None,
                       f\"{len(s['samples']['S1_starsolo']['excluded_cells'])} cells excluded\"))(load(A[0])))" \
         "the doublets excluded by barcode, with why; cell and metacell rules apart" \
         "$SELECTION"
 
     assert "report_js.genes" \
         "((lambda s: (s['samples']['S1_starsolo']['excluded_genes'] == {'GENE001': ['manual'], 'GENE004': ['pfam:PF00125'], 'GENE011': ['min_umi']}
+                      and s['samples']['S1_starsolo']['gene_rules']['pfam_exclude'] == ['PF00125', 'Ribosomal_L3']
+                      and s['samples']['S1_starsolo']['gene_rules']['pfam_keep'] == ['GENE003']
+                      and s['samples']['S1_alevinfry']['gene_rules']['pfam_keep'] == []
+                      and not any('min_cells' in v['gene_rules'] for v in s['samples'].values())
                       and s['schema_version'] == 1
                       and s['samples']['S1_starsolo']['gene_rules']['min_total_umis'] == 2
                       and s['samples']['S1_starsolo']['fingerprint'].startswith('sha256:'),
                       s['samples']['S1_starsolo']['excluded_genes']))(load(A[0])))" \
-        "minimum UMIs, ticked domain and a gene given by name" \
+        "minimum UMIs, ticked domain and a gene given by name; a gene kept despite its ticked domain" \
         "$SELECTION"
 
     # The summary panel shows the first sample, S1_alevinfry: the cell level keeps all 100
@@ -585,14 +612,33 @@ if [[ "$HAVE_NODE" -eq 1 ]]; then
         "M1.2 (high mito) and GENE011 (below min. UMIs) stay off the blacklist; M2.3 (kept) goes on; a regex search blacklists the kept genes it matches" \
         "$PANEL"
 
-    # A dragged line sets its threshold from x alone (rounded to 0.1 %); the rank plot's
-    # line sets the minimum in UMIs; a bar click at log10(UMIs + 1) = 2 means 99 UMIs. On
-    # the UMIs-per-cell histogram (log10 axis) the second line is the maximum: dragged to
-    # 2 it is 100 UMIs; the first, the minimum, dragged to 1.5 is 32.
+    # A line dragged in the QC matrix sets its threshold from its own axis alone (rounded to
+    # 0.1 %): across, from x; along, from y; on the cells' log axis the ends' geometric mean
+    # (4 and 9: 6). The rank plot's line sets the minimum in UMIs; a bar click at
+    # log10(UMIs + 1) = 2 means 99 UMIs. On the UMIs-per-cell histogram (log10 axis) the
+    # second line is the maximum: dragged to 2 it is 100 UMIs; the first, the minimum,
+    # dragged to 1.5 is 32.
     assert "report_js.drag" \
-        "((lambda d: (d['mito'] == 12.4 and d['rank'] == 50 and d['click'] == 99
+        "((lambda d: (d['mito'] == 12.4 and d['mitoAlong'] == 15.1 and d['size'] == 6
+                      and d['rank'] == 50 and d['click'] == 99
                       and d['cellMax'] == 100 and d['cellMin'] == 32, d))(load(A[0])['drag']))" \
         "dragging the threshold lines and clicking a bar move the thresholds, each line its own" \
+        "$PANEL"
+
+    # The co-expression views: the r cut-off line drags and clamps, on the co-expressed genes'
+    # bars and on the curve; a curve point, a bar, a heatmap square and the finder (by name)
+    # open their gene; the band's upper end drags and the lower pushes it; a gene let go stays
+    # let go, and a plot cleared meanwhile binds its events again; the selected domain's head
+    # button takes it off the blacklist and puts it back; the gene table's top co-expressed
+    # genes are the curve's first; r is Pearson's; a top gene's share over one metacell is its
+    # CP10k there; blacklisting the module adds kept genes only
+    assert "report_js.coexpression" \
+        "((lambda c: (c == {'cut': 0.46, 'fallback': True, 'clamped': 1, 'curve_cut': 0.33, 'curve_open': True,
+                            'bar_open': True, 'pearson': True, 'heatmap': True, 'pick': True, 'table': True,
+                            'band': True, 'domain': True, 'shares': True, 'module': True, 'deselect': True,
+                            'rebind': True},
+                       c))(load(A[0])['coexp']))" \
+        "co-expressed genes, curve and heatmap over every real metacell when too few are kept" \
         "$PANEL"
 
     # Every sample has its own settings at each level. With S1_starsolo's gene level pending,
