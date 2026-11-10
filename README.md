@@ -38,6 +38,7 @@ This nextflow pipeline is designed to pre-process single-cell and single-nucleus
 - OAK
 - sci-RNA-seq3
 - MARS-seq
+- ScaleBio
 - and others, when providing a [seqspec](https://github.com/pachterlab/seqspec) file
 
 The pipeline is highly configurable, and many processes can be enabled, disabled or adjusted in the configuration file. The most notable output files are:

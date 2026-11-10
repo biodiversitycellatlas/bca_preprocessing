@@ -2,7 +2,7 @@
     "$schema": "https://json-schema.org/draft/2020-12/schema",
     "$id": "https://raw.githubusercontent.com/biodiversitycellatlas/bca_preprocessing/main/assets/schema_input.json",
     "title": "biodiversitycellatlas/bca_preprocessing pipeline - params.input schema",
-    "description": "Schema for the samplesheet provided with params.input. The FASTQ paths are not checked for existence here: relative paths are read from the samplesheet's folder, which PIPELINE_INITIALISATION resolves and checks.",
+    "description": "Schema for the samplesheet provided with params.input. Each row gives its reads either as FASTQs (fastq_cDNA, fastq_BC_UMI, optionally fastq_indices) or as unaligned CRAM/BAM files (cram). The paths are not checked for existence here: relative paths are read from the samplesheet's folder, which PIPELINE_INITIALISATION resolves and checks.",
     "type": "array",
     "items": {
         "type": "object",
@@ -27,6 +27,11 @@
                 "pattern": "^\\S+$",
                 "errorMessage": "The index FASTQ(s) cannot contain spaces; a glob such as 'name_I*' is allowed"
             },
+            "cram": {
+                "type": "string",
+                "pattern": "^\\S+\\.(cram|bam)$",
+                "errorMessage": "The unaligned CRAM/BAM file(s) instead of the FASTQs cannot contain spaces and must end in '.cram' or '.bam'; a glob is allowed"
+            },
             "expected_cells": {
                 "type": "integer",
                 "minimum": 1,
@@ -47,6 +52,10 @@
                 "type": ["string", "integer"]
             }
         },
-        "required": ["sample", "fastq_cDNA", "fastq_BC_UMI", "expected_cells"]
+        "required": ["sample", "expected_cells"],
+        "anyOf": [
+            { "required": ["fastq_cDNA", "fastq_BC_UMI"] },
+            { "required": ["cram"] }
+        ]
     }
 }

@@ -1448,7 +1448,9 @@
                 return;
             }
 
-            // Same defaults as bin/secondderiv_cellcalling.py
+            // No second-derivative call was made for this sample, so an estimate is drawn here
+            // from the curve alone: the most negative second derivative of the smoothed
+            // log-log cumulative curve, within 0.1x-10x the expected cell count
             const MIN_UMIS = 100;
             const MIN_POINTS = 10;
             const GRID_POINTS = 2000;
@@ -1628,7 +1630,7 @@
                 title: {
                     text: d.applied
                         ? 'Cell Calling using 2nd Derivative (applied to matrices)'
-                        : 'Cell Calling using 2nd Derivative',
+                        : '2nd Derivative of the curve (estimate, not applied)',
                     font: { family: 'Arial, sans-serif', size: 16, color: '#1e1e1e' },
                     y: 0.95
                 },
@@ -1668,10 +1670,9 @@
             }, { responsive: true });
         }
 
-        /* Centred moving average with the end points replicated into the window, matching
-           moving_average() in bin/secondderiv_cellcalling.py. Shrinking the window at the
-           edges instead would weight them differently from the Python side and shift the
-           knee the two are supposed to agree on. */
+        /* Centred moving average with the end points replicated into the window. Shrinking
+           the window at the edges instead would weight them differently and drag the
+           smoothed curve, and with it the estimated knee, at both ends. */
         function movingAverage(data, size) {
             if (size < 3) return [...data];
             const pad = Math.floor(size / 2);

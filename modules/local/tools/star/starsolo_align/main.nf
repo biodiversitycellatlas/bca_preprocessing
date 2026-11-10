@@ -87,13 +87,10 @@ process STARSOLO_ALIGN {
     def whitelists = (bc_whitelist instanceof List ? bc_whitelist : [bc_whitelist]).findAll { wl -> wl }
     def safe_bc_whitelist = whitelists ? whitelists.join(' ') : 'None'
 
-    // Detect CRAM or BAM by inspecting the first file in the list.
-    def first_file     = fastq_cDNA instanceof List ? fastq_cDNA[0] : fastq_cDNA
-    def is_bam_or_cram = first_file.name.endsWith(".bam") || first_file.name.endsWith(".cram")
-    def read_files_command   = is_bam_or_cram ? "samtools view" : "pigz -dc -p ${task.cpus}"
-    def input_files          = is_bam_or_cram
-        ? (fastq_cDNA instanceof List ? fastq_cDNA.join(',') : "${fastq_cDNA}")
-        : "${fastq_cDNA} ${fastq_BC_UMI}"
+    // Reads always arrive as gzipped FASTQs: CRAM input is converted (CRAM_TO_FASTQ) or
+    // demultiplexed (SCALEBIO_DEMUX, Ultima) before mapping
+    def read_files_command   = "pigz -dc -p ${task.cpus}"
+    def input_files          = "${fastq_cDNA} ${fastq_BC_UMI}"
 
     // The barcode, UMI and gene tags are dropped when nothing will read them: either because
     // no BAM is written at all, or because the BAM exists only for GeneExt, which reads

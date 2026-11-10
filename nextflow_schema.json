@@ -37,7 +37,8 @@
                         "10xv1", "10xv2", "10xv3", "10xv4", "oak_v1",
                         "parse_biosciences_WT_mini", "parse_biosciences_WT",
                         "bd_rhapsody_v1", "bd_rhapsody_enhancedbeads",
-                        "sciRNAseq3", "marsseq_v1", "marsseq_v2", "seqspec"
+                        "sciRNAseq3", "marsseq_v1", "marsseq_v2",
+                        "scalebio_quantum_rna", "scalebio_rna_v1_1", "seqspec"
                     ]
                 },
                 "ref_fasta": {
@@ -83,6 +84,50 @@
                     "type": "boolean",
                     "default": true,
                     "description": "Parse Biosciences: rewrite each read's round-1 barcode to its well's oligo-dT barcode before mapping, so a cell's oligo-dT, random-hexamer and targeted reads form one cell. Needs 'bc_whitelist_parse_splitwells'."
+                },
+                "scalebio_max_mismatches": {
+                    "type": "integer",
+                    "minimum": 0,
+                    "maximum": 2,
+                    "description": "ScaleBio: substitutions corrected per barcode (Hamming distance). Unset uses the protocol's setting (1)."
+                },
+                "scalebio_i5_revcomp": {
+                    "type": "string",
+                    "default": "auto",
+                    "enum": ["auto", "true", "false"],
+                    "description": "ScaleBio: whether the I2 read holds the PCR (i5) index reverse-complemented, as on some sequencers. 'auto' decides per lane from its first 200,000 reads."
+                },
+                "scalebio_write_unassigned": {
+                    "type": "boolean",
+                    "default": false,
+                    "description": "ScaleBio: also write the reads whose barcodes are valid but whose RT/PCR wells belong to no sample, to demultiplex/scalebio/<library>/."
+                },
+                "scalebio_ultima_tags": {
+                    "type": "string",
+                    "pattern": "^\\s*\\w+=[A-Za-z][A-Za-z0-9](:\\d+)?(\\s*,\\s*\\w+=[A-Za-z][A-Za-z0-9](:\\d+)?)*\\s*$",
+                    "description": "ScaleBio, Ultima CRAMs: the SAM tag holding each barcode, as 'segment=TAG[:START],...', START being where the barcode begins in the tag's value (0-based) when a constant linker comes first. Unset uses the protocol's (QuantumScale: 'pcr=RG,bead1=b1,bead2=b2:4,bead3=b3:4,rt=b4')."
+                },
+                "scalebio_ultima_umi": {
+                    "type": "string",
+                    "pattern": "^(tag:[A-Za-z][A-Za-z0-9]|seq:\\d+:\\d+)$",
+                    "description": "ScaleBio, Ultima CRAMs: where the UMI is, 'tag:XX' (a SAM tag) or 'seq:START:LENGTH' (its place in the read, 0-based; it is cut from the cDNA). Unset uses the protocol's (QuantumScale: 'tag:UM')."
+                },
+                "cram_type": {
+                    "type": "string",
+                    "default": "illumina",
+                    "enum": ["illumina", "ultima"],
+                    "description": "What the samplesheet's 'cram' files hold: 'illumina', unaligned read pairs with the index reads in the BC/QT tags (any protocol; converted to FASTQ), or 'ultima', Ultima Genomics reads whose ScaleBio barcodes the Ultima trimmer moved into tags (ScaleBio only)."
+                },
+                "cram_reference": {
+                    "type": "string",
+                    "format": "file-path",
+                    "exists": true,
+                    "description": "FASTA the 'cram' files were compressed against. Unaligned CRAMs need none."
+                },
+                "cram_index_format": {
+                    "type": "string",
+                    "default": "auto",
+                    "description": "How the index reads are read from a CRAM's BC tag (samtools fastq --index-format), e.g. 'i8i8' when two indices are joined without a separator. 'auto' counts the indices by their separator ('ACGT-TTGG' is two)."
                 },
                 "run_method": {
                     "type": "string",

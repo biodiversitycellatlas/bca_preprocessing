@@ -196,6 +196,18 @@ on its i7 (optional) and i5 index, as `<sample>_S1_L001_{R1,R2,I1,I2}_001.fastq.
 | `<sample>_R1_discarded*`, `<sample>_R2_discarded*` | Reads that could not be assigned. |
 | `<sample>_whitelist_p5*`, `_p7*`, `_ligation*`, `_rt*` | Per-run barcode whitelists, generated from the observed data and passed straight to the mapper. |
 
+**`demultiplex/scalebio/`** — ScaleBio:
+
+| File | Description |
+| ---- | ----------- |
+| `barcodes/barcodes.json` | The barcode lists as read: every segment's ids, sequences and canonical sequence. |
+| `barcodes/whitelist_<n>_<segment>.txt` | The canonical sequences of each segment, the mappers' whitelists. |
+| `<library>/<chunk>.metrics.json` | Per lane of a library: reads per category (`Pass`, `LinkerError`, `BarcodeError`, `UmiFiltered`, `TooShort`, `Unassigned`), `Exact`/`Corrected`/`Ambiguous`/`NoMatch`/`Error` per barcode, reads per sample and per RT well, and the i5 orientation used. |
+| `<library>/unassigned.<chunk>_*.fastq.gz` | With `scalebio_write_unassigned`: reads whose wells belong to no sample. |
+| `<sample>/<sample>_scalebio_cDNA.fastq.gz` | The sample's trimmed cDNA reads. |
+| `<sample>/<sample>_scalebio_BC_UMI.fastq.gz` | The synthetic barcode read: the cell barcode, then the UMI. v1.1 (37 nt): the corrected barcodes in list order. QuantumScale (24 nt): the cell's combination of list entries in 16 nt, decoded by `scalebio_demux.py decode`. |
+| `<sample>/<sample>.scalebio_demux.json` | The sample's read count, and the metrics of its libraries summed over their lanes. |
+
 **`marsseq_reformat/<sample>/`** — MARS-seq. Both reads rebuilt so that the batch barcode is
 prepended to the cell barcode. The resulting barcode read is 14 nt for v1 (CB 1–10, UMI 11–14)
 and 19 nt for v2 (CB 1–11, UMI 12–19).
@@ -312,14 +324,15 @@ The location differs per mapper:
 | File | Description |
 | ---- | ----------- |
 | `filtered/` | The cell-called count matrix: `matrix.mtx`, `features.tsv`, `barcodes.tsv`. **This is the matrix most analyses should start from.** For STARsolo it is taken from the analysed raw matrix, so with the default `star_soloMultiMappers = "EM"` it holds the multi-gene (fractional) counts. |
-| `<id>_EM_UMIperCellSorted.txt` | STARsolo with a multi-gene matrix: the barcode-rank curve derived from it, which the cutoff is read off and the dashboard plots. alevin-fry writes the same file as `<id>_alevin_UMIperCellSorted.txt`. |
+| `<id>_EM_UMIperCellSorted.txt` | The barcode-rank curve derived from the analysed matrix, which the cutoff is read off and the dashboard plots (`<id>_Unique_UMIperCellSorted.txt` with `star_soloMultiMappers = "Unique"`). alevin-fry writes the same file as `<id>_alevin_UMIperCellSorted.txt`. |
 | `<id>_cutoff.txt` | The UMI threshold that was applied. |
-| `<id>_knee_data.json` | The barcode-rank curve and its second derivative, as plotted in the dashboard's Cell Calling tab. |
+| `<id>_knee_data.json` | The barcode-rank curve and its second derivative, as plotted in the dashboard's Cell Calling tab, plus how the boundary was chosen: the candidate bends and their significance (`candidates`), the ambient test at each tested bend (`ambient_tests`: non-ambient shares above and below, contrast, z), the rule that decided (`selection_rule`, `selection_tier`) and the ambient model (`ambient_model`). |
 | `<id>_secondderiv_statistics.json` | Statistics recomputed against this cutoff: number of cells, UMI cutoff, mean reads per cell, median UMIs and genes per cell, total genes detected, noise (% of UMIs in non-cell barcodes), sequencing saturation, and reads required to reach `saturation_target`. |
 
-The cutoff is placed at the most negative second derivative of the log-log cumulative UMI
-curve, searched between 0.1× and 10× the sample's `expected_cells`. The retained cell count is
-**not** forced towards `expected_cells`. For the full rationale, see
+The cutoff is placed at a bend of the log-log cumulative UMI curve: the bend whose barcodes
+above are unlike ambient RNA and whose barcodes below are like it, at the low-count end of its
+drop. `expected_cells` only breaks ties between equally good boundaries, so the retained cell
+count is **not** pulled towards it. For the details, see
 [Cell calling](CONFIGURATION_PARAMETERS.md#cell-calling).
 
 > [!NOTE]

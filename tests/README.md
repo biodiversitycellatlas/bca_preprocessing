@@ -25,6 +25,7 @@ tests/
 │   ├── annotated_h5ad.sh
 │   ├── conda_envs.sh
 │   ├── containers.sh
+│   ├── cram_input.sh
 │   ├── dashboard_geneext.sh
 │   ├── dynamic_resources.sh
 │   ├── merge_fastqs.sh
@@ -34,6 +35,7 @@ tests/
 │   ├── parse_collapse.sh
 │   ├── parse_demux.sh
 │   ├── resource_efficiency.sh
+│   ├── scalebio_demux.sh
 │   ├── starsolo_em_matrix.sh
 │   └── velocity_matrix.sh
 ├── fixtures/
@@ -471,6 +473,56 @@ Needs `nextflow` and `pigz`, and is skipped without them; `multi_member_read` al
 ```bash
 bash tests/run_tests.sh merge_fastqs
 bash tests/run_tests.sh merge_fastqs -- --keep    # keep the FASTQs and the work directory
+```
+
+## `scalebio_demux`
+
+Runs [`bin/scalebio_demux.py`](../bin/scalebio_demux.py) on synthetic ScaleBio-layout reads from
+[`tests/lib/make_scalebio_fixture.py`](lib/make_scalebio_fixture.py). The barcodes are random,
+kept at least 4 substitutions apart, and no ScaleBio barcode list is used. The fixture cycles
+through cases (corrected, too far, N in a barcode, bad UMI, poly-A/G/T tails, too short,
+unassigned RT/PCR wells, pooled PCR wells, missing or mismatched splint) and writes every read's
+expected outcome to `truth.tsv`. The cases assert:
+
+- for QuantumScale and v1.1, with the i5 index forward and reverse-complemented (detected and
+  given), the exact read categories, and every written read's sample, synthetic barcode read and
+  trimmed cDNA length;
+- the match rules: exact, corrected, ambiguous (equally close to two barcodes), `N`, too far;
+- the well notation: plate ranges run column by column, ids may hold dashes, and malformed or
+  backwards specifications are rejected;
+- `prepare` rejects duplicate sequences, too-long barcodes, non-sequences and a wrong number of
+  lists, and pads short ligation barcodes;
+- the STARsolo positions and alevin-fry geometry in `conf/seqtech_parameters.config` read the
+  synthetic barcode read where the script writes it;
+- read files of different lengths fail the run, and `gather` sums the metrics of a sample's chunks;
+- QuantumScale's 16-nt cell barcodes round-trip through `decode`, and decode to their sample's wells.
+
+Needs a Python 3 (standard library only).
+
+```bash
+bash tests/run_tests.sh scalebio_demux
+bash tests/run_tests.sh scalebio_demux -- --keep    # keep the fixtures and outputs
+```
+
+## `cram_input`
+
+Checks both kinds of CRAM input on the ScaleBio fixture reads (random barcodes):
+
+- [`CRAM_TO_FASTQ`](../modules/local/tools/samtools/cram_to_fastq/main.nf), run through a minimal
+  Nextflow project with `lib/` beside it:
+  - a dual-index CRAM made by `samtools import` comes back as the same R1, R2, I1 and I2 reads,
+    named like bcl-convert output;
+  - a single-index CRAM gives its index read as I1;
+  - a CRAM of single-end reads fails instead of losing them.
+- Ultima CRAMs: the same reads written as single-end records with the barcodes in tags (`RG`,
+  `b1`-`b4`) and the UMI in a tag or at the start of the read. `scalebio_demux.py demux --cram`
+  must give the categories and written reads of the FASTQ truth.
+- Tag values: barcode ids, ids inside read-group names, and corrected sequences.
+
+Needs samtools and a Python. The `CRAM_TO_FASTQ` cases need `nextflow`, and are skipped without it.
+
+```bash
+bash tests/run_tests.sh cram_input
 ```
 
 ## `velocity_matrix`

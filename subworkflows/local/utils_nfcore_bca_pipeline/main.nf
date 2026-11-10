@@ -348,11 +348,16 @@ workflow PIPELINE_INITIALISATION {
         if (!sample) {
             problems << "line ${line}: no 'sample'"
         }
-        def fastqs = ['fastq_cDNA', 'fastq_BC_UMI', 'fastq_indices'].collectEntries { col ->
+        // A row gives its reads either as FASTQs or as unaligned CRAM/BAM files ('cram')
+        def is_cram = row.cram?.toString()?.trim() as boolean
+        if (is_cram && (row.fastq_cDNA?.toString()?.trim() || row.fastq_BC_UMI?.toString()?.trim() || row.fastq_indices?.toString()?.trim())) {
+            problems << "line ${line} (${sample}): give the reads either as 'cram' or as FASTQs, not both"
+        }
+        def fastqs = ['fastq_cDNA', 'fastq_BC_UMI', 'fastq_indices', 'cram'].collectEntries { col ->
             def value = row[col]?.toString()?.trim()
             if (!value) {
-                if (needs_fastqs && col != 'fastq_indices') {
-                    problems << "line ${line} (${sample}): no '${col}'"
+                if (needs_fastqs && !is_cram && col in ['fastq_cDNA', 'fastq_BC_UMI']) {
+                    problems << "line ${line} (${sample}): no '${col}' (or 'cram')"
                 }
                 return [col, []]
             }
@@ -383,12 +388,40 @@ workflow PIPELINE_INITIALISATION {
         )
     }
 
+    //
+    // CRAM input: fail fast on combinations the pipeline cannot read
+    //
+    def scalebio   = params.protocol in ['scalebio_quantum_rna', 'scalebio_rna_v1_1']
+    def cram_rows  = samplesheet_rows.findAll { row -> row.cram?.toString()?.trim() }
+    if (cram_rows) {
+        if (params.cram_type == 'ultima' && !scalebio) {
+            error("'cram_type' = 'ultima' reads ScaleBio barcodes from the Ultima trimmer's tags, so it needs a ScaleBio 'protocol' (got '${params.protocol}').")
+        }
+        if (params.cram_type == 'illumina' && !params.seqtech_parameters[params.protocol]?.cdna_read) {
+            error("CRAM input needs to know which read holds the cDNA ('cdna_read' in conf/seqtech_parameters.config), which protocol '${params.protocol}' does not set.")
+        }
+        if (params.cram_type == 'ultima' && !(params.scalebio_ultima_umi ?: params.seqtech_parameters[params.protocol]?.scalebio_ultima_umi)) {
+            error(
+                "Ultima CRAMs: protocol '${params.protocol}' has no default UMI location; set 'scalebio_ultima_umi' to where the Ultima trimmer left the UMI, either 'tag:XX'\n" +
+                "(a SAM tag) or 'seq:START:LENGTH' (its place in the read, 0-based; it is cut from the cDNA).\n" +
+                "Look at a read with: samtools view ${cram_rows[0].cram} | head -1"
+            )
+        }
+        if (params.cram_type == 'ultima' && !(params.scalebio_ultima_tags ?: params.seqtech_parameters[params.protocol]?.scalebio_ultima_tags)) {
+            error("Ultima CRAMs: protocol '${params.protocol}' has no default barcode tags; set 'scalebio_ultima_tags' (e.g. 'lig=b1,rt=b2,pcr=RG').")
+        }
+    }
+
     // One entry per sample: the rows of a sample (e.g. its lanes) are merged, with the
     // metadata of its first row
     def samples = resolved_rows
         .groupBy { entry -> entry[0] }
         .collect { sample, entries ->
             def row  = entries[0][1]
+            def formats = entries.collect { entry -> entry[2].cram ? 'cram' : 'fastq' }.unique()
+            if (formats.size() > 1) {
+                error("Sample '${sample}' gives its reads as CRAMs in some rows and as FASTQs in others; use one or the other.")
+            }
             def meta = [
                 id             : sample,
                 expected_cells : row.expected_cells ? row.expected_cells.toInteger() : null,
@@ -396,10 +429,13 @@ workflow PIPELINE_INITIALISATION {
                 p5             : row.p5 ? row.p5 : '',
                 p7             : row.p7 ? row.p7 : '',
                 rt             : row.rt ? row.rt : '',
+                input_format   : formats[0],
             ]
+            // CRAMs take the cDNA slot until they are converted (or demultiplexed, Ultima)
+            def is_cram = formats[0] == 'cram'
             [
                 meta,
-                entries.collectMany { entry -> entry[2].fastq_cDNA },
+                entries.collectMany { entry -> is_cram ? entry[2].cram : entry[2].fastq_cDNA },
                 entries.collectMany { entry -> entry[2].fastq_BC_UMI },
                 entries.collectMany { entry -> entry[2].fastq_indices },
                 samples_file

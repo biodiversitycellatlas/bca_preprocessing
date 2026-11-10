@@ -71,7 +71,7 @@ _SD_MAX_POINTS:   int = 3000        # second-derivative cumulative-UMI curve
 _PERCELL_MAX_NONCELLS: int = 50000  # grey background cloud of the per-cell scatters
 
 # Minimum UMIs per barcode considered by the second-derivative cell calling;
-# must match MIN_UMIS in bin/secondderiv_cellcalling.py.
+# must match the --min-umis default of bin/secondderiv_cellcalling_v6.py.
 _SD_MIN_UMIS: int = 100
 
 # Per-cell metric columns the report actually plots.  ``Cell`` (the barcode

@@ -28,7 +28,7 @@ Within each custom configuration file the following variables can be defined:
 | `input`                | __Required__      | Path to the samplesheet. |
 | `outdir`               | __Required__      | Path to the results/output directory; created if missing. |
 | `bc_whitelist`         | __Required__      | Path or link to the barcode whitelist file(s), multiple ones separated by whitespace. If links are given, they are automatically downloaded (and unzipped if applicable) for any protocol. Not used by `"marsseq_v1"`/`"marsseq_v2"`, which run without a whitelist.|
-| `protocol`              | __Required__     | Specifies the sequencing technology used (must be one of the following: `"oak_v1"`, `"10xv1"`, `"10xv2"`, `"10xv3"`, `"10xv4"`, `"parse_biosciences_WT_mini"` or `"parse_biosciences_WT"`,     `"bd_rhapsody_v1"`, `"bd_rhapsody_enhancedbeads"`, `"sciRNAseq3"`, `"marsseq_v1"`, `"marsseq_v2"` or `"seqspec"`). |
+| `protocol`              | __Required__     | Specifies the sequencing technology used (must be one of the following: `"oak_v1"`, `"10xv1"`, `"10xv2"`, `"10xv3"`, `"10xv4"`, `"parse_biosciences_WT_mini"` or `"parse_biosciences_WT"`,     `"bd_rhapsody_v1"`, `"bd_rhapsody_enhancedbeads"`, `"sciRNAseq3"`, `"marsseq_v1"`, `"marsseq_v2"`, `"scalebio_quantum_rna"`, `"scalebio_rna_v1_1"` or `"seqspec"`). |
 | `ref_fasta`            | __Required__      | Path to the genome FASTA file used for mapping reads. |
 | `ref_gtf`              | __Required__      | Path to the GTF/GFF file formatted for STARsolo. |
 | `ref_fasta_addfeature` | Optional          | Extra sequences appended to `ref_fasta` for mapping, e.g. a consensus rDNA unit missing from the assembly. Every read on them counts as rRNA. Records that copy sequence already in `ref_fasta` are dropped. See [Added rRNA reference](#added-rrna-reference). |
@@ -43,6 +43,14 @@ Within each custom configuration file the following variables can be defined:
 | `oak_demux_max_mismatches` | Optional      | (OAK only) Mismatches allowed between an index read and the aliquot's i5/i7 barcode. Default is `1` (set in `conf/seqtech_parameters.config`). |
 | `bc_whitelist_parse_splitwells` | Required (Parse) | (Parse Biosciences only) split-pipe's round-1 CSV (`bci,sequence,uid,well,stype`), e.g. `bc_data_n26_R1_v3_4.csv`. It tells which well each round-1 barcode belongs to, for the built-in demultiplexing and for `parse_collapse_bc1`. Not needed when both are off. |
 | `parse_collapse_bc1`   | Optional          | (Parse Biosciences only) Rewrite each read's round-1 barcode to its well's oligo-dT barcode before mapping, so the oligo-dT, random-hexamer and targeted reads of a cell are counted as one cell. Without it, every cell is split over two or more barcodes. Default is `true`. See [Parse Biosciences](PROTOCOLS_AND_WHITELISTS.md#parse-biosciences). |
+| `scalebio_max_mismatches` | Optional       | (ScaleBio only) Substitutions corrected per barcode (0-2). Default is `1` (set in `conf/seqtech_parameters.config`). See [ScaleBio](PROTOCOLS_AND_WHITELISTS.md#scalebio). |
+| `scalebio_i5_revcomp`  | Optional          | (ScaleBio only) Whether I2 holds the PCR (i5) index reverse-complemented: `"auto"` (decided per lane from its first 200,000 reads), `"true"` or `"false"`. Default is `"auto"`. |
+| `scalebio_write_unassigned` | Optional     | (ScaleBio only) Also write the reads with valid barcodes whose RT/PCR wells belong to no sample, to `demultiplex/scalebio/<library>/`. Default is `false`. |
+| `scalebio_ultima_tags` | Optional          | (ScaleBio, Ultima CRAMs) The SAM tag of each barcode, as `segment=TAG[:START],...`; START is where the barcode begins in the value, after a constant linker. Unset uses the protocol's (QuantumScale: `pcr=RG,bead1=b1,bead2=b2:4,bead3=b3:4,rt=b4`). |
+| `scalebio_ultima_umi`  | Optional          | (ScaleBio, Ultima CRAMs) Where the UMI is: `tag:XX` (a SAM tag) or `seq:START:LENGTH` (its place in the read, 0-based, cut from the cDNA). Unset uses the protocol's (QuantumScale: `tag:UM`). |
+| `cram_type`            | Optional          | What the samplesheet's `cram` files hold: `"illumina"` (read pairs, index reads in the BC/QT tags; any protocol, converted to FASTQ) or `"ultima"` (ScaleBio barcodes in Ultima trimmer tags). Default is `"illumina"`. See [CRAM input](PROTOCOLS_AND_WHITELISTS.md#cram-input). |
+| `cram_reference`       | Optional          | FASTA the `cram` files were compressed against. Unaligned CRAMs need none. |
+| `cram_index_format`    | Optional          | How the index reads are read from a CRAM's BC tag (`samtools fastq --index-format`), e.g. `"i8i8"` for two indices joined without a separator. Default `"auto"` counts the indices by their separator. |
 | `seqspec_file`         | Optional          | Path to the seqspec file. |
 | `subsample_nreads`     | Optional          | The size (number of reads) of the subset used to map to STARsolo, in case the parameter `mapping_software = alevin_subsampled_starsolo`. Default set to `100000000` reads. |
 | `alevin_usa_counts`    | Optional          | Which of alevin-fry's USA blocks are summed into each gene's count before ambient-RNA removal and doublet detection: `"SUA"` (spliced + unspliced + ambiguous), `"SA"`, `"S"`, `"UA"` or `"U"`. Default set to `"SUA"`. See [USA counts](#usa-counts). |
@@ -54,7 +62,7 @@ Within each custom configuration file the following variables can be defined:
 ### How paths are resolved
 
 - **Parameters** (`input`, `outdir`, `ref_fasta`, `ref_gtf`, `bc_whitelist`, `star_index`, ...): a relative path is read from the directory `nextflow run` is launched from. Use absolute paths, or build them in the config from `${projectDir}` (the pipeline's folder) or `${launchDir}`, so a config works from any launch directory.
-- **FASTQs in the samplesheet**: a relative path is read from the samplesheet's own folder, so a samplesheet can sit next to its data. Samplesheets written for older versions, with paths relative to the launch directory, still work: such a path is used when it is not found next to the samplesheet, with a warning. Globs (e.g. `name_I*` in `fastq_indices`) are expanded.
+- **FASTQs (and CRAMs) in the samplesheet**: a relative path is read from the samplesheet's own folder, so a samplesheet can sit next to its data. Samplesheets written for older versions, with paths relative to the launch directory, still work: such a path is used when it is not found next to the samplesheet, with a warning. Globs (e.g. `name_I*` in `fastq_indices`) are expanded.
 - Absolute paths and cloud URIs (`s3://`, `gs://`, `az://`) are used as they are; in the samplesheet, `~/` is expanded to the home directory. Every input file is staged into the tasks, so it does not have to be visible at the same path on the compute nodes. The exceptions are the external installations (`rhapsody_installation`, `splitpipe_demultiplex_script`, `splitpipe_conda_env`), the Kraken database and `demuxafy_sif`, which are used where they are.
 - A given path that does not exist stops the run before anything is scheduled. A FASTQ named in the samplesheet but missing does too, except with `run_method = "post_mapping"`, which reads only the sample names.
 
@@ -136,7 +144,8 @@ a type:
 
 - **Cell calling.** With `second_derivative` or `manual_cutoff`, the cutoff is read off a
   curve derived from that matrix, `filtered_secondderiv/<id>_EM_UMIperCellSorted.txt`
-  (STAR's own `UMIperCellSorted.txt` counts unique-gene UMIs only), and filters it; the
+  (STAR's own `UMIperCellSorted.txt` counts unique-gene UMIs only; with `"Unique"` the curve
+  is derived from `matrix.mtx` as `<id>_Unique_UMIperCellSorted.txt`), and filters it; the
   filtered matrix is written as `filtered_secondderiv/filtered/matrix.mtx`. With
   `star_solocellfilter`, STAR's own cells are kept (STAR calls them on unique counts), and
   the multi-gene matrix is subset to them in `GeneFull_Ex50pAS/filtered_UniqueAndMult-EM/`;
@@ -247,7 +256,7 @@ The mappers share their verdicts through files under `<workDir>/.mapping_rate_ch
 |------------------------|-------------------|-------------|
 | `cellfilter_method`    | Optional          | How cells are separated from empty droplets: `"star_solocellfilter"`, `"second_derivative"` or `"manual_cutoff"` (see the methods below). Default set to `"second_derivative"`. |
 | `star_solocellfilter`  | Optional          | STARsolo's `--soloCellFilter`; only decides the cells with `cellfilter_method = "star_solocellfilter"`. See [STAR Variables](#star-variables). |
-| `expected_cells` (samplesheet column) | Optional | `"second_derivative"` only: the knee is searched for between 0.1x and 10x this value, which keeps the search out of a deep ambient tail. It bounds the search but does not pull the cell count towards it (300 real cells with `expected_cells = 3000` still call ~300). It is capped to the number of barcodes above 100 UMIs, and the report flags the sample when the cap applies. Left blank, the search runs unbounded and the report warns. Ignored under `"manual_cutoff"`. |
+| `expected_cells` (samplesheet column) | Optional | `"second_derivative"` only. The boundary is chosen by a test against ambient RNA, not by this value: it only breaks ties between equally good boundaries, and the report warns when the boundary found is more than 3x away from it. When the test places no boundary, the bend is chosen from the curve alone, among those between 0.1x and 10x this value. A placeholder or a blank therefore rarely changes the cells called. Ignored under `"manual_cutoff"`. |
 | `manual_cutoff` (samplesheet column) | __Required__ with `"manual_cutoff"` | The UMI threshold, one value per sample. Every sample needs one under `cellfilter_method = "manual_cutoff"`, or the run is rejected at start-up; under any other method the column is ignored with a warning. |
 
 **Cell calling methods**
@@ -255,7 +264,7 @@ The mappers share their verdicts through files under `<workDir>/.mapping_rate_ch
 | `cellfilter_method`  | Where the cells come from |
 |----------------------|---------------------------|
 | `"star_solocellfilter"` | Each mapper's own cell call: STARsolo's `--soloCellFilter` and alevin-fry's knee-based permit list. |
-| `"second_derivative"` (default) | The most negative second derivative of the log-log cumulative UMI curve, within the `expected_cells` window. The curve is first resampled onto a grid uniform in log10(rank), so the integer quantisation of the tail does not bury the knee. Adapts to knees too shallow for the mappers' built-in filters. |
+| `"second_derivative"` (default) | One UMI cutoff per sample, at a bend of the barcode-rank curve. The bends are the minima of the second derivative of the log-log cumulative UMI curve, taken in closed form and tested for significance against the curve's own noise. Among them, the cell boundary is the bend whose barcodes above are unlike ambient RNA and whose barcodes below are like it (a Dirichlet-multinomial test against the barcodes with ≤ 100 UMIs, as in EmptyDrops). This tells a cell/empty boundary from a bend among cell types or a shoulder of debris, and works without a plateau of empty droplets (split-pool protocols). The cutoff keeps the lower half of the chosen drop, where cells with less RNA sit. Both mappers' raw matrices are read. The knee plot and the JSON in `filtered_secondderiv/` record how the bend was chosen. |
 | `"manual_cutoff"`    | The sample's `manual_cutoff` column; the search is skipped. Use it when a curve has no knee the search finds, or when the cutoff was chosen by eye from a previous run's report. Everything else is as with `"second_derivative"`. |
 
 

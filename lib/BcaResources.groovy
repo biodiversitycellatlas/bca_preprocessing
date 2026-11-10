@@ -127,9 +127,21 @@ class BcaResources {
             }
         }
         else {
-            total = fileSize(files)
+            total = (long) (fileSize(files) * sizeWeight(files))
         }
         return total
+    }
+
+    /**
+     * Unaligned CRAM holds the same reads in fewer bytes than the gzipped FASTQs every
+     * size-scaled spec is calibrated on, so it counts at about their size (BAM uses the
+     * same deflate compression as gzip and counts as it is).
+     */
+    static final double CRAM_TO_FASTQ_GZ = 2.0d
+
+    static double sizeWeight(Object entry) {
+        String name = entry == null ? '' : (entry instanceof Path ? ((Path) entry).fileName?.toString() : entry.toString())
+        return name?.toLowerCase()?.endsWith('.cram') ? CRAM_TO_FASTQ_GZ : 1.0d
     }
 
     /**

@@ -104,10 +104,16 @@ bin/resource_efficiency.py --results /path/to/outdir --dynamic
 That writes a `resources_dynamic_*.config` you can pass with `-c`, or copy into
 `nextflow.config`. It holds the `dynamic_time` and `dynamic_memory`.
 
-`dynamic_cpus` steps a CPU count up above an input size. It has one entry,
-`STARSOLO_ALIGN: [ above_gb: null, cpus: 16 ]`, which does nothing while `above_gb` is
-`null`: the size at which 16 threads pay off has to come from a thread sweep on the
-cluster. With a threshold set, a larger input gets 16 cores, and shorter runs.
+`dynamic_cpus` steps a CPU count up above an input size. It has two entries:
+
+- `STARSOLO_ALIGN: [ above_gb: null, cpus: 16 ]` does nothing while `above_gb` is
+  `null`: the size at which 16 threads pay off has to come from a thread sweep on the
+  cluster. With a threshold set, a larger input gets 16 cores, and shorter runs.
+- `KRAKEN: [ above_gb: 1, cpus: 8 ]` gives 8 cores to an unmapped-reads FASTA above
+  1 GB, and 2 below it. kraken2 loads its database on one thread before it classifies
+  on the others, so a small FASTA leaves extra cores idle. To refine the threshold,
+  compare kraken2's `... processed in Xs` line in a task's `.command.log` with the
+  task's run time: what remains is the database load.
 
 
 ## Tips
