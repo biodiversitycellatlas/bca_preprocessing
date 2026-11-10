@@ -60,14 +60,13 @@ workflow cellcalling_workflow {
         def ch_matrix_stats       = channel.empty()
         def ch_versions           = channel.empty()
 
-        // The matrix analysed in STARsolo's raw/, and whether its curve has to be derived from it
+        // The matrix analysed in STARsolo's raw/ ('' for alevin-fry, whose directory holds one)
         def matrix_name      = mapper == 'starsolo' ? StarsoloMatrix.rawFileName(params) : ''
-        def curve_from_mtx   = mapper == 'starsolo' && StarsoloMatrix.curveFromMatrix(params)
 
         if (params.cellfilter_method in ["second_derivative", "manual_cutoff"]) {
-            def ch_curve_input = curve_from_mtx
-                ? matrix.map { meta, raw_dir -> [meta, mapper, raw_dir, matrix_name] }
-                : umi_curve.map { meta, curve -> [meta, mapper, curve, ''] }
+            // The caller reads the raw count directory: the curve is derived from its matrix,
+            // and the ambient test that chooses the boundary needs the counts themselves
+            def ch_curve_input = matrix.map { meta, raw_dir -> [meta, mapper, raw_dir, matrix_name] }
             SECONDDERIV_CELLCALLING(ch_curve_input)
 
             // Join on meta so every sample is filtered on its own cutoff. alevin-fry has no
