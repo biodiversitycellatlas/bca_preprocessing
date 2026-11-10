@@ -2,9 +2,9 @@ process PARSEBIO_COLLAPSE_BC1 {
     publishDir path: { "${params.outdir}/demultiplex/bc1_collapse/${meta.id}" }, mode: 'copy', pattern: '*_bc1_collapse.log'
     tag "${meta.id}"
 
-    // One pass over the barcode read; time follows its size.
+    // One pass over the barcode read; time follows its size
     cpus   1
-    memory { 2.GB * task.attempt }
+    memory { 1.GB * task.attempt }
     time   { BcaResources.scaledTime(
         params.dynamic_time?.PARSEBIO_COLLAPSE_BC1, [fastq_BC_UMI], task.attempt, 4) }
 

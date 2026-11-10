@@ -5,18 +5,14 @@ process SECONDDERIV_CELLCALLING {
                mode: 'copy', saveAs: { filename -> filename == 'versions.yml' ? null : filename }
     tag "${meta.id} | ${mapper}"
 
-    // STARsolo hands over its own UMI curve, a small text file (process_single2's 500 MB),
-    // unless the analysed matrix is a multi-gene one; then the curve is derived here from that
-    // raw matrix, as alevin-fry's always is, and memory tracks the matrix (only the analysed
-    // one in STARsolo's raw/ is measured). Coefficients live in params.dynamic_memory; without
+    // The caller reads the raw count matrix (its ambient test needs it), and the curve is
+    // derived here from that same matrix, so memory tracks the matrix (only the analysed one
+    // in STARsolo's raw/ is measured). Coefficients live in params.dynamic_memory; without
     // an entry that request is process_single_mem2's 10 GB. Set here rather than through a
     // label: a withLabel block in the config takes precedence over a directive in the
     // process, so a label would pin both mappers to one size.
     cpus   1
     memory {
-        if (!matrix_name && mapper != 'alevin-fry') {
-            return 500.MB * task.attempt
-        }
         BcaResources.scaledMemory(
             params.dynamic_memory?.SECONDDERIV_CELLCALLING,
             mapper == 'alevin-fry'

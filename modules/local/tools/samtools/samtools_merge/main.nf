@@ -1,9 +1,9 @@
 process SAMTOOLS_MERGE {
     tag "merging_bams"
 
-    // Time follows the BAMs being merged.
+    // Time follows the BAMs being merged
     cpus   { 2 * task.attempt }
-    memory { 6.GB * task.attempt }
+    memory { 1.GB * task.attempt }
     time   { BcaResources.scaledTime(
         params.dynamic_time?.SAMTOOLS_MERGE, [bams], task.attempt, 0.75) }
 

@@ -2,9 +2,9 @@ process SAMTOOLS_INDEX {
     publishDir path: { "${params.outdir}/mapping_STARsolo/${meta.id}" }, mode: 'copy', saveAs: { filename -> filename == 'versions.yml' ? null : filename }
     tag "${meta.id}"
 
-    // Time follows the BAM size.
+    // Time follows the BAM size
     cpus   { 2 * task.attempt }
-    memory { 6.GB * task.attempt }
+    memory { 1.GB * task.attempt }
     time   { BcaResources.scaledTime(
         params.dynamic_time?.SAMTOOLS_INDEX, [bam_file], task.attempt, 0.75) }
 

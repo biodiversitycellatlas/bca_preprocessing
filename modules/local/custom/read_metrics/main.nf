@@ -2,9 +2,9 @@ process CALC_READ_METRICS {
     publishDir path: { "${params.outdir}/rRNA_mtDNA" }, mode: 'copy', saveAs: { filename -> filename == 'versions.yml' ? null : filename }
     tag "${meta.id}"
 
-    // Time follows the BAM (params.dynamic_time), never below 2 h
+    // Time follows the BAM size
     cpus   { 1 * task.attempt }
-    memory { 4.GB * task.attempt }
+    memory { 2.GB * task.attempt }
     time   { BcaResources.scaledTime(
         params.dynamic_time?.CALC_READ_METRICS, [bam_file], task.attempt, 2) }
 

@@ -4,7 +4,7 @@ process FASTQC {
 
     // Time follows the FASTQs file size
     cpus   { 1 * task.attempt }
-    memory { 4.GB * task.attempt }
+    memory { 2.GB * task.attempt }
     time   { BcaResources.scaledTime(
         params.dynamic_time?.FASTQC, [fastq_cDNA, fastq_BC_UMI], task.attempt, 2) }
 

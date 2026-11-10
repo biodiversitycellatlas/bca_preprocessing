@@ -1,7 +1,12 @@
 process SCDBLFINDER {
     publishDir path: { "${params.outdir}/doublet_filtering/${meta.id}/scdblfinder" }, mode: 'copy', saveAs: { filename -> filename == 'versions.yml' ? null : filename }
     tag "${meta.id} | ${meta.mapping_method}"
-    label 'process_single_mem2'
+
+    // Memory tracks the cell-called matrix
+    cpus   1
+    time   { 30.m * task.attempt }
+    memory { BcaResources.scaledMemory(
+        params.dynamic_memory?.SCDBLFINDER, [tenx_dir], task.attempt, 10) }
 
     // scDblFinder cannot model every matrix: its kNN step needs more cells than a poor
     // library retains. The sample then continues without doublet annotation instead of

@@ -1,9 +1,9 @@
 process SAMTOOLS_SUBSAMPLE {
     tag "${meta.id}"
 
-    // Time follows the BAMs size.
+    // Time follows the BAMs size
     cpus   { 2 * task.attempt }
-    memory { 6.GB * task.attempt }
+    memory { 1.GB * task.attempt }
     time   { BcaResources.scaledTime(
         params.dynamic_time?.SAMTOOLS_SUBSAMPLE, [bam_file], task.attempt, 0.75) }
 

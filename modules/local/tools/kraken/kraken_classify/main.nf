@@ -5,9 +5,8 @@ process KRAKEN {
     // kraken2 loads the database's *.k2d files whole, so memory follows the database
     // actually used, downloaded or given in kraken_db_path, rather than the reads. Only
     // those files are measured: a database built in place also keeps its library/.
-    // Coefficients live in params.dynamic_memory; without an entry the request is
-    // process_high_memory2's 128 GB. 
-    cpus   8
+    cpus   { BcaResources.tieredCpus(
+        params.dynamic_cpus?.KRAKEN, [filtered_fasta], task.attempt, 2) }
     time   { 45.m * task.attempt }
     memory { BcaResources.scaledMemory(
         params.dynamic_memory?.KRAKEN, BcaResources.filesEndingWith(kraken_db, '.k2d'), task.attempt, 128) }
