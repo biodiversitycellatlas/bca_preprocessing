@@ -400,9 +400,11 @@ memory follows `dynamic_memory.MERGE_GROUP_H5AD`.
 | `mc2_lateral_gene_patterns` | Optional | Genes marked *lateral* (e.g. cell-cycle genes). They do not drive the grouping but are still used to detect outliers. Default is `""`. |
 | `mc2_min_cells` | Optional | Fewest groupable cells a sample needs. A sample with fewer is shown in the report as skipped, with the reason. Default is `300`. |
 | `mc2_skip_subsampled` | Optional | Skip the `_subsampled_starsolo` and `_geneext_subsampled_starsolo` runs. Default is `true`. |
-| `gene_annotation` | Optional | TSV with a header line, giving protein domains (PFAM) per gene, transcript or protein id. eggNOG-mapper's `.emapper.annotations` works as it is (see below). Without it, the report's PFAM panel is hidden. |
-| `gene_annotation_id_col` | Optional | Identifier column of `gene_annotation`. A leading `#` in the header is ignored. Default is `"gene_id"`. |
-| `gene_annotation_pfam_col` | Optional | Domain column of `gene_annotation`. Domains are separated by `,`, `;`, `\|` or spaces, and `-` means none. Default is `"pfam"`. |
+| `gene_annotation` | Optional | Protein domains (PFAM) per gene, transcript or protein id. Accepts raw `pfam_scan.pl` output, eggNOG-mapper's `.emapper.annotations`, or a TSV with or without header; see [Domain annotation](#domain-annotation). Without it, the report's PFAM panel is hidden. |
+| `gene_annotation_format` | Optional | `"auto"`, `"pfamscan"`, `"emapper"`, `"table"` (TSV with header) or `"headerless"`. `"auto"` detects the format from the first lines. Default is `"auto"`. |
+| `gene_annotation_id_col` | Optional | Identifier column of a `gene_annotation` with header. A leading `#` in the header is ignored. For eggNOG-mapper, `query` is used when the file has no such column. Default is `"gene_id"`. |
+| `gene_annotation_pfam_col` | Optional | Domain column of a `gene_annotation` with header. For eggNOG-mapper, `PFAMs` is used when the file has no such column. Domains are separated by `,`, `;`, `\|`, `/` or spaces, and `-` means none. Default is `"pfam"`. |
+| `gene_annotation_name_col` | Optional | Gene name column of a `gene_annotation` with header. For eggNOG-mapper, `Preferred_name` is used without it. Default is `null`. |
 | `mcfilter_max_mito_pct` | Optional | The report's starting threshold on mitochondrial UMIs per metacell (%). `null` starts it switched off. Default is `20`. |
 | `mcfilter_max_doublet_pct` | Optional | Starting threshold on consensus doublets per metacell (%). Default is `50`. |
 | `mcfilter_max_alpha_hat` | Optional | Starting threshold on the mean CellSweep ambient fraction per metacell. Default is `null`. |

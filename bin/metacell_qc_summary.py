@@ -95,6 +95,8 @@ VARIABLE_MIN_UMIS_PER_METACELL = 1.0
 def load_gene_table(path):
     """``build_gene_table.py``'s output, with flags as booleans and domains as lists."""
     table = pd.read_csv(path, sep="\t", dtype=str, keep_default_na=False)
+    if "annot_name" not in table.columns:  # tables built before annotation names were carried
+        table["annot_name"] = ""
     table["is_mito"] = table["is_mito"].astype(int).astype(bool)
     table["is_rrna"] = table["is_rrna"].astype(int).astype(bool)
     table["pfam"] = table["pfam"].map(lambda s: [d for d in s.split(",") if d])
@@ -151,6 +153,7 @@ def gene_info(var_names, table):
 
     info = pd.DataFrame(index=pd.Index(list(map(str, var_names))))
     info["gene_name"] = np.where(matched, table["gene_name"].to_numpy()[take], "")
+    info["annot_name"] = np.where(matched, table["annot_name"].to_numpy()[take], "")
     info["is_mito"] = np.where(matched, table["is_mito"].to_numpy()[take], False).astype(bool)
     info["is_rrna"] = np.where(matched, table["is_rrna"].to_numpy()[take], False).astype(bool)
     pfam = table["pfam"].to_numpy()
@@ -159,6 +162,18 @@ def gene_info(var_names, table):
     n = len(var_names)
     how["match_rate"] = (n - how["unmatched"]) / n if n else 0.0
     return info, how
+
+
+def display_names(info):
+    """
+    The name the report shows per feature: the functional annotation's where it gives
+    one (non-model GTFs often name genes only 'LOC...'), else the GTF's, else ''.
+    """
+    gtf = info["gene_name"].to_numpy()
+    if "annot_name" not in info.columns:
+        return gtf
+    annot = info["annot_name"].to_numpy()
+    return np.where(annot != "", annot, gtf)
 
 
 # --------------------------------------------------------------------------
@@ -370,7 +385,8 @@ def summarize_groups(adata, info, qc, mode, umap=None):
     sums = ind @ as_csr(adata.X)
     real = [i for i, g in enumerate(order) if g not in PSEUDO_GROUPS]
     usable = ~info["is_mito"].to_numpy()
-    labels = np.where(info["gene_name"].to_numpy() != "", info["gene_name"].to_numpy(), info.index.to_numpy())
+    names = display_names(info)
+    labels = np.where(names != "", names, info.index.to_numpy())
     marker_idx = dict(zip(real, marker_indices(sums[real], usable))) if real else {}
     markers = {i: [str(labels[j]) for j in idx] for i, idx in marker_idx.items()}
     enrichment = dict(zip(real, zip(*enrichment_stats(sums[real], usable)))) if real else {}
@@ -529,7 +545,7 @@ def summarize_genes(adata, info, tau=None):
 
     return {
         "ids": list(info.index),
-        "names": list(info["gene_name"]),
+        "names": [str(n) for n in display_names(info)],
         "mito": [int(v) for v in info["is_mito"]],
         "rrna": [int(v) for v in info["is_rrna"]],
         "pfam": list(info["pfam"]),

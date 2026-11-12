@@ -281,8 +281,9 @@ def main():
         kept.var["pass_filter"] = gene_mask
         kept.var["exclusion_reasons"] = reasons.to_numpy()
 
-    if "pfam" in kept.var.columns:
-        kept.var["pfam"] = kept.var["pfam"].astype(str)
+    for col in ("pfam", "annot_name"):
+        if col in kept.var.columns:
+            kept.var[col] = kept.var[col].astype(str)
     kept.obs[qcs.METACELL_COL] = kept.obs[qcs.METACELL_COL].astype(str).astype("category")
     kept.X = qcs.as_csr(kept.X)
     kept.uns["mc_selection"] = {

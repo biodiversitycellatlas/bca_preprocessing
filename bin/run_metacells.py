@@ -282,6 +282,8 @@ def annotate_cells(adata, info, groups, umap, fp, mode, params):
     # against) are kept; the gene table only fills the blanks -- all of alevin-fry's
     given = _given_names(adata)
     adata.var["gene_name"] = np.where(given != "", given, info["gene_name"].to_numpy())
+    # The functional annotation's name, beside the GTF's rather than over it
+    adata.var["annot_name"] = info["annot_name"].to_numpy() if "annot_name" in info.columns else ""
     adata.var["is_mito"] = info["is_mito"].to_numpy()
     adata.var["is_rrna"] = info["is_rrna"].to_numpy()
     adata.var["pfam"] = [",".join(d) for d in info["pfam"]]

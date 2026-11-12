@@ -232,6 +232,45 @@ assert "gene_table.stats" \
     "the unresolvable key is counted and named" \
     "$WORKDIR/gene_table_stats.json"
 
+# The annotation formats taken as they come, with the default column arguments:
+# header-less TSVs (id, [name,] domain architecture), eggNOG-mapper with its '##'
+# preamble and footer, raw pfam_scan.pl output
+for annot in annot_headerless3.tsv annot_headerless2.tsv annot_emapper.tsv annot_pfamscan.txt; do
+    stem="${annot%.*}"
+    step "gene_table.$stem.run" "gene_table_$stem" "$PYTHON" "$GENE_TABLE_TOOL" \
+        --gtf "$FIX/genes.gtf" --mt_contig chrM MT --annotation "$FIX/$annot" \
+        --output "$WORKDIR/gene_table_$stem.tsv" --stats "$WORKDIR/gene_table_$stem.json"
+    assert "gene_table.$stem" \
+        "((lambda t, s, c: (s['annotation_format'] == c['format']
+                            and {g: d for g, d in zip(t.gene_id, t.pfam) if d} == c['domains']
+                            and {g: n for g, n in zip(t.gene_id, t.annot_name) if n} == c['names']
+                            and (s['annotation_rows'], s['annotation_rows_resolved']) == c['rows']
+                            and list(t.gene_name) == [g[1] for g in F.GENES],
+                            f\"{s['annotation_format']}: domains {({g: d for g, d in zip(t.gene_id, t.pfam) if d})}, \"
+                            f\"names {({g: n for g, n in zip(t.gene_id, t.annot_name) if n})}, \"
+                            f\"{s['annotation_rows_resolved']} / {s['annotation_rows']} rows\"))(
+            qcs.load_gene_table(A[0]), load(A[1]), F.ANNOTATION_FORMAT_CASES['$annot']))" \
+        "detected as $(printf '%s' "$annot" | sed -E 's/annot_([a-z]+)[0-9]?\..*/\1/'); domains, annotation names and row counts as planted, GTF names untouched" \
+        "$WORKDIR/gene_table_$stem.tsv" "$WORKDIR/gene_table_$stem.json"
+done
+
+# The report shows the annotation's name where there is one, the GTF's otherwise
+assert "gene_table.display_names" \
+    "((lambda n: (list(n[:4]) == ['ACTB', 'Gapdh', 'RPL3', 'H2AZ1'], f'names {list(n[:4])}'))(
+        qcs.display_names(qcs.gene_info(F.GENE_IDS, qcs.load_gene_table(A[0]))[0])))" \
+    "annotation names first, GTF names for the rest" \
+    "$WORKDIR/gene_table_annot_headerless3.tsv"
+
+# A forced format whose columns the file lacks fails instead of reading no domains
+if run_logged "$BCA_TEST_LOGDIR/metacell_filtering_gene_table_badcol.log" "$PYTHON" "$GENE_TABLE_TOOL" \
+        --gtf "$FIX/genes.gtf" --annotation "$FIX/annot_emapper.tsv" --annotation_format table \
+        --output "$WORKDIR/gene_table_badcol.tsv" --stats "$WORKDIR/gene_table_badcol.json" \
+    || ! grep -q "Column 'gene_id' not found" "$BCA_TEST_LOGDIR/metacell_filtering_gene_table_badcol.log"; then
+    record FAIL "gene_table.missing_column" "a 'table' read of a file without a gene_id column did not fail on it"
+else
+    record PASS "gene_table.missing_column" "a 'table' read without the id column fails, naming it"
+fi
+
 # alevin-fry's ids are the GTF id cut at its first '-'; a name-only axis matches by name
 assert "match_genes" \
     "((lambda r: (list(r[0]) == [0, 1, 4, -1] and r[1]['gene_id'] == 1 and r[1]['gene_name'] == 1

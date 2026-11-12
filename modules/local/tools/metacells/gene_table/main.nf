@@ -18,7 +18,9 @@ process MC_GENE_TABLE {
 
     script:
     def annotation_arg = gene_annotation
-        ? "--annotation ${gene_annotation} --annotation_id_col '${params.gene_annotation_id_col}' --annotation_pfam_col '${params.gene_annotation_pfam_col}'"
+        ? "--annotation ${gene_annotation} --annotation_format '${params.gene_annotation_format ?: 'auto'}'" +
+          " --annotation_id_col '${params.gene_annotation_id_col}' --annotation_pfam_col '${params.gene_annotation_pfam_col}'" +
+          (params.gene_annotation_name_col ? " --annotation_name_col '${params.gene_annotation_name_col}'" : "")
         : ""
     """
     build_gene_table.py \\
@@ -37,7 +39,7 @@ process MC_GENE_TABLE {
 
     stub:
     """
-    printf 'gene_id\\tgene_name\\tchrom\\tbiotype\\tis_mito\\tis_rrna\\tpfam\\n' > gene_table.tsv
+    printf 'gene_id\\tgene_name\\tchrom\\tbiotype\\tis_mito\\tis_rrna\\tpfam\\tannot_name\\n' > gene_table.tsv
     echo '{}' > gene_table_stats.json
     touch versions.yml
     """

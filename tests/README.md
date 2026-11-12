@@ -359,7 +359,8 @@ Every link can fail silently:
 so Metacell2 is not needed for most cases. It also plants every number the report shows:
 
 - the ambient object's barcodes are shuffled among empty droplets;
-- the domain annotation is keyed by versioned transcript and protein ids;
+- the domain annotation is keyed by versioned transcript and protein ids, and written in
+  every format the gene table detects (header-less, eggNOG-mapper, pfam_scan.pl);
 - one gene is named `</script><script>alert(1)` and another like the report's placeholder.
 
 Where a JavaScript runtime is found, [`lib/report_harness.js`](lib/report_harness.js) runs the

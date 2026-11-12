@@ -484,7 +484,13 @@
                     "type": "string",
                     "format": "file-path",
                     "exists": true,
-                    "description": "TSV with a header giving protein domains (PFAM) per gene, transcript or protein id."
+                    "description": "Protein domains (PFAM) per gene, transcript or protein id: pfam_scan.pl output, eggNOG-mapper's .emapper.annotations, or a TSV with or without header."
+                },
+                "gene_annotation_format": {
+                    "type": "string",
+                    "default": "auto",
+                    "enum": ["auto", "table", "emapper", "pfamscan", "headerless"],
+                    "description": "Format of 'gene_annotation'; 'auto' detects it from the file's first lines."
                 },
                 "gene_annotation_id_col": {
                     "type": "string",
@@ -493,6 +499,10 @@
                 "gene_annotation_pfam_col": {
                     "type": "string",
                     "default": "pfam"
+                },
+                "gene_annotation_name_col": {
+                    "type": "string",
+                    "description": "Gene name column of a 'gene_annotation' with header; eggNOG-mapper's Preferred_name is used without it."
                 },
                 "mcfilter_max_mito_pct": {
                     "type": "number",

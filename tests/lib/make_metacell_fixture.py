@@ -76,6 +76,35 @@ LOW_GENE = "GENE011"
 # Expected domains after build_gene_table.py has resolved and cleaned them
 EXPECTED_DOMAINS = {"GENE003": ["Ribosomal_L3"], "GENE004": ["PF00125"]}
 
+# The same for the other annotation formats build_gene_table.py detects: per file,
+# the format, the domains and annotation names per gene, and rows read / resolved
+ANNOTATION_FORMAT_CASES = {
+    "annot_headerless3.tsv": {
+        "format": "headerless",
+        "domains": {"GENE001": ["Actin"], "GENE002": ["Gp_dh_C", "Gp_dh_N"], "GENE004": ["Histone"]},
+        "names": {"GENE001": "ACTB", "GENE003": "RPL3", "GENE004": "H2AZ1"},
+        "rows": (6, 5),
+    },
+    "annot_headerless2.tsv": {
+        "format": "headerless",
+        "domains": {"GENE001": ["Actin"], "GENE003": ["Ribosomal_L3"]},
+        "names": {},
+        "rows": (3, 3),
+    },
+    "annot_emapper.tsv": {
+        "format": "emapper",
+        "domains": {"GENE001": ["Actin"], "GENE003": ["Ribosomal_L3"], "GENE004": ["Histone", "Histone_H2A_C"]},
+        "names": {"GENE001": "ACTB", "GENE003": "RPL3"},
+        "rows": (3, 3),
+    },
+    "annot_pfamscan.txt": {
+        "format": "pfamscan",
+        "domains": {"GENE003": ["Ribosomal_L3"], "GENE004": ["Histone", "Histone_H2A_C"]},
+        "names": {},
+        "rows": (4, 3),
+    },
+}
+
 MT_CONTIG = ["chrM", "MT"]
 
 GROUPS = ["M0.1", "M1.2", "M2.3"]
@@ -270,6 +299,56 @@ def write_annotation(path):
             fh.write(f"{key}\t{dom}\n")
 
 
+def write_annotation_headerless3(path):
+    # <sp>_long.pep.annotations.csv style: id, name, '/'-separated architecture with a
+    # trailing '/'; empty names, id-only rows and a name without domains
+    lines = [
+        "GENE001\tACTB\tActin/",
+        "TX002\t\tGp_dh_N/Gp_dh_C/",
+        "PROT004\tH2AZ1\tHistone/Histone/",
+        "GENE009",
+        "UNKNOWN_KEY\tFOO\tFoo/",
+        "GENE003\tRPL3\t",
+    ]
+    with open(path, "w") as fh:
+        fh.write("\n".join(lines) + "\n")
+
+
+def write_annotation_headerless2(path):
+    # <sp>_long.pep.pfamscan_archs.csv style: id, architecture; id-only rows
+    with open(path, "w") as fh:
+        fh.write("GENE001\tActin\nGENE009\nTX003\tRibosomal_L3\n")
+
+
+def write_annotation_emapper(path):
+    # eggNOG-mapper 2.x: '##' preamble and footer around a '#query' table of 21 columns
+    cols = ["#query", "seed_ortholog", "evalue", "score", "eggNOG_OGs", "max_annot_lvl", "COG_category",
+            "Description", "Preferred_name", "GOs", "EC", "KEGG_ko", "KEGG_Pathway", "KEGG_Module",
+            "KEGG_Reaction", "KEGG_rclass", "BRITE", "KEGG_TC", "CAZy", "BiGG_Reaction", "PFAMs"]
+    rows = [("PROT001", "ACTB", "Actin"), ("TX003.1", "RPL3", "Ribosomal_L3"),
+            ("PROT004", "-", "Histone,Histone_H2A_C")]
+    with open(path, "w") as fh:
+        fh.write("## Mon Nov 10 12:00:00 2026\n## emapper-2.1.12\n## command: emapper.py -i fixture.fasta\n##\n")
+        fh.write("\t".join(cols) + "\n")
+        for key, name, pfam in rows:
+            fields = ["-"] * len(cols)
+            fields[0], fields[8], fields[20] = key, name, pfam
+            fh.write("\t".join(fields) + "\n")
+        fh.write("## 3 queries scanned\n## Total time (seconds): 1.0\n")
+
+
+def write_annotation_pfamscan(path):
+    # pfam_scan.pl: comment block, whitespace-aligned columns, one row per hit
+    with open(path, "w") as fh:
+        fh.write("# pfam_scan.pl,  run at Wed May  3 15:24:15 2023\n#\n")
+        fh.write("# <seq id> <alignment start> <alignment end> <envelope start> <envelope end> <hmm acc> "
+                 "<hmm name> <type> <hmm start> <hmm end> <hmm length> <bit score> <E-value> <significance> <clan>\n\n")
+        fh.write("PROT004          3    243      3    243 PF00125.27  Histone           Family     1   233   233    240.7   1.5e-71   1 No_clan\n")
+        fh.write("PROT004        251    300    250    301 PF16211.8   Histone_H2A_C     Domain     1    50    50     60.0   1e-10     1 No_clan\n")
+        fh.write("TX003.1         10    100     10    100 PF00297.25  Ribosomal_L3      Family     1    90    90     99.6   1e-28     1 CL0107\n")
+        fh.write("UNKNOWN_KEY      1     10      1     10 PF00001.1   Foo               Family     1    10    10      5.0   1         1 No_clan\n")
+
+
 def write_metrics(outdir, sample_id):
     with open(os.path.join(outdir, f"{sample_id}_mt_rrna_metrics.txt"), "w") as fh:
         fh.write("Metric,Count\n")
@@ -348,6 +427,10 @@ def main(outdir):
     os.makedirs(outdir, exist_ok=True)
     write_gtf(os.path.join(outdir, "genes.gtf"))
     write_annotation(os.path.join(outdir, "pfam.tsv"))
+    write_annotation_headerless3(os.path.join(outdir, "annot_headerless3.tsv"))
+    write_annotation_headerless2(os.path.join(outdir, "annot_headerless2.tsv"))
+    write_annotation_emapper(os.path.join(outdir, "annot_emapper.tsv"))
+    write_annotation_pfamscan(os.path.join(outdir, "annot_pfamscan.txt"))
     write_metrics(outdir, "S1_starsolo")
     write_cellreads(os.path.join(outdir, "S1_starsolo_CellReads.stats"))
 
