@@ -51,7 +51,9 @@ workflow scalebio_workflow {
 
         def ch_gather_input = ch_samplesheet
             .map { meta, _cdna, _bc, _indices, input_file -> [meta.id, meta, input_file] }
-            .join(ch_parts, failOnMismatch: true)
+            // No failOnMismatch: a sample without reads already fails in scalebioSampleParts,
+            // and after any failed task it would add a misleading 'Join mismatch' error
+            .join(ch_parts)
             .map { _id, meta, input_file, cdna_parts, bc_parts, metrics -> [meta, cdna_parts, bc_parts, metrics, input_file] }
 
         SCALEBIO_GATHER(ch_gather_input)

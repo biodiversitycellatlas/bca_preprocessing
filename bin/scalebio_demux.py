@@ -162,7 +162,11 @@ def read_barcode_list(path):
 
 
 def prepare_segment(name, entries, width, path):
-    """Check one segment's list and choose its canonical sequences, padded to 'width'."""
+    """
+    Check one segment's list and choose its canonical sequences, padded to 'width'. Without
+    a width (a layout whose cell barcode codes the list entries, not their sequences), any
+    length is taken and the canonical sequence is the first one, as it is.
+    """
     ids = [e[0] for e in entries]
     dup_ids = [i for i, n in Counter(ids).items() if n > 1]
     if dup_ids:
@@ -174,6 +178,8 @@ def prepare_segment(name, entries, width, path):
                 raise ValueError(f"{path}: sequence {s} belongs to both {owner[s]} and {bc_id}")
             owner[s] = bc_id
     longest = max(len(s) for _, seqs in entries for s in seqs)
+    if width is None:
+        return [{"id": bc_id, "sequences": seqs, "canonical": seqs[0]} for bc_id, seqs in entries]
     if longest > width:
         raise ValueError(f"{path}: segment '{name}' takes barcodes of at most {width} nt, found {longest} nt")
     # Pad shorter barcodes to the segment's width; pick a padding base that keeps every
@@ -201,7 +207,10 @@ def cmd_prepare(args):
     out = {"layout": args.layout, "segments": []}
     for n, (name, path) in enumerate(zip(lay["segments"], args.whitelists), 1):
         try:
-            entries = prepare_segment(name, read_barcode_list(path), lay["width"][name], path)
+            # QuantumScale's cell barcode codes the list entries, so the barcodes may have any
+            # length (e.g. the 9-nt Ultima PCR list); what the reads hold is checked in 'demux'
+            width = None if lay.get("cb_code") else lay["width"][name]
+            entries = prepare_segment(name, read_barcode_list(path), width, path)
         except ValueError as exc:
             sys.exit(str(exc))
         out["segments"].append({"name": name, "source": os.path.basename(path), "entries": entries})
@@ -710,6 +719,14 @@ def cmd_demux(args):
 
     segments = {name: Segment(segs_json[name], args.max_mismatches, revcomp_seqs=(name == "pcr" and rc))
                 for name in seg_order}
+    # From FASTQs a barcode is cut at a fixed length, so a list of other lengths never matches
+    # (e.g. the 9-nt Ultima PCR list with Illumina reads, whose I2 holds 8 nt)
+    if not ultima:
+        for name, (_src, _off, length) in lay["extract"].items():
+            if length is not None and length not in segments[name].lengths:
+                sys.exit(f"The '{name}' list ({segs_json[name]['source']}) holds {'/'.join(map(str, segments[name].lengths))}-nt "
+                         f"barcodes, but the reads hold {length} nt there. Is it the list for this sequencer "
+                         f"(e.g. the Illumina PCR pool list rather than the Ultima one)?")
     names, assign = read_samples(args.samples, segments["rt"].ids, segments["pcr"].ids)
     rt_idx_of = seg_order.index("rt")
     pcr_idx_of = seg_order.index("pcr")
@@ -893,7 +910,8 @@ def main(argv=None):
     p.add_argument("--cram", nargs="+", help="Ultima CRAM/BAM file(s) instead of FASTQs: barcodes in tags, cDNA in the read")
     p.add_argument("--ultima-tags", default="pcr=RG,bead1=b1,bead2=b2:4,bead3=b3:4,rt=b4",
                    help="with --cram: the tag of every barcode segment, as 'segment=TAG[:START],...' (START: where the barcode begins in the value)")
-    p.add_argument("--ultima-umi", help="with --cram: where the UMI is, 'tag:XX' or 'seq:START:LENGTH' (0-based, cut from the read)")
+    p.add_argument("--ultima-umi", default="tag:UM",
+                   help="with --cram: where the UMI is, 'tag:XX' or 'seq:START:LENGTH' (0-based, cut from the read)")
     p.add_argument("--reference", help="with --cram: FASTA for reference-compressed CRAMs")
     p.add_argument("--threads", type=int, default=1, help="with --cram: samtools decompression threads")
     p.add_argument("--max-mismatches", type=int, default=1, choices=[0, 1, 2])

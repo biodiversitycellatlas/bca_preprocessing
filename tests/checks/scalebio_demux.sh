@@ -40,6 +40,7 @@ Cases:
   match_rules       exact / corrected / ambiguous / N / too far
   well_ranges       plate ranges run column by column; ids with dashes; bad specs rejected
   prepare_checks    duplicate sequences, too-long barcodes, wrong list count rejected; padding
+  list_lengths      QuantumScale takes a 9-nt (Ultima) PCR list; FASTQ demux with it stops
   config_layout     seqtech_parameters' STARsolo and alevin-fry positions match the script
   uneven_reads      read files of different lengths make the run fail
   gather            a sample's metrics are the sum of its chunks
@@ -201,6 +202,24 @@ for label, lists in [
         problems.append(f"{label} accepted")
 check("prepare_checks", not problems, "valid lists read, ligation barcodes padded to 9 nt, 4 bad inputs rejected"
       if not problems else "; ".join(problems))
+
+# QuantumScale's cell barcode codes the list entries, so a list may hold other lengths (the
+# 9-nt Ultima PCR list); from FASTQs, which hold 8 nt there, such a list stops the run
+d9 = os.path.join(work, "pcr9"); os.makedirs(d9, exist_ok=True)
+fq = fixture("pcr9_fixture", "quantum", False, reads=50)
+qlists = open(os.path.join(fq, "whitelists.txt")).read().split()
+pcr9 = os.path.join(d9, "pcr9.tsv")
+with open(pcr9, "w") as fh:
+    for i in range(1, 13):
+        fh.write(f"P-{i}\t{'ACGT'[i % 4]}{'ACGT'[i // 4 % 4]}CGATGCA\n")
+p = run(SCRIPT, "prepare", "--layout", "quantum", "--whitelists", *qlists[:4], pcr9, "--outdir", os.path.join(d9, "prep"), ok=False)
+ok_prepare = p.returncode == 0
+if ok_prepare:
+    shutil.copy(os.path.join(d9, "prep", "barcodes.json"), os.path.join(fq, "prep", "barcodes.json"))
+    p = demux(fq, "quantum", ok=False)
+check("list_lengths", ok_prepare and p.returncode != 0 and "holds 9-nt barcodes, but the reads hold 8 nt" in p.stderr,
+      ("a 9-nt PCR list is read for QuantumScale" if ok_prepare else f"a 9-nt PCR list is REJECTED: {p.stderr.strip()[-150:]}")
+      + ("; FASTQ demux with it stops with a message" if ok_prepare and p.returncode != 0 else "; FASTQ demux with it did NOT stop"))
 
 # conf/seqtech_parameters.config reads the synthetic read where the script writes it
 conf = open(os.path.join(root, "conf", "seqtech_parameters.config")).read()
