@@ -29,6 +29,13 @@ Outputs, under ``--outdir``:
     <sample>_final_metacells.h5ad              kept metacells x genes, summed raw UMIs
     <sample>_filter_summary.json               what was kept, and from what
 
+For a pooled 'filtering_report' group (cells named '<sample>:<barcode>', the member in
+obs['sample']) the outputs above cover the whole group, and each member's kept cells
+are also written on their own, under their original barcodes:
+
+    members/<sample>/matrix.mtx, barcodes.tsv, features.tsv
+    members/<sample>/<sample>_final.h5ad
+
 ``--gene_mode drop`` (default) removes the excluded genes from every output;
 ``--gene_mode flag`` keeps the full gene axis -- convenient when samples will be
 integrated later -- and records the decision in ``var['pass_filter']`` and
@@ -195,6 +202,29 @@ def metacell_sums(adata):
     return ad.AnnData(X=sp.csr_matrix(sums), obs=obs, var=adata.var.copy())
 
 
+def write_members(kept, outdir, compression):
+    """
+    Each member's kept cells of a pooled group under ``members/<sample>/``, with the
+    '<sample>:' prefix taken off the barcodes again. ``{sample: cells kept}``, empty
+    for a plain sample.
+    """
+    if qcs.MEMBER_COL not in kept.obs.columns:
+        return {}
+
+    members = kept.obs[qcs.MEMBER_COL].astype(str)
+    out = {}
+    for sample in dict.fromkeys(members):
+        part = kept[(members == sample).to_numpy()].copy()
+        part.obs_names = [b.rpartition(":")[2] for b in part.obs_names]
+        part.X = qcs.as_csr(part.X)
+        mdir = os.path.join(outdir, "members", sample)
+        os.makedirs(mdir, exist_ok=True)
+        mtx_io.write_triplet(mdir, part.X.T.tocsr(), list(part.obs_names), features_frame(part.var))
+        part.write_h5ad(os.path.join(mdir, f"{sample}_final.h5ad"), compression=compression)
+        out[sample] = int(part.n_obs)
+    return out
+
+
 def write_versions(path, process):
     import platform
     from importlib.metadata import version
@@ -268,6 +298,7 @@ def main():
     kept.write_h5ad(os.path.join(args.outdir, f"{args.sample_id}_final.h5ad"), compression=compression)
     metacell_sums(kept).write_h5ad(
         os.path.join(args.outdir, f"{args.sample_id}_final_metacells.h5ad"), compression=compression)
+    members_kept = write_members(kept, args.outdir, compression)
 
     groups = adata.obs[qcs.METACELL_COL].astype(str)
     kept_umis = float(qcs.as_csr(kept.X).sum())
@@ -292,6 +323,8 @@ def main():
         "metacell_rules": entry.get("metacell_rules"),
         "gene_rules": entry.get("gene_rules"),
     }
+    if members_kept:
+        summary["members_cells_kept"] = members_kept
     with open(os.path.join(args.outdir, f"{args.sample_id}_filter_summary.json"), "w") as fh:
         json.dump(summary, fh, indent=2)
 

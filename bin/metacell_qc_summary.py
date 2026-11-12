@@ -31,6 +31,12 @@ The summary JSON is the report's only input per sample:
     genes         per-gene arrays aligned to one another (see summarize_genes)
     expression    the metacell profiles of the genes the report can show across
                   metacells (see expression_profiles)
+
+A 'filtering_report' group (merge_group_h5ad.py) is summarised like a sample. Its cells
+carry their member in ``obs['sample']``, which adds ``sample.members`` (each member's
+samplesheet name, analytical id and cells), ``cells.member`` (each cell's index into
+those) and, per metacell, ``member_counts`` (its cells per member). A plain sample has
+none of the three.
 """
 
 import argparse
@@ -59,6 +65,10 @@ ALPHA_COL = "alpha_hat"
 CALLER_BITS = {"scrublet": 1, "scdblfinder": 2}
 DOUBLET_METHOD_UNS = "doublet_method"
 AMBIENT_VAR_COL = "ambient_hat"
+# The member sample of each cell of a pooled filtering_report group, and the group's
+# members as merge_group_h5ad.py recorded them
+MEMBER_COL = "sample"
+MEMBERS_UNS = "group_members"
 
 SUMMARY_SCHEMA = "bca_metacell_summary"
 SUMMARY_VERSION = 1
@@ -530,6 +540,37 @@ def summarize_genes(adata, info, tau=None):
     }
 
 
+def summarize_members(adata, order):
+    """
+    ``(members, cell_member, member_counts)`` for a pooled group, or ``(None, None, None)``
+    for a plain sample: the members in the order merge_group_h5ad.py pooled them, each
+    cell's index into them, and per group (in ``order``) its cells per member.
+    """
+    if MEMBER_COL not in adata.obs.columns:
+        return None, None, None
+
+    col = adata.obs[MEMBER_COL]
+    if isinstance(col.dtype, pd.CategoricalDtype):
+        names = [str(c) for c in col.cat.categories]
+    else:
+        names = list(dict.fromkeys(col.astype(str)))
+    ids = dict(zip(names, names))
+    recorded = adata.uns.get(MEMBERS_UNS)
+    if isinstance(recorded, dict) and "sample" in recorded and "id" in recorded:
+        ids.update({str(s): str(i) for s, i in zip(recorded["sample"], recorded["id"])})
+
+    position = {n: k for k, n in enumerate(names)}
+    cell_member = np.array([position[str(v)] for v in col.astype(str)], dtype=int)
+    groups = adata.obs[METACELL_COL].astype(str).to_numpy()
+    group_pos = {g: i for i, g in enumerate(order)}
+    counts = np.zeros((len(order), len(names)), dtype=int)
+    np.add.at(counts, (np.array([group_pos[g] for g in groups], dtype=int), cell_member), 1)
+
+    totals = np.bincount(cell_member, minlength=len(names))
+    members = [{"sample": n, "id": ids[n], "n_cells": int(totals[k])} for k, n in enumerate(names)]
+    return members, [int(v) for v in cell_member], [[int(v) for v in row] for row in counts]
+
+
 def build_summary(adata, info, how, sample_id, mapping_method, removed=False, umap=None,
                   status="ok", reason=None, params=None):
     """The report's payload for one sample (see the module docstring)."""
@@ -539,6 +580,13 @@ def build_summary(adata, info, how, sample_id, mapping_method, removed=False, um
     fp = fingerprint(adata.obs_names, adata.obs[METACELL_COL], adata.var_names)
     real = [i for i, g in enumerate(order) if g not in PSEUDO_GROUPS]
     genes = summarize_genes(adata, info, tau=specificity(sums[real]) if real else None)
+
+    members, cell_member, member_counts = summarize_members(adata, order)
+    cells = summarize_cells(adata, qc, order, mode)
+    if members is not None:
+        cells["member"] = cell_member
+        for rec, row in zip(groups, member_counts):
+            rec["member_counts"] = row
 
     return {
         "schema": SUMMARY_SCHEMA,
@@ -559,9 +607,10 @@ def build_summary(adata, info, how, sample_id, mapping_method, removed=False, um
             "mito_pct": _r(100.0 * qc["mito_umis"].sum() / qc["total_umis"].sum()) if qc["total_umis"].sum() > 0 else 0.0,
             "gene_match": how,
             "params": params or {},
+            "members": members,
         },
         "metacells": groups,
-        "cells": summarize_cells(adata, qc, order, mode),
+        "cells": cells,
         "genes": genes,
         "expression": expression_profiles(sums, order, marker_idx, genes["total_umi"]),
     }

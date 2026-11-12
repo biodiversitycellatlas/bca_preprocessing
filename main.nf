@@ -59,6 +59,7 @@ workflow BCA_PREPROCESSING {
 
     take:
         samplesheet
+        sample_groups   // value: [qc_report: [sample: group], filtering_report: [sample: group]]
 
     main:
         // Initialize reporting channels
@@ -166,7 +167,8 @@ workflow BCA_PREPROCESSING {
                     mapping_out.ref_gtf,
                     mapping_out.featurecount_txt,
                     mapping_out.antisense_txt,
-                    mapping_out.star_cellreads
+                    mapping_out.star_cellreads,
+                    sample_groups.map { groups -> groups.filtering_report }
                 )
                 ch_versions = ch_versions.mix(metacell_workflow.out.versions)
             }
@@ -204,7 +206,8 @@ workflow {
     // WORKFLOW: Run main workflow
     //
     BCA_PREPROCESSING (
-        PIPELINE_INITIALISATION.out.samplesheet
+        PIPELINE_INITIALISATION.out.samplesheet,
+        PIPELINE_INITIALISATION.out.sample_groups
     )
 
     //

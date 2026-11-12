@@ -13,6 +13,7 @@
     - [External pipelines only (`external_pipeline_only`)](#external-pipelines-only-external_pipeline_only)
     - [Re-running after mapping (`post_mapping`)](#re-running-after-mapping-post_mapping)
 4. [Filtering UMI matrices (two passes)](#filtering-umi-matrices-two-passes)
+5. [Combining samples](#combining-samples)
 
 ---
 
@@ -174,3 +175,108 @@ nextflow run main.nf -profile <institution_config>,conda -c </path/to/custom_par
 ```
 
 Only the filtering step runs. The filtered matrices are written to `<outdir>/metacell_filtering/<sample>/<sample>_final/`. See [Metacells and the filtering report](CONFIGURATION_PARAMETERS.md#metacells-and-the-filtering-report) for the report's settings.
+
+Samples in a `filtering_report` group are filtered together, as one entry of the report, see [Combining samples](#combining-samples).
+
+
+## Combining samples
+
+Samplesheet rows can be combined at three points. Which one is right depends on whether the rows hold the same cells.
+
+| Mechanism | Combined | Use it when the rows hold |
+|-----------|----------|---------------------------|
+| The same `sample` name on several rows | The FASTQs, before mapping | **The same cells**: several lanes, or a top-up sequencing of one library. |
+| `qc_report` column | Only the numbers in `dashboard.html` | **Different cells** whose quality you want to judge together. |
+| `filtering_report` column | The cell-called objects, just before Metacell2 | **Different cells** you want to filter and analyse as one set of metacells. |
+
+Rows that hold different cells must not share a `sample` name. Their barcodes overlap, so merging their reads before mapping turns two cells with the same barcode into one, and mixes their empty droplets. This happens with:
+- one sample loaded on several 10x or BD channels;
+- the sublibraries of a Parse, ScaleBio or sci-RNA-seq3 experiment, which reuse the same barcode combinations;
+- the plates of a ScaleBio Extended Throughput run;
+- the aliquots of an overloaded 10x channel (OAK).
+
+Give such rows their own `sample` names and combine them with the two columns instead. Both are optional. An empty value leaves a sample on its own, and the two columns are independent of each other:
+
+```
+sample,fastq_cDNA,fastq_BC_UMI,expected_cells,rt,qc_report,filtering_report
+nvec_well1_larva_rep1,...,...,2500,A1-A6,nvec_well1,nvec_larva
+nvec_well1_larva_rep2,...,...,2500,A1-A6,nvec_well1,nvec_larva
+nvec_well2_larva,...,...,2500,B1-B6,nvec_well2,nvec_larva
+nvec_well3_adult,...,...,2500,C1-C6,nvec_well3,nvec_adult
+nvec_well4_adult,...,...,2500,D1-D6,nvec_well4,nvec_adult
+```
+
+Here the two replicates of well 1 are shown together in the dashboard. The metacells and the filtering are done per stage: wells 1 and 2 as `nvec_larva`, wells 3 and 4 as `nvec_adult`.
+
+### Which mechanism to use
+
+| Situation | `qc_report` | `filtering_report` |
+|-----------|-------------|--------------------|
+| One sample on several 10x or BD channels | the sample | the sample, or its condition |
+| Sublibraries of one Parse, ScaleBio or sci-RNA-seq3 experiment, one row per sublibrary | the sample | the sample |
+| ScaleBio Extended Throughput plates (`sampleX_AP1`, `sampleX_AP2`) | `sampleX` | `sampleX` |
+| Aliquots of one overloaded 10x channel (OAK) | the channel | the sample or condition |
+| The wells of a sample split into rows, to see the quality of each well | the well or replicate | the condition |
+| Biological replicates of one condition | the condition, to compare the replicates | the condition, for more cells per Metacell2 run and one filtering applied to all |
+| Stages or tissues meant to share metacells (an atlas) | - | one group for all of them |
+
+Do not group:
+- **Two sequencing runs of the same library under `filtering_report`.** The same cells would enter Metacell2 twice. Give the runs one `sample` name instead. The pooling step warns when two samples share more than half of their cell barcodes. Unrelated captures share far fewer, a few percent at most.
+- **Samples that need very different filtering.** The report's thresholds act on the pooled metacells, so one setting applies to the whole group.
+- **Samples of different species or references.** Each needs its own samplesheet anyway, and the pooling refuses samples counted against different genes.
+
+Pooled metacells can be made of one sample only, from a batch effect or from a cell type only that sample has. The report's *Main sample %* column shows this per metacell.
+
+Rules, checked when the run starts:
+- every row of a sample gives the same groups;
+- a group cannot have the name of a sample, or end in an analytical-run suffix such as `_starsolo`;
+- the name of a sample in a `filtering_report` group cannot contain `:`.
+
+A group of one sample is allowed, and runs under the group's name.
+
+### `qc_report`: pooled in the dashboard
+
+Every sample is mapped, its cells called, and its ambient RNA and doublets assessed on its own. Only `dashboard.html` brings a group together, once per analytical run (a group's `_starsolo` runs with each other, never with its `_alevinfry` runs):
+- a **Sample groups** box, with the members' numbers and a pooled row, every member's barcode-rank curve on one plot and the mapped reads per called cell of every member side by side;
+- a *Group* column and the pooled rows in the summary table;
+- the members listed under their group in the sample selector.
+
+How the pooled row is built:
+
+| Value | Pooled as |
+|-------|-----------|
+| Input reads, called cells, reads needed for the target saturation | summed |
+| % mapped reads, mean reads per cell | recomputed from the sums |
+| Noise, % intronic reads | members' values weighted by their uniquely mapped reads |
+| Median UMIs per cell | the median over every member's called cells |
+| Saturation | approximate: weighted by input reads |
+| rRNA and mtDNA % | approximate: weighted by uniquely mapped reads |
+| Median genes per cell | approximate: members' medians weighted by their cells |
+
+Approximate values are marked ≈ in the table. Saturation and barcode-rank curves cannot be pooled, so they are shown side by side. MultiQC and `summary_results/mapping_stats.tsv` stay per sample.
+
+### `filtering_report`: pooled for metacells and filtering
+
+Every sample goes through cell calling, ambient RNA removal (CellSweep) and doublet detection on its own. These belong to one capture:
+- the ambient RNA profile is that of one channel or reaction;
+- doublets form only within one capture;
+- scDblFinder expects a doublet rate that grows with the number of cells it is given, so three pooled captures of 5,000 cells would be modelled at about 15 % doublets instead of about 5 %.
+
+Just before Metacell2, `MERGE_GROUP_H5AD` pools the samples' cell-called objects, per analytical run. The doublet calls and CellSweep annotations travel with each cell. From there on, the group takes its samples' place:
+- one Metacell2 run, under `metacells/<group><suffix>/`;
+- one entry in `filtering_report.html`, listing its samples. Each cell's reads come from its own sample's `CellReads.stats`, and the read metrics are the samples' values weighted by their cells;
+- one entry in `metacell_selection.json`, keyed by the group;
+- after the selection is applied, the group's filtered matrices in `metacell_filtering/<group><suffix>/`, and each sample's kept cells under `members/<sample>/`.
+
+In the pooled object, the cells are named `<sample>:<barcode>`, so that cells of different samples with the same barcode stay apart. `obs["sample"]` gives each cell's sample. The files under `members/` use the original barcodes again. See [Metacells and filtering](output.md#metacells-and-filtering) for the files.
+
+### Changing the groups of a finished run
+
+The groups are read from the samplesheet when the run starts, and are not part of any step before Metacell2. So the groups can be changed after a run, for example after looking at the per-sample dashboard. Edit the two columns and rerun with `-resume`. Only these steps run again:
+- the pooling;
+- Metacell2 for the groups that changed, and for samples taken out of a group;
+- the two reports.
+
+A `post_mapping` run reads the groups from the current samplesheet as well.
+
+A selection made before the groups changed no longer applies to the changed groups. Export a new one from the new report.

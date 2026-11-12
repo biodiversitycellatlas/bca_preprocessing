@@ -50,6 +50,16 @@
             },
             "rt": {
                 "type": ["string", "integer"]
+            },
+            "qc_report": {
+                "type": ["string", "integer"],
+                "pattern": "^\\S+$",
+                "errorMessage": "The qc_report group cannot contain spaces; leave it empty for a sample of its own"
+            },
+            "filtering_report": {
+                "type": ["string", "integer"],
+                "pattern": "^\\S+$",
+                "errorMessage": "The filtering_report group cannot contain spaces; leave it empty for a sample of its own"
             }
         },
         "required": ["sample", "expected_cells"],

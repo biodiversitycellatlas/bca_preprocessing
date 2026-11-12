@@ -385,6 +385,10 @@ With `perform_metacells = true`, each sample's cell-called AnnData object is gro
 lets you decide, metacell by metacell and gene by gene, what goes into downstream analysis. The
 report exports that decision as a `metacell_selection.json`, which a second run applies.
 
+Samples that share a `filtering_report` group in the samplesheet are pooled first, and grouped
+and filtered as one. See [Combining samples](usage.md#combining-samples). The pooling step's
+memory follows `dynamic_memory.MERGE_GROUP_H5AD`.
+
 | Variable | Required/Optional | Description |
 |----------|-------------------|-------------|
 | `perform_metacells` | Optional | Group the called cells into metacells and build `filtering_report.html`. Needs `run_method` `"standard"` or `"post_mapping"`. Default is `false`. |

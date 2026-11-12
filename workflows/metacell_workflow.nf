@@ -12,6 +12,7 @@ include { MC_GENE_TABLE             } from '../modules/local/tools/metacells/gen
 include { METACELL2                 } from '../modules/local/tools/metacells/run/main'
 include { GENERATE_FILTERING_REPORT } from '../modules/local/custom/filtering_report/main'
 include { APPLY_METACELL_FILTER     } from '../modules/local/tools/metacells/apply/main'
+include { MERGE_GROUP_H5AD          } from '../modules/local/tools/metacells/merge_group/main'
 
 
 /*
@@ -24,6 +25,11 @@ include { APPLY_METACELL_FILTER     } from '../modules/local/tools/metacells/app
         That choice cannot be made inside a run, so applying it is a second pass:
         re-running with -resume and --metacell_selection reuses every task above and
         runs only APPLY_METACELL_FILTER, which writes the filtered UMI matrices.
+
+        Samples sharing a samplesheet 'filtering_report' group are pooled first, per
+        analytical run, by MERGE_GROUP_H5AD: the group then takes their place in
+        Metacell2, the report and the selection. Everything before (cell calling,
+        CellSweep, doublet detection) stays per sample, as it belongs to one capture.
 ~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~
 */
 
@@ -34,6 +40,7 @@ workflow metacell_workflow {
         mt_rrna_metrics
         antisense_metrics
         cellreads_stats
+        filter_groups       // value: [sample: group] from the samplesheet's 'filtering_report'
 
     main:
         def ch_final_h5ad = channel.empty()
@@ -86,6 +93,58 @@ workflow metacell_workflow {
             ch_mc_input = ch_cell_called.map { _key, meta, h5ad -> [meta, h5ad, []] }
         }
 
+        /*
+         * filtering_report groups. A sample's group is looked up by its samplesheet name
+         * (base_id), and samples are pooled per analytical run: '_starsolo' with
+         * '_starsolo', never with '_geneext_starsolo' or alevin-fry. groupTuple is given no
+         * size, so a member lost upstream (mapping-rate guard, a failed task) leaves a
+         * smaller group instead of none; the members are sorted so the pooled input hashes
+         * the same on every -resume.
+         */
+        def ch_routed = ch_mc_input
+            .combine(filter_groups)
+            .branch { meta, _cells, _ambient, groups ->
+                grouped: groups[meta.base_id ?: meta.id]
+                single:  true
+            }
+
+        def ch_groups_in = ch_routed.grouped
+            .map { meta, cells, ambient, groups ->
+                def sample = meta.base_id ?: meta.id
+                def group  = groups[sample]
+                def suffix = meta.id.substring(sample.length())
+                def listed = groups.count { _s, g -> g == group }
+                [[group, suffix, meta.mapping_method, meta.datatype, listed], meta, cells, ambient]
+            }
+            .groupTuple(by: 0)
+            .map { key, metas, cells, ambients ->
+                def order   = (0..<metas.size()).toList().sort { i -> metas[i].id }
+                def members = order.collect { i -> metas[i] }
+                def gmeta = [
+                    id             : "${key[0]}${key[1]}".toString(),
+                    base_id        : key[0],
+                    mapping_method : key[2],
+                    datatype       : key[3],
+                    expected_cells : members.every { m -> m.expected_cells != null } ? members.sum { m -> m.expected_cells } : null,
+                    members        : members.collect { m -> m.id },
+                ]
+                if (members.size() < key[4]) {
+                    log.warn "filtering_report group '${key[0]}' (${key[2]}) pools ${members.size()} of its ${key[4]} samples: " +
+                        "the others reached no metacell input (see earlier warnings)."
+                }
+                def manifest = order.collect { i ->
+                    [metas[i].id, metas[i].base_id ?: metas[i].id, cells[i].name, ambients[i] ? ambients[i].name : '']
+                }
+                [gmeta, manifest, order.collect { i -> cells[i] }, order.collect { i -> ambients[i] }.findAll { a -> a }]
+            }
+
+        MERGE_GROUP_H5AD(ch_groups_in)
+
+        // The pooled object carries every member's CellSweep annotations already
+        ch_mc_input = ch_routed.single
+            .map { meta, cells, ambient, _groups -> [meta, cells, ambient] }
+            .mix(MERGE_GROUP_H5AD.out.h5ad.map { meta, h5ad -> [meta, h5ad, []] })
+
         // Built once from the reference annotation and shared by every sample
         MC_GENE_TABLE(
             ref_gtf,
@@ -124,6 +183,7 @@ workflow metacell_workflow {
         )
 
         def ch_versions = MC_GENE_TABLE.out.versions.mix(
+            MERGE_GROUP_H5AD.out.versions,
             METACELL2.out.versions,
             GENERATE_FILTERING_REPORT.out.versions
         )

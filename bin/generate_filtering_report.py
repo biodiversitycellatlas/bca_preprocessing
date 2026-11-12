@@ -15,6 +15,11 @@ called cells, and the default thresholds the report's sliders start at. The page
 filtering itself and exports the selection ``apply_metacell_filter.py`` applies, so
 nothing here decides what is kept.
 
+A pooled 'filtering_report' group appears as one sample. Its summary lists its members,
+whose own read metrics and CellReads.stats are read for it: each cell's reads come from
+its member's file (the cell is named '<sample>:<barcode>'), and the read metrics are the
+members' values averaged over their cells, with each member's kept alongside.
+
 The gene axis is the bulk of the payload, and samples counted against the same
 annotation share it: every distinct gene axis becomes one "universe" (ids, names,
 mito/rRNA flags, domains as indices into one run-wide dictionary), and each sample
@@ -240,6 +245,62 @@ def cell_reads_for(sample_id, barcodes, cellreads_files, cache):
     return None, None, None
 
 
+def group_featurecounts(members, mt_files, antisense_files):
+    """
+    A pooled group's read metrics: each member's own (see featurecounts_for), and their
+    mean weighted by the member's cells for every percentage some member has. None when
+    no member has any.
+    """
+    per_member = []
+    for m in members:
+        fc = featurecounts_for(m["id"], mt_files, antisense_files)
+        if fc is not None:
+            per_member.append((m, fc))
+    if not per_member:
+        return None
+
+    keys = ["antisense_pct"] + list(FC_KEYS)
+    out = {
+        "source_id": f"pooled from {len(per_member)} of {len(members)} samples",
+        "from_other_mapper": any(fc["from_other_mapper"] for _m, fc in per_member),
+        "members": [dict(fc, sample=m["sample"]) for m, fc in per_member],
+    }
+    for key in keys:
+        scope_key = key.replace("_pct", "_scope")
+        values = [(fc[key], max(1, m.get("n_cells") or 0)) for m, fc in per_member if fc.get(key) is not None]
+        if values:
+            total = sum(w for _v, w in values)
+            out[key] = round(sum(v * w for v, w in values) / total, 3)
+            scopes = {fc.get(scope_key) for _m, fc in per_member if fc.get(key) is not None}
+            out[scope_key] = scopes.pop() if len(scopes) == 1 else "mixed"
+        else:
+            out[key], out[scope_key] = None, None
+    return out
+
+
+def group_cell_reads(members, barcodes, cell_member, cellreads_files, cache):
+    """
+    ``(reads, saturation, source)`` per cell of a pooled group, each cell looked up in its
+    own member's CellReads.stats under its original barcode. A member whose file is
+    missing or does not match leaves its cells None; all None gives ``(None, None, None)``.
+    """
+    n = len(barcodes)
+    reads, saturation = [None] * n, [None] * n
+    sources = []
+    for k, m in enumerate(members):
+        idx = [i for i in range(n) if cell_member[i] == k]
+        own = [barcodes[i].rpartition(":")[2] for i in idx]
+        r, s, src = cell_reads_for(m["id"], own, cellreads_files, cache)
+        if r is None:
+            continue
+        sources.append(src)
+        for i, rv, sv in zip(idx, r, s):
+            reads[i], saturation[i] = rv, sv
+    if not sources:
+        return None, None, None
+    return reads, saturation, ", ".join(sources)
+
+
 def load_summaries(paths):
     summaries = []
     for p in paths or []:
@@ -262,9 +323,10 @@ def columnar(records, keys):
 
 
 METACELL_KEYS = ["id", "pseudo", "n_cells", "umis", "median_umis", "mito_pct", "median_cell_mito_pct",
-                 "rrna_pct", "n_doublets", "doublet_pct", "alpha_hat_mean", "x", "y", "markers", "max_lfc", "n_genes_lfc1"]
+                 "rrna_pct", "n_doublets", "doublet_pct", "alpha_hat_mean", "x", "y", "markers", "max_lfc", "n_genes_lfc1",
+                 "member_counts"]
 CELL_KEYS = ["barcodes", "group", "umis", "n_genes", "mito_umis", "rrna_umis", "doublet", "alpha",
-             "doublet_callers", "scrublet_score", "scdblfinder_score"]
+             "doublet_callers", "scrublet_score", "scdblfinder_score", "member"]
 
 
 def build_universes(summaries):
@@ -335,8 +397,13 @@ def cells_block(s, cellreads_files, cache):
     if not cells:
         return None
     out = {k: cells.get(k) for k in CELL_KEYS}
-    out["reads"], out["saturation"], out["reads_source"] = cell_reads_for(
-        s["sample"]["id"], cells["barcodes"], cellreads_files, cache)
+    members = s["sample"].get("members")
+    if members and cells.get("member") is not None:
+        out["reads"], out["saturation"], out["reads_source"] = group_cell_reads(
+            members, cells["barcodes"], cells["member"], cellreads_files, cache)
+    else:
+        out["reads"], out["saturation"], out["reads_source"] = cell_reads_for(
+            s["sample"]["id"], cells["barcodes"], cellreads_files, cache)
     return out
 
 
@@ -362,7 +429,10 @@ def build_payload(summaries, mt_files, antisense_files, defaults, run_info, expe
     for s, placement in zip(summaries, per_sample):
         sample = dict(s["sample"])
         sample["expected_cells"] = expected_cells.get(sample["id"])
-        sample["featurecounts"] = featurecounts_for(sample["id"], mt_files, antisense_files)
+        sample["featurecounts"] = (
+            group_featurecounts(sample["members"], mt_files, antisense_files) if sample.get("members")
+            else featurecounts_for(sample["id"], mt_files, antisense_files)
+        )
         sample["metacells"] = columnar(s.get("metacells") or [], METACELL_KEYS)
         sample["cells"] = cells_block(s, cellreads_files, cellreads_cache)
 

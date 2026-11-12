@@ -380,6 +380,11 @@ def main():
     summary_path = f"{args.prefix}_mc_summary.json"
 
     adata = ad.read_h5ad(args.cells_h5ad)
+    # An h5ad written under pandas >= 3 stores its names as a nullable-string array, which
+    # anndata reads back as pandas' 'string' dtype; metacells' collect_metacells requires a
+    # numpy array of them and fails an assertion otherwise. Same values, so the fingerprint holds.
+    adata.obs_names = pd.Index(np.asarray(adata.obs_names, dtype=object))
+    adata.var_names = pd.Index(np.asarray(adata.var_names, dtype=object))
     adata.var_names_make_unique()
     adata.X = qcs.as_csr(adata.X)
     logger.info(f"Read {adata.n_obs} called cells x {adata.n_vars} genes from {args.cells_h5ad}")

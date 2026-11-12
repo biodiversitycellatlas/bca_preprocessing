@@ -53,6 +53,10 @@ and the dashboard shows all of them together. With the default `geneext_downstre
 then holds just the alignment GeneExt read (BAM and logs), and appears nowhere else. See
 [Which runs GeneExt adds](CONFIGURATION_PARAMETERS.md#which-runs-geneext-adds).
 
+A samplesheet `filtering_report` group is named the same way: `<group><suffix>`, for example
+`larva_starsolo`. It appears from `metacells/` onwards, in place of its samples' runs. See
+[Combining samples](usage.md#combining-samples).
+
 Both mappers are built on the same reference: `ref_fasta`, with `ref_fasta_addfeature` appended
 when it is set, and `ref_gtf`, or the GeneExt annotation for the `_geneext_` runs.
 `ref_gtf_addfeature` is used only by the rRNA metrics.
@@ -80,7 +84,7 @@ output_directory/
 │
 ├── cellsweep/                      # (Optional) CellSweep ambient RNA removal
 ├── doublet_filtering/              # (Optional) Scrublet, scDblFinder and consensus calls
-├── metacells/                      # (Optional) Metacell2 metacells and their QC summaries
+├── metacells/                      # (Optional) Metacell2 metacells and their QC summaries, per sample or group
 ├── metacell_filtering/             # (Optional) Filtered UMI matrices from the report's selection
 │
 ├── saturation/                     # (Optional) Sequencing saturation analysis
@@ -529,6 +533,18 @@ Besides the metacells (named as Metacell2 names them, e.g. `M12.34`), `obs["meta
 pseudo-groups: `__outliers__` for cells Metacell2 left out of every metacell, and `__excluded__`
 for cells it never grouped (outside `mc2_min_cell_umis`/`mc2_max_cell_umis`).
 
+A `filtering_report` group (see [Combining samples](usage.md#combining-samples)) has its
+directory `<group><suffix>/`, with the three files above and two more:
+
+| Path | Description |
+| ---- | ----------- |
+| `<id>/<id>_group_cells.h5ad` | The samples' cell-called objects, pooled: the input of the group's Metacell2 run. Cells are named `<sample>:<barcode>`; `obs["sample"]` gives each cell's sample and `obs["sample_id"]` its analytical run. Each sample's CellSweep values are lifted from its own raw object. `var["ambient_hat"]` is the samples' mean weighted by their cells, and `var["ambient_hat:<sample>"]` keeps each sample's own. `uns["group_members"]` lists the samples. |
+| `<id>/<id>_group_members.tsv` | The samples pooled, with their analytical run and their cells. |
+
+The group's `_mc2_cells.h5ad` keeps `obs["sample"]`. Its `_mc_summary.json` adds the samples
+(`sample.members`), each cell's sample (`cells.member`) and each metacell's cells per sample
+(`member_counts`).
+
 </details>
 
 <details markdown="1">
@@ -558,6 +574,13 @@ with the sample selected, which applies it, or copy another sample's settings wi
 settings to all samples* (which leaves each sample's blacklists alone). Only samples with every
 level applied go into the selection.
 
+A `filtering_report` group is one entry of the selector, labelled with its number of samples.
+Its statistics list the samples and their cells. Its mtDNA, rRNA and antisense read percentages
+are the samples' own, weighted by their cells. Each cell's reads come from its own sample's
+`CellReads.stats`. The metacell table gains a *Main sample %* column: the share of each
+metacell's cells from the sample it holds most of. The hover text of a metacell gives the full
+split.
+
 The report remembers your choices in the browser between visits. *Reset all samples to
 defaults* clears them.
 
@@ -573,7 +596,8 @@ Written by the `-resume --metacell_selection metacell_selection.json` rerun.
 | `matrix.mtx`, `barcodes.tsv`, `features.tsv` | The kept cells × kept genes, raw UMIs, in the 10x orientation. |
 | `<id>_final.h5ad` | The same cells, with `obs["metacell"]`, the per-cell QC and annotations, and `layers["cellsweep"]` when present. Under `metacell_gene_mode = "flag"` every gene is kept, with `var["pass_filter"]` and `var["exclusion_reasons"]`. |
 | `<id>_final_metacells.h5ad` | The kept metacells × genes, summed raw UMIs. |
-| `<id>_filter_summary.json` | What was kept and from what (cells, metacells, genes, UMIs), the cells the cell level excluded, and the cell, metacell and gene rules the selection recorded. |
+| `<id>_filter_summary.json` | What was kept and from what (cells, metacells, genes, UMIs), the cells the cell level excluded, and the cell, metacell and gene rules the selection recorded. For a group, also the cells kept per sample (`members_cells_kept`). |
+| `members/<sample>/` | Only for a `filtering_report` group: each sample's kept cells on their own, as `matrix.mtx`, `barcodes.tsv`, `features.tsv` and `<sample>_final.h5ad`. The barcodes are the sample's own again, without the `<sample>:` prefix. |
 
 </details>
 
@@ -774,6 +798,13 @@ Seven tabs, plus one that appears only when the run produced an extended annotat
 | **Cell Filtering** | CellSweep ambient-contribution histogram, top ambient genes and UMAP comparison. |
 | **Gene Extension** | Only with `perform_geneext = true`. How many genes GeneExt extended and by how much, the 3′-extension length distribution, the MACS2 peak-filtering flow and coverage threshold, the `--maxdist` that was applied and any annotation fixes GeneExt made. |
 | **Configurations** | The run configuration merged with each sample's samplesheet row. |
+
+When the samplesheet has `qc_report` groups (see
+[Combining samples](usage.md#combining-samples)), a **Sample groups** box appears below the
+summary. It has a table of each group's samples with a pooled row, every sample's barcode-rank
+curve on one plot, and the mapped reads per called cell of every sample side by side. The summary
+table gains a *Group* column and the pooled rows, and the sample selector lists the samples under
+their group. Values that can only be approximated in the pooled row are marked ≈.
 
 All analytical runs of a sample appear together, so STARsolo, alevin-fry and GeneExt results
 are compared side by side. The Gene Extension tab is the exception: GeneExt runs once per

@@ -33,6 +33,8 @@ The `protocol` parameter selects the pre-processing steps and the read layout us
 | ScaleBio            | `scalebio_quantum_rna`, `scalebio_rna_v1_1`            | correct barcodes, split samples on RT (+PCR) wells, trim | `fastq_indices`, `rt`, `p5` (optional) |
 | Other               | `seqspec`                                              | trim with fastp                                 | -                                    |
 
+Every protocol also takes the optional `qc_report` and `filtering_report` columns. They combine samples after mapping, for rows that hold different cells (channels, sublibraries, plates, aliquots or replicates). Only rows that hold the same cells, such as lanes, should share a `sample` name. See [Combining samples](usage.md#combining-samples).
+
 Pre-processing steps that split or rebuild reads can be skipped with `perform_demultiplexing = false`, and fastp trimming with `perform_trimming = false`. Results of each step are written to `demultiplex/`, `fastp/` or `marsseq_reformat/`.
 
 The commercial pipelines (Cell Ranger, split-pipe, BD Rhapsody) can run alongside for comparison, see [supported external pipelines](INSTALLATION_EXTERNAL_PIPELINES.md).
@@ -100,6 +102,8 @@ OAK splits an overloaded 10x 3' run into aliquots, each with its own i5 index (a
 
 `OAK_DEMUX` selects the reads of each aliquot on its i7 (if given) and i5 index, allowing `oak_demux_max_mismatches` mismatches (default `1`). The read counts after each step are written to `demultiplex/<sample>/<sample>_oak_demux.log`. Each aliquot is then mapped as a 10x 3' v3.1 sample.
 
+To see the aliquots of one channel together in the dashboard, give them the same `qc_report` group. To filter them as one set of metacells, give them the same `filtering_report` group. See [Combining samples](usage.md#combining-samples).
+
 
 ## Parse Biosciences
 
@@ -117,6 +121,8 @@ Parse pools several samples into one library, which are told apart by the RT wel
 **Demultiplexing.** By default, `PARSEBIO_CUSTOM_DEMUX` matches the RT barcode against the well whitelist given in `bc_whitelist_parse_splitwells` (a CSV with the columns `bci,sequence,uid,well,stype`, as shipped with split-pipe), at the smallest edit distance, at most 2.
 
 Set `splitpipe_demultiplex_script` to use split-pipe's own demultiplexing script instead.
+
+**Sublibraries.** Every sublibrary reuses the same barcode combinations for other cells. Give a sample one row per sublibrary, each with its own `sample` name and the same `rt` wells. Rows sharing a name would have their reads merged, which joins different cells that happen to share a barcode. Use the `qc_report` and `filtering_report` columns to combine the sublibraries after mapping, see [Combining samples](usage.md#combining-samples).
 
 **Round-1 barcodes.** Each round-1 well holds an oligo-dT (`T`) and a random-hexamer (`R`) RT primer, and in some kits targeted (`X`) primers, each with its own barcode (the `stype` column of the CSV). split-pipe names cells by well, so these reads form one cell. A mapper given every round-1 barcode would split each cell into a T and an R barcode (in a typical run, about 40% and 60% of its reads). With `parse_collapse_bc1 = true` (the default), `PARSEBIO_COLLAPSE_BC1` therefore rewrites the round-1 barcode in the barcode read to its well's T barcode before mapping:
 
@@ -188,7 +194,7 @@ A library pools many samples. Give every sample its own row with the **same** FA
 - `rt`: the sample's RT wells, for example `1A-2H`, `3A;3B` or `1A;5A-5H`. Ranges of plate wells run column by column, so `1A-2C` is all of column 1 plus `2A-2C`. Separate the parts with `;`.
 - `p5` (optional): the sample's PCR wells, as named in the PCR list, for example `QSR-1;QSR-2` or a range `QSR-1-QSR-6`. Left empty, the sample takes every PCR well.
 - No RT × PCR well combination may belong to two samples.
-- Extended Throughput: the i7 pool (plate) is not part of the cell barcode, so give each plate's FASTQs their own sample names, for example `sampleX_AP1` and `sampleX_AP2`.
+- Extended Throughput: the i7 pool (plate) is not part of the cell barcode, so give each plate's FASTQs their own sample names, for example `sampleX_AP1` and `sampleX_AP2`. Give both plates `sampleX` as `qc_report` and/or `filtering_report` group to combine them after mapping, see [Combining samples](usage.md#combining-samples).
 - v1.1 reads only the i5 index. A single index read, given as `_I1_` or coming from a single-index CRAM, is taken as the i5.
 
 **CRAM input.** Illumina-style CRAMs are converted to FASTQ first, see [CRAM input](#cram-input).

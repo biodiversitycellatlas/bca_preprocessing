@@ -92,6 +92,8 @@ SCIRNASEQ3_EXAMPLE,BCA001_R2_001.fastq.gz,BCA001_R1_001.fastq.gz,,2500,A02,D09,P
 ```
 For a more detailed explanation of the samplesheet configuration per protocol see [detailed samplesheet configurations](docs/PROTOCOLS_AND_WHITELISTS.md).
 
+A duplicate sample id is only right for rows that hold the same cells, such as lanes or a top-up sequencing of one library. Rows with different cells, such as channels, sublibraries or replicates, keep their own ids. Two optional columns combine them after mapping: `qc_report` pools them in the dashboard, and `filtering_report` pools them into one set of metacells and one entry of the filtering report. See [Combining samples](docs/usage.md#combining-samples).
+
 
 ### 2. Create a custom configuration file
 

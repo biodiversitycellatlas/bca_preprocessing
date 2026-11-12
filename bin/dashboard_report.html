@@ -285,6 +285,18 @@
             background-color: rgba(59, 188, 177, 0.514);
         }
 
+        /* A qc_report group's pooled row, in the overview and in the group table */
+        .table-scroll tbody tr.pooled-row {
+            font-weight: 600;
+            border-top: 2px solid var(--header-color);
+        }
+
+        .group-note {
+            font-size: 13px;
+            color: #555;
+            margin: 8px 0 12px;
+        }
+
         /* Custom scrollbar */
         .table-scroll::-webkit-scrollbar {
             height: 8px;
@@ -729,6 +741,34 @@
             </div>
         </section>
 
+        <!-- qc_report groups: shown only when the samplesheet groups samples -->
+        <section class="box collapsible hidden" id="groups-box">
+            <div class="box-header">
+                <h3>Sample groups</h3>
+                <button class="collapse-btn">▾</button>
+            </div>
+            <div class="box-content">
+                <div class="sample-bar">
+                    <label for="group-select">Group:</label>
+                    <select id="group-select"></select>
+                </div>
+                <p class="group-note" id="group-note"></p>
+                <div class="table-scroll">
+                    <table id="group-table"></table>
+                </div>
+                <div class="ge-panels" style="margin-top:16px;">
+                    <div class="ge-panel">
+                        <h4>Barcode rank, per sample</h4>
+                        <div id="group-knee" style="width:100%; height:360px;"></div>
+                    </div>
+                    <div class="ge-panel">
+                        <h4>Mapped reads per called cell, per sample</h4>
+                        <div id="group-reads" style="width:100%; height:360px;"></div>
+                    </div>
+                </div>
+            </div>
+        </section>
+
         <!-- Sample Selection -->
         <div class="sample-bar">
             <label>Sample:</label>
@@ -802,6 +842,10 @@
   __GENEEXT_DATA_PLACEHOLDER__
   </script>
 
+    <script id="groups-data" type="application/json">
+  __GROUPS_DATA_PLACEHOLDER__
+  </script>
+
 
     <!-- ==================================================== -->
     <!-- app.js                                               -->
@@ -871,6 +915,11 @@
                 window._currentSample = data.samples[0];
                 renderActiveTab();
             }
+
+            /* qc_report groups, after the samples their plots look up: the box is shown
+               only when the samplesheet has groups */
+            const groupsData = loadEmbeddedJSON("groups-data") || {};
+            initGroups(groupsData.groups || []);
         }
 
         /**********************************************************************
@@ -903,7 +952,7 @@
         </thead>
         <tbody>
           ${rows.map(row => `
-            <tr>
+            <tr${String(row[0]).endsWith(" (pooled)") ? ' class="pooled-row"' : ""}>
               ${row.map(cell => `<td>${cell}</td>`).join("")}
             </tr>
           `).join("")}
@@ -980,6 +1029,129 @@
         }
 
 
+        /**********************************************************************
+         * QC_REPORT GROUPS
+         * Samples sharing a samplesheet 'qc_report' group, mapped and called on
+         * their own, side by side with the group's pooled numbers (see
+         * build_group_payload in bin/generate_dashboard.py).
+         **********************************************************************/
+        const GROUP_COLUMNS = [
+            ["sample_id", "Sample"], ["n_reads", "Input reads"], ["pct_unique", "% Mapped reads"],
+            ["n_cells", "N cells"], ["mean_reads", "Mean reads per cell"], ["median_umis", "Median UMIs per cell"],
+            ["median_genes", "Median genes per cell"], ["saturation", "Saturation"],
+            ["reads_07", "Reads needed for target saturation"], ["noise", "Noise (% unique reads non-cell barcodes)"],
+            ["intronic", "% intronic reads"], ["rrna_mapped", "% rRNA reads (of mapped)"],
+            ["mtdna_mapped", "% mtDNA reads (of mapped)"], ["mtdna_cells", "% mtDNA reads (called cells)"],
+        ];
+
+        /* How the pooled row was built, so an approximate number is not read as exact */
+        const GROUP_APPROX_LABELS = {
+            saturation: "saturation (members' values weighted by input reads)",
+            rrna_mapped: "% rRNA reads", rrna_unique: "% rRNA reads (of unique)",
+            mtdna_mapped: "% mtDNA reads", mtdna_cells: "% mtDNA reads (called cells)",
+            median_umis: "median UMIs per cell (members' medians weighted by cells)",
+            median_genes: "median genes per cell (members' medians weighted by cells)",
+        };
+
+        function initGroups(groups) {
+            const box = document.getElementById("groups-box");
+            if (!box || !groups.length) return;
+            box.classList.remove("hidden");
+
+            const sel = document.getElementById("group-select");
+            sel.innerHTML = groups.map((g, i) =>
+                `<option value="${i}">${g.group} · ${g.source === "starsolo" ? "STARsolo" : "alevin-fry"}` +
+                `${g.suffix ? ` (${g.suffix.replace(/^_/, "")})` : ""} · ${g.members.length} samples</option>`
+            ).join("");
+            sel.onchange = () => renderGroup(groups[Number(sel.value)]);
+            renderGroup(groups[0]);
+        }
+
+        function renderGroup(g) {
+            if (!g) return;
+            const rows = g.rows.map(r => ({ r, pooled: false })).concat([{ r: g.pooled, pooled: true }]);
+            document.getElementById("group-table").innerHTML = `
+                <thead><tr>${GROUP_COLUMNS.map(([, label]) => `<th>${label}</th>`).join("")}</tr></thead>
+                <tbody>${rows.map(({ r, pooled }) =>
+                    `<tr${pooled ? ' class="pooled-row"' : ""}>` +
+                    GROUP_COLUMNS.map(([key]) => {
+                        const approx = pooled && g.approx.includes(key) && r[key] !== "N/A";
+                        return `<td${approx ? ' title="approximate, see the note above"' : ""}>${r[key]}${approx ? " ≈" : ""}</td>`;
+                    }).join("") + `</tr>`).join("")}
+                </tbody>`;
+
+            const notes = [
+                "Every sample of the group was mapped, its cells called and its ambient RNA and doublets " +
+                "assessed on its own; only this table pools them. Reads and cells are summed and the " +
+                "mapping rate and reads per cell recomputed from the sums; noise and % intronic are " +
+                "weighted by uniquely mapped reads."
+            ];
+            const approx = g.approx.map(k => GROUP_APPROX_LABELS[k] || k);
+            if (approx.length) notes.push(`Approximate (≈): ${approx.join("; ")}; rRNA and mtDNA percentages are weighted by uniquely mapped reads.`);
+            if (g.partial.length) notes.push(`Not every sample has: ${g.partial.join(", ")}; the pooled value covers those that do.`);
+            document.getElementById("group-note").textContent = notes.join(" ");
+
+            renderGroupKnees(g);
+            renderGroupReads(g);
+        }
+
+        /* Each member's barcode-rank curve on one plot, its cell call marked */
+        function renderGroupKnees(g) {
+            const samples = window._samples || [];
+            const traces = [];
+            g.members.forEach(id => {
+                const knee = loadKnee(id);
+                if (!knee || !knee.umis || !knee.umis.length) return;
+                traces.push({ x: knee.ranks, y: knee.umis, mode: "lines", type: "scatter", name: id, line: { width: 2 } });
+                const s = samples.find(x => x.sample_id === id);
+                const cells = s ? Number(String(s.cell_calling.num_cells).replace(/,/g, "")) : NaN;
+                if (Number.isFinite(cells) && cells > 0) {
+                    let k = knee.ranks.findIndex(r => r >= cells);
+                    if (k < 0) k = knee.ranks.length - 1;
+                    traces.push({
+                        x: [knee.ranks[k]], y: [knee.umis[k]], mode: "markers", type: "scatter",
+                        name: `${id}: ${cells.toLocaleString()} cells`, marker: { size: 10, symbol: "x" }, showlegend: false,
+                        hovertemplate: `${id}<br>${cells.toLocaleString()} called cells<extra></extra>`
+                    });
+                }
+            });
+            Plotly.purge("group-knee");
+            if (!traces.length) {
+                document.getElementById("group-knee").innerHTML = "<p>No barcode-rank data for these samples.</p>";
+                return;
+            }
+            Plotly.newPlot("group-knee", traces, {
+                xaxis: { title: { text: "Barcode rank" }, type: "log", gridcolor: "#f0f0f0" },
+                yaxis: { title: { text: "Total UMIs" }, type: "log", gridcolor: "#f0f0f0" },
+                margin: { t: 20, l: 60, b: 50, r: 20 }, legend: { orientation: "h", y: -0.25 },
+                paper_bgcolor: "white", plot_bgcolor: "white"
+            }, { responsive: true });
+        }
+
+        /* The mapped reads of each member's called cells (STARsolo per-cell metrics) */
+        function renderGroupReads(g) {
+            const all = loadEmbeddedJSON("percell-data") || {};
+            const traces = [];
+            g.members.forEach(id => {
+                const d = all[id];
+                if (!d || !d.MappedReads) return;
+                const isCell = d.IsCell || d.MappedReads.map(() => true);
+                const y = d.MappedReads.filter((_, i) => isCell[i]);
+                if (y.length) traces.push({ y, type: "box", name: id, boxpoints: false });
+            });
+            Plotly.purge("group-reads");
+            if (!traces.length) {
+                document.getElementById("group-reads").innerHTML =
+                    "<p>No per-cell metrics for these samples (they come from the STARsolo BAM).</p>";
+                return;
+            }
+            Plotly.newPlot("group-reads", traces, {
+                yaxis: { title: { text: "Mapped reads per cell" }, type: "log", gridcolor: "#f0f0f0" },
+                margin: { t: 20, l: 60, b: 80, r: 20 }, showlegend: false,
+                paper_bgcolor: "white", plot_bgcolor: "white"
+            }, { responsive: true });
+        }
+
        /**********************************************************************
        * SAMPLE SELECTOR
        **********************************************************************/
@@ -989,11 +1161,23 @@
 
             sel.innerHTML = "";
 
+            /* Samples of a qc_report group are listed together under its name */
+            const optgroups = new Map();
             samples.forEach((s, i) => {
                 const opt = document.createElement("option");
                 opt.value = String(i);
                 opt.textContent = s.sample_id;
-                sel.appendChild(opt);
+                if (!s.qc_group) {
+                    sel.appendChild(opt);
+                    return;
+                }
+                if (!optgroups.has(s.qc_group)) {
+                    const og = document.createElement("optgroup");
+                    og.label = `Group: ${s.qc_group}`;
+                    optgroups.set(s.qc_group, og);
+                    sel.appendChild(og);
+                }
+                optgroups.get(s.qc_group).appendChild(opt);
             });
 
             sel.value = "0";
@@ -2351,9 +2535,12 @@
             };
         });
 
-        document.querySelector(".collapse-btn").onclick = () => {
-            document.querySelector(".collapsible .box-content").classList.toggle("hidden");
-        };
+        /* Each collapsible box folds its own content */
+        document.querySelectorAll(".collapsible").forEach(box => {
+            const btn = box.querySelector(".collapse-btn");
+            const content = box.querySelector(".box-content");
+            if (btn && content) btn.onclick = () => content.classList.toggle("hidden");
+        });
 
         /**********************************************************************
          * LOAD DASHBOARD

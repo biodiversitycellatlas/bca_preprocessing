@@ -1435,6 +1435,208 @@ def _build_file_map_from_cli(
 
 
 # ---------------------------------------------------------------------------
+# qc_report groups
+# ---------------------------------------------------------------------------
+# Samples sharing a samplesheet 'qc_report' group are mapped and called on their own
+# and only brought together here: each group gets a pooled row next to its members',
+# per analytical run (a group's '_starsolo' runs pool with each other, never with
+# its '_alevinfry' ones). What is pooled, and how:
+#
+#   summed            input reads, uniquely mapped reads, called cells, reads needed
+#                     for the target saturation
+#   from the sums     % uniquely mapped, mean reads per cell
+#   by unique reads   noise (unique reads in non-cell barcodes) and % intronic, both
+#                     fractions of uniquely mapped reads, weighted by those
+#   approximate       saturation (weighted by input reads), rRNA / mtDNA % (weighted by
+#                     uniquely mapped reads, the mapped reads not being reported),
+#                     median genes per cell (members' medians weighted by cells)
+#   pooled per cell   median UMIs per cell, over every member's called cells, when
+#                     each member's UMIperCellSorted.txt is there; else approximate
+#
+# The approximate ones are listed in the payload, and the report marks them.
+
+QC_GROUP_COLUMN = "qc_report"
+
+
+def _num(val: Any) -> Optional[float]:
+    """A count as written in the report ("12,345"), or None."""
+    if val is None:
+        return None
+    return safe_float(str(val).replace(",", "").strip())
+
+
+def _pct(val: Any) -> Optional[float]:
+    """A percentage as written in the report ("85.20%"), or None."""
+    if val is None:
+        return None
+    return safe_float(str(val).replace("%", "").strip())
+
+
+def _reads(val: Any) -> Optional[float]:
+    """A read count as the saturation log gives it ("22.5 M"), or None."""
+    m = re.match(r"^\s*([0-9.]+)\s*([kKmMgG]?)", str(val or ""))
+    if not m:
+        return None
+    scale = {"": 1, "k": 1e3, "m": 1e6, "g": 1e9}[m.group(2).lower()]
+    return float(m.group(1)) * scale
+
+
+def _reads_text(val: Optional[float]) -> str:
+    if val is None:
+        return "N/A"
+    return f"{val / 1e6:.1f} M" if val >= 1e6 else fmt(int(round(val)))
+
+
+def read_cell_umis(path: Optional[str], n_cells: Any) -> Optional[List[int]]:
+    """The UMIs of the *n_cells* top barcodes of a ``UMIperCellSorted.txt``, or None."""
+    n = _num(n_cells)
+    if not path or not os.path.exists(path) or not n:
+        return None
+    out: List[int] = []
+    try:
+        with open(path, "r") as fh:
+            for line in fh:
+                s = line.strip()
+                if s.isdigit():
+                    out.append(int(s))
+    except Exception:
+        return None
+    out.sort(reverse=True)
+    return out[: int(n)] or None
+
+
+def _median(values: List[float]) -> Optional[float]:
+    if not values:
+        return None
+    v = sorted(values)
+    mid = len(v) // 2
+    return float(v[mid]) if len(v) % 2 else (v[mid - 1] + v[mid]) / 2.0
+
+
+def _wmean(pairs: List[Tuple[Optional[float], Optional[float]]]) -> Tuple[Optional[float], bool]:
+    """``(weighted mean, complete)`` over the (value, weight) pairs that have both."""
+    usable = [(v, w) for v, w in pairs if v is not None and w]
+    if not usable:
+        return None, False
+    total = sum(w for _v, w in usable)
+    return sum(v * w for v, w in usable) / total, len(usable) == len(pairs)
+
+
+def pool_group(members: List[Dict[str, Any]]) -> Dict[str, Any]:
+    """The pooled numbers of one group's members (see the block comment above)."""
+    approx: List[str] = []
+    partial: List[str] = []
+
+    def total(key: str) -> Optional[float]:
+        vals = [m.get(key) for m in members]
+        if any(v is None for v in vals):
+            if any(v is not None for v in vals):
+                partial.append(key)
+            vals = [v for v in vals if v is not None]
+        return sum(vals) if vals else None
+
+    def weighted(key: str, weight: str, is_approx: bool) -> Optional[float]:
+        value, complete = _wmean([(m.get(key), m.get(weight)) for m in members])
+        if value is not None:
+            if is_approx:
+                approx.append(key)
+            if not complete:
+                partial.append(key)
+        return value
+
+    n_input  = total("n_input")
+    n_unique = total("n_unique")
+    n_cells  = total("n_cells")
+    reads_07 = total("reads_07")
+
+    cell_umis = [m.get("cell_umis") for m in members]
+    if all(c for c in cell_umis):
+        median_umis = _median([v for c in cell_umis for v in c])
+    else:
+        median_umis = weighted("median_umis", "n_cells", True)
+
+    return {
+        "n_input":      n_input,
+        "n_unique":     n_unique,
+        "pct_unique":   100.0 * n_unique / n_input if n_input and n_unique is not None else None,
+        "n_cells":      n_cells,
+        "mean_reads":   n_input / n_cells if n_input and n_cells else None,
+        "noise":        weighted("noise", "n_unique", False),
+        "intronic":     weighted("intronic", "n_unique", False),
+        "saturation":   weighted("saturation", "n_input", True),
+        "rrna_mapped":  weighted("rrna_mapped", "n_unique", True),
+        "rrna_unique":  weighted("rrna_unique", "n_unique", True),
+        "mtdna_mapped": weighted("mtdna_mapped", "n_unique", True),
+        "mtdna_cells":  weighted("mtdna_cells", "n_unique", True),
+        "median_umis":  median_umis,
+        "median_genes": weighted("median_genes", "n_cells", True),
+        "reads_07":     reads_07,
+        "approx":       sorted(set(approx)),
+        "partial":      sorted(set(partial)),
+    }
+
+
+def _group_row(sample_id: str, v: Dict[str, Any]) -> Dict[str, Any]:
+    """One row of a group's table, formatted as the overview formats it."""
+    def pct(x: Optional[float]) -> str:
+        return "N/A" if x is None else f"{x:.2f}%"
+
+    def count(x: Optional[float]) -> str:
+        return "N/A" if x is None else fmt(int(round(x)))
+
+    return {
+        "sample_id":    sample_id,
+        "n_reads":      count(v.get("n_input")),
+        "pct_unique":   pct(v.get("pct_unique")),
+        "n_cells":      count(v.get("n_cells")),
+        "mean_reads":   count(v.get("mean_reads")),
+        "median_umis":  count(v.get("median_umis")),
+        "median_genes": count(v.get("median_genes")),
+        "saturation":   pct(v.get("saturation")),
+        "reads_07":     _reads_text(v.get("reads_07")),
+        "noise":        pct(v.get("noise")),
+        "intronic":     pct(v.get("intronic")),
+        "rrna_mapped":  pct(v.get("rrna_mapped")),
+        "rrna_unique":  pct(v.get("rrna_unique")),
+        "mtdna_mapped": pct(v.get("mtdna_mapped")),
+        "mtdna_cells":  pct(v.get("mtdna_cells")),
+    }
+
+
+def build_group_payload(
+    group_inputs: List[Dict[str, Any]],
+    samplesheet_config: Dict[str, Dict[str, str]],
+) -> List[Dict[str, Any]]:
+    """
+    One entry per qc_report group and analytical run: its members' rows and the pooled
+    row. Empty when the samplesheet has no groups.
+    """
+    keyed: Dict[Tuple[str, str, str], List[Dict[str, Any]]] = {}
+    for m in group_inputs:
+        group = (samplesheet_config.get(m["base"], {}).get(QC_GROUP_COLUMN) or "").strip()
+        if not group:
+            continue
+        keyed.setdefault((group, m["suffix"], m["source"]), []).append(m)
+
+    out = []
+    for (group, suffix, source), members in sorted(keyed.items()):
+        members = sorted(members, key=lambda m: m["id"])
+        pooled = pool_group(members)
+        out.append({
+            "group":   group,
+            "id":      f"{group}{suffix}",
+            "suffix":  suffix,
+            "source":  source,
+            "members": [m["id"] for m in members],
+            "rows":    [_group_row(m["id"], m) for m in members],
+            "pooled":  _group_row(f"{group}{suffix} (pooled)", pooled),
+            "approx":  pooled["approx"],
+            "partial": pooled["partial"],
+        })
+    return out
+
+
+# ---------------------------------------------------------------------------
 # Main
 # ---------------------------------------------------------------------------
 
@@ -1552,6 +1754,7 @@ def main() -> None:
     cell_filtering_data: Dict[str, Any]   = {}
     secondderiv_data:   Dict[str, Any]     = {}
     mappers_seen:       set                = set()
+    group_inputs:       List[Dict]         = []
 
     def get_val(source: Dict, key: str, default: Any = "N/A") -> Any:
         return source.get(key, default) if source else default
@@ -1750,6 +1953,30 @@ def main() -> None:
             mt_rrna["mtdna_mapped_cells_pct"] or "N/A",
         ])
 
+        # ── qc_report group: the numbers its pooled row is built from ───────
+        qc_group = (samplesheet_config.get(base_id, {}).get(QC_GROUP_COLUMN) or "").strip() or None
+        if qc_group:
+            group_inputs.append({
+                "id":           s_id,
+                "base":         base_id,
+                "suffix":       s_id[len(base_id):] if s_id.startswith(base_id) else "",
+                "source":       "starsolo" if using_star else "alevin",
+                "n_input":      _num(n_input_reads),
+                "n_unique":     _num(n_unique),
+                "n_cells":      _num(n_cells),
+                "saturation":   _pct(saturation),
+                "noise":        _pct(noise_pct),
+                "intronic":     _pct(intronic_pct),
+                "rrna_mapped":  _pct(mt_rrna["rrna_mapped_pct"]),
+                "rrna_unique":  _pct(mt_rrna["rrna_unique_pct"]),
+                "mtdna_mapped": _pct(mt_rrna["mtdna_mapped_pct"]),
+                "mtdna_cells":  _pct(mt_rrna["mtdna_mapped_cells_pct"]),
+                "reads_07":     _reads(reads_07_sat_val),
+                "median_umis":  _num(median_umis),
+                "median_genes": _num(median_genes),
+                "cell_umis":    read_cell_umis(files.get("knee"), n_cells),
+            })
+
         # ── Cell filtering ───────────────────────────────────────────────────
         cf_dict = None
         if files.get("cs_table"):
@@ -1782,6 +2009,7 @@ def main() -> None:
 
         samples_json_list.append({
             "sample_id": s_id,
+            "qc_group":  qc_group,
             "config":    combined_config,
             "source":    "starsolo" if using_star else "alevin",
             "mapping": {
@@ -1836,6 +2064,24 @@ def main() -> None:
     if global_rows and mappers_seen == {"starsolo"}:
         global_cols[_MAPPED_COL] = "% Uniquely Mapped Reads"
 
+    # ── qc_report groups ─────────────────────────────────────────────────────
+    # Each group's pooled row joins the overview, and a Group column says which rows
+    # belong together; a run without groups keeps the table as it was
+    groups_data = build_group_payload(group_inputs, samplesheet_config)
+    if groups_data:
+        member_group = {s["sample_id"]: s["qc_group"] for s in samples_json_list}
+        for row in global_rows:
+            row.insert(1, member_group.get(row[0]) or "")
+        for g in groups_data:
+            p = g["pooled"]
+            global_rows.append([
+                p["sample_id"], g["group"], "STARsolo" if g["source"] == "starsolo" else "alevin-fry",
+                p["pct_unique"], p["n_cells"], p["saturation"], p["reads_07"], p["noise"],
+                p["median_umis"], p["intronic"], p["rrna_mapped"], p["rrna_unique"], p["mtdna_mapped"], p["mtdna_cells"],
+            ])
+        global_cols.insert(1, "Group")
+        print(f"qc_report: {len(groups_data)} pooled group rows.", file=sys.stderr)
+
     # ── Gene extension (run-level) ───────────────────────────────────────────
     geneext_data = build_geneext_payload(geneext_report, geneext_log)
     if geneext_data:
@@ -1870,6 +2116,7 @@ def main() -> None:
         "__SECONDDERIV_DATA_PLACEHOLDER__":  _dump(secondderiv_data),
         "__CELLFILTERING_DATA_PLACEHOLDER__": _dump(cell_filtering_data),
         "__GENEEXT_DATA_PLACEHOLDER__":       _dump(geneext_data),
+        "__GROUPS_DATA_PLACEHOLDER__":        _dump({"groups": groups_data}),
     }
 
     for placeholder, json_str in replacements.items():

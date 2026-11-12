@@ -35,6 +35,7 @@ tests/
 │   ├── parse_collapse.sh
 │   ├── parse_demux.sh
 │   ├── resource_efficiency.sh
+│   ├── sample_groups.sh
 │   ├── scalebio_demux.sh
 │   ├── starsolo_em_matrix.sh
 │   └── velocity_matrix.sh
@@ -47,6 +48,8 @@ tests/
     ├── make_annotation_fixture.py # generates both mappers' triplets plus doublet
     │                              # and CellSweep annotations to merge
     ├── make_geneext_fixture.py    # generates a synthetic GeneExt report and log
+    ├── make_group_fixture.py      # two samples of one filtering_report group, the
+    │                              # second with every value shifted
     ├── make_metacell_fixture.py   # generates a sample with a planted metacell assignment
     ├── report_harness.js          # runs filtering_report.html's script to export a selection
     ├── make_trace_fixture.py      # generates synthetic runs with a known exponent
@@ -473,6 +476,37 @@ Needs `nextflow` and `pigz`, and is skipped without them; `multi_member_read` al
 ```bash
 bash tests/run_tests.sh merge_fastqs
 bash tests/run_tests.sh merge_fastqs -- --keep    # keep the FASTQs and the work directory
+```
+
+## `sample_groups`
+
+Checks the samplesheet's `qc_report` and `filtering_report` groups:
+
+- [`bin/merge_group_h5ad.py`](../bin/merge_group_h5ad.py) pools a `filtering_report` group's
+  cell-called objects.
+- [`bin/run_metacells.py`](../bin/run_metacells.py) and
+  [`bin/generate_filtering_report.py`](../bin/generate_filtering_report.py) summarise and report
+  the pool.
+- [`bin/apply_metacell_filter.py`](../bin/apply_metacell_filter.py) splits the filtered group
+  back per sample.
+- [`bin/generate_dashboard.py`](../bin/generate_dashboard.py) builds a `qc_report` group's pooled
+  row.
+
+Each link can go wrong without raising:
+
+- a cell gets the other sample's CellSweep values;
+- a read count is taken from the wrong `CellReads.stats`;
+- a barcode keeps its `<sample>:` prefix;
+- a rate is averaged instead of recomputed from the sums.
+
+[`lib/make_group_fixture.py`](lib/make_group_fixture.py) builds two samples on
+`make_metacell_fixture.py`'s. Every value of the second (barcodes, `alpha_hat`, `ambient_hat`,
+read metrics, reads per cell) is shifted, so the cases can tell which sample a pooled number came
+from. A third sample, counted against a renamed gene, must be refused. Metacell2 is not needed.
+
+```bash
+bash tests/run_tests.sh sample_groups
+bash tests/run_tests.sh sample_groups -- --python /path/to/env/bin/python --keep
 ```
 
 ## `scalebio_demux`

@@ -2584,7 +2584,9 @@
         const fc = s.featurecounts;
         // Read percentages, so they differ from the UMI percentage above by PCR
         // duplication as well as by cell set; the label says which reads were counted
-        const fcFrom = fc && fc.from_other_mapper ? ` of ${fc.source_id}` : "";
+        // A pooled group's read metrics are its samples' own, averaged over their cells
+        const fcFrom = fc && fc.members ? `; ${fc.source_id}, weighted by cells`
+            : fc && fc.from_other_mapper ? ` of ${fc.source_id}` : "";
         const fcSub = (denominator, scope) => fc
             ? `% of ${denominator}${scope ? `, ${scope}` : ""}${fcFrom}`
             : "read metrics not computed (no STARsolo BAM)";
@@ -2596,7 +2598,14 @@
         const gm = s.gene_match || {};
         const dv = s.cells ? cellDerived(s) : null;
 
+        // A pooled filtering_report group: its samples and their cells first
+        const pooled = s.members && s.members.length
+            ? [["Pooled samples", fmt(s.members.length, 0),
+                s.members.map(mb => `${mb.sample} (${fmt(mb.n_cells, 0)} cells)`).join(", ")]]
+            : [];
+
         document.getElementById("stats-table").innerHTML = kvRows([
+            ...pooled,
             calledCellsRow(s),
             ["UMIs per cell", dv ? fmt(dv.medUmis, 0) : "–", "median"],
             ["Genes per cell", dv ? fmt(dv.medGenes, 0) : "–", "median"],
@@ -2769,8 +2778,11 @@
             ["Metacell filtering report", run.pipeline_version, date].filter(Boolean).join(" · ");
 
         const sel = document.getElementById("sample-select");
+        // A pooled filtering_report group says how many samples it holds
         sel.innerHTML = samples.map(s =>
-            `<option value="${esc(s.id)}">${esc(s.id)}${s.status === "ok" ? "" : " (no metacells)"}</option>`
+            `<option value="${esc(s.id)}">${esc(s.id)}` +
+            `${s.members && s.members.length ? ` (${count(s.members.length, "sample")})` : ""}` +
+            `${s.status === "ok" ? "" : " (no metacells)"}</option>`
         ).join("");
         if (state.sample) sel.value = state.sample;
         sel.onchange = () => { state.sample = sel.value; applyVisited(); renderSample(); renderAll(); };
@@ -3561,8 +3573,35 @@
         document.getElementById("plot-scatter").scrollIntoView({ block: "nearest", behavior: "smooth" });
     }
 
+    /*
+     * The sample most of a pooled group's metacell comes from, over all its cells:
+     * { name, pct }, or null for a plain sample. A metacell made almost entirely of one
+     * sample of a group points to a batch effect, or to a cell type only that sample has.
+     */
+    function dominantMember(s, i) {
+        const counts = s.members && s.metacells.member_counts ? s.metacells.member_counts[i] : null;
+        if (!counts || !counts.length) return null;
+        const total = counts.reduce((a, b) => a + b, 0);
+        if (!total) return null;
+        let best = 0;
+        counts.forEach((c, k) => { if (c > counts[best]) best = k; });
+        return { name: s.members[best].sample, pct: 100 * counts[best] / total };
+    }
+
+    // "rep1 62 %, rep2 38 %": a pooled metacell's cells per sample, largest first
+    function memberMix(s, i) {
+        const counts = s.members && s.metacells.member_counts ? s.metacells.member_counts[i] : null;
+        if (!counts) return "";
+        const total = counts.reduce((a, b) => a + b, 0) || 1;
+        return counts.map((c, k) => [s.members[k].sample, c]).filter(p => p[1] > 0)
+            .sort((a, b) => b[1] - a[1])
+            .map(([nm, c]) => `${nm} ${fmt(100 * c / total, 0)} %`).join(", ");
+    }
+
     function metacellHover(m, ms, calls, i) {
+        const mix = memberMix(current(), i);
         return `<b>${esc(m.id[i])}</b> · ${fmt(ms.n_cells[i], 0)} cells, ${fmt(ms.umis[i], 0)} UMIs` +
+            (mix ? `<br>${esc(mix)}` : "") +
             (ms.median_umis[i] != null ? ` (median ${fmt(ms.median_umis[i], 0)} per cell)` : "") + `<br>` +
             `mito ${fmt(ms.mito_pct[i], 2)} %` +
             (ms.rrna_pct[i] ? ` · rRNA ${fmt(ms.rrna_pct[i], 2)} %` : "") +
@@ -3904,7 +3943,9 @@
             doublet_pct: ms.doublet_pct[i], ambient_pct: ms.alpha_hat_mean[i] == null ? null : 100 * ms.alpha_hat_mean[i],
             marker_lfc: ms.max_lfc[i], n_genes_lfc1: ms.n_genes_lfc1[i],
             markers: (m.markers[i] || []).join(", "),
-        })).filter(r => !filter ||
+            dominant: dominantMember(s, i),
+        })).map(r => Object.assign(r, { dominant_pct: r.dominant ? r.dominant.pct : null }))
+        .filter(r => !filter ||
             r.id.toLowerCase().includes(filter) || r.markers.toLowerCase().includes(filter) ||
             r.status.toLowerCase().includes(filter) ||
             r.reasons.map(x => REASONS[x].label).join(" ").toLowerCase().includes(filter));
@@ -3935,6 +3976,13 @@
             ["n_genes_lfc1", "Genes log2 FC > 1", true, "genes enriched over 2-fold over the median metacell, on all cells"],
             ["markers", "Top markers"],
         ];
+        // A pooled group: which of its samples each metacell mostly comes from
+        const pooled = !!(s.members && s.members.length);
+        if (pooled) {
+            cols.splice(cols.length - 1, 0, ["dominant_pct", "Main sample %", true,
+                "the share of the metacell's cells from the group's sample it holds most of; near 100 % means " +
+                "a metacell of one sample only (a batch effect, or a cell type only that sample has)"]);
+        }
         const head = `<thead><tr><th class="check">Blacklist</th>` +
             cols.map(([key, label, isNum, title]) => sortHeader(key, label, isNum, _mcSort, title)).join("") + `</tr></thead>`;
         const body = rows.slice(0, 5000).map(r => {
@@ -3954,6 +4002,8 @@
                 `<td class="num">${fmt(r.rrna_pct, 2)}</td><td class="num">${fmt(r.doublet_pct, 1)}</td>` +
                 `<td class="num">${fmt(r.ambient_pct, 1)}</td><td class="num">${fmt(r.marker_lfc, 2)}</td>` +
                 `<td class="num">${fmt(r.n_genes_lfc1, 0)}</td>` +
+                (pooled ? `<td class="num" title="${esc(memberMix(s, r.i))}">` +
+                          `${r.dominant ? `${esc(r.dominant.name)} ${fmt(r.dominant.pct, 0)}` : "–"}</td>` : "") +
                 `<td>${markerLinks(m.markers[r.i])}</td></tr>`;
         }).join("");
         document.getElementById("mc-table").innerHTML = head + `<tbody>${body}</tbody>`;

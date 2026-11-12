@@ -328,6 +328,15 @@ workflow PIPELINE_INITIALISATION {
     }
 
     //
+    // Sample groups: 'qc_report' pools samples in the dashboard, 'filtering_report' pools
+    // their cell-called objects into one Metacell2 run and one filtering report entry
+    //
+    // Both are read here rather than carried in meta: every process hashes meta, so a
+    // group added to a finished run would otherwise re-map every sample on -resume.
+    //
+    def groups_of_samples = sampleGroups(samplesheet_rows)
+
+    //
     // Resolve the FASTQs of every row, and fail fast on the ones that are not there
     //
     // A relative path is read against the samplesheet's own folder, so a samplesheet can sit
@@ -445,8 +454,9 @@ workflow PIPELINE_INITIALISATION {
     def ch_samplesheet = channel.fromList(samples)
 
     emit:
-    samplesheet = ch_samplesheet
-    versions    = ch_versions
+    samplesheet   = ch_samplesheet
+    sample_groups = channel.value(groups_of_samples)
+    versions      = ch_versions
 }
 
 /*
@@ -587,6 +597,71 @@ def schemaParamTypes() {
     return groups.collectEntries { group ->
         ((group['properties'] ?: [:]) as Map).collectEntries { name, spec -> [name, [spec['type']].flatten()] }
     }
+}
+
+//
+// The sample groups of the samplesheet, as [qc_report: [sample: group], filtering_report: [sample: group]]
+//
+// An empty column leaves a sample ungrouped. Every row of a sample must give the same
+// group, a group may not be named like a sample (the outputs and the reports would
+// collide), and it may not end in an analytical-run suffix, which the reports strip to
+// find a run's sample. A group of one sample is allowed: it runs under the group's name.
+//
+def sampleGroups(List rows) {
+    def run_suffixes = ['_starsolo', '_subsampled_starsolo', '_geneext_starsolo',
+                        '_geneext_subsampled_starsolo', '_alevinfry', '_geneext_alevinfry']
+    def sample_names = rows.collect { row -> row.sample?.toString()?.trim() }.findAll { s -> s }.toSet()
+    def problems = []
+    def groups   = [:]
+
+    ['qc_report', 'filtering_report'].each { col ->
+        def by_sample = [:]
+        rows.each { row ->
+            def sample = row.sample?.toString()?.trim()
+            if (!sample) {
+                return
+            }
+            def group = row[col]?.toString()?.trim() ?: ''
+            if (by_sample.containsKey(sample) && by_sample[sample] != group) {
+                problems << "sample '${sample}' gives '${col}' = '${by_sample[sample]}' in one row and '${group}' in another"
+            }
+            by_sample[sample] = group
+        }
+        def grouped = by_sample.findAll { _sample, group -> group }
+        if (col == 'filtering_report') {
+            // The pooled object names its cells '<sample>:<barcode>'
+            grouped.keySet().findAll { sample -> sample.contains(':') }.each { sample ->
+                problems << "sample '${sample}' is in a 'filtering_report' group, so its name cannot hold ':'"
+            }
+        }
+        // toSet(), not unique(): unique() works in place, which a map's values view refuses
+        grouped.values().toSet().each { group ->
+            if (group in sample_names) {
+                problems << "'${col}' group '${group}' has the name of a sample; give the group a name of its own"
+            }
+            def suffix = run_suffixes.find { sfx -> group.endsWith(sfx) }
+            if (suffix) {
+                problems << "'${col}' group '${group}' ends in '${suffix}', which names an analytical run; rename the group"
+            }
+        }
+        grouped.groupBy { _sample, group -> group }.each { group, members ->
+            if (members.size() == 1) {
+                log.info "'${col}' group '${group}' holds only ${members.keySet().first()}; it runs under the group's name."
+            }
+        }
+        groups[col] = grouped
+    }
+
+    if (problems) {
+        error("The sample groups of the samplesheet cannot be used:\n  " + problems.join("\n  "))
+    }
+    if (groups.filtering_report && !params.perform_metacells) {
+        log.warn(
+            "The samplesheet sets 'filtering_report' groups, which pool samples into one Metacell2 run,\n" +
+            "but 'perform_metacells' is false, so they are ignored."
+        )
+    }
+    return groups
 }
 
 //
