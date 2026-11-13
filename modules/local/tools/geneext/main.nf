@@ -1,9 +1,12 @@
 process GENE_EXT {
     publishDir path: { "${params.outdir}/gene_ext" }, mode: 'copy', saveAs: { filename -> filename == 'versions.yml' ? null : filename }
     
+    // Peaks of 1.4 GB (C. elegans) and 2.8 GB (fly) do not follow the BAM size, so memory is
+    // fixed; time follows the BAM (params.dynamic_time), never below 2 h.
     cpus   4
-    memory { 18.GB * task.attempt }
-    time   { 7.h   * task.attempt }
+    memory { 6.GB * task.attempt }
+    time   { BcaResources.scaledTime(
+        params.dynamic_time?.GENE_EXT, [bam_file], task.attempt, 2) }
 
     conda "${moduleDir}/environment.yml"
     container "${ workflow.containerEngine in ['singularity', 'apptainer'] && !task.ext.singularity_pull_docker_container ?

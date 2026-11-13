@@ -5,9 +5,10 @@ process SCALEBIO_DEMUX {
 
     // One lane (FASTQs) or one Ultima CRAM of one library: Python streams the reads, pigz
     // and samtools (de)compress alongside. Time follows the reads (params.dynamic_time; a
-    // CRAM is counted at its FASTQ size by BcaResources), never below 1 h.
-    cpus   3
-    memory { 2.GB * task.attempt }
+    // CRAM is counted at its FASTQ size by BcaResources), never below 1 h. FASTQ input runs at
+    // ~1.2-1.4 cores (Python plus one-thread pigz streams); an Ultima CRAM adds samtools -@.
+    cpus   { library.ultima ? 3 : 2 }
+    memory { 1.GB * task.attempt }
     time   { BcaResources.scaledTime(
         params.dynamic_time?.SCALEBIO_DEMUX, [fastq_cDNA, fastq_BC, fastq_I1, fastq_I2], task.attempt, 1) }
 

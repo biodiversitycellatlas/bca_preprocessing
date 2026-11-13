@@ -104,11 +104,32 @@ bin/resource_efficiency.py --results /path/to/outdir --dynamic
 That writes a `resources_dynamic_*.config` you can pass with `-c`, or copy into
 `nextflow.config`. It holds the `dynamic_time` and `dynamic_memory`.
 
-`dynamic_cpus` steps a CPU count up above an input size. It has two entries:
+`dynamic_cpus` steps a CPU count up above an input size. It has three entries:
 
-- `STARSOLO_ALIGN: [ above_gb: null, cpus: 16 ]` does nothing while `above_gb` is
-  `null`: the size at which 16 threads pay off has to come from a thread sweep on the
-  cluster. With a threshold set, a larger input gets 16 cores, and shorter runs.
+- `STARSOLO_ALIGN: [ above_gb: 1.5, cpus: 16 ]` gives 16 cores to FASTQs above 1.5 GiB,
+  and 8 below. On `genoa64`, 3.1 GiB of ScaleBio reads took 38 min at 8 threads, 26 at
+  12 and 20–21 at 16, with 88 % of the 16 cores busy and a 3.9 GB peak. 1.5 GiB is
+  where 8 threads would take about 20 minutes. Setting `above_gb` to `null` keeps 8
+  cores for every input. To measure it on your own cluster or data, rerun a finished
+  alignment at several thread counts:
+
+  ```bash
+  # from the launch directory of a finished run; the hash is the task's, from the trace
+  bash tests/bench/star_thread_sweep.sh --fraction 0.5 work/9c/cb31d3* sweep_out
+  # once the jobs have finished:
+  bash tests/bench/star_thread_sweep.sh --collect sweep_out
+  ```
+
+  Each thread count (8, 12 and 16 by default; `--threads`) runs as its own SLURM job,
+  on the full reads and on the first half (`--fraction`), through the task's own
+  `.command.run`, so the environment is the pipeline's. The task directory is only
+  read. `sweep_out/sweep.tsv` lists each run's time, CPU use, peak memory and the reads
+  STAR mapped (`reads`, from its `Log.final.out`: the half-size runs should show half).
+  If 16 threads are clearly faster than 8 (say 1.4× or more), set `above_gb` to the
+  input size at which 8 threads take about 20 minutes.
+- `STARSOLO_INDEX: [ above_gb: 1, cpus: 8 ]` gives 8 cores to a genome and GTF above
+  1 GB, and 2 below. On *C. elegans* (0.1 GB) genome generation used about one core of
+  eight.
 - `KRAKEN: [ above_gb: 1, cpus: 8 ]` gives 8 cores to an unmapped-reads FASTA above
   1 GB, and 2 below it. kraken2 loads its database on one thread before it classifies
   on the others, so a small FASTA leaves extra cores idle. To refine the threshold,

@@ -20,7 +20,7 @@ process METACELL2 {
     // how it was split: the count is fixed rather than escalated, so a retry or a rerun
     // on another node gives the assignment a selection was made against.
     cpus 4
-    time { 8.h * task.attempt }
+    time { 4.h * task.attempt }
 
     // Memory tracks the cell-called h5ad. Of the raw (or full) h5ad only obs, var and the
     // called rows of the denoised layer are read, before the metacells are computed, so it

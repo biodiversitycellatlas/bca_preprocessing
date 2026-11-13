@@ -1,8 +1,10 @@
 process STARSOLO_INDEX {
     publishDir path: { "${params.outdir}/genome/star_index_${ref_gtf.simpleName}${index_suffix}" }, mode: 'copy', saveAs: { filename -> filename == 'versions.yml' ? null : filename }
 
-    // Memory and time track the size of the reference being indexed
-    cpus   8
+    // Memory and time track the size of the reference being indexed. CPUs step up from 2
+    // above a reference size in params.dynamic_cpus: a small genome indexes on about one core.
+    cpus   { BcaResources.tieredCpus(
+        params.dynamic_cpus?.STARSOLO_INDEX, [ref_fasta, ref_gtf], task.attempt, 2) }
     time   { BcaResources.scaledTime(
         params.dynamic_time?.STARSOLO_INDEX, [ref_fasta, ref_gtf], task.attempt, 2) }
     memory { BcaResources.scaledMemory(

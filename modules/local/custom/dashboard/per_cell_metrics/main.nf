@@ -7,8 +7,9 @@ process PERCELL_METRICS {
     // table, and with Velocyto its three raw matrices are read too. Only those files are
     // measured, not the rest of Solo.out. Coefficients live in params.dynamic_memory;
     // without an entry the request is process_single_long2's 4 GB. 
+    // Time: 21 s on genoa64 (C. elegans), 3-5 min on fly locally
     cpus   1
-    time   { 2.h * task.attempt }
+    time   { 1.h * task.attempt }
     memory { BcaResources.scaledMemory(
         params.dynamic_memory?.PERCELL_METRICS,
         [barcode_reads,
