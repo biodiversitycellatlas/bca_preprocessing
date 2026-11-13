@@ -5,9 +5,7 @@ process PERCELL_METRICS {
     // Memory tracks the barcodes, not the counts: every table is indexed by STARsolo's raw
     // barcode list (the whole whitelist), the called cells get a row each in the metrics
     // table, and with Velocyto its three raw matrices are read too. Only those files are
-    // measured, not the rest of Solo.out. Coefficients live in params.dynamic_memory;
-    // without an entry the request is process_single_long2's 4 GB. 
-    // Time: 21 s on genoa64 (C. elegans), 3-5 min on fly locally
+    // measured, not the rest of Solo.out. 
     cpus   1
     time   { 1.h * task.attempt }
     memory { BcaResources.scaledMemory(
