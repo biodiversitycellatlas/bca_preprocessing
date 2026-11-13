@@ -488,11 +488,19 @@ def logo_tag(path):
 def render(template, blocks):
     """
     Fill every ``__NAME_PLACEHOLDER__`` in one pass, so text substituted in is never
-    scanned for placeholders again. An unknown placeholder is an error.
+    scanned for placeholders again. An unknown placeholder is an error, and so is a
+    value with no placeholder: a template without them is a report already filled in,
+    which would otherwise be passed on unchanged with another run's data.
     """
-    missing = set(PLACEHOLDER_RE.findall(template)) - set(blocks)
+    found = set(PLACEHOLDER_RE.findall(template))
+    missing = found - set(blocks)
     if missing:
         raise KeyError(f"The template has placeholders with no value: {sorted(missing)}")
+    unused = set(blocks) - found
+    if unused:
+        raise ValueError(
+            f"The template has no placeholder for {sorted(unused)}: it is a filled report, not the "
+            "template. Restore bin/filtering_report.html (git checkout -- bin/filtering_report.html).")
     return PLACEHOLDER_RE.sub(lambda m: blocks[m.group(1)], template)
 
 
@@ -548,6 +556,10 @@ def main():
     data = safe_json(payload)
     html = render(template, {"REPORT_DATA": data, "LOGO": logo_tag(args.logo)})
 
+    # A staged template is a symlink into the pipeline's bin/; writing the report
+    # through it would replace the template for every later run
+    if os.path.exists(args.output) and os.path.samefile(args.output, args.template):
+        raise ValueError(f"--output {args.output} is the template itself; write the report elsewhere")
     with open(args.output, "w", encoding="utf-8") as fh:
         fh.write(html)
 

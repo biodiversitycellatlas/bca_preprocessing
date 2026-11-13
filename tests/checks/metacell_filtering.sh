@@ -60,6 +60,8 @@ Cases:
   cells_h5ad            the per-cell annotations and CellSweep's layer land by barcode
   fingerprint           the fingerprint is stable and stored with the cells
   report_escape         every JSON block parses; no gene name can close the script
+  report_template       a filled report is refused as the template, and the report is
+                        never written over its (symlinked) template
   report_payload        one shared gene universe; featureCounts as percentages,
                         called cells preferred, borrowed from STARsolo for alevin-fry;
                         per-cell reads and saturation from CellReads.stats
@@ -463,6 +465,39 @@ assert "report_escape" \
         open(A[0], encoding='utf-8').read()))" \
     "the payload parses, the logo is inlined; neither the script name nor the placeholder name broke out" \
     "$REPORT"
+
+# The module once staged the template under the report's own name, so the report was
+# written through the symlink over bin/filtering_report.html, and every later run
+# silently re-published the first run's report. Both halves are refused now.
+TEMPLATE_OK=1
+set +e
+run_logged "$BCA_TEST_LOGDIR/metacell_filtering_template_filled.log" "$PYTHON" "$REPORT_TOOL" \
+    --template "$REPORT" --output "$WORKDIR/refilled.html"
+rc=$?
+set -e
+if [[ "$rc" -eq 0 || -e "$WORKDIR/refilled.html" ]]; then
+    record FAIL "report_template.filled" "a filled report was accepted as the template (exit $rc)"
+    TEMPLATE_OK=0
+fi
+mkdir -p "$WORKDIR/tmpl" "$WORKDIR/stage"
+cp "$TEMPLATE" "$WORKDIR/tmpl/filtering_report.html"
+TEMPLATE_DETAIL="a filled report is refused as the template"
+if ln -s "$WORKDIR/tmpl/filtering_report.html" "$WORKDIR/stage/filtering_report.html" 2>/dev/null \
+        && [[ -L "$WORKDIR/stage/filtering_report.html" ]]; then
+    set +e
+    run_logged "$BCA_TEST_LOGDIR/metacell_filtering_template_self.log" "$PYTHON" "$REPORT_TOOL" \
+        --template "$WORKDIR/stage/filtering_report.html" --output "$WORKDIR/stage/filtering_report.html"
+    rc=$?
+    set -e
+    if [[ "$rc" -eq 0 ]] || ! cmp -s "$TEMPLATE" "$WORKDIR/tmpl/filtering_report.html"; then
+        record FAIL "report_template.self" "the report was written over its symlinked template (exit $rc)"
+        TEMPLATE_OK=0
+    fi
+    TEMPLATE_DETAIL+="; writing over a symlinked template is refused"
+else
+    TEMPLATE_DETAIL+="; symlinks unavailable, the self-overwrite case is not run"
+fi
+[[ "$TEMPLATE_OK" -eq 1 ]] && record PASS "report_template" "$TEMPLATE_DETAIL"
 
 PAYLOAD_EXPR="json.loads(__import__('re').search(r'<script id=\"report-data\" type=\"application/json\">(.*?)</script>', open(A[0], encoding='utf-8').read(), __import__('re').S).group(1))"
 

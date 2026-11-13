@@ -21,7 +21,9 @@ process GENERATE_FILTERING_REPORT {
     path(antisense_metrics)
     val(cellreads_ids)
     path(cellreads_stats, stageAs: 'cellreads*/*')
-    path(template)
+    // Not under its own name, which is the output's: writing the report would follow
+    // the staged symlink and overwrite bin/filtering_report.html
+    path(template, stageAs: 'filtering_report_template.html')
     path(logo)
     val(expected_cells)
     val(thresholds)
