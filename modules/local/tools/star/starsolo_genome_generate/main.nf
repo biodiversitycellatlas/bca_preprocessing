@@ -36,6 +36,9 @@ process STARSOLO_INDEX {
     def genomegen_ram = params.star_limitGenomeGenerateRAM
         ?: ((task.memory ? task.memory.toBytes() : 32000000000L) * 0.85) as long
 
+    // A user override of --genomeChrBinNbits; empty = derive it from the reference below
+    def chr_bin_override = params.star_genomeChrBinNbits ?: ''
+
     """
     echo -e "\\n\\n==================  GENOME INDEX STARSOLO =================="
     echo "Creating star index using GTF file: ${ref_gtf}"
@@ -53,6 +56,23 @@ process STARSOLO_INDEX {
     done
     echo "--sjdbOverhang = \${sjdb_overhang}"
 
+    # --genomeChrBinNbits = min(18, floor(log2(max(genome length / sequences, read length)))),
+    # the STAR manual's scaling: every sequence takes a whole number of bins, so a genome with
+    # many short contigs wastes memory on the default of 18
+    if [ -n "${chr_bin_override}" ]; then
+        chr_bin_nbits=${chr_bin_override}
+    else
+        read genome_len n_refs < <(awk '/^>/ {n++; next} {sub(/\\r\$/, ""); len += length(\$0)} END {print len+0, n+0}' ${ref_fasta})
+        read_len=\$(( \${sjdb_overhang:-0} + 1 ))
+        chr_bin_nbits=\$(awk -v g="\$genome_len" -v n="\$n_refs" -v r="\$read_len" 'BEGIN {
+            if (n < 1) { print 18; exit }
+            x = g / n; if (r > x) x = r
+            b = int(log(x) / log(2)); if (b > 18) b = 18; if (b < 1) b = 1
+            print b }')
+        echo "Reference: \${genome_len} bp in \${n_refs} sequences, read length \${read_len}"
+    fi
+    echo "--genomeChrBinNbits = \${chr_bin_nbits}"
+
     echo "Generating genome index with STAR"
     STAR --runMode genomeGenerate \\
         --runThreadN ${task.cpus} \\
@@ -61,6 +81,7 @@ process STARSOLO_INDEX {
         --sjdbOverhang "\${sjdb_overhang}" \\
         --genomeSAsparseD ${star_genomeSAsparseD} \\
         --genomeSAindexNbases ${star_genomeSAindexNbases} \\
+        --genomeChrBinNbits "\${chr_bin_nbits}" \\
         --limitGenomeGenerateRAM ${genomegen_ram}
 
     cat <<-END_VERSIONS > versions.yml

@@ -250,6 +250,12 @@
                     "type": "integer",
                     "minimum": 1
                 },
+                "star_genomeChrBinNbits": {
+                    "type": "integer",
+                    "minimum": 1,
+                    "maximum": 32,
+                    "description": "STAR --genomeChrBinNbits for the index build; derived as min(18, log2(max(genome length / number of sequences, read length))) when unset."
+                },
                 "star_soloFeatures": {
                     "type": "string"
                 },
