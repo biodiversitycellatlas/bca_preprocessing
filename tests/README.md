@@ -613,14 +613,17 @@ bash tests/run_tests.sh alevin_usa
 
 ## `starsolo_em_matrix`
 
-Checks that STARsolo's multi-gene matrix (`raw/UniqueAndMult-EM.mtx`, analysed whenever
-`star_soloMultiMappers` lists a multi-gene type, as every protocol does by default) is what
-cell calling reads end to end. Covered:
+Checks that STARsolo's multi-gene matrix (`raw/UniqueAndMult-EM.mtx`, or
+`UniqueAndMult-PropUnique.mtx` for ScaleBio; analysed whenever `star_soloMultiMappers` lists
+a multi-gene type, as every protocol does by default) is what cell calling reads end to end.
+Covered:
 - the `umis` curve and the `filter` of
   [`secondderiv_filter_matrices.py`](../bin/secondderiv_filter_matrices.py), with a cell that
   clears the cutoff only with its EM counts;
 - genes counted as detected from one UMI;
 - a clear failure when the matrix is missing;
+- [`secondderiv_cellcalling.py`](../bin/secondderiv_cellcalling.py) called without `--matrix`:
+  it reads the multi-gene matrix of whichever type is there, and refuses to choose between two;
 - the subset to STARsolo's own cells that `SUBSET_STARSOLO_CELLS` makes, and the `stats` of
   that matrix;
 - [`dashboard_mappingstats.py`](../bin/dashboard_mappingstats.py) taking the median UMIs,

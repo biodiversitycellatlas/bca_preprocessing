@@ -280,7 +280,7 @@
                 },
                 "star_soloMultiMappers": {
                     "type": "string",
-                    "description": "STARsolo counting of multi-gene reads, and so the matrix analysed: 'Unique' (raw/matrix.mtx) or 'EM', 'Uniform', 'PropUnique', 'Rescue' (raw/UniqueAndMult-<type>.mtx, fractional). Defaults to the protocol's, 'EM' for all.",
+                    "description": "STARsolo counting of multi-gene reads, and so the matrix analysed: 'Unique' (raw/matrix.mtx) or 'EM', 'Uniform', 'PropUnique', 'Rescue' (raw/UniqueAndMult-<type>.mtx, fractional). Defaults to the protocol's: 'PropUnique' for ScaleBio, 'EM' for the others.",
                     "pattern": "^(Unique|EM|Uniform|PropUnique|Rescue)( (Unique|EM|Uniform|PropUnique|Rescue))*$"
                 },
                 "star_clipAdapterType": {

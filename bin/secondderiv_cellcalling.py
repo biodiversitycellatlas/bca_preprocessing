@@ -505,6 +505,23 @@ def select_candidate(
 ALEVIN_MATRIX = "quants_mat.mtx"
 
 
+def starsolo_matrix_name(raw_dir: str, matrix: Optional[str]) -> str:
+    """
+    The STARsolo matrix read from *raw_dir*: *matrix* when given, else the multi-gene
+    matrix STAR wrote there (``UniqueAndMult-<type>.mtx``, the type following
+    ``star_soloMultiMappers``), else ``matrix.mtx``.
+    """
+    if matrix:
+        return matrix
+    multi = sorted(f for f in os.listdir(raw_dir) if f.startswith("UniqueAndMult-") and f.endswith(".mtx"))
+    if len(multi) > 1:
+        raise ValueError(
+            f"{raw_dir} holds several multi-gene matrices ({', '.join(multi)}). Name the one the curve "
+            "was counted from with --matrix."
+        )
+    return multi[0] if multi else "matrix.mtx"
+
+
 def load_ranked_matrix(raw_dir: str, matrix: Optional[str], counts: str = "SUA") -> Dict[str, object]:
     """
     A raw count directory as cells x genes CSR, rows in rank order (descending
@@ -527,8 +544,7 @@ def load_ranked_matrix(raw_dir: str, matrix: Optional[str], counts: str = "SUA")
     else:
         import mtx_io
 
-        name = matrix or ("UniqueAndMult-EM.mtx" if os.path.exists(os.path.join(raw_dir, "UniqueAndMult-EM.mtx"))
-                          else "matrix.mtx")
+        name = starsolo_matrix_name(raw_dir, matrix)
         barcodes = mtx_io.read_barcodes(os.path.join(raw_dir, "barcodes.tsv"))
         n_genes = len(mtx_io.read_features(os.path.join(raw_dir, "features.tsv")))
         genes, cells, data = mtx_io._read_coordinates(os.path.join(raw_dir, name), n_genes, len(barcodes))
@@ -1115,8 +1131,9 @@ def parse_args() -> argparse.Namespace:
                              "(quants_mat.mtx and its row and column files). Enables the ambient test that "
                              "chooses the bend; without it the bend is chosen from the curve alone.")
     parser.add_argument("--matrix", default=None,
-                        help="STARsolo matrix in --raw-dir. Default: UniqueAndMult-EM.mtx when present, else "
-                             "matrix.mtx. It must be the matrix the -i curve comes from.")
+                        help="STARsolo matrix in --raw-dir. Default: the multi-gene matrix when there is one "
+                             "(UniqueAndMult-<type>.mtx, e.g. UniqueAndMult-EM.mtx), else matrix.mtx. It must be "
+                             "the matrix the -i curve comes from.")
     parser.add_argument("--counts", default="SUA", choices=["SUA", "SA", "S", "UA", "U"],
                         help="alevin-fry --raw-dir only: the USA blocks summed per gene, the same blocks the -i "
                              "curve was summed over (default: SUA).")
@@ -1305,8 +1322,7 @@ def main() -> None:
             if os.path.exists(os.path.join(args.raw_dir, ALEVIN_MATRIX)):
                 name = f"{ALEVIN_MATRIX} ({args.counts})"
             else:
-                name = args.matrix or ("UniqueAndMult-EM.mtx" if os.path.exists(
-                    os.path.join(args.raw_dir, "UniqueAndMult-EM.mtx")) else "matrix.mtx")
+                name = starsolo_matrix_name(args.raw_dir, args.matrix)
             matrix = load_ranked_matrix(args.raw_dir, args.matrix, args.counts)
             # The bands are read by rank, so the matrix must give the curve's ranks
             floored = np.floor(matrix["totals"]).astype(np.int64)

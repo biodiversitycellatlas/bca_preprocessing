@@ -1,7 +1,8 @@
 #!/usr/bin/env bash
 # description: Check that STARsolo's multi-gene matrix (UniqueAndMult-EM.mtx) is the one curve, cutoff and filter use
 #
-# With star_soloMultiMappers = "EM" (every protocol's default) STAR writes two raw matrices:
+# With star_soloMultiMappers = "EM" (the default of every protocol but ScaleBio, which uses
+# "PropUnique" and so writes UniqueAndMult-PropUnique.mtx) STAR writes two raw matrices:
 # matrix.mtx with the unique-gene counts and UniqueAndMult-EM.mtx with the unique plus the
 # multi-gene counts, fractional. The pipeline analyses the second (lib/StarsoloMatrix.groovy),
 # so the UMI curve the cutoff is read off, the filter and the subset to STAR's own cells
@@ -47,7 +48,9 @@ Cases:
                   filtered matrix holds the EM counts as matrix.mtx, and genes
                   count as detected from one UMI
   missing_matrix  asking for a multi-gene matrix that is not there fails
-  subset          STAR's own cells, subset from the EM matrix as
+  fallback        secondderiv_cellcalling.py without --matrix reads the multi-gene
+                  matrix of any type, and refuses to choose between two
+  subset         STAR's own cells, subset from the EM matrix as
                   SUBSET_STARSOLO_CELLS does, and that matrix's statistics
   dashboard       dashboard_mappingstats.py takes the median UMIs, median genes
                   and genes detected from those statistics, the rest from STAR
@@ -232,6 +235,31 @@ else
 fi
 
 # --------------------------------------------------------------------------
+# Case: fallback (secondderiv_cellcalling.py called without --matrix)
+# --------------------------------------------------------------------------
+
+# The pipeline always names the matrix; a stand-alone call does not have to. raw_prop is a
+# ScaleBio-style raw/ (PropUnique), raw_both lists two multi-gene types.
+mkdir -p "$WORKDIR/raw_prop" "$WORKDIR/raw_both"
+cp "$RAW/matrix.mtx" "$WORKDIR/raw_prop/"
+cp "$RAW/UniqueAndMult-EM.mtx" "$WORKDIR/raw_prop/UniqueAndMult-PropUnique.mtx"
+cp "$RAW/UniqueAndMult-EM.mtx" "$WORKDIR/raw_both/"
+cp "$RAW/UniqueAndMult-EM.mtx" "$WORKDIR/raw_both/UniqueAndMult-PropUnique.mtx"
+assert "fallback" "multi-gene matrix of either type, else matrix.mtx; two types need --matrix" '
+sys.path.insert(0, "'"$PROJECT_ROOT"'/bin")
+from secondderiv_cellcalling import starsolo_matrix_name as pick
+got = [pick(os.path.join(W, d), None) for d in ("raw", "raw_prop", "raw_unique")]
+got.append(pick(os.path.join(W, "raw_both"), "matrix.mtx"))
+try:
+    several = "picked " + pick(os.path.join(W, "raw_both"), None)
+except ValueError as e:
+    several = "error" if "--matrix" in str(e) else str(e)
+want = ["UniqueAndMult-EM.mtx", "UniqueAndMult-PropUnique.mtx", "matrix.mtx", "matrix.mtx"]
+ok = got == want and several == "error"
+msg = f"picked {got}, want {want}; with two multi-gene matrices: {several}"
+'
+
+# --------------------------------------------------------------------------
 # Case: subset (the commands SUBSET_STARSOLO_CELLS runs)
 # --------------------------------------------------------------------------
 
@@ -320,8 +348,9 @@ else
     mkdir -p "$NF"
     ln -s "$PROJECT_ROOT/lib" "$NF/lib"
     cat >"$NF/main.nf" <<'NF'
-def proto = [p10: [star_soloMultiMappers: 'EM'], pU: [star_soloMultiMappers: 'Unique']]
+def proto = [p10: [star_soloMultiMappers: 'EM'], pU: [star_soloMultiMappers: 'Unique'], pSB: [star_soloMultiMappers: 'PropUnique']]
 def cases = [
+    [[star_soloMultiMappers: null,          protocol: 'pSB', cellfilter_method: 'second_derivative'],   'UniqueAndMult-PropUnique.mtx', true],
     [[star_soloMultiMappers: null,          protocol: 'p10', cellfilter_method: 'second_derivative'],   'UniqueAndMult-EM.mtx', true],
     [[star_soloMultiMappers: 'Unique',      protocol: 'p10', cellfilter_method: 'second_derivative'],   'matrix.mtx',           false],
     [[star_soloMultiMappers: null,          protocol: 'pU',  cellfilter_method: 'second_derivative'],   'matrix.mtx',           false],
@@ -339,10 +368,10 @@ NF
     if (cd "$NF" && run_logged "$BCA_TEST_LOGDIR/starsolo_em_name.log" nextflow -q run main.nf); then
         if grep -q "^BAD" "$BCA_TEST_LOGDIR/starsolo_em_name.log"; then
             record FAIL "name" "$(grep '^BAD' "$BCA_TEST_LOGDIR/starsolo_em_name.log" | head -2 | tr '\n' ' ')"
-        elif [[ "$(grep -c '^OK' "$BCA_TEST_LOGDIR/starsolo_em_name.log")" -eq 6 ]]; then
-            record PASS "name" "file and curve source follow star_soloMultiMappers and cellfilter_method (6 settings)"
+        elif [[ "$(grep -c '^OK' "$BCA_TEST_LOGDIR/starsolo_em_name.log")" -eq 7 ]]; then
+            record PASS "name" "file and curve source follow star_soloMultiMappers and cellfilter_method (7 settings)"
         else
-            record FAIL "name" "expected 6 results, see starsolo_em_name.log"
+            record FAIL "name" "expected 7 results, see starsolo_em_name.log"
         fi
     else
         record FAIL "name" "nextflow run failed, see starsolo_em_name.log"

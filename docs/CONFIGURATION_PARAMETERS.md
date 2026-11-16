@@ -124,7 +124,7 @@ in the assembly under another name is not detected. Check new sequence against t
 | `star_soloTypestring` | Optional          | String of defining soloType and barcode structure. See [protocol-specific defaults](../conf/seqtech_parameters.config) set in the seqtech_paramaters.config file. |
 | `star_soloCBmatchWLtype` | Optional       | Type of matching the cell barcodes to the barcode whiteList. See [protocol-specific defaults](../conf/seqtech_parameters.config) set in the seqtech_paramaters.config file. |
 | `star_soloUMIfiltering` | Optional        | Type of UMI filtering. See [protocol-specific defaults](../conf/seqtech_parameters.config) set in the seqtech_paramaters.config file. |
-| `star_soloMultiMappers` | Optional        | Counting method for reads mapping to multiple genes, and so which STARsolo matrix the pipeline analyses: `"Unique"` drops them (`raw/matrix.mtx`); `"EM"`, `"Uniform"`, `"PropUnique"` or `"Rescue"` adds them to the unique counts (`raw/UniqueAndMult-<type>.mtx`, fractional counts). With several types listed, the first one other than `Unique` is analysed. Every protocol defaults to `"EM"` (see [protocol-specific defaults](../conf/seqtech_parameters.config)). See [STARsolo multi-gene reads](#starsolo-multi-gene-reads). |
+| `star_soloMultiMappers` | Optional        | Counting method for reads mapping to multiple genes, and so which STARsolo matrix the pipeline analyses: `"Unique"` drops them (`raw/matrix.mtx`); `"EM"`, `"Uniform"`, `"PropUnique"` or `"Rescue"` adds them to the unique counts (`raw/UniqueAndMult-<type>.mtx`, fractional counts). With several types listed, the first one other than `Unique` is analysed. The protocols default to `"EM"`, except ScaleBio, which defaults to `"PropUnique"` as ScaleBio's own pipeline does (see [protocol-specific defaults](../conf/seqtech_parameters.config)). See [STARsolo multi-gene reads](#starsolo-multi-gene-reads). |
 | `star_soloUMIdedup` | Optional         | Type of UMI deduplication algorithm. See [protocol-specific defaults](../conf/seqtech_parameters.config) set in the seqtech_paramaters.config file. |
 | `star_clipAdapterType` | Optional         | Type of adapter clipping. See [protocol-specific defaults](../conf/seqtech_parameters.config) set in the seqtech_paramaters.config file. |
 | `star_limitBAMsortRAM` | Optional         | STAR's own ceiling on the BAM sort buffer, in bytes. Default `0`, which makes the pipeline derive it from `task.memory` minus the resident genome index. Set a number only to pin it, e.g. to the figure a STAR error asks for. Note this is *not* the scheduler allocation — see [Resource Tuning](RESOURCE_TUNING.md#tool-internal-memory-ceilings). |
@@ -138,10 +138,14 @@ spot where genes overlap, or maps to several loci that belong to different genes
 (paralogues, duplicated genes, multi-copy arrays). Cell Ranger, and STARsolo with
 `"Unique"`, discard them. With a multi-gene type, STARsolo adds them to the unique counts:
 `"EM"` distributes each such UMI among its genes by maximum likelihood over the other UMIs
-of the same cell (Kaminow et al. 2021). STAR always writes the unique counts to
-`raw/matrix.mtx`; `raw/UniqueAndMult-<type>.mtx` holds the unique plus the multi-gene
-counts, and is the matrix the pipeline analyses whenever `star_soloMultiMappers` lists such
-a type:
+of the same cell (Kaminow et al. 2021). `"PropUnique"`, the ScaleBio default, distributes
+it in proportion to the unique counts those genes have in the cell, and evenly when none
+has any. Either way one UMI is distributed in full, so the UMIs per cell, and with them
+the cells called, do not depend on the method; the counts per gene do. STAR always writes
+the unique counts to `raw/matrix.mtx`; `raw/UniqueAndMult-<type>.mtx` holds the unique plus
+the multi-gene counts, and is the matrix the pipeline analyses whenever
+`star_soloMultiMappers` lists such a type. The file names below are those of `"EM"`; with
+another type its name takes the place of `EM`:
 
 - **Cell calling.** With `second_derivative` or `manual_cutoff`, the cutoff is read off a
   curve derived from that matrix, `filtered_secondderiv/<id>_EM_UMIperCellSorted.txt`
