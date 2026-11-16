@@ -35,6 +35,9 @@ process CALC_READ_METRICS {
     
     // Antisense comes from STARsolo's own read flags; without CellReads.stats it is skipped
     def cellreads_arg = cellreads_stats ? "--cellreads ${cellreads_stats}" : ""
+
+    // The strand STARsolo counted for this sample (lib/StarSettings.groovy)
+    def star_soloStrand = StarSettings.strand(params.star_soloStrand, params.cram_type, meta.input_format)
     """
     echo -e "\\n\\n==================  READ METRICS: rRNA, mtDNA & ANTISENSE =================="
     echo "Sample ID: ${meta.id}"
@@ -43,13 +46,13 @@ process CALC_READ_METRICS {
     echo "Added rRNA regions: ${rrna_regions ?: 'none'}"
     echo "Called-cell barcodes: ${filtered_matrix_dir ? "${filtered_matrix_dir}/barcodes.tsv" : 'none'}"
     echo "CellReads.stats: ${cellreads_stats ?: 'none'}"
-    echo "STARsolo strand: ${params.star_soloStrand}"
+    echo "STARsolo strand: ${star_soloStrand}"
 
     calculate_read_metrics.py \\
         --bam ${bam_file} \\
         --gtf ${ref_gtf} \\
         --mt-contig "${params.mt_contig}" \\
-        --strand ${params.star_soloStrand} \\
+        --strand ${star_soloStrand} \\
         ${rrna_arg} \\
         ${cells_arg} \\
         ${cellreads_arg} \\

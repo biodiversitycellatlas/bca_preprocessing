@@ -37,6 +37,7 @@ tests/
 │   ├── resource_efficiency.sh
 │   ├── sample_groups.sh
 │   ├── scalebio_demux.sh
+│   ├── star_settings.sh
 │   ├── starsolo_em_matrix.sh
 │   └── velocity_matrix.sh
 ├── fixtures/
@@ -635,6 +636,24 @@ Needs numpy, pandas and scipy; the name case also needs `nextflow` and is skippe
 
 ```bash
 bash tests/run_tests.sh starsolo_em_matrix
+```
+
+## `star_settings`
+
+Checks the two STAR settings that [`lib/StarSettings.groovy`](../lib/StarSettings.groovy)
+resolves from more than one source. Covered:
+- the strand: `star_soloStrand` when set; unset, `Reverse` only for a sample read from an
+  Ultima CRAM;
+- `star_extraargs`: the custom options are added to the protocol's, and an option given in
+  both replaces the protocol's with all its values, since STAR refuses an option given twice;
+- `star_extraargs` that starts with a value is refused;
+- the ScaleBio protocols in `conf/seqtech_parameters.config` carry the settings they share
+  with ScaleRna: `PropUnique`, at most 6 loci, no minimum alignment score.
+
+Needs `nextflow`, and is skipped without it.
+
+```bash
+bash tests/run_tests.sh star_settings
 ```
 
 ## Adding a check

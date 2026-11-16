@@ -56,9 +56,10 @@ process ALEVIN_FRY {
         : ''
 
     // Count reads on the strand STARsolo counts (--soloStrand), so both mappers see the same molecules
-    def expected_ori = [Forward: 'fw', Reverse: 'rc', Unstranded: 'both'][params.star_soloStrand]
+    def star_soloStrand = StarSettings.strand(params.star_soloStrand, params.cram_type, meta.input_format)
+    def expected_ori = [Forward: 'fw', Reverse: 'rc', Unstranded: 'both'][star_soloStrand]
     if (!expected_ori) {
-        error "star_soloStrand '${params.star_soloStrand}' has no alevin-fry orientation; use Forward, Reverse or Unstranded."
+        error "star_soloStrand '${star_soloStrand}' has no alevin-fry orientation; use Forward, Reverse or Unstranded."
     }
 
     // Permit list. When the pipeline re-calls cells itself, alevin-fry keeps every barcode on
@@ -82,7 +83,7 @@ process ALEVIN_FRY {
     echo "cDNA read: ${fastq_cDNA}"
     echo "CB/UMI read: ${fastq_BC_UMI}"
     echo "Geometry (bc / umi / read): ${bc_geom} / ${umi_geom} / ${read_geom}"
-    echo "Expected orientation: ${expected_ori} (star_soloStrand ${params.star_soloStrand})"
+    echo "Expected orientation: ${expected_ori} (star_soloStrand ${star_soloStrand})"
     echo "Resolution: ${params.alevin_resolution}"
 
 

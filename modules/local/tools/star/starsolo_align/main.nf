@@ -63,7 +63,13 @@ process STARSOLO_ALIGN {
     def star_outSAMunmapped    = setting(seqtech, 'star_outSAMunmapped')
     def star_outSAMattributes  = setting(seqtech, 'star_outSAMattributes')
     def star_solocellfilter    = setting(seqtech, 'star_solocellfilter')
-    def star_extraargs         = setting(seqtech, 'star_extraargs', '')
+
+    // The protocol's extra arguments, then the custom ones: a custom option replaces the
+    // protocol's option of the same name, the others are kept (lib/StarSettings.groovy)
+    def star_extraargs         = StarSettings.mergeArgs(seqtech.star_extraargs, params.star_extraargs)
+
+    // star_soloStrand, or by default Reverse for a sample read from an Ultima CRAM and Forward otherwise
+    def star_soloStrand        = StarSettings.strand(params.star_soloStrand, params.cram_type, meta.input_format)
 
     // Minimal STARsolo run with only one feature enabled for 'geneext_only' mode.
     def solo_features = bam_only ? ['Gene'] : star_soloFeatures.tokenize(' ').findAll { it }
@@ -135,6 +141,8 @@ process STARSOLO_ALIGN {
     echo "Expected cells: ${meta.expected_cells}"
     echo "limitBAMsortRAM: ${bamsort.note}"
     echo "star_soloTypestring: ${star_soloTypestring}"
+    echo "star_soloStrand (effective): ${star_soloStrand}"
+    echo "star_extraargs (effective): ${star_extraargs}"
     echo "star_generateBAM: ${params.star_generateBAM}"
     echo "bam_only (GeneExt): ${bam_only}"
     echo "star_solocellfilter (effective): ${star_solocellfilter_effective}"
@@ -191,7 +199,7 @@ process STARSOLO_ALIGN {
         --outFileNamePrefix ${meta.id}_ \\
         --genomeChrSetMitochondrial ${params.mt_contig} \\
         --limitBAMsortRAM ${bamsort.bytes} \\
-        --soloStrand ${params.star_soloStrand} \\
+        --soloStrand ${star_soloStrand} \\
         ${star_extraargs}
 
     # STAR insists on writing a raw matrix for the one feature it counted; nothing reads it

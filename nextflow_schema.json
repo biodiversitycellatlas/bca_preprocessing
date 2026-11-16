@@ -243,8 +243,8 @@
                 },
                 "star_soloStrand": {
                     "type": "string",
-                    "default": "Forward",
-                    "enum": ["Forward", "Reverse", "Unstranded"]
+                    "enum": ["Forward", "Reverse", "Unstranded"],
+                    "description": "Strand of the reads relative to the gene (STAR --soloStrand; alevin-fry and the antisense metrics follow it). Unset: 'Forward', or 'Reverse' for samples read from Ultima CRAMs (cram_type 'ultima')."
                 },
                 "star_genomeSAsparseD": {
                     "type": "integer",
@@ -287,7 +287,8 @@
                     "type": "string"
                 },
                 "star_extraargs": {
-                    "type": "string"
+                    "type": "string",
+                    "description": "Further STAR options, added to the protocol's own (conf/seqtech_parameters.config). An option given here replaces the protocol's option of the same name."
                 },
                 "star_genomeSAindexNbases": {
                     "type": "integer",

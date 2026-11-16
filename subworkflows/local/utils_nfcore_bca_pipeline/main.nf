@@ -451,6 +451,12 @@ workflow PIPELINE_INITIALISATION {
         if (params.cram_type == 'ultima' && !(params.scalebio_ultima_tags ?: params.seqtech_parameters[params.protocol]?.scalebio_ultima_tags)) {
             error("Ultima CRAMs: protocol '${params.protocol}' has no default barcode tags; set 'scalebio_ultima_tags' (e.g. 'lig=b1,rt=b2,pcr=RG').")
         }
+        if (params.cram_type == 'ultima' && !params.star_soloStrand) {
+            log.info(
+                "Ultima CRAMs: 'star_soloStrand' is not set, so the ${cram_rows.size()} samplesheet row(s) read from CRAMs are counted on the\n" +
+                "reverse strand (Ultima reads are antisense to the gene). Set 'star_soloStrand' to count another strand."
+            )
+        }
     }
 
     // One entry per sample: the rows of a sample (e.g. its lanes) are merged, with the
