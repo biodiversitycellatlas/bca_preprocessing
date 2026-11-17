@@ -20,6 +20,7 @@ include { geneext_workflow                                                  } fr
 include { PREPARE_ADDFEATURE                                                } from '../modules/local/custom/manipulate/prepare_addfeature/main'
 include { MERGE_REF_FASTA                                                   } from '../modules/local/custom/manipulate/merge_ref_fasta/main'
 include { MERGE_REF_GTF as MERGE_REF_GTF_GENEEXT                            } from '../modules/local/custom/manipulate/merge_ref_gtf/main'
+include { BARCODE_CHECK                                                     } from '../modules/local/custom/qc/barcode_check/main'
 include { FASTQC                                                            } from '../modules/local/tools/fastqc/main'
 include { SUBSAMPLE_FASTQS                                                  } from '../modules/local/tools/seqtk/main'
 
@@ -58,6 +59,7 @@ workflow QC_mapping_workflow {
     main:
         // Initialize channels
         def ch_samples = data_output
+        def ch_barcode_check                = channel.empty()
         def ch_mapped_ss                    = channel.empty()
         def ch_starsolo_bam                 = channel.empty()
         def ch_star_solodir                 = channel.empty()
@@ -127,9 +129,73 @@ workflow QC_mapping_workflow {
         // order, and stage nothing for protocols running without one (e.g. MARS-seq)
         def bc_whitelist_safe = bc_whitelist.ifEmpty([])
 
-        // Quality Control
-        FASTQC(ch_samples)
+        // Quality Control, also for a sample the barcode check stops: the report on its
+        // barcode read helps to find out why
+        FASTQC(data_output)
         ch_versions = ch_versions.mix(FASTQC.out.versions)
+
+        // Barcode check. The mapping-rate check does not depend on the barcodes, so before
+        // anything is mapped the barcodes of every sample are matched against the whitelist
+        // and at the positions the mappers get. Only the samples that pass go on, as the
+        // rows they came in as, so the mappers' task hashes are those of an unchecked run.
+        if (BarcodeCheck.enabled(params.skip_barcode_check, params.min_barcode_match)) {
+            def seqtech = params.seqtech_parameters[params.protocol]
+            def solo_type_string = params.star_soloTypestring != null
+                ? params.star_soloTypestring
+                : (seqtech.star_soloTypestring ?: '')
+            def seqspec = params.protocol == 'seqspec' ? file(params.seqspec_file, checkIfExists: true) : []
+            def min_match = params.min_barcode_match
+
+            BARCODE_CHECK(
+                data_output.map { row -> [row[0], row[2]] },
+                bc_whitelist_safe,
+                solo_type_string,
+                seqspec,
+                min_match,
+                params.barcode_check_reads
+            )
+            ch_barcode_check = BARCODE_CHECK.out.verdict
+            ch_versions = ch_versions.mix(BARCODE_CHECK.out.versions)
+
+            // Every sample's verdict in one table, sorted on the sample so it is the same
+            // on every -resume
+            def ch_verdict_table = BARCODE_CHECK.out.verdict
+                .map { _meta, tsv -> tsv }
+                .collectFile(
+                    name: 'barcode_check.tsv',
+                    storeDir: "${params.outdir}/pipeline_info",
+                    keepHeader: true,
+                    sort: { tsv -> tsv.name }
+                )
+
+            if (params.mapping_rate_action == 'skip_sample') {
+                // Each sample goes on as soon as its own check passed
+                ch_samples = data_output
+                    .map { row -> [row[0].id, row] }
+                    .join(BARCODE_CHECK.out.verdict.map { meta, tsv -> [meta.id, BarcodeCheck.read(tsv)] })
+                    .filter { _id, _row, verdict ->
+                        if (BarcodeCheck.failed(verdict)) {
+                            BarcodeCheck.recordDropped(verdict)
+                            log.warn(BarcodeCheck.failureMessage([verdict], min_match, false))
+                            return false
+                        }
+                        return true
+                    }
+                    .map { _id, row, _verdict -> row }
+            } else {
+                // One failing sample stops the run, so nothing is mapped until every
+                // sample is checked, and the error names all that failed
+                def ch_all_passed = ch_verdict_table.map { table ->
+                    def failed = BarcodeCheck.readAll(table).findAll { row -> BarcodeCheck.failed(row) }
+                    if (failed) {
+                        error(BarcodeCheck.failureMessage(failed, min_match, true) +
+                            "\nDetails: ${params.outdir}/pipeline_info/barcode_check.tsv")
+                    }
+                    true
+                }
+                ch_samples = data_output.combine(ch_all_passed).map { row -> row[0..-2] }
+            }
+        }
 
         // 'alevin_subsampled_starsolo' maps STARsolo on a subsample. It is drawn once and shared
         // by the standard and the GeneExt subsampled runs, so both map the same reads.
@@ -339,6 +405,7 @@ workflow QC_mapping_workflow {
 
     emit:
         fastqc_results               = FASTQC.out.fastqc_results
+        barcode_check                = ch_barcode_check
         mapped_samplesheet           = ch_mapped_ss
         ref_gtf                      = ref_gtf_ch
         starsolo_bam                 = ch_starsolo_bam

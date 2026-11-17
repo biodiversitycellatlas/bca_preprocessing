@@ -1263,6 +1263,12 @@
             const totalGenesLabel = totalGenesScope === "reference"
                 ? "Total Genes in Reference" : "Total Genes Detected";
 
+            // The barcode check before mapping matches the first reads exactly against the
+            // whitelist; STARsolo's own share covers the whole run and corrected barcodes
+            const barcodePrecheckLabel = m.barcode_precheck_reads
+                ? `Barcodes on whitelist, first ${m.barcode_precheck_reads} reads (exact match)`
+                : "Barcodes on whitelist before mapping (exact match)";
+
             // Define the fields and labels for each card dynamically
             const cards = [
                 {
@@ -1273,6 +1279,8 @@
                         { label: "Number of Reads / Sample", value: m.n_reads_sample },
                         { label: "Q30 Bases in CB+UMI", value: m.pct_r1_q30 },
                         { label: "Q30 Bases in RNA read", value: m.pct_r2_q30 },
+                        { label: barcodePrecheckLabel, value: m.pct_barcode_precheck || "N/A" },
+                        { label: "Reads with valid barcodes (STARsolo, whole run)", value: m.pct_valid_barcodes || "N/A" },
                         { label: mappedCountLabel, value: m.n_uniquely_mapped },
                         { label: mappedPctLabel, value: m.pct_uniquely_mapped },
                         { label: "% multi-mapped reads", value: m.pct_multi_mapped },

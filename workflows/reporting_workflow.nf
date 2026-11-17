@@ -56,6 +56,7 @@ workflow reporting_workflow {
         kraken_report
         starsolo_raw_mtx
         vendor_results
+        barcode_check
 
     main:
         // Declare channels
@@ -161,7 +162,8 @@ workflow reporting_workflow {
             cs_umap_comparison_plot.collect().ifEmpty([]),
             cs_top_genes.collect().ifEmpty([]),
             geneext_report.collect().ifEmpty([]),
-            geneext_log.collect().ifEmpty([])
+            geneext_log.collect().ifEmpty([]),
+            barcode_check.map { _meta, tsv -> tsv }.collect().ifEmpty([])
         )
 
         // Every file the mapping statistics scripts read, paired with the path it has

@@ -187,6 +187,7 @@ workflow post_mapping_workflow {
 
     emit:
         fastqc_results               = channel.empty()
+        barcode_check                = channel.empty()   // checked before mapping, which is not repeated
         mapped_samplesheet           = restage_mapping_workflow.out.mapped_metas
         ref_gtf                      = ref_gtf_ch
         starsolo_bam                 = restage_mapping_workflow.out.starsolo_bam

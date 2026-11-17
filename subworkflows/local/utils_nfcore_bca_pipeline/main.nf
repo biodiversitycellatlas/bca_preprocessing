@@ -262,6 +262,14 @@ workflow PIPELINE_INITIALISATION {
     }
     MappingRateCheck.reset(workflow)
 
+    // The barcode check runs before mapping and follows mapping_rate_action
+    if (!(params.min_barcode_match instanceof Number) || params.min_barcode_match < 0 || params.min_barcode_match > 100) {
+        error("'min_barcode_match' = '${params.min_barcode_match}' must be a percentage between 0 and 100 (0 disables the check).")
+    }
+    if (!(params.barcode_check_reads instanceof Number) || params.barcode_check_reads < 1) {
+        error("'barcode_check_reads' = '${params.barcode_check_reads}' must be a number of reads, at least 1.")
+    }
+
     if (!(params.geneext_downstream in AnalyticalRuns.VALID_GENEEXT_DOWNSTREAM)) {
         error("Unknown 'geneext_downstream' = '${params.geneext_downstream}'. Use one of: ${AnalyticalRuns.VALID_GENEEXT_DOWNSTREAM.join(', ')}.")
     }

@@ -113,6 +113,7 @@ output_directory/
 | `samplesheet_<timestamp>.csv` | A copy of the samplesheet used. |
 | `params_<timestamp>.json` | The run's parameters. Its `trace_report_suffix` names the run's execution trace. |
 | `pipeline_dag_<timestamp>.html` | The workflow DAG. |
+| `barcode_check.tsv` | One row per sample with the verdict of the [barcode check](CONFIGURATION_PARAMETERS.md#barcode-check) before mapping: `pass`, `fail` or `skipped`, the reads checked, the percentage whose barcode is on the whitelist (also per barcode segment, and as reverse complement), the barcode read length against the layout, the threshold and a note. Only written when the check ran, and overwritten by each run. |
 | `mapping_rate_check.tsv` | One row per sample with the verdict of the [mapping-rate check](CONFIGURATION_PARAMETERS.md#mapping-rate-check): mapper, stage (`mid-run` or `final`), reads processed, percentage mapped and threshold. Only written when the check ran, and overwritten by each run. |
 
 Files are timestamp-suffixed rather than overwritten, so repeated runs into the same output
@@ -790,7 +791,7 @@ Seven tabs, plus one that appears only when the run produced an extended annotat
 
 | Tab | Content |
 | --- | ------- |
-| **Mapping** | Read counts, Q30 rates, uniquely/multi/unmapped percentages, intronic read percentage, rRNA and mtDNA read percentages (library and called cells, and mtDNA reads by strand; see `rRNA_mtDNA/`), cells, saturation, median UMIs and genes. Includes a cross-sample overview table. |
+| **Mapping** | Read counts, Q30 rates, barcodes on the whitelist (the [barcode check](CONFIGURATION_PARAMETERS.md#barcode-check)'s exact matches on the first reads, and STARsolo's `Reads With Valid Barcodes` for the whole run), uniquely/multi/unmapped percentages, intronic read percentage, rRNA and mtDNA read percentages (library and called cells, and mtDNA reads by strand; see `rRNA_mtDNA/`), cells, saturation, median UMIs and genes. Includes a cross-sample overview table. |
 | **Cell Calling** | Barcode-rank knee curves and second-derivative curves per sample, with the chosen cutoff marked, alongside `expected_cells` and the cutoffs each method would have chosen. |
 | **Saturation** | Saturation and residual curves. |
 | **Per-Cell Visualizations** | Per-cell scatter over intronic %, mtDNA %, rRNA %, mapped reads and cell/non-cell status. |

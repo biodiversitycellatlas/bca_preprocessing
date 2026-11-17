@@ -179,6 +179,24 @@
                     "enum": ["cr-like", "cr-like-em"],
                     "description": "alevin-fry UMI resolution. cr-like discards UMIs that stay ambiguous between genes, as Cell Ranger and STARsolo with star_soloMultiMappers 'Unique' do; cr-like-em splits them by expectation-maximisation, the counterpart of STARsolo's default 'EM'."
                 },
+                "skip_barcode_check": {
+                    "type": "boolean",
+                    "default": false,
+                    "description": "Never cancel a sample for barcodes that do not match the whitelist."
+                },
+                "min_barcode_match": {
+                    "type": "number",
+                    "default": 10,
+                    "minimum": 0,
+                    "maximum": 100,
+                    "description": "Percentage of the checked reads whose barcode is on the whitelist (exact match) below which a sample is cancelled before mapping; 0 disables the check."
+                },
+                "barcode_check_reads": {
+                    "type": "integer",
+                    "default": 100000,
+                    "minimum": 1,
+                    "description": "Number of reads the barcode check reads per sample, from the start of the barcode FASTQ."
+                },
                 "skip_mapping_rate_check": {
                     "type": "boolean",
                     "default": false,
@@ -195,7 +213,7 @@
                     "type": "string",
                     "default": "abort",
                     "enum": ["abort", "skip_sample"],
-                    "description": "What a failed mapping-rate check does: stop the pipeline, or drop only that sample."
+                    "description": "What a failed mapping-rate check or barcode check does: stop the pipeline, or drop only that sample."
                 },
                 "mapping_rate_check_reads": {
                     "type": "integer",

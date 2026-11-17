@@ -153,7 +153,8 @@ workflow BCA_PREPROCESSING {
                 mapping_out.fastqc_results,
                 mapping_out.kraken_report,
                 mapping_out.starsolo_genefull50_raw,
-                vendor_results_ch
+                vendor_results_ch,
+                mapping_out.barcode_check
             )
 
             multiqc_report_ch = reporting_workflow.out.multiqc_report
@@ -261,6 +262,9 @@ workflow {
         exit status : ${workflow.exitStatus}
         """
         println summary
+
+        // Samples dropped by the barcode check before mapping
+        BarcodeCheck.summarise(params, log)
 
         // Samples cancelled for a low mapping rate, with the Kraken recommendation
         MappingRateCheck.summarise(workflow, params, log)

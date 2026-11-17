@@ -218,6 +218,9 @@ def parse_args() -> argparse.Namespace:
     parser.add_argument("--geneext_report", nargs="*", help="GeneExt *.Report.html file")
     parser.add_argument("--geneext_log",    nargs="*", help="GeneExt *.GeneExt.log file")
 
+    # ── Pipeline mode: barcode check before mapping (per base sample) ────────
+    parser.add_argument("--barcode_checks", nargs="*", help="*.barcode_check.tsv files of BARCODE_CHECK")
+
     return parser.parse_args()
 
 
@@ -524,6 +527,42 @@ def parse_starsolo_summary(path: Optional[str]) -> Dict[str, str]:
     except Exception:
         pass
     return data
+
+
+def parse_barcode_checks(paths: Optional[List[str]]) -> Dict[str, Dict[str, str]]:
+    """Read the barcode check's verdicts, keyed on the base sample id.
+
+    Takes the per-sample ``*.barcode_check.tsv`` files or the collected
+    ``pipeline_info/barcode_check.tsv``: both are a header and one row per sample.
+    The check runs once per sample before mapping, so every analytical run of a
+    sample shares its row.
+    """
+    checks: Dict[str, Dict[str, str]] = {}
+    for path in paths or []:
+        if not path or not os.path.exists(path):
+            continue
+        try:
+            with open(path, "r", newline="") as fh:
+                for row in csv.DictReader(fh, delimiter="\t"):
+                    if row.get("sample"):
+                        checks[row["sample"]] = row
+        except Exception:
+            pass
+    return checks
+
+
+def barcode_precheck_values(check: Optional[Dict[str, str]]) -> Tuple[str, str]:
+    """The share of barcodes on the whitelist and the reads it was measured on.
+
+    ``("N/A", "")`` when the sample was not checked (no whitelist, or the check
+    was skipped).
+    """
+    if not check or check.get("verdict") not in ("pass", "fail"):
+        return "N/A", ""
+    try:
+        return f"{float(check['pct_match']):.1f}%", fmt(check.get("reads", ""))
+    except (KeyError, ValueError, TypeError):
+        return "N/A", ""
 
 
 def parse_mt_rrna_metrics(path: Optional[str]) -> Dict[str, str]:
@@ -1681,6 +1720,9 @@ def main() -> None:
                         samplesheet_config[row["sample"]] = row
 
         geneext_report, geneext_log = _discover_geneext(args.result_dir)
+        barcode_checks = parse_barcode_checks(
+            [os.path.join(args.result_dir, "pipeline_info", "barcode_check.tsv")]
+        )
 
         print(
             f"Standalone mode: discovered {len(active_samples)} analytical samples.",
@@ -1715,6 +1757,7 @@ def main() -> None:
         # sample, so its outputs are run-level and are not part of the file map
         geneext_report = (args.geneext_report or [None])[0]
         geneext_log    = (args.geneext_log    or [None])[0]
+        barcode_checks = parse_barcode_checks(args.barcode_checks)
 
         file_map = _build_file_map_from_cli(args, active_samples)
         print(
@@ -1807,6 +1850,8 @@ def main() -> None:
             pct_other          = get_val(star_stats, "% of reads unmapped: other")
             pct_r1_q30         = to_pct(get_val(solo_stats, "Q30 Bases in CB+UMI"))
             pct_r2_q30         = to_pct(get_val(solo_stats, "Q30 Bases in RNA read"))
+            # Whole run, barcodes corrected by STARsolo: not the pre-mapping check's value
+            pct_valid_barcodes = to_pct(get_val(solo_stats, "Reads With Valid Barcodes"))
             saturation         = to_pct(get_val(solo_stats, "Sequencing Saturation"))
 
             n_cells     = get_val(solo_stats, "Estimated Number of Cells",
@@ -1863,6 +1908,7 @@ def main() -> None:
 
             pct_multi = pct_multi_too_many = pct_short = pct_other = "N/A"
             pct_r1_q30 = pct_r2_q30 = saturation = noise_pct = "N/A"
+            pct_valid_barcodes = "N/A"
 
             median_umis  = af_cell.get("nUMI__median",
                              af_cell.get("umis__median",
@@ -2007,6 +2053,11 @@ def main() -> None:
         except ValueError:
             pct_unmapped = "N/A"
 
+        # The barcode check ran once on the sample, before mapping, for every run of it
+        pct_barcode_precheck, barcode_precheck_reads = barcode_precheck_values(
+            barcode_checks.get(base_id)
+        )
+
         samples_json_list.append({
             "sample_id": s_id,
             "qc_group":  qc_group,
@@ -2016,6 +2067,9 @@ def main() -> None:
                 "n_reads_sample":       fmt(n_input_reads),
                 "pct_r1_q30":           pct_r1_q30,
                 "pct_r2_q30":           pct_r2_q30,
+                "pct_barcode_precheck": pct_barcode_precheck,
+                "barcode_precheck_reads": barcode_precheck_reads,
+                "pct_valid_barcodes":   pct_valid_barcodes,
                 "n_uniquely_mapped":    fmt(n_unique),
                 "pct_uniquely_mapped":  pct_unique,
                 "pct_multi_mapped":     pct_multi,

@@ -44,6 +44,7 @@ process GENERATE_DASHBOARD {
     path(cellsweep_top_genes)
     path(geneext_report)
     path(geneext_log)
+    path(barcode_checks)
 
     output:
     path "dashboard.html"  , emit: html
@@ -85,7 +86,8 @@ process GENERATE_DASHBOARD {
         --cellsweep_plots_contrib ${cellsweep_plots_contrib} \\
         --cellsweep_plots_umap ${cellsweep_plots_umap} \\
         --geneext_report ${geneext_report} \\
-        --geneext_log ${geneext_log}
+        --geneext_log ${geneext_log} \\
+        --barcode_checks ${barcode_checks}
 
     cat <<-END_VERSIONS > versions.yml
     "${task.process}":
