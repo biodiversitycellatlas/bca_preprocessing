@@ -8,8 +8,8 @@ process PARSEBIO_PIPELINE_MKREF {
     path gtf
 
     output:
-    path("*"),          emit: reference
-    path "versions.yml", emit: versions
+    path "ref_splitpipe", emit: reference
+    path "versions.yml",  emit: versions
 
     script:
     """
@@ -19,12 +19,13 @@ process PARSEBIO_PIPELINE_MKREF {
     # Check if a specific reference GTF file is provided, otherwise use the default
     GTF_FILE="${gtf}"
 
-    # Create reference genome index files
+    # Create reference genome index files, in their own directory (split-pipe accepts an existing one)
+    mkdir -p ref_splitpipe
     split-pipe -m mkref \\
         --genome_name ref_splitpipe \\
         --genes \$GTF_FILE \\
         --fasta ${fasta} \\
-        --output_dir .
+        --output_dir ref_splitpipe
 
     cat <<-END_VERSIONS > versions.yml
     "${task.process}":
