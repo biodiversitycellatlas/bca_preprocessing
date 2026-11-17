@@ -1,5 +1,5 @@
 process CR_PIPELINE_MKREF {
-    publishDir path: { "${params.outdir}/genome/cellranger_ref" }, mode: 'copy', saveAs: { filename -> filename == 'versions.yml' ? null : filename }
+    publishDir path: { "${params.outdir}/genome" }, mode: 'copy', saveAs: { filename -> filename == 'versions.yml' ? null : filename }
     label 'process_medium'
 
 
@@ -10,8 +10,8 @@ process CR_PIPELINE_MKREF {
     path gtf
 
     output:
-    path "*",           emit: reference
-    path "versions.yml", emit: versions
+    path "cellranger_ref", emit: reference
+    path "versions.yml",   emit: versions
 
     script:
     // Exit if running this module with -profile conda / -profile mamba  TODO: add condition that singularity is not available
