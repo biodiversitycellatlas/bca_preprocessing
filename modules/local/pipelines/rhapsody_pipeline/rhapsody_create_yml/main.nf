@@ -1,6 +1,6 @@
 process BDRHAP_PIPELINE_YAML {
     tag "${meta.id}"
-    label 'process_medium'
+    label 'process_single2'
 
     input:
     tuple val(meta), path(fastq_cDNA), path(fastq_BC_UMI), path(fastq_indices), path(input_file)

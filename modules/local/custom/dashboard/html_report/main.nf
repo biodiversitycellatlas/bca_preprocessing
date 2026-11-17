@@ -1,6 +1,20 @@
 process GENERATE_DASHBOARD {
     publishDir path: { "${params.outdir}" }, mode: 'copy', overwrite: true, saveAs: { filename -> filename == 'versions.yml' ? null : filename }
-    label 'process_single_mem2'
+    
+    // The dashboard reads and embeds everything it is given, so memory tracks the total
+    // size of its inputs, which grows with the number of runs. Coefficients live in
+    // params.dynamic_memory; without an entry the request is process_single_mem2's 10 GB.
+    cpus   1
+    time   { 30.m * task.attempt }
+    memory { BcaResources.scaledMemory(
+        params.dynamic_memory?.GENERATE_DASHBOARD,
+        [samplesheet, run_config, analytical_manifest, star_logs, star_summaries, star_full_logs,
+         saturation_logs, cell_stats, af_meta_info, af_quant_json, af_cell_meta, af_mat_cols,
+         sankey_files, saturation_imgs, residuals_imgs, knee_files, mt_rrna_metrics,
+         antisense_metrics, secondderiv_knee, secondderiv_stats, matrix_stats, per_cell_files,
+         cellsweep_plots_contrib, cellsweep_plots_umap, cellsweep_top_genes, geneext_report,
+         geneext_log],
+        task.attempt, 10) }
 
     input:
     path(samplesheet)
@@ -23,12 +37,14 @@ process GENERATE_DASHBOARD {
     path(antisense_metrics)
     path(secondderiv_knee)
     path(secondderiv_stats)
+    path(matrix_stats)
     path(per_cell_files)
     path(cellsweep_plots_contrib)
     path(cellsweep_plots_umap)
     path(cellsweep_top_genes)
     path(geneext_report)
     path(geneext_log)
+    path(barcode_checks)
 
     output:
     path "dashboard.html"  , emit: html
@@ -65,11 +81,13 @@ process GENERATE_DASHBOARD {
         --knee_files ${knee_files} \\
         --secondderiv_knee ${secondderiv_knee} \\
         --secondderiv_stats ${secondderiv_stats} \\
+        --matrix_stats ${matrix_stats} \\
         --cellsweep_tables ${cellsweep_top_genes} \\
         --cellsweep_plots_contrib ${cellsweep_plots_contrib} \\
         --cellsweep_plots_umap ${cellsweep_plots_umap} \\
         --geneext_report ${geneext_report} \\
-        --geneext_log ${geneext_log}
+        --geneext_log ${geneext_log} \\
+        --barcode_checks ${barcode_checks}
 
     cat <<-END_VERSIONS > versions.yml
     "${task.process}":

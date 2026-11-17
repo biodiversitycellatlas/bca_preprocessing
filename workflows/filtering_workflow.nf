@@ -82,10 +82,13 @@ workflow filtering_workflow {
         def ch_doublet_filter_plot      = channel.empty()
         def ch_versions                 = channel.empty()
 
-        // Resolve each mapper's output directory into an (mtx, barcodes, features) triplet
+        // Resolve each mapper's output directory into an (mtx, barcodes, features) triplet. In
+        // STARsolo's raw/ the analysed matrix follows star_soloMultiMappers (lib/StarsoloMatrix.groovy);
+        // the filtered directories the pipeline writes always hold it as matrix.mtx.
+        def star_raw_matrix = StarsoloMatrix.rawFileName(params)
         def ch_starsolo_raw = ch_starsolo_genefull50_raw.map { meta, dir ->
             [ meta + [mapping_method: 'starsolo', datatype: 'raw'],
-              file("${dir}/matrix.mtx"), file("${dir}/barcodes.tsv"), file("${dir}/features.tsv") ]
+              file("${dir}/${star_raw_matrix}"), file("${dir}/barcodes.tsv"), file("${dir}/features.tsv") ]
         }
 
         def ch_starsolo_filtered = ch_starsolo_genefull50_filtered.map { meta, dir ->

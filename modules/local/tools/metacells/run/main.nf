@@ -18,16 +18,20 @@ process METACELL2 {
 
     // Metacell2 splits its work by the processor count, and the grouping can depend on
     // how it was split: the count is fixed rather than escalated, so a retry or a rerun
-    // on another node gives the assignment a selection was made against. Deliberately
-    // no resource label, since a withLabel setting would take precedence over these.
+    // on another node gives the assignment a selection was made against.
     cpus 4
-    time { 8.h * task.attempt }
+    time { 4.h * task.attempt }
 
+    // Memory tracks the cell-called h5ad. Of the raw (or full) h5ad only obs, var and the
+    // called rows of the denoised layer are read, before the metacells are computed, so it
+    // raises the floor (resident_factor in the entry) rather than adding to the input.
     memory { BcaResources.scaledMemory(
-        params.dynamic_memory?.METACELL2, [cells_h5ad], task.attempt, 36) }
+        params.dynamic_memory?.METACELL2, [cells_h5ad], task.attempt, 36, ambient_h5ad) }
 
     conda "${moduleDir}/environment.yml"
-    container "oras://community.wave.seqera.io/library/python_h5py_metacells_anndata_pruned:101f1effbc94defd"
+    container "${ workflow.containerEngine in ['singularity', 'apptainer'] && !task.ext.singularity_pull_docker_container ?
+        'oras://community.wave.seqera.io/library/python_h5py_metacells_anndata_pruned:101f1effbc94defd' :
+        'community.wave.seqera.io/library/python_h5py_metacells_anndata_pruned:fe586013035ea72f' }"
 
     input:
     tuple val(meta), path(cells_h5ad), path(ambient_h5ad)

@@ -1,15 +1,22 @@
 process CALC_READ_METRICS {
     publishDir path: { "${params.outdir}/rRNA_mtDNA" }, mode: 'copy', saveAs: { filename -> filename == 'versions.yml' ? null : filename }
     tag "${meta.id}"
-    label 'process_single_long2'
+
+    // Time follows the BAM size
+    cpus   { 1 * task.attempt }
+    memory { 2.GB * task.attempt }
+    time   { BcaResources.scaledTime(
+        params.dynamic_time?.CALC_READ_METRICS, [bam_file], task.attempt, 2) }
 
     conda "${moduleDir}/environment.yml"
-    container "oras://community.wave.seqera.io/library/pysam_samtools_bc_python_pruned:82a1e27e868113f0"
+    container "${ workflow.containerEngine in ['singularity', 'apptainer'] && !task.ext.singularity_pull_docker_container ?
+        'oras://community.wave.seqera.io/library/pysam_samtools_bc_python_pruned:82a1e27e868113f0' :
+        'community.wave.seqera.io/library/pysam_samtools_bc_python_pruned:d34a762142fc1075' }"
 
     input:
     tuple val(meta), path(bam_file), path(filtered_matrix_dir), path(cellreads_stats)
     path(ref_gtf)
-    path(rrna_gtf)
+    path(rrna_regions)
 
     output:
     path("${meta.id}_mt_rrna_metrics.txt"),                   emit: mt_rrna_metrics
@@ -18,8 +25,9 @@ process CALC_READ_METRICS {
     path "versions.yml",                                      emit: versions
 
     script:
-    // The added features are the rRNA reference: every read on their contigs counts as rRNA
-    def rrna_arg      = rrna_gtf ? "--rrna-gtf ${rrna_gtf}" : ""
+    // PREPARE_ADDFEATURE's rRNA regions: the loci of ref_gtf_addfeature, and every
+    // contig of ref_fasta_addfeature over its full length
+    def rrna_arg      = rrna_regions ? "--rrna-regions ${rrna_regions}" : ""
 
     // The filtered matrix's barcodes add the called-cell rows; runs without one
     // (bam_only, or no cell calling) report those rows as N/A
@@ -27,21 +35,24 @@ process CALC_READ_METRICS {
     
     // Antisense comes from STARsolo's own read flags; without CellReads.stats it is skipped
     def cellreads_arg = cellreads_stats ? "--cellreads ${cellreads_stats}" : ""
+
+    // The strand STARsolo counted for this sample (lib/StarSettings.groovy)
+    def star_soloStrand = StarSettings.strand(params.star_soloStrand, params.cram_type, meta.input_format)
     """
     echo -e "\\n\\n==================  READ METRICS: rRNA, mtDNA & ANTISENSE =================="
     echo "Sample ID: ${meta.id}"
     echo "BAM file: ${bam_file}"
     echo "GTF: ${ref_gtf}"
-    echo "Added rRNA reference: ${rrna_gtf ?: 'none'}"
+    echo "Added rRNA regions: ${rrna_regions ?: 'none'}"
     echo "Called-cell barcodes: ${filtered_matrix_dir ? "${filtered_matrix_dir}/barcodes.tsv" : 'none'}"
     echo "CellReads.stats: ${cellreads_stats ?: 'none'}"
-    echo "STARsolo strand: ${params.star_soloStrand}"
+    echo "STARsolo strand: ${star_soloStrand}"
 
     calculate_read_metrics.py \\
         --bam ${bam_file} \\
         --gtf ${ref_gtf} \\
         --mt-contig "${params.mt_contig}" \\
-        --strand ${params.star_soloStrand} \\
+        --strand ${star_soloStrand} \\
         ${rrna_arg} \\
         ${cells_arg} \\
         ${cellreads_arg} \\

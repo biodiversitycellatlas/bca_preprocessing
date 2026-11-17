@@ -5,14 +5,16 @@ process DOUBLET_FILTER {
     // Memory tracks the size of the matrix being sliced. Coefficients live in
     // params.dynamic_memory; without an entry the request is process_low's 12 GB.
     // Deliberately no resource label, since a withLabel setting would take precedence over
-    // these: cpus and time are process_low's.
-    cpus   { 2 * task.attempt }
+    // these: time is process_low's. The script runs on one thread.
+    cpus   1
     time   { 4.h * task.attempt }
     memory { BcaResources.scaledMemory(
         params.dynamic_memory?.DOUBLET_FILTER, [mtx, barcodes, features], task.attempt, 12) }
 
     conda "${moduleDir}/environment.yml"
-    container "oras://community.wave.seqera.io/library/python_pandas_numpy_scipy_matplotlib:3ab628a840bacec5"
+    container "${ workflow.containerEngine in ['singularity', 'apptainer'] && !task.ext.singularity_pull_docker_container ?
+        'oras://community.wave.seqera.io/library/python_pandas_numpy_scipy_matplotlib:3ab628a840bacec5' :
+        'community.wave.seqera.io/library/python_pandas_numpy_scipy_matplotlib:ef1cecd8d63c13b2' }"
 
     input:
     tuple val(meta), path(mtx), path(barcodes), path(features), path(combined_results)

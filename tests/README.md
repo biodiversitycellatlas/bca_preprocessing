@@ -23,14 +23,23 @@ tests/
 ├── checks/                     # one file per check, discovered automatically
 │   ├── alevin_usa.sh
 │   ├── annotated_h5ad.sh
+│   ├── barcode_check.sh
 │   ├── conda_envs.sh
 │   ├── containers.sh
+│   ├── cram_input.sh
 │   ├── dashboard_geneext.sh
 │   ├── dynamic_resources.sh
+│   ├── merge_fastqs.sh
 │   ├── metacell_filtering.sh
 │   ├── mt_rrna_metrics.sh
 │   ├── nextflow_versions.sh
+│   ├── parse_collapse.sh
+│   ├── parse_demux.sh
 │   ├── resource_efficiency.sh
+│   ├── sample_groups.sh
+│   ├── scalebio_demux.sh
+│   ├── star_settings.sh
+│   ├── starsolo_em_matrix.sh
 │   └── velocity_matrix.sh
 ├── fixtures/
 │   └── execution_trace_formats.txt  # hand-written trace covering awkward formats
@@ -41,6 +50,8 @@ tests/
     ├── make_annotation_fixture.py # generates both mappers' triplets plus doublet
     │                              # and CellSweep annotations to merge
     ├── make_geneext_fixture.py    # generates a synthetic GeneExt report and log
+    ├── make_group_fixture.py      # two samples of one filtering_report group, the
+    │                              # second with every value shifted
     ├── make_metacell_fixture.py   # generates a sample with a planted metacell assignment
     ├── report_harness.js          # runs filtering_report.html's script to export a selection
     ├── make_trace_fixture.py      # generates synthetic runs with a known exponent
@@ -122,12 +133,20 @@ bash tests/run_tests.sh containers -- --depth manifest
 bash tests/run_tests.sh containers -- --profiles singularity --depth pull
 ```
 
-After changing an `environment.yml`, rebuild its image from that file and put
-the new reference in the module, e.g. with the
+After changing an `environment.yml`, rebuild both its images from that file and
+put the new references in the module (the `oras://` one for singularity/apptainer,
+the other for docker/podman), e.g. with the
 [Wave CLI](https://github.com/seqeralabs/wave-cli):
 
 ```bash
 wave --conda-file modules/local/tools/seqtk/environment.yml --freeze --singularity --await
+wave --conda-file modules/local/tools/seqtk/environment.yml --freeze --await
+```
+
+To check the docker images against the environments as well (this pulls them):
+
+```bash
+bash tests/run_tests.sh containers -- --profiles docker --depth env
 ```
 
 Notes:
@@ -212,7 +231,10 @@ kinds of input:
   process no module declares.
 - `tests/lib/make_trace_fixture.py`, which generates whole runs whose memory follows a
   **known** power law, so the recovered scaling exponent can be compared against the
-  one that was asked for. Deterministic under `--seed`.
+  one that was asked for. Deterministic under `--seed`. With `--traces-dir` it writes
+  the traces into a separate folder, as the pipeline does with the launch directory's
+  `execution_reports/`. The `launchdir_traces` cases put two outdirs' traces and a stray
+  one in one such folder, and check that each outdir gets only its own runs.
 
 ```bash
 bash tests/run_tests.sh resource_efficiency
@@ -243,13 +265,17 @@ Notes:
   formatting change to that file.
 - `coverage_guard` asserts that a tier only partly exercised by the runs is never
   *lowered*, since the members that did not run would be under-provisioned.
+- `dynamic_memory` and `dynamic_time` assert that no module sizing its memory, time
+  or cpus from its input carries a resource label, and that the generated config
+  never writes those directives for it: either would override the scaled request.
+  `dynamic_time` also checks that `--dynamic` writes a complete `dynamic_time` map.
 - `emitted_config` runs `nextflow config` over the generated file and skips, rather
   than fails, when Nextflow is not installed.
 
 ## `dynamic_resources`
 
 Unit-tests [`lib/BcaResources.groovy`](../lib/BcaResources.groovy), which turns the
-size of a process's input into its memory request, and an allocation into STAR's
+size of a process's input into its memory, time and cpus requests, and an allocation into STAR's
 `--limitBAMsortRAM`. That code decides what tasks ask the scheduler for, and a
 mistake in it does not throw — it produces a plausible number that is too small, and
 the task is killed part-way through a long run.
@@ -269,6 +295,12 @@ one that owns it, so every `java.nio.file.Files` call on it throws. Measured
 carelessly through one of those, *every* input reads as 0 bytes and every request
 falls back to its label without a word in the log — so the cases construct one and
 assert the size comes back the same as for the path it stands for.
+
+The `time_*` cases hold `scaledTime()` to the same properties, plus two of its own:
+without `floor_h` the label is the floor, so an entry can lengthen a limit but never
+shorten it, and every value it returns parses as a Nextflow `Duration`. `cpus_off` and
+`cpus_tiered` cover `tieredCpus()`, which must give the base count while its threshold
+is unset, including when the entry comes from a config block without `above_gb`.
 
 The `bamsort_*` cases cover the STAR sort budget: the allocation less the resident
 genome index and STAR's own working memory, a pinned `params.star_limitBAMsortRAM`
@@ -329,7 +361,8 @@ Every link can fail silently:
 so Metacell2 is not needed for most cases. It also plants every number the report shows:
 
 - the ambient object's barcodes are shuffled among empty droplets;
-- the domain annotation is keyed by versioned transcript and protein ids;
+- the domain annotation is keyed by versioned transcript and protein ids, and written in
+  every format the gene table detects (header-less, eggNOG-mapper, pfam_scan.pl);
 - one gene is named `</script><script>alert(1)` and another like the report's placeholder.
 
 Where a JavaScript runtime is found, [`lib/report_harness.js`](lib/report_harness.js) runs the
@@ -362,11 +395,15 @@ It contains:
 - an mtDNA multimapper on mitochondrial rRNA;
 - reads sense, antisense and outside the mitochondrial genes;
 - an rRNA read on an added rRNA contig;
+- an rRNA read on an added rRNA locus, and reads on the same contig outside it, which must
+  not count;
 - reads from a called and an uncalled barcode.
 
 The cases assert exact values for:
 
 - the library-level rows;
+- the added rRNA regions (`rrna_regions.tsv`): which count, and that only regions expected
+  in the BAM are warned about when absent;
 - the split of mtDNA reads by strand;
 - the called-cell rows;
 - the antisense rows, from a hand-written `CellReads.stats`, and their absence for an
@@ -385,6 +422,144 @@ matplotlib; it no longer needs pysam itself. Each case is skipped when its tools
 ```bash
 bash tests/run_tests.sh mt_rrna_metrics
 bash tests/run_tests.sh mt_rrna_metrics -- --python /path/to/env/bin/python --keep
+```
+
+## `addfeature_prepare`
+
+Checks [`bin/prepare_addfeature.py`](../bin/prepare_addfeature.py) (PREPARE_ADDFEATURE),
+which drops the records of `ref_fasta_addfeature` that copy reference sequence and writes the
+rRNA regions `CALC_READ_METRICS` counts.
+
+Rfam-derived references annotate loci of the genome itself, with `gene` rows only, and carry
+the same loci, cut out of the same assembly, as the added FASTA. The check writes a small
+genome and such a reference, with one record of every kind:
+
+- an exact copy, named by its GTF row;
+- an exact reverse-complement copy;
+- a copy with one base changed;
+- a new sequence, and a second record identical to it;
+- a record named like a base contig and identical to it;
+- an identical copy of a base contig under another name.
+
+Part of the genome is soft-masked, so the comparison must ignore case. The cases assert:
+
+- the records kept in the FASTA;
+- every decision in `addfeature_report.tsv`;
+- every row of `rrna_regions.tsv`;
+- the warnings for the changed copy and for a GTF row on a contig of neither FASTA;
+- the output with only `ref_gtf_addfeature` given;
+- that a record named like a base contig but differing from it stops the run.
+
+The check needs only a Python, with the standard library.
+
+```bash
+bash tests/run_tests.sh addfeature_prepare
+```
+
+## `merge_fastqs`
+
+Runs [`MERGE_FASTQS`](../modules/local/custom/manipulate/merge_files/main.nf) through a minimal
+Nextflow project on small FASTQs whose read names show where each read came from. The module
+joins a sample's files per read. Gzipped inputs are appended byte for byte, since a run of gzip
+members is a valid gzip file, and only plain inputs are compressed. The cases assert:
+
+- three gzipped inputs give exactly their bytes, concatenated, so nothing was recompressed;
+- gzipped and plain inputs mixed give every read in input order, with the gzipped parts unchanged;
+- plain inputs give one gzipped output;
+- a lone gzipped input is symlinked;
+- compression follows the content, not the extension, in both directions;
+- I1 and I2 over two lanes each go to their own output, and samples without index reads get none;
+- Python's `gzip` reads every read of a multi-member output.
+
+The mislabelled case guards against a silent failure: `pigz` skips a file whose name ends in
+`.gz`, with exit status 0, so the module passes plain input on stdin.
+
+Needs `nextflow` and `pigz`, and is skipped without them; `multi_member_read` also needs a Python.
+
+```bash
+bash tests/run_tests.sh merge_fastqs
+bash tests/run_tests.sh merge_fastqs -- --keep    # keep the FASTQs and the work directory
+```
+
+## `sample_groups`
+
+Checks the samplesheet's `qc_report` and `filtering_report` groups:
+
+- [`bin/merge_group_h5ad.py`](../bin/merge_group_h5ad.py) pools a `filtering_report` group's
+  cell-called objects.
+- [`bin/run_metacells.py`](../bin/run_metacells.py) and
+  [`bin/generate_filtering_report.py`](../bin/generate_filtering_report.py) summarise and report
+  the pool.
+- [`bin/apply_metacell_filter.py`](../bin/apply_metacell_filter.py) splits the filtered group
+  back per sample.
+- [`bin/generate_dashboard.py`](../bin/generate_dashboard.py) builds a `qc_report` group's pooled
+  row.
+
+Each link can go wrong without raising:
+
+- a cell gets the other sample's CellSweep values;
+- a read count is taken from the wrong `CellReads.stats`;
+- a barcode keeps its `<sample>:` prefix;
+- a rate is averaged instead of recomputed from the sums.
+
+[`lib/make_group_fixture.py`](lib/make_group_fixture.py) builds two samples on
+`make_metacell_fixture.py`'s. Every value of the second (barcodes, `alpha_hat`, `ambient_hat`,
+read metrics, reads per cell) is shifted, so the cases can tell which sample a pooled number came
+from. A third sample, counted against a renamed gene, must be refused. Metacell2 is not needed.
+
+```bash
+bash tests/run_tests.sh sample_groups
+bash tests/run_tests.sh sample_groups -- --python /path/to/env/bin/python --keep
+```
+
+## `scalebio_demux`
+
+Runs [`bin/scalebio_demux.py`](../bin/scalebio_demux.py) on synthetic ScaleBio-layout reads from
+[`tests/lib/make_scalebio_fixture.py`](lib/make_scalebio_fixture.py). The barcodes are random,
+kept at least 4 substitutions apart, and no ScaleBio barcode list is used. The fixture cycles
+through cases (corrected, too far, N in a barcode, bad UMI, poly-A/G/T tails, too short,
+unassigned RT/PCR wells, pooled PCR wells, missing or mismatched splint) and writes every read's
+expected outcome to `truth.tsv`. The cases assert:
+
+- for QuantumScale and v1.1, with the i5 index forward and reverse-complemented (detected and
+  given), the exact read categories, and every written read's sample, synthetic barcode read and
+  trimmed cDNA length;
+- the match rules: exact, corrected, ambiguous (equally close to two barcodes), `N`, too far;
+- the well notation: plate ranges run column by column, ids may hold dashes, and malformed or
+  backwards specifications are rejected;
+- `prepare` rejects duplicate sequences, too-long barcodes, non-sequences and a wrong number of
+  lists, and pads short ligation barcodes;
+- the STARsolo positions and alevin-fry geometry in `conf/seqtech_parameters.config` read the
+  synthetic barcode read where the script writes it;
+- read files of different lengths fail the run, and `gather` sums the metrics of a sample's chunks;
+- QuantumScale's 16-nt cell barcodes round-trip through `decode`, and decode to their sample's wells.
+
+Needs a Python 3 (standard library only).
+
+```bash
+bash tests/run_tests.sh scalebio_demux
+bash tests/run_tests.sh scalebio_demux -- --keep    # keep the fixtures and outputs
+```
+
+## `cram_input`
+
+Checks both kinds of CRAM input on the ScaleBio fixture reads (random barcodes):
+
+- [`CRAM_TO_FASTQ`](../modules/local/tools/samtools/cram_to_fastq/main.nf), run through a minimal
+  Nextflow project with `lib/` beside it:
+  - a dual-index CRAM made by `samtools import` comes back as the same R1, R2, I1 and I2 reads,
+    named like bcl-convert output;
+  - a single-index CRAM gives its index read as I1;
+  - a CRAM of single-end reads fails instead of losing them.
+- Ultima CRAMs: the same reads written as single-end records with the barcodes in tags (`RG`,
+  `b1`-`b4`) and the UMI in a tag or at the start of the read. `scalebio_demux.py demux --cram`
+  must give the categories and written reads of the FASTQ truth.
+- Tag values: barcode ids, ids inside read-group names, and corrected sequences.
+
+Needs samtools and a Python. The `CRAM_TO_FASTQ` cases need `nextflow`, and are skipped without it.
+
+```bash
+bash tests/run_tests.sh cram_input
 ```
 
 ## `velocity_matrix`
@@ -436,6 +611,74 @@ names) must now fail without writing output. Needs only numpy, pandas and scipy.
 
 ```bash
 bash tests/run_tests.sh alevin_usa
+```
+
+## `starsolo_em_matrix`
+
+Checks that STARsolo's multi-gene matrix (`raw/UniqueAndMult-EM.mtx`, or
+`UniqueAndMult-PropUnique.mtx` for ScaleBio; analysed whenever `star_soloMultiMappers` lists
+a multi-gene type, as every protocol does by default) is what cell calling reads end to end.
+Covered:
+- the `umis` curve and the `filter` of
+  [`secondderiv_filter_matrices.py`](../bin/secondderiv_filter_matrices.py), with a cell that
+  clears the cutoff only with its EM counts;
+- genes counted as detected from one UMI;
+- a clear failure when the matrix is missing;
+- [`secondderiv_cellcalling.py`](../bin/secondderiv_cellcalling.py) called without `--matrix`:
+  it reads the multi-gene matrix of whichever type is there, and refuses to choose between two;
+- the subset to STARsolo's own cells that `SUBSET_STARSOLO_CELLS` makes, and the `stats` of
+  that matrix;
+- [`dashboard_mappingstats.py`](../bin/dashboard_mappingstats.py) taking the median UMIs,
+  median genes and genes detected from those statistics rather than `Summary.csv`, and the
+  cells and saturation from STAR;
+- the file and curve rules of [`lib/StarsoloMatrix.groovy`](../lib/StarsoloMatrix.groovy).
+
+Needs numpy, pandas and scipy; the name case also needs `nextflow` and is skipped without it.
+
+```bash
+bash tests/run_tests.sh starsolo_em_matrix
+```
+
+## `star_settings`
+
+Checks the two STAR settings that [`lib/StarSettings.groovy`](../lib/StarSettings.groovy)
+resolves from more than one source. Covered:
+- the strand: `star_soloStrand` when set; unset, `Reverse` only for a sample read from an
+  Ultima CRAM;
+- `star_extraargs`: the custom options are added to the protocol's, and an option given in
+  both replaces the protocol's with all its values, since STAR refuses an option given twice;
+- `star_extraargs` that starts with a value is refused;
+- the ScaleBio protocols in `conf/seqtech_parameters.config` carry the settings they share
+  with ScaleRna: `PropUnique`, at most 6 loci, no minimum alignment score.
+
+Needs `nextflow`, and is skipped without it.
+
+```bash
+bash tests/run_tests.sh star_settings
+```
+
+## `barcode_check`
+
+Checks [`bin/barcode_check.sh`](../bin/barcode_check.sh), which `BARCODE_CHECK` runs on every
+sample before mapping. The barcode reads and whitelists are generated by the check, so it
+needs no data and no mapper. Covered:
+- one barcode segment and three: every barcode on its whitelist passes, another whitelist
+  fails with the `BARCODE CHECK FAILED` block, and the script still exits 0, since the
+  verdict is in the TSV;
+- the threshold: a 15% share passes at 10% and fails at 20%;
+- the hints: a reverse-complemented whitelist, the one wrong list of three (named through
+  the share per segment), and a whitelist whose barcodes have another length;
+- nothing to check gives `skipped`: no whitelist, positions counted from an adapter, one
+  whitelist for three segments, too few reads;
+- the read length: a barcode read shorter than the layout fails, a longer one passes with
+  a note;
+- input handling: plain and gzipped files, only the first `--reads` records are matched,
+  and an unreadable file is a usage error.
+
+Needs only `bash`, `awk` and `gzip`; it passes with both gawk and mawk.
+
+```bash
+bash tests/run_tests.sh barcode_check
 ```
 
 ## Adding a check

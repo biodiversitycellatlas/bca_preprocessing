@@ -13,6 +13,10 @@ instead of a succession of partial h5ads.
     obs['sample_id']                     always
     obs['doublet_status']                --doublet_results, the Combine_Results.R
                                          consensus (singlet / doublet)
+    obs['scrublet_call' / 'scdblfinder_call' /
+        'scrublet_score' / 'scdblfinder_score'],
+    uns['doublet_method']                --doublet_results; each tool's own call and
+                                         score, and the consensus rule
     layers['cellsweep']                  --cellsweep_h5ad, CellSweep's denoised counts
     obs['is_empty' / 'celltype' /        --cellsweep_h5ad; the barcodes CellSweep called
         'alpha_hat']                     empty are absent from it and read empty here
@@ -176,8 +180,10 @@ def main():
 
     if args.doublet_results:
         logger.info(f"Loading consensus doublet calls from {args.doublet_results}")
-        barcodes = doublet_calls.read_doublet_barcodes(args.doublet_results, args.doublet_method)
+        combined = doublet_calls.read_combined_results(args.doublet_results)
+        barcodes = doublet_calls.doublet_barcodes(combined, args.doublet_method, source=args.doublet_results)
         adata = doublet_calls.annotate(adata, barcodes)
+        adata = doublet_calls.annotate_callers(adata, combined, args.doublet_method)
 
     if args.cellsweep_h5ad:
         adata = merge_cellsweep(adata, args.cellsweep_h5ad)

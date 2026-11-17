@@ -71,7 +71,7 @@ _SD_MAX_POINTS:   int = 3000        # second-derivative cumulative-UMI curve
 _PERCELL_MAX_NONCELLS: int = 50000  # grey background cloud of the per-cell scatters
 
 # Minimum UMIs per barcode considered by the second-derivative cell calling;
-# must match MIN_UMIS in bin/secondderiv_cellcalling.py.
+# must match the --min-umis default of bin/secondderiv_cellcalling_v6.py.
 _SD_MIN_UMIS: int = 100
 
 # Per-cell metric columns the report actually plots.  ``Cell`` (the barcode
@@ -208,6 +208,7 @@ def parse_args() -> argparse.Namespace:
     parser.add_argument("--knee_files",      nargs="*", help="UMIperCellSorted.txt files")
     parser.add_argument("--secondderiv_knee",  nargs="*", help="*_knee_data.json files from the second-derivative cell calling")
     parser.add_argument("--secondderiv_stats", nargs="*", help="*_secondderiv_statistics.json files from the second-derivative matrix filtering")
+    parser.add_argument("--matrix_stats", nargs="*", help="*_UniqueAndMult-<type>_statistics.json files: STARsolo's own cells in its multi-gene matrix")
 
     parser.add_argument("--cellsweep_tables",        nargs="*")
     parser.add_argument("--cellsweep_plots_contrib", nargs="*")
@@ -216,6 +217,9 @@ def parse_args() -> argparse.Namespace:
     # ── Pipeline mode: GeneExt (run-level, not per sample) ───────────────────
     parser.add_argument("--geneext_report", nargs="*", help="GeneExt *.Report.html file")
     parser.add_argument("--geneext_log",    nargs="*", help="GeneExt *.GeneExt.log file")
+
+    # ── Pipeline mode: barcode check before mapping (per base sample) ────────
+    parser.add_argument("--barcode_checks", nargs="*", help="*.barcode_check.tsv files of BARCODE_CHECK")
 
     return parser.parse_args()
 
@@ -523,6 +527,42 @@ def parse_starsolo_summary(path: Optional[str]) -> Dict[str, str]:
     except Exception:
         pass
     return data
+
+
+def parse_barcode_checks(paths: Optional[List[str]]) -> Dict[str, Dict[str, str]]:
+    """Read the barcode check's verdicts, keyed on the base sample id.
+
+    Takes the per-sample ``*.barcode_check.tsv`` files or the collected
+    ``pipeline_info/barcode_check.tsv``: both are a header and one row per sample.
+    The check runs once per sample before mapping, so every analytical run of a
+    sample shares its row.
+    """
+    checks: Dict[str, Dict[str, str]] = {}
+    for path in paths or []:
+        if not path or not os.path.exists(path):
+            continue
+        try:
+            with open(path, "r", newline="") as fh:
+                for row in csv.DictReader(fh, delimiter="\t"):
+                    if row.get("sample"):
+                        checks[row["sample"]] = row
+        except Exception:
+            pass
+    return checks
+
+
+def barcode_precheck_values(check: Optional[Dict[str, str]]) -> Tuple[str, str]:
+    """The share of barcodes on the whitelist and the reads it was measured on.
+
+    ``("N/A", "")`` when the sample was not checked (no whitelist, or the check
+    was skipped).
+    """
+    if not check or check.get("verdict") not in ("pass", "fail"):
+        return "N/A", ""
+    try:
+        return f"{float(check['pct_match']):.1f}%", fmt(check.get("reads", ""))
+    except (KeyError, ValueError, TypeError):
+        return "N/A", ""
 
 
 def parse_mt_rrna_metrics(path: Optional[str]) -> Dict[str, str]:
@@ -1136,6 +1176,7 @@ def _discover_starsolo_samples(
 
         # Solo.out: prefer GeneFull_Ex50pAS over Gene
         solo_out = os.path.join(sample_path, f"{analytical_id}_Solo.out")
+        derived_knee: Optional[str] = None
         for gene_dir in _SOLO_GENE_DIRS:
             gene_path = os.path.join(solo_out, gene_dir)
             if not os.path.isdir(gene_path):
@@ -1159,6 +1200,19 @@ def _discover_starsolo_samples(
                 candidate = _probe(os.path.join(sd_path, fname))
                 if candidate:
                     files.setdefault(key, candidate)
+
+            # With a multi-gene matrix (star_soloMultiMappers EM etc.) the cutoff was read off
+            # a curve derived from that matrix, <id>_<type>_UMIperCellSorted.txt; it replaces
+            # STAR's own curve, which counts unique-gene UMIs only
+            derived = sorted(glob.glob(os.path.join(sd_path, f"{glob.escape(analytical_id)}_*_UMIperCellSorted.txt")))
+            if derived and not derived_knee:
+                files["knee"] = derived_knee = derived[0]
+
+            # STARsolo's own cells in a multi-gene matrix (SUBSET_STARSOLO_CELLS): the
+            # statistics of that matrix, next to its filtered_UniqueAndMult-<type>/
+            matrix_stats = sorted(glob.glob(os.path.join(gene_path, f"{glob.escape(analytical_id)}_UniqueAndMult-*_statistics.json")))
+            if matrix_stats:
+                files.setdefault("matrix_stats", matrix_stats[0])
 
         # rRNA / mtDNA metrics
         mt = _probe(os.path.join(
@@ -1398,6 +1452,7 @@ def _build_file_map_from_cli(
     _map(args.residuals_imgs,          "res_img",       {"starsolo"})
     _map(args.sankey_files,            "sankey",        {"starsolo"})
     _map(args.per_cell_files,          "per_cell",      {"starsolo"})
+    _map(args.matrix_stats,            "matrix_stats",  {"starsolo"})
 
     # Shared outputs by both mappers
     _map(args.knee_files,              "knee")
@@ -1416,6 +1471,208 @@ def _build_file_map_from_cli(
     _map(args.cellsweep_plots_umap,    "cs_plot_umap")
 
     return file_map
+
+
+# ---------------------------------------------------------------------------
+# qc_report groups
+# ---------------------------------------------------------------------------
+# Samples sharing a samplesheet 'qc_report' group are mapped and called on their own
+# and only brought together here: each group gets a pooled row next to its members',
+# per analytical run (a group's '_starsolo' runs pool with each other, never with
+# its '_alevinfry' ones). What is pooled, and how:
+#
+#   summed            input reads, uniquely mapped reads, called cells, reads needed
+#                     for the target saturation
+#   from the sums     % uniquely mapped, mean reads per cell
+#   by unique reads   noise (unique reads in non-cell barcodes) and % intronic, both
+#                     fractions of uniquely mapped reads, weighted by those
+#   approximate       saturation (weighted by input reads), rRNA / mtDNA % (weighted by
+#                     uniquely mapped reads, the mapped reads not being reported),
+#                     median genes per cell (members' medians weighted by cells)
+#   pooled per cell   median UMIs per cell, over every member's called cells, when
+#                     each member's UMIperCellSorted.txt is there; else approximate
+#
+# The approximate ones are listed in the payload, and the report marks them.
+
+QC_GROUP_COLUMN = "qc_report"
+
+
+def _num(val: Any) -> Optional[float]:
+    """A count as written in the report ("12,345"), or None."""
+    if val is None:
+        return None
+    return safe_float(str(val).replace(",", "").strip())
+
+
+def _pct(val: Any) -> Optional[float]:
+    """A percentage as written in the report ("85.20%"), or None."""
+    if val is None:
+        return None
+    return safe_float(str(val).replace("%", "").strip())
+
+
+def _reads(val: Any) -> Optional[float]:
+    """A read count as the saturation log gives it ("22.5 M"), or None."""
+    m = re.match(r"^\s*([0-9.]+)\s*([kKmMgG]?)", str(val or ""))
+    if not m:
+        return None
+    scale = {"": 1, "k": 1e3, "m": 1e6, "g": 1e9}[m.group(2).lower()]
+    return float(m.group(1)) * scale
+
+
+def _reads_text(val: Optional[float]) -> str:
+    if val is None:
+        return "N/A"
+    return f"{val / 1e6:.1f} M" if val >= 1e6 else fmt(int(round(val)))
+
+
+def read_cell_umis(path: Optional[str], n_cells: Any) -> Optional[List[int]]:
+    """The UMIs of the *n_cells* top barcodes of a ``UMIperCellSorted.txt``, or None."""
+    n = _num(n_cells)
+    if not path or not os.path.exists(path) or not n:
+        return None
+    out: List[int] = []
+    try:
+        with open(path, "r") as fh:
+            for line in fh:
+                s = line.strip()
+                if s.isdigit():
+                    out.append(int(s))
+    except Exception:
+        return None
+    out.sort(reverse=True)
+    return out[: int(n)] or None
+
+
+def _median(values: List[float]) -> Optional[float]:
+    if not values:
+        return None
+    v = sorted(values)
+    mid = len(v) // 2
+    return float(v[mid]) if len(v) % 2 else (v[mid - 1] + v[mid]) / 2.0
+
+
+def _wmean(pairs: List[Tuple[Optional[float], Optional[float]]]) -> Tuple[Optional[float], bool]:
+    """``(weighted mean, complete)`` over the (value, weight) pairs that have both."""
+    usable = [(v, w) for v, w in pairs if v is not None and w]
+    if not usable:
+        return None, False
+    total = sum(w for _v, w in usable)
+    return sum(v * w for v, w in usable) / total, len(usable) == len(pairs)
+
+
+def pool_group(members: List[Dict[str, Any]]) -> Dict[str, Any]:
+    """The pooled numbers of one group's members (see the block comment above)."""
+    approx: List[str] = []
+    partial: List[str] = []
+
+    def total(key: str) -> Optional[float]:
+        vals = [m.get(key) for m in members]
+        if any(v is None for v in vals):
+            if any(v is not None for v in vals):
+                partial.append(key)
+            vals = [v for v in vals if v is not None]
+        return sum(vals) if vals else None
+
+    def weighted(key: str, weight: str, is_approx: bool) -> Optional[float]:
+        value, complete = _wmean([(m.get(key), m.get(weight)) for m in members])
+        if value is not None:
+            if is_approx:
+                approx.append(key)
+            if not complete:
+                partial.append(key)
+        return value
+
+    n_input  = total("n_input")
+    n_unique = total("n_unique")
+    n_cells  = total("n_cells")
+    reads_07 = total("reads_07")
+
+    cell_umis = [m.get("cell_umis") for m in members]
+    if all(c for c in cell_umis):
+        median_umis = _median([v for c in cell_umis for v in c])
+    else:
+        median_umis = weighted("median_umis", "n_cells", True)
+
+    return {
+        "n_input":      n_input,
+        "n_unique":     n_unique,
+        "pct_unique":   100.0 * n_unique / n_input if n_input and n_unique is not None else None,
+        "n_cells":      n_cells,
+        "mean_reads":   n_input / n_cells if n_input and n_cells else None,
+        "noise":        weighted("noise", "n_unique", False),
+        "intronic":     weighted("intronic", "n_unique", False),
+        "saturation":   weighted("saturation", "n_input", True),
+        "rrna_mapped":  weighted("rrna_mapped", "n_unique", True),
+        "rrna_unique":  weighted("rrna_unique", "n_unique", True),
+        "mtdna_mapped": weighted("mtdna_mapped", "n_unique", True),
+        "mtdna_cells":  weighted("mtdna_cells", "n_unique", True),
+        "median_umis":  median_umis,
+        "median_genes": weighted("median_genes", "n_cells", True),
+        "reads_07":     reads_07,
+        "approx":       sorted(set(approx)),
+        "partial":      sorted(set(partial)),
+    }
+
+
+def _group_row(sample_id: str, v: Dict[str, Any]) -> Dict[str, Any]:
+    """One row of a group's table, formatted as the overview formats it."""
+    def pct(x: Optional[float]) -> str:
+        return "N/A" if x is None else f"{x:.2f}%"
+
+    def count(x: Optional[float]) -> str:
+        return "N/A" if x is None else fmt(int(round(x)))
+
+    return {
+        "sample_id":    sample_id,
+        "n_reads":      count(v.get("n_input")),
+        "pct_unique":   pct(v.get("pct_unique")),
+        "n_cells":      count(v.get("n_cells")),
+        "mean_reads":   count(v.get("mean_reads")),
+        "median_umis":  count(v.get("median_umis")),
+        "median_genes": count(v.get("median_genes")),
+        "saturation":   pct(v.get("saturation")),
+        "reads_07":     _reads_text(v.get("reads_07")),
+        "noise":        pct(v.get("noise")),
+        "intronic":     pct(v.get("intronic")),
+        "rrna_mapped":  pct(v.get("rrna_mapped")),
+        "rrna_unique":  pct(v.get("rrna_unique")),
+        "mtdna_mapped": pct(v.get("mtdna_mapped")),
+        "mtdna_cells":  pct(v.get("mtdna_cells")),
+    }
+
+
+def build_group_payload(
+    group_inputs: List[Dict[str, Any]],
+    samplesheet_config: Dict[str, Dict[str, str]],
+) -> List[Dict[str, Any]]:
+    """
+    One entry per qc_report group and analytical run: its members' rows and the pooled
+    row. Empty when the samplesheet has no groups.
+    """
+    keyed: Dict[Tuple[str, str, str], List[Dict[str, Any]]] = {}
+    for m in group_inputs:
+        group = (samplesheet_config.get(m["base"], {}).get(QC_GROUP_COLUMN) or "").strip()
+        if not group:
+            continue
+        keyed.setdefault((group, m["suffix"], m["source"]), []).append(m)
+
+    out = []
+    for (group, suffix, source), members in sorted(keyed.items()):
+        members = sorted(members, key=lambda m: m["id"])
+        pooled = pool_group(members)
+        out.append({
+            "group":   group,
+            "id":      f"{group}{suffix}",
+            "suffix":  suffix,
+            "source":  source,
+            "members": [m["id"] for m in members],
+            "rows":    [_group_row(m["id"], m) for m in members],
+            "pooled":  _group_row(f"{group}{suffix} (pooled)", pooled),
+            "approx":  pooled["approx"],
+            "partial": pooled["partial"],
+        })
+    return out
 
 
 # ---------------------------------------------------------------------------
@@ -1463,6 +1720,9 @@ def main() -> None:
                         samplesheet_config[row["sample"]] = row
 
         geneext_report, geneext_log = _discover_geneext(args.result_dir)
+        barcode_checks = parse_barcode_checks(
+            [os.path.join(args.result_dir, "pipeline_info", "barcode_check.tsv")]
+        )
 
         print(
             f"Standalone mode: discovered {len(active_samples)} analytical samples.",
@@ -1497,6 +1757,7 @@ def main() -> None:
         # sample, so its outputs are run-level and are not part of the file map
         geneext_report = (args.geneext_report or [None])[0]
         geneext_log    = (args.geneext_log    or [None])[0]
+        barcode_checks = parse_barcode_checks(args.barcode_checks)
 
         file_map = _build_file_map_from_cli(args, active_samples)
         print(
@@ -1536,6 +1797,7 @@ def main() -> None:
     cell_filtering_data: Dict[str, Any]   = {}
     secondderiv_data:   Dict[str, Any]     = {}
     mappers_seen:       set                = set()
+    group_inputs:       List[Dict]         = []
 
     def get_val(source: Dict, key: str, default: Any = "N/A") -> Any:
         return source.get(key, default) if source else default
@@ -1588,6 +1850,8 @@ def main() -> None:
             pct_other          = get_val(star_stats, "% of reads unmapped: other")
             pct_r1_q30         = to_pct(get_val(solo_stats, "Q30 Bases in CB+UMI"))
             pct_r2_q30         = to_pct(get_val(solo_stats, "Q30 Bases in RNA read"))
+            # Whole run, barcodes corrected by STARsolo: not the pre-mapping check's value
+            pct_valid_barcodes = to_pct(get_val(solo_stats, "Reads With Valid Barcodes"))
             saturation         = to_pct(get_val(solo_stats, "Sequencing Saturation"))
 
             n_cells     = get_val(solo_stats, "Estimated Number of Cells",
@@ -1644,6 +1908,7 @@ def main() -> None:
 
             pct_multi = pct_multi_too_many = pct_short = pct_other = "N/A"
             pct_r1_q30 = pct_r2_q30 = saturation = noise_pct = "N/A"
+            pct_valid_barcodes = "N/A"
 
             median_umis  = af_cell.get("nUMI__median",
                              af_cell.get("umis__median",
@@ -1654,7 +1919,7 @@ def main() -> None:
 
         # ── Second-derivative cell calling ───────────────────────────────────
         # When cellfilter_method = "second_derivative", the cells are re-called on the
-        # raw matrix: STARsolo's own filtered matrix is neither produced nor published,
+        # raw matrix: STARsolo's own filtered matrix is kept for comparison only,
         # and alevin-fry's quantified matrix is filtered again after its knee. Every
         # cell-level number below is recomputed on the matrix that was actually
         # filtered, so those values replace the ones the mapper reported for its own
@@ -1693,6 +1958,20 @@ def main() -> None:
             if saturation_sd is not None:
                 saturation = to_pct(saturation_sd)
 
+        # ── STARsolo's own cells in a multi-gene matrix ──────────────────────
+        # With star_solocellfilter and star_soloMultiMappers "EM" etc., STAR's cells stand
+        # but the matrix analysed is UniqueAndMult-<type>.mtx, while Summary.csv describes
+        # their unique-gene counts. Only the numbers read off the matrix are replaced: the
+        # cells, the cutoff and the read-level statistics are STAR's own.
+        elif not using_alevin:
+            matrix_stats = _safe_read_json(files.get("matrix_stats"))
+            if matrix_stats:
+                median_umis  = int(round(matrix_stats["median_umis_per_cell"]))  if "median_umis_per_cell"  in matrix_stats else median_umis
+                median_genes = int(round(matrix_stats["median_genes_per_cell"])) if "median_genes_per_cell" in matrix_stats else median_genes
+                if "total_genes_detected" in matrix_stats:
+                    total_genes       = matrix_stats["total_genes_detected"]
+                    total_genes_scope = "detected"
+
         sd_knee = parse_secondderiv_knee(files.get("sd_knee"), s_id)
         if sd_knee:
             secondderiv_data[s_id] = thin_secondderiv_curve(sd_knee)
@@ -1720,6 +1999,30 @@ def main() -> None:
             mt_rrna["mtdna_mapped_cells_pct"] or "N/A",
         ])
 
+        # ── qc_report group: the numbers its pooled row is built from ───────
+        qc_group = (samplesheet_config.get(base_id, {}).get(QC_GROUP_COLUMN) or "").strip() or None
+        if qc_group:
+            group_inputs.append({
+                "id":           s_id,
+                "base":         base_id,
+                "suffix":       s_id[len(base_id):] if s_id.startswith(base_id) else "",
+                "source":       "starsolo" if using_star else "alevin",
+                "n_input":      _num(n_input_reads),
+                "n_unique":     _num(n_unique),
+                "n_cells":      _num(n_cells),
+                "saturation":   _pct(saturation),
+                "noise":        _pct(noise_pct),
+                "intronic":     _pct(intronic_pct),
+                "rrna_mapped":  _pct(mt_rrna["rrna_mapped_pct"]),
+                "rrna_unique":  _pct(mt_rrna["rrna_unique_pct"]),
+                "mtdna_mapped": _pct(mt_rrna["mtdna_mapped_pct"]),
+                "mtdna_cells":  _pct(mt_rrna["mtdna_mapped_cells_pct"]),
+                "reads_07":     _reads(reads_07_sat_val),
+                "median_umis":  _num(median_umis),
+                "median_genes": _num(median_genes),
+                "cell_umis":    read_cell_umis(files.get("knee"), n_cells),
+            })
+
         # ── Cell filtering ───────────────────────────────────────────────────
         cf_dict = None
         if files.get("cs_table"):
@@ -1744,20 +2047,36 @@ def main() -> None:
         if per_cell_cols:
             per_cell_data[s_id] = per_cell_cols
 
+        # Total unmapped: STARsolo reports too-short and other separately
+        try:
+            pct_unmapped = f"{float(str(pct_short).rstrip('%')) + float(str(pct_other).rstrip('%')):.2f}%"
+        except ValueError:
+            pct_unmapped = "N/A"
+
+        # The barcode check ran once on the sample, before mapping, for every run of it
+        pct_barcode_precheck, barcode_precheck_reads = barcode_precheck_values(
+            barcode_checks.get(base_id)
+        )
+
         samples_json_list.append({
             "sample_id": s_id,
+            "qc_group":  qc_group,
             "config":    combined_config,
             "source":    "starsolo" if using_star else "alevin",
             "mapping": {
                 "n_reads_sample":       fmt(n_input_reads),
                 "pct_r1_q30":           pct_r1_q30,
                 "pct_r2_q30":           pct_r2_q30,
+                "pct_barcode_precheck": pct_barcode_precheck,
+                "barcode_precheck_reads": barcode_precheck_reads,
+                "pct_valid_barcodes":   pct_valid_barcodes,
                 "n_uniquely_mapped":    fmt(n_unique),
                 "pct_uniquely_mapped":  pct_unique,
                 "pct_multi_mapped":     pct_multi,
                 "pct_multi_too_many":   pct_multi_too_many,
                 "pct_unmapped_short":   pct_short,
                 "pct_unmapped_other":   pct_other,
+                "pct_unmapped":         pct_unmapped,
                 "noise_pct":            noise_pct,
                 "intronic_pct":         intronic_pct,
                 **mt_rrna,
@@ -1799,6 +2118,24 @@ def main() -> None:
     if global_rows and mappers_seen == {"starsolo"}:
         global_cols[_MAPPED_COL] = "% Uniquely Mapped Reads"
 
+    # ── qc_report groups ─────────────────────────────────────────────────────
+    # Each group's pooled row joins the overview, and a Group column says which rows
+    # belong together; a run without groups keeps the table as it was
+    groups_data = build_group_payload(group_inputs, samplesheet_config)
+    if groups_data:
+        member_group = {s["sample_id"]: s["qc_group"] for s in samples_json_list}
+        for row in global_rows:
+            row.insert(1, member_group.get(row[0]) or "")
+        for g in groups_data:
+            p = g["pooled"]
+            global_rows.append([
+                p["sample_id"], g["group"], "STARsolo" if g["source"] == "starsolo" else "alevin-fry",
+                p["pct_unique"], p["n_cells"], p["saturation"], p["reads_07"], p["noise"],
+                p["median_umis"], p["intronic"], p["rrna_mapped"], p["rrna_unique"], p["mtdna_mapped"], p["mtdna_cells"],
+            ])
+        global_cols.insert(1, "Group")
+        print(f"qc_report: {len(groups_data)} pooled group rows.", file=sys.stderr)
+
     # ── Gene extension (run-level) ───────────────────────────────────────────
     geneext_data = build_geneext_payload(geneext_report, geneext_log)
     if geneext_data:
@@ -1833,6 +2170,7 @@ def main() -> None:
         "__SECONDDERIV_DATA_PLACEHOLDER__":  _dump(secondderiv_data),
         "__CELLFILTERING_DATA_PLACEHOLDER__": _dump(cell_filtering_data),
         "__GENEEXT_DATA_PLACEHOLDER__":       _dump(geneext_data),
+        "__GROUPS_DATA_PLACEHOLDER__":        _dump({"groups": groups_data}),
     }
 
     for placeholder, json_str in replacements.items():

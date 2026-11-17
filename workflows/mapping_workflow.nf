@@ -17,9 +17,10 @@ include { bam_inspection_workflow as bam_inspection_geneext_workflow        } fr
 include { bam_inspection_workflow as bam_inspection_geneext_input_workflow  } from '../subworkflows/local/post-processing/bam_inspection'
 include { geneext_workflow                                                  } from '../subworkflows/local/mapping/geneext'
 
+include { PREPARE_ADDFEATURE                                                } from '../modules/local/custom/manipulate/prepare_addfeature/main'
 include { MERGE_REF_FASTA                                                   } from '../modules/local/custom/manipulate/merge_ref_fasta/main'
-include { MERGE_REF_GTF                                                     } from '../modules/local/custom/manipulate/merge_ref_gtf/main'
 include { MERGE_REF_GTF as MERGE_REF_GTF_GENEEXT                            } from '../modules/local/custom/manipulate/merge_ref_gtf/main'
+include { BARCODE_CHECK                                                     } from '../modules/local/custom/qc/barcode_check/main'
 include { FASTQC                                                            } from '../modules/local/tools/fastqc/main'
 include { SUBSAMPLE_FASTQS                                                  } from '../modules/local/tools/seqtk/main'
 
@@ -58,8 +59,8 @@ workflow QC_mapping_workflow {
     main:
         // Initialize channels
         def ch_samples = data_output
+        def ch_barcode_check                = channel.empty()
         def ch_mapped_ss                    = channel.empty()
-        def ch_mapping_files                = channel.empty()
         def ch_starsolo_bam                 = channel.empty()
         def ch_star_solodir                 = channel.empty()
         def ch_starsolo_genefull50_raw      = channel.empty()
@@ -69,7 +70,8 @@ workflow QC_mapping_workflow {
         def ch_secondderiv_knee             = channel.empty()
         def ch_secondderiv_stats            = channel.empty()
         def ch_secondderiv_cutoff           = channel.empty()
-        def ch_sat_imgs                     = channel.empty()
+        def ch_matrix_stats                 = channel.empty()
+        def ch_sat_imgs                    = channel.empty()
         def ch_sat_res_imgs                 = channel.empty()
         def ch_sat_logs                     = channel.empty()
         def ch_star_umi                     = channel.empty()
@@ -95,23 +97,27 @@ workflow QC_mapping_workflow {
         // The analytical runs to map, see lib/AnalyticalRuns.groovy
         def runs = AnalyticalRuns.plan(params)
 
-        // Conditionally bypass MERGE_REF_GTF/FASTA when no additional features are provided
-        def ref_gtf_ch
-        if (params.ref_gtf_addfeature) {
-            MERGE_REF_GTF(file(params.ref_gtf, checkIfExists: true), file(params.ref_gtf_addfeature, checkIfExists: true), '')
-            ref_gtf_ch = MERGE_REF_GTF.out.gtf
-            ch_versions = ch_versions.mix(MERGE_REF_GTF.out.versions)
-        } else {
-            ref_gtf_ch = channel.value(file(params.ref_gtf, checkIfExists: true))
-        }
+        // ref_gtf_addfeature only feeds the read-level rRNA metrics, so both mappers count
+        // genes of the base annotation. ref_fasta_addfeature is appended to the genome once
+        // its copies of reference sequence are dropped: they would turn every read there
+        // into a multimapper.
+        def ref_gtf_ch      = channel.value(file(params.ref_gtf, checkIfExists: true))
+        def ref_fasta_ch    = channel.value(file(params.ref_fasta, checkIfExists: true))
+        def ch_rrna_regions = channel.value([])
+        if (params.ref_fasta_addfeature || params.ref_gtf_addfeature) {
+            PREPARE_ADDFEATURE(
+                file(params.ref_fasta, checkIfExists: true),
+                params.ref_fasta_addfeature ? file(params.ref_fasta_addfeature, checkIfExists: true) : [],
+                params.ref_gtf_addfeature ? file(params.ref_gtf_addfeature, checkIfExists: true) : []
+            )
+            ch_rrna_regions = PREPARE_ADDFEATURE.out.rrna_regions
+            ch_versions = ch_versions.mix(PREPARE_ADDFEATURE.out.versions)
 
-        def ref_fasta_ch
-        if (params.ref_fasta_addfeature) {
-            MERGE_REF_FASTA(file(params.ref_fasta, checkIfExists: true), file(params.ref_fasta_addfeature, checkIfExists: true))
-            ref_fasta_ch = MERGE_REF_FASTA.out.fasta
-            ch_versions = ch_versions.mix(MERGE_REF_FASTA.out.versions)
-        } else {
-            ref_fasta_ch = channel.value(file(params.ref_fasta, checkIfExists: true))
+            if (params.ref_fasta_addfeature) {
+                MERGE_REF_FASTA(file(params.ref_fasta, checkIfExists: true), PREPARE_ADDFEATURE.out.fasta)
+                ref_fasta_ch = MERGE_REF_FASTA.out.fasta
+                ch_versions = ch_versions.mix(MERGE_REF_FASTA.out.versions)
+            }
         }
 
         // The GeneExt reference, set once GeneExt has run, so both mappers re-map against
@@ -123,9 +129,73 @@ workflow QC_mapping_workflow {
         // order, and stage nothing for protocols running without one (e.g. MARS-seq)
         def bc_whitelist_safe = bc_whitelist.ifEmpty([])
 
-        // Quality Control
-        FASTQC(ch_samples)
+        // Quality Control, also for a sample the barcode check stops: the report on its
+        // barcode read helps to find out why
+        FASTQC(data_output)
         ch_versions = ch_versions.mix(FASTQC.out.versions)
+
+        // Barcode check. The mapping-rate check does not depend on the barcodes, so before
+        // anything is mapped the barcodes of every sample are matched against the whitelist
+        // and at the positions the mappers get. Only the samples that pass go on, as the
+        // rows they came in as, so the mappers' task hashes are those of an unchecked run.
+        if (BarcodeCheck.enabled(params.skip_barcode_check, params.min_barcode_match)) {
+            def seqtech = params.seqtech_parameters[params.protocol]
+            def solo_type_string = params.star_soloTypestring != null
+                ? params.star_soloTypestring
+                : (seqtech.star_soloTypestring ?: '')
+            def seqspec = params.protocol == 'seqspec' ? file(params.seqspec_file, checkIfExists: true) : []
+            def min_match = params.min_barcode_match
+
+            BARCODE_CHECK(
+                data_output.map { row -> [row[0], row[2]] },
+                bc_whitelist_safe,
+                solo_type_string,
+                seqspec,
+                min_match,
+                params.barcode_check_reads
+            )
+            ch_barcode_check = BARCODE_CHECK.out.verdict
+            ch_versions = ch_versions.mix(BARCODE_CHECK.out.versions)
+
+            // Every sample's verdict in one table, sorted on the sample so it is the same
+            // on every -resume
+            def ch_verdict_table = BARCODE_CHECK.out.verdict
+                .map { _meta, tsv -> tsv }
+                .collectFile(
+                    name: 'barcode_check.tsv',
+                    storeDir: "${params.outdir}/pipeline_info",
+                    keepHeader: true,
+                    sort: { tsv -> tsv.name }
+                )
+
+            if (params.mapping_rate_action == 'skip_sample') {
+                // Each sample goes on as soon as its own check passed
+                ch_samples = data_output
+                    .map { row -> [row[0].id, row] }
+                    .join(BARCODE_CHECK.out.verdict.map { meta, tsv -> [meta.id, BarcodeCheck.read(tsv)] })
+                    .filter { _id, _row, verdict ->
+                        if (BarcodeCheck.failed(verdict)) {
+                            BarcodeCheck.recordDropped(verdict)
+                            log.warn(BarcodeCheck.failureMessage([verdict], min_match, false))
+                            return false
+                        }
+                        return true
+                    }
+                    .map { _id, row, _verdict -> row }
+            } else {
+                // One failing sample stops the run, so nothing is mapped until every
+                // sample is checked, and the error names all that failed
+                def ch_all_passed = ch_verdict_table.map { table ->
+                    def failed = BarcodeCheck.readAll(table).findAll { row -> BarcodeCheck.failed(row) }
+                    if (failed) {
+                        error(BarcodeCheck.failureMessage(failed, min_match, true) +
+                            "\nDetails: ${params.outdir}/pipeline_info/barcode_check.tsv")
+                    }
+                    true
+                }
+                ch_samples = data_output.combine(ch_all_passed).map { row -> row[0..-2] }
+            }
+        }
 
         // 'alevin_subsampled_starsolo' maps STARsolo on a subsample. It is drawn once and shared
         // by the standard and the GeneExt subsampled runs, so both map the same reads.
@@ -152,6 +222,7 @@ workflow QC_mapping_workflow {
             // but not reported: the pass is not one of the analytical runs.
             if (!params.geneext_bam_only && params.star_generateBAM) {
                 bam_inspection_geneext_input_workflow(mapping_starsolo_geneext_input_workflow.out.starsolo_bam, ref_gtf_ch,
+                                                        ch_rrna_regions,
                                                         mapping_starsolo_geneext_input_workflow.out.star_summaries,
                                                         mapping_starsolo_geneext_input_workflow.out.star_final_log,
                                                         mapping_starsolo_geneext_input_workflow.out.secondderiv_stats,
@@ -171,7 +242,6 @@ workflow QC_mapping_workflow {
             mapping_starsolo_workflow(ch_star_input, bc_whitelist_safe, ref_gtf_ch, ref_fasta_ch, 'false', false, star_index_standard)
 
             // Assign starsolo standard mapping outputs
-            ch_mapping_files                = ch_mapping_files.mix(mapping_starsolo_workflow.out.mapping_files)
             ch_starsolo_bam                 = ch_starsolo_bam.mix(mapping_starsolo_workflow.out.starsolo_bam)
             ch_star_solodir                 = ch_star_solodir.mix(mapping_starsolo_workflow.out.star_solodir)
             ch_starsolo_genefull50_raw      = ch_starsolo_genefull50_raw.mix(mapping_starsolo_workflow.out.starsolo_genefull50_raw)
@@ -181,6 +251,7 @@ workflow QC_mapping_workflow {
             ch_secondderiv_knee             = ch_secondderiv_knee.mix(mapping_starsolo_workflow.out.secondderiv_knee)
             ch_secondderiv_stats            = ch_secondderiv_stats.mix(mapping_starsolo_workflow.out.secondderiv_stats)
             ch_secondderiv_cutoff           = ch_secondderiv_cutoff.mix(mapping_starsolo_workflow.out.secondderiv_cutoff)
+            ch_matrix_stats                 = ch_matrix_stats.mix(mapping_starsolo_workflow.out.matrix_stats)
             ch_star_umi                     = ch_star_umi.mix(mapping_starsolo_workflow.out.star_umipercell)
             ch_star_log                     = ch_star_log.mix(mapping_starsolo_workflow.out.star_log)
             ch_star_final_log               = ch_star_final_log.mix(mapping_starsolo_workflow.out.star_final_log)
@@ -191,6 +262,7 @@ workflow QC_mapping_workflow {
             // Run BAM inspection workflow on STARsolo output
             if (params.star_generateBAM) {
                 bam_inspection_workflow(mapping_starsolo_workflow.out.starsolo_bam, ref_gtf_ch,
+                                            ch_rrna_regions,
                                             mapping_starsolo_workflow.out.star_summaries,
                                             mapping_starsolo_workflow.out.star_final_log,
                                             mapping_starsolo_workflow.out.secondderiv_stats,
@@ -216,9 +288,7 @@ workflow QC_mapping_workflow {
                 ? mapping_starsolo_workflow.out.starsolo_bam
                 : mapping_starsolo_geneext_input_workflow.out.starsolo_bam
 
-            // Collect ALL BAMs from all samples before running geneext. GeneExt extends the
-            // base annotation: ref_gtf_addfeature is appended to its output below, so handing
-            // it the merged GTF would add those features twice.
+            // Collect ALL BAMs from all samples before running geneext
             geneext_workflow(ch_geneext_input_bam, file(params.ref_gtf, checkIfExists: true))
 
             // GeneExt's own run statistics, summarised in the dashboard
@@ -228,15 +298,9 @@ workflow QC_mapping_workflow {
 
             if (runs.star_geneext || runs.alevin_geneext) {
 
-                // Same conditional bypass for geneext GTF
-                if (params.ref_gtf_addfeature) {
-                    MERGE_REF_GTF_GENEEXT(geneext_workflow.out.ref_gtf, file(params.ref_gtf_addfeature, checkIfExists: true), '_geneext')
-                    ref_gtf_geneext_ch = MERGE_REF_GTF_GENEEXT.out.gtf
-                } else {
-                    // Geneext always extends from the geneext output, no bypass possible here
-                    MERGE_REF_GTF_GENEEXT(geneext_workflow.out.ref_gtf, channel.value([]), '_geneext')
-                    ref_gtf_geneext_ch = MERGE_REF_GTF_GENEEXT.out.gtf
-                }
+                // Nothing is merged: this publishes the GeneExt annotation as ref_geneext.gtf
+                MERGE_REF_GTF_GENEEXT(geneext_workflow.out.ref_gtf, channel.value([]), '_geneext')
+                ref_gtf_geneext_ch = MERGE_REF_GTF_GENEEXT.out.gtf
                 ch_versions = ch_versions.mix(MERGE_REF_GTF_GENEEXT.out.versions)
 
                 // GeneExt only extends the annotation, so the genome is the standard one
@@ -259,7 +323,6 @@ workflow QC_mapping_workflow {
             mapping_starsolo_geneext_workflow(ch_geneext, bc_whitelist_safe, ref_gtf_geneext_ch, ref_fasta_geneext_ch, 'true', false, null)
 
             // Mix the geneext starsolo outputs with standard run
-            ch_mapping_files                = ch_mapping_files.mix(mapping_starsolo_geneext_workflow.out.mapping_files)
             ch_starsolo_bam                 = ch_starsolo_bam.mix(mapping_starsolo_geneext_workflow.out.starsolo_bam)
             ch_star_solodir                 = ch_star_solodir.mix(mapping_starsolo_geneext_workflow.out.star_solodir)
             ch_starsolo_genefull50_raw      = ch_starsolo_genefull50_raw.mix(mapping_starsolo_geneext_workflow.out.starsolo_genefull50_raw)
@@ -269,6 +332,7 @@ workflow QC_mapping_workflow {
             ch_secondderiv_knee             = ch_secondderiv_knee.mix(mapping_starsolo_geneext_workflow.out.secondderiv_knee)
             ch_secondderiv_stats            = ch_secondderiv_stats.mix(mapping_starsolo_geneext_workflow.out.secondderiv_stats)
             ch_secondderiv_cutoff           = ch_secondderiv_cutoff.mix(mapping_starsolo_geneext_workflow.out.secondderiv_cutoff)
+            ch_matrix_stats                 = ch_matrix_stats.mix(mapping_starsolo_geneext_workflow.out.matrix_stats)
             ch_star_umi                     = ch_star_umi.mix(mapping_starsolo_geneext_workflow.out.star_umipercell)
             ch_star_log                     = ch_star_log.mix(mapping_starsolo_geneext_workflow.out.star_log)
             ch_star_final_log               = ch_star_final_log.mix(mapping_starsolo_geneext_workflow.out.star_final_log)
@@ -280,6 +344,7 @@ workflow QC_mapping_workflow {
             if (params.star_generateBAM) {
                 bam_inspection_geneext_workflow(mapping_starsolo_geneext_workflow.out.starsolo_bam,
                                             ref_gtf_geneext_ch,
+                                            ch_rrna_regions,
                                             mapping_starsolo_geneext_workflow.out.star_summaries,
                                             mapping_starsolo_geneext_workflow.out.star_final_log,
                                             mapping_starsolo_geneext_workflow.out.secondderiv_stats,
@@ -305,7 +370,6 @@ workflow QC_mapping_workflow {
             // Same reference as the standard STARsolo run, so the two mappers are compared like for like
             mapping_alevin_workflow(ch_alevin, bc_whitelist_safe, ref_gtf_ch, ref_fasta_ch, 'false')
 
-            ch_mapping_files       = ch_mapping_files.mix(mapping_alevin_workflow.out.mapping_files)
             ch_alevin_meta_info    = ch_alevin_meta_info.mix(mapping_alevin_workflow.out.af_meta_info)
             ch_alevin_quant_json   = ch_alevin_quant_json.mix(mapping_alevin_workflow.out.af_quant_json)
             ch_alevin_cell_meta    = ch_alevin_cell_meta.mix(mapping_alevin_workflow.out.af_cell_meta)
@@ -327,7 +391,6 @@ workflow QC_mapping_workflow {
             ch_mapped_ss = ch_mapped_ss.mix(ch_alevin_geneext)
             mapping_alevin_geneext_workflow(ch_alevin_geneext, bc_whitelist_safe, ref_gtf_geneext_ch, ref_fasta_geneext_ch, 'true')
 
-            ch_mapping_files       = ch_mapping_files.mix(mapping_alevin_geneext_workflow.out.mapping_files)
             ch_alevin_meta_info    = ch_alevin_meta_info.mix(mapping_alevin_geneext_workflow.out.af_meta_info)
             ch_alevin_quant_json   = ch_alevin_quant_json.mix(mapping_alevin_geneext_workflow.out.af_quant_json)
             ch_alevin_cell_meta    = ch_alevin_cell_meta.mix(mapping_alevin_geneext_workflow.out.af_cell_meta)
@@ -342,9 +405,9 @@ workflow QC_mapping_workflow {
 
     emit:
         fastqc_results               = FASTQC.out.fastqc_results
+        barcode_check                = ch_barcode_check
         mapped_samplesheet           = ch_mapped_ss
         ref_gtf                      = ref_gtf_ch
-        mapping_files                = ch_mapping_files
         starsolo_bam                 = ch_starsolo_bam
         star_solodir                 = ch_star_solodir
         starsolo_genefull50_raw      = ch_starsolo_genefull50_raw
@@ -354,6 +417,7 @@ workflow QC_mapping_workflow {
         secondderiv_knee             = ch_secondderiv_knee
         secondderiv_stats            = ch_secondderiv_stats
         secondderiv_cutoff           = ch_secondderiv_cutoff
+        matrix_stats                 = ch_matrix_stats
         saturation_imgs              = ch_sat_imgs
         saturation_residual_imgs     = ch_sat_res_imgs
         saturation_logs              = ch_sat_logs

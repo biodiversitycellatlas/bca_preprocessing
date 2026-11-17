@@ -1,15 +1,29 @@
 process GENERATE_FILTERING_REPORT {
     publishDir path: { "${params.outdir}" }, mode: 'copy', overwrite: true, saveAs: { filename -> filename == 'versions.yml' ? null : filename }
-    label 'process_single_mem2'
+    
+    // Memory tracks the summaries and the per-barcode CellReads.stats it parses, which
+    // grow with the number of runs. Coefficients live in params.dynamic_memory; without
+    // an entry the request is process_single_mem2's 10 GB. 
+    cpus   1
+    time   { 30.m * task.attempt }
+    memory { BcaResources.scaledMemory(
+        params.dynamic_memory?.GENERATE_FILTERING_REPORT,
+        [summaries, mt_rrna_metrics, antisense_metrics, cellreads_stats], task.attempt, 10) }
 
-    container "oras://community.wave.seqera.io/library/python:3.14.2--0bd36b5fd9edb930"
+    container "${ workflow.containerEngine in ['singularity', 'apptainer'] && !task.ext.singularity_pull_docker_container ?
+        'oras://community.wave.seqera.io/library/python:3.14.2--0bd36b5fd9edb930' :
+        'community.wave.seqera.io/library/python:3.14.2--0562a0df3245213a' }"
     conda "${moduleDir}/environment.yml"
 
     input:
     path(summaries)
     path(mt_rrna_metrics)
     path(antisense_metrics)
-    path(template)
+    val(cellreads_ids)
+    path(cellreads_stats, stageAs: 'cellreads*/*')
+    // Not under its own name, which is the output's: writing the report would follow
+    // the staged symlink and overwrite bin/filtering_report.html
+    path(template, stageAs: 'filtering_report_template.html')
     path(logo)
     val(expected_cells)
     val(thresholds)
@@ -30,12 +44,17 @@ process GENERATE_FILTERING_REPORT {
         .findAll { key, _flag -> thresholds[key] != null }
         .collect { key, flag -> "${flag} ${thresholds[key]}" }
         .join(' ')
+    def cellreads = cellreads_stats instanceof List ? cellreads_stats : [cellreads_stats]
+    def cellreads_args = [cellreads_ids, cellreads].transpose()
+        .collect { id, f -> "${id}=${f}" }
+        .join(' ')
     """
     generate_filtering_report.py \\
         --template ${template} \\
         --summaries ${summaries} \\
         --mt_rrna_metrics ${mt_rrna_metrics} \\
         --antisense_metrics ${antisense_metrics} \\
+        --cellreads_stats ${cellreads_args} \\
         --expected_cells ${expected_cells.join(' ')} \\
         ${threshold_args} \\
         --pfam_presets '${thresholds.pfam_presets ?: ''}' \\

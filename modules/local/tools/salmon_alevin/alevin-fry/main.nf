@@ -1,14 +1,24 @@
 process ALEVIN_FRY {
     publishDir path: { "${params.outdir}/mapping_alevin/${meta.id}" }, mode: 'copy', saveAs: { filename -> filename == 'versions.yml' ? null : filename }
     tag "${meta.id}"
-    label 'process_high'
+    
+
+    // Time follows the FASTQs and memory follows the salmon index size.
+    // Salmon's mapping stops gaining at about 8 threads (66 s for 30 M pairs at 8, 12 and 16), so more only adds cost.
+    cpus   8
+    time   { BcaResources.scaledTime(
+        params.dynamic_time?.ALEVIN_FRY, [fastq_cDNA, fastq_BC_UMI], task.attempt, 4) }
+    memory { BcaResources.scaledMemory(
+        params.dynamic_memory?.ALEVIN_FRY, [fastq_cDNA, fastq_BC_UMI], task.attempt, 64, salmon_index) }
 
     // Exit 42 from bin/mapping_rate_guard.sh (mapping rate below params.min_mapping_rate)
     // aborts the pipeline or drops the sample; other exit codes follow conf/base.config.
     errorStrategy { MappingRateCheck.errorStrategy(task, params) }
 
     conda "${moduleDir}/environment.yml"
-    container "oras://community.wave.seqera.io/library/alevin-fry_piscem_salmon_simpleaf_pruned:c71cfb476b003414"
+    container "${ workflow.containerEngine in ['singularity', 'apptainer'] && !task.ext.singularity_pull_docker_container ?
+        'oras://community.wave.seqera.io/library/alevin-fry_piscem_salmon_simpleaf_pruned:c71cfb476b003414' :
+        'community.wave.seqera.io/library/alevin-fry_piscem_salmon_simpleaf_pruned:0c7b7b78674d62a2' }"
 
     input:
     tuple val(meta), path(fastq_cDNA), path(fastq_BC_UMI), path(fastq_indices), path(input_file)
@@ -46,9 +56,10 @@ process ALEVIN_FRY {
         : ''
 
     // Count reads on the strand STARsolo counts (--soloStrand), so both mappers see the same molecules
-    def expected_ori = [Forward: 'fw', Reverse: 'rc', Unstranded: 'both'][params.star_soloStrand]
+    def star_soloStrand = StarSettings.strand(params.star_soloStrand, params.cram_type, meta.input_format)
+    def expected_ori = [Forward: 'fw', Reverse: 'rc', Unstranded: 'both'][star_soloStrand]
     if (!expected_ori) {
-        error "star_soloStrand '${params.star_soloStrand}' has no alevin-fry orientation; use Forward, Reverse or Unstranded."
+        error "star_soloStrand '${star_soloStrand}' has no alevin-fry orientation; use Forward, Reverse or Unstranded."
     }
 
     // Permit list. When the pipeline re-calls cells itself, alevin-fry keeps every barcode on
@@ -72,7 +83,7 @@ process ALEVIN_FRY {
     echo "cDNA read: ${fastq_cDNA}"
     echo "CB/UMI read: ${fastq_BC_UMI}"
     echo "Geometry (bc / umi / read): ${bc_geom} / ${umi_geom} / ${read_geom}"
-    echo "Expected orientation: ${expected_ori} (star_soloStrand ${params.star_soloStrand})"
+    echo "Expected orientation: ${expected_ori} (star_soloStrand ${star_soloStrand})"
     echo "Resolution: ${params.alevin_resolution}"
 
 

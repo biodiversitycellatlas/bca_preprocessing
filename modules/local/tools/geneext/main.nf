@@ -1,10 +1,17 @@
 process GENE_EXT {
     publishDir path: { "${params.outdir}/gene_ext" }, mode: 'copy', saveAs: { filename -> filename == 'versions.yml' ? null : filename }
-    label 'process_long'
+    
+    // Time follows the BAM size, never below 2 h.
+    cpus   4
+    memory { 6.GB * task.attempt }
+    time   { BcaResources.scaledTime(
+        params.dynamic_time?.GENE_EXT, [bam_file], task.attempt, 2) }
 
-    // conda "${projectDir}/submodules/GeneExt/environment.yaml"
     conda "${moduleDir}/environment.yml"
-    container "oras://community.wave.seqera.io/library/libgcc_mutex__openmp_mutex__r-mutex_aiohttp_pruned:b993752eeff11002"
+    container "${ workflow.containerEngine in ['singularity', 'apptainer'] && !task.ext.singularity_pull_docker_container ?
+        'oras://community.wave.seqera.io/library/python_bedtools_samtools_pysam_pruned:f0dc809bbf3297e3' :
+        'community.wave.seqera.io/library/python_bedtools_samtools_pysam_pruned:924a6b1d51a277f5' }"
+    
     // The script lives in a submodule. A container only sees the task directory and bin/,
     // unless the pipeline happens to share a parent directory with the work directory
     containerOptions { "${workflow.containerEngine in ['docker', 'podman'] ? '-v' : '-B'} ${projectDir}/submodules/GeneExt:${projectDir}/submodules/GeneExt" }
@@ -37,7 +44,7 @@ process GENE_EXT {
         -b ${bam_file} \\
         -o geneext.gtf \\
         -t tmp_geneext \\
-        -j 4 \\
+        -j ${task.cpus} \\
         -force ${subsamplebam}
 
     cat <<-END_VERSIONS > versions.yml

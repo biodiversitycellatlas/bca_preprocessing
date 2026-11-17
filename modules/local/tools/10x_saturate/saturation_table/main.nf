@@ -3,17 +3,18 @@ process SATURATION_TABLE {
     tag "${meta.id}"
     label 'error_retry'
 
-    // Memory tracks the size of the BAM being read. Coefficients live in
-    // params.dynamic_memory; without an entry the request is process_single_mem2's 10 GB.
-    // Deliberately no resource label, since a withLabel setting would take precedence over
-    // these: cpus and time are process_single_mem2's.
-    cpus   1
-    time   { 30.m * task.attempt }
+    // Memory and time track the size of the BAM file
+    cpus   4
+    time   { BcaResources.scaledTime(
+        params.dynamic_time?.SATURATION_TABLE, [bam_file], task.attempt, 4) }
     memory { BcaResources.scaledMemory(
         params.dynamic_memory?.SATURATION_TABLE, [bam_file], task.attempt, 10) }
 
     conda "${moduleDir}/environment.yml"
-    container "oras://community.wave.seqera.io/library/pysam_samtools_bc_python_pruned:82a1e27e868113f0"
+    container "${ workflow.containerEngine in ['singularity', 'apptainer'] && !task.ext.singularity_pull_docker_container ?
+        'oras://community.wave.seqera.io/library/pysam_samtools_bc_python_pruned:82a1e27e868113f0' :
+        'community.wave.seqera.io/library/pysam_samtools_bc_python_pruned:d34a762142fc1075' }"
+        
     // The script lives in a submodule. A container only sees the task directory and bin/,
     // unless the pipeline happens to share a parent directory with the work directory
     containerOptions { "${workflow.containerEngine in ['docker', 'podman'] ? '-v' : '-B'} ${projectDir}/submodules/10x_saturate:${projectDir}/submodules/10x_saturate" }
@@ -66,16 +67,31 @@ process SATURATION_TABLE {
     fi
 
     map_rate=\$( echo "scale=4; \${MAPREADS}/\${n_reads}" | bc )
-    temp_folder="_tmp"
+
+    # data.table otherwise sizes its thread pool from the node's cores, not the task's
+    export R_DATATABLE_NUM_THREADS=${task.cpus}
 
     echo "cells:\${n_cells} reads:\${n_reads} mapreads:\${MAPREADS} maprate:\${map_rate}"
 
-    python ${projectDir}/submodules/10x_saturate/saturation_table.py \\
-        --bam ${bam_file} \\
-        --ncells \${n_cells} \\
+    # The steps of 10x_saturate's saturation_table.py, run here so each gets its own
+    # thread count: that wrapper hands one --ncpu to both (default 1, so the tag dump ran
+    # on one core) and ignores their exit codes. The tag dump runs samtools with -@ and
+    # one worker per chromosome. The curve stays on one R process: mclapply would give
+    # every fork its own subsample of the tag table and multiply the memory; data.table
+    # still threads within it.
+    sat_dir=${projectDir}/submodules/10x_saturate/scripts
+    mkdir _tmp
+    python \${sat_dir}/gettags.py ${bam_file} _tmp --num_threads ${task.cpus}
+    cat _tmp/*.tsv > _tmp/tags.tab
+    echo "Counting tags done: _tmp/tags.tab"
+
+    Rscript \${sat_dir}/compute_saturation.r \\
+        --ncpu 1 \\
         --mapping_rate \${map_rate} \\
-        --temp \${temp_folder} \\
-        --output saturation_output.tsv
+        --nstep 20 \\
+        _tmp/tags.tab \\
+        saturation_output.tsv \\
+        \${n_cells}
     echo "Created saturation_output.tsv"
 
     cat <<-END_VERSIONS > versions.yml

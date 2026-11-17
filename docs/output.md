@@ -53,9 +53,13 @@ and the dashboard shows all of them together. With the default `geneext_downstre
 then holds just the alignment GeneExt read (BAM and logs), and appears nowhere else. See
 [Which runs GeneExt adds](CONFIGURATION_PARAMETERS.md#which-runs-geneext-adds).
 
-Both mappers are built on the same reference: `ref_fasta` and `ref_gtf` merged with
-`ref_fasta_addfeature` and `ref_gtf_addfeature` when those are set, and the GeneExt annotation for
-the `_geneext_` runs. 
+A samplesheet `filtering_report` group is named the same way: `<group><suffix>`, for example
+`larva_starsolo`. It appears from `metacells/` onwards, in place of its samples' runs. See
+[Combining samples](usage.md#combining-samples).
+
+Both mappers are built on the same reference: `ref_fasta`, with `ref_fasta_addfeature` appended
+when it is set, and `ref_gtf`, or the GeneExt annotation for the `_geneext_` runs.
+`ref_gtf_addfeature` is used only by the rRNA metrics.
 
 ## Directory structure
 
@@ -65,7 +69,7 @@ output_directory/
 ├── filtering_report.html           # (Optional) Interactive metacell filtering report
 ├── versions.yml                    # Software versions of every process that ran
 │
-├── pipeline_info/                  # Run configuration, samplesheet, execution traces
+├── pipeline_info/                  # Run configuration, samplesheet, parameters
 ├── genome/                         # Generated reference indices
 │
 ├── demultiplex/                    # (Protocol-dependent) demultiplexed FASTQ files
@@ -80,7 +84,7 @@ output_directory/
 │
 ├── cellsweep/                      # (Optional) CellSweep ambient RNA removal
 ├── doublet_filtering/              # (Optional) Scrublet, scDblFinder and consensus calls
-├── metacells/                      # (Optional) Metacell2 metacells and their QC summaries
+├── metacells/                      # (Optional) Metacell2 metacells and their QC summaries, per sample or group
 ├── metacell_filtering/             # (Optional) Filtered UMI matrices from the report's selection
 │
 ├── saturation/                     # (Optional) Sequencing saturation analysis
@@ -107,19 +111,29 @@ output_directory/
 | ---- | ----------- |
 | `run_config_<timestamp>.txt` | The full resolved configuration of the run — every parameter as it was actually used. |
 | `samplesheet_<timestamp>.csv` | A copy of the samplesheet used. |
-| `execution_report_<timestamp>.html` | Nextflow's execution report: resource usage per process. |
-| `execution_timeline_<timestamp>.html` | Nextflow's timeline of task execution. |
-| `execution_trace_<timestamp>.txt` | Per-task trace: CPU, memory, I/O, exit status, retries. |
+| `params_<timestamp>.json` | The run's parameters. Its `trace_report_suffix` names the run's execution trace. |
 | `pipeline_dag_<timestamp>.html` | The workflow DAG. |
+| `barcode_check.tsv` | One row per sample with the verdict of the [barcode check](CONFIGURATION_PARAMETERS.md#barcode-check) before mapping: `pass`, `fail` or `skipped`, the reads checked, the percentage whose barcode is on the whitelist (also per barcode segment, and as reverse complement), the barcode read length against the layout, the threshold and a note. Only written when the check ran, and overwritten by each run. |
 | `mapping_rate_check.tsv` | One row per sample with the verdict of the [mapping-rate check](CONFIGURATION_PARAMETERS.md#mapping-rate-check): mapper, stage (`mid-run` or `final`), reads processed, percentage mapped and threshold. Only written when the check ran, and overwritten by each run. |
 
 Files are timestamp-suffixed rather than overwritten, so repeated runs into the same output
 directory accumulate rather than replace.
 
+### Execution reports
+
+Nextflow's execution report, timeline and trace are not in the output directory: they are
+written to `execution_reports/` in the directory the pipeline was launched from.
+
+| File | Description |
+| ---- | ----------- |
+| `execution_report_<timestamp>.html` | Nextflow's execution report: resource usage per process. |
+| `execution_timeline_<timestamp>.html` | Nextflow's timeline of task execution. |
+| `execution_trace_<timestamp>.txt` | Per-task trace: CPU, memory, I/O, exit status, retries. |
+
 > [!IMPORTANT]
-> **Keep the `execution_trace_*.txt` files.** They are the input to
-> `bin/resource_efficiency.py`, which reports what your cluster actually used per process and
-> recommends adjusted resource requests. See [Resource tuning](RESOURCE_TUNING.md).
+> **Keep the `execution_trace_*.txt` files and `pipeline_info/`.** Together they are the
+> input to `bin/resource_efficiency.py`, which reports what your cluster actually used per
+> process and recommends adjusted resource requests. See [Resource tuning](RESOURCE_TUNING.md).
 
 The run configuration and samplesheet are also embedded in `dashboard.html`, so a dashboard
 found on its own remains self-describing.
@@ -142,8 +156,10 @@ Generated reference files, reusable across runs on the same species.
 | `star_index_<gtf_name>/` | `STARSOLO_INDEX` | STAR genome index, built once per run (`star_index_<gtf_name>_geneext/` for the GeneExt remap). |
 | `splici_index/` | `SALMON_SPLICI` | Spliced + intronic (splici) reference (`*_splici*.fa`) and its three-column transcript-to-gene map (`*_t2g_3col.tsv`), used by alevin-fry (`splici_index_geneext/` for the GeneExt remap). |
 | `salmon_index/` | `SALMON_INDEX` | Salmon index built on the splici reference (`salmon_index_geneext/` for the GeneExt remap). |
-| `ref.fasta`, `ref.gtf` | `MERGE_REF_FASTA`, `MERGE_REF_GTF` | Reference merged with `ref_fasta_addfeature` / `ref_gtf_addfeature`, when those are set. |
-| `ref_geneext.gtf` | `MERGE_REF_GTF_GENEEXT` | The GeneExt annotation merged with `ref_gtf_addfeature`, used by the GeneExt remap (`perform_geneext = true`). |
+| `ref.fasta` | `MERGE_REF_FASTA` | `ref_fasta` with the records of `ref_fasta_addfeature` appended, when it is set, except those that copy reference sequence. |
+| `rrna_regions.tsv` | `PREPARE_ADDFEATURE` | The added rRNA regions the rRNA metrics count, 0-based: the loci of `ref_gtf_addfeature` (`feature`), the records of `ref_fasta_addfeature` (`added_contig`), and the records dropped as copies (`duplicate_contig`). See [Added rRNA reference](CONFIGURATION_PARAMETERS.md#added-rrna-reference). |
+| `addfeature_report.tsv` | `PREPARE_ADDFEATURE` | Each added record, kept or dropped as a copy and of what, and each `ref_gtf_addfeature` contig ignored because neither FASTA holds it. |
+| `ref_geneext.gtf` | `MERGE_REF_GTF_GENEEXT` | The GeneExt annotation, used by the GeneExt remap (`perform_geneext = true`). |
 | `cellranger_ref/` | `CELLRANGER_MKREF` | Cell Ranger reference, only when `perform_cellranger = true`. |
 
 > [!TIP]
@@ -162,10 +178,15 @@ triggers.
 <summary><code>demultiplex/</code>, <code>marsseq_reformat/</code>, <code>fastp/</code></summary>
 
 **`demultiplex/demux_custom/<sample>/`** — Parse Biosciences. Reads assigned to samples by
-matching the first barcode against the split-well definition within a Hamming distance of 2.
+matching the first barcode against the split-well definition within an edit distance of 2.
 
 **`demultiplex/demux_spipe/`** — Parse Biosciences, when demultiplexing with split-pipe instead
 of the built-in demultiplexer.
+
+**`demultiplex/bc1_collapse/<sample>/<sample>_bc1_collapse.log`** — Parse Biosciences, with
+`parse_collapse_bc1`: the barcode reads whose round-1 barcode was rewritten to its well's
+oligo-dT barcode (by primer type and edit distance), tied between wells, unmatched or too short.
+The rewritten reads themselves are not published.
 
 **`demultiplex/<sample>/`** — OAK, written by `OAK_DEMUX`: the reads of one aliquot, selected
 on its i7 (optional) and i5 index, as `<sample>_S1_L001_{R1,R2,I1,I2}_001.fastq.gz`, plus
@@ -179,6 +200,18 @@ on its i7 (optional) and i5 index, as `<sample>_S1_L001_{R1,R2,I1,I2}_001.fastq.
 | `<sample>_R2.fastq.gz` | cDNA. |
 | `<sample>_R1_discarded*`, `<sample>_R2_discarded*` | Reads that could not be assigned. |
 | `<sample>_whitelist_p5*`, `_p7*`, `_ligation*`, `_rt*` | Per-run barcode whitelists, generated from the observed data and passed straight to the mapper. |
+
+**`demultiplex/scalebio/`** — ScaleBio:
+
+| File | Description |
+| ---- | ----------- |
+| `barcodes/barcodes.json` | The barcode lists as read: every segment's ids, sequences and canonical sequence. |
+| `barcodes/whitelist_<n>_<segment>.txt` | The canonical sequences of each segment, the mappers' whitelists. |
+| `<library>/<chunk>.metrics.json` | Per lane of a library: reads per category (`Pass`, `LinkerError`, `BarcodeError`, `UmiFiltered`, `TooShort`, `Unassigned`), `Exact`/`Corrected`/`Ambiguous`/`NoMatch`/`Error` per barcode, reads per sample and per RT well, and the i5 orientation used. |
+| `<library>/unassigned.<chunk>_*.fastq.gz` | With `scalebio_write_unassigned`: reads whose wells belong to no sample. |
+| `<sample>/<sample>_scalebio_cDNA.fastq.gz` | The sample's trimmed cDNA reads. |
+| `<sample>/<sample>_scalebio_BC_UMI.fastq.gz` | The synthetic barcode read: the cell barcode, then the UMI. v1.1 (37 nt): the corrected barcodes in list order. QuantumScale (24 nt): the cell's combination of list entries in 16 nt, decoded by `scalebio_demux.py decode`. |
+| `<sample>/<sample>.scalebio_demux.json` | The sample's read count, and the metrics of its libraries summed over their lanes. |
 
 **`marsseq_reformat/<sample>/`** — MARS-seq. Both reads rebuilt so that the batch barcode is
 prepended to the cell barcode. The resulting barcode read is 14 nt for v1 (CB 1–10, UMI 11–14)
@@ -211,10 +244,8 @@ These are run on the **raw** input files, before any protocol-specific read mani
 | `<id>_Solo.out/` | STARsolo output tree — see below. |
 | `<id>_Log.final.out` | Alignment summary: input reads, uniquely mapped %, multimapping %, unmapped % by reason. The source of most of the dashboard's Mapping tab. |
 | `<id>_Log.out` | Verbose run log, including the resolved parameters STAR ran with. |
-| `<id>_Log.progress.out` | Progress log. |
 | `<id>_Aligned.sortedByCoord.out.bam` | Coordinate-sorted alignments, present when `star_generateBAM = true`. Includes unmapped reads (`--outSAMunmapped Within`), which is what makes the Kraken step possible. Under `run_method = "geneext_only"` with the default `geneext_bam_only` it is written for GeneExt alone: no `CR`/`UR`/`CB`/`UB` tags and no unmapped reads. |
 | `<id>_Aligned.sortedByCoord.out.bam.bai` | BAM index. |
-| `<id>_SJ.out.tab` | Splice junctions. |
 
 Inside `<id>_Solo.out/` there is one directory per requested feature. The first two are produced
 by default (`--soloFeatures "Gene GeneFull_Ex50pAS"`):
@@ -229,11 +260,13 @@ by default (`--soloFeatures "Gene GeneFull_Ex50pAS"`):
 
 | Path | Description |
 | ---- | ----------- |
-| `raw/` | Unfiltered matrix over all barcodes: `matrix.mtx`, `features.tsv`, `barcodes.tsv`. |
-| `filtered/` | STARsolo's own cell-called matrix. **Only present when `cellfilter_method = "star_solocellfilter"`** — under the other methods it is removed after the summary is read, to avoid two competing "filtered" matrices. |
-| `Summary.csv` | Per-sample summary: reads, saturation, cells, median UMIs and genes per cell. Always written from STARsolo's own filter, even when a different cell-calling method is used. |
+| `raw/` | Unfiltered matrix over all barcodes: `matrix.mtx` (unique-gene counts), `features.tsv`, `barcodes.tsv`, and with a multi-gene `star_soloMultiMappers` (default `"EM"`) `UniqueAndMult-EM.mtx`: the unique plus the multi-gene counts, fractional. That one is the matrix analysed downstream. The file names here and below carry the type: ScaleBio defaults to `"PropUnique"`, so it writes `UniqueAndMult-PropUnique.mtx`, `filtered_UniqueAndMult-PropUnique/` and `<id>_PropUnique_UMIperCellSorted.txt`. See [STARsolo multi-gene reads](CONFIGURATION_PARAMETERS.md#starsolo-multi-gene-reads). |
+| `filtered/` | STARsolo's own cell-called matrix, unique-gene counts only: the cell set `Summary.csv` describes. Written under every `cellfilter_method`, but used downstream only with `"star_solocellfilter"`. Under `"second_derivative"` and `"manual_cutoff"` it is kept for comparison; the cells the pipeline called are in `filtered_secondderiv/filtered/`. |
+| `filtered_UniqueAndMult-EM/` | `GeneFull_Ex50pAS/` only, with `star_solocellfilter` and a multi-gene `star_soloMultiMappers`: the analysed matrix subset to STARsolo's own cells, as `matrix.mtx`. |
+| `<id>_UniqueAndMult-EM_statistics.json` | Next to `filtered_UniqueAndMult-EM/`: number of cells, mean and median UMIs per cell, median genes per cell and total genes detected, computed on that matrix. The dashboard reports these three medians/totals instead of `Summary.csv`'s, which count unique-gene UMIs only. |
+| `Summary.csv` | Per-sample summary: reads, saturation, cells, median UMIs and genes per cell. Always written from STARsolo's own filter and its unique-gene counts, even when a different cell-calling method or a multi-gene matrix is used. |
 | `CellReads.stats` | Per-barcode read statistics. |
-| `UMIperCellSorted.txt` | UMI count per barcode, sorted descending. This is the barcode-rank curve, and the input to second-derivative cell calling. |
+| `UMIperCellSorted.txt` | Unique-gene UMI count per barcode, sorted descending. This is STAR's barcode-rank curve, and the input to second-derivative cell calling when the analysed matrix is `matrix.mtx`; with a multi-gene matrix the curve is derived from that matrix instead (`filtered_secondderiv/<id>_EM_UMIperCellSorted.txt`). |
 | `Features.stats` | Feature-level assignment statistics. |
 
 Only `GeneFull_Ex50pAS/` gets a `filtered_secondderiv/` directory — it is the feature the
@@ -295,20 +328,24 @@ The location differs per mapper:
 
 | File | Description |
 | ---- | ----------- |
-| `filtered/` | The cell-called count matrix: `matrix.mtx`, `features.tsv`, `barcodes.tsv`. **This is the matrix most analyses should start from.** |
+| `filtered/` | The cell-called count matrix: `matrix.mtx`, `features.tsv`, `barcodes.tsv`. **This is the matrix most analyses should start from.** For STARsolo it is taken from the analysed raw matrix, so with the default `star_soloMultiMappers` (`"EM"`, or `"PropUnique"` for ScaleBio) it holds the multi-gene (fractional) counts. |
+| `<id>_EM_UMIperCellSorted.txt` | The barcode-rank curve derived from the analysed matrix, which the cutoff is read off and the dashboard plots (`<id>_PropUnique_UMIperCellSorted.txt` for ScaleBio, `<id>_Unique_UMIperCellSorted.txt` with `star_soloMultiMappers = "Unique"`). alevin-fry writes the same file as `<id>_alevin_UMIperCellSorted.txt`. |
 | `<id>_cutoff.txt` | The UMI threshold that was applied. |
-| `<id>_knee_data.json` | The barcode-rank curve and its second derivative, as plotted in the dashboard's Cell Calling tab. |
+| `<id>_knee_data.json` | The barcode-rank curve and its second derivative, as plotted in the dashboard's Cell Calling tab, plus how the boundary was chosen: the candidate bends and their significance (`candidates`), the ambient test at each tested bend (`ambient_tests`: non-ambient shares above and below, contrast, z), the rule that decided (`selection_rule`, `selection_tier`) and the ambient model (`ambient_model`). |
 | `<id>_secondderiv_statistics.json` | Statistics recomputed against this cutoff: number of cells, UMI cutoff, mean reads per cell, median UMIs and genes per cell, total genes detected, noise (% of UMIs in non-cell barcodes), sequencing saturation, and reads required to reach `saturation_target`. |
 
-The cutoff is placed at the most negative second derivative of the log-log cumulative UMI
-curve, searched between 0.1× and 10× the sample's `expected_cells`. The retained cell count is
-**not** forced towards `expected_cells`. For the full rationale, see
+The cutoff is placed at a bend of the log-log cumulative UMI curve: the bend whose barcodes
+above are unlike ambient RNA and whose barcodes below are like it, at the low-count end of its
+drop. `expected_cells` only breaks ties between equally good boundaries, so the retained cell
+count is **not** pulled towards it. For the details, see
 [Cell calling](CONFIGURATION_PARAMETERS.md#cell-calling).
 
 > [!NOTE]
 > `Summary.csv` in the STARsolo output is always written from STARsolo's own filter, even when
 > second-derivative calling is used. When the two disagree, `<id>_secondderiv_statistics.json`
-> is the one that describes the matrix in `filtered/`.
+> is the one that describes the matrix in `filtered/`. Likewise, with `star_solocellfilter` and a
+> multi-gene matrix, `GeneFull_Ex50pAS/<id>_UniqueAndMult-EM_statistics.json` describes
+> `filtered_UniqueAndMult-EM/`.
 
 </details>
 
@@ -405,6 +442,7 @@ carries not only the counts but everything that was called on them:
 | `obs["sample_id"]` | always |
 | `var["gene_name"]`, `var["feature_type"]` | always — the gene symbol and feature type from STARsolo's `features.tsv`; `var_names` are the gene IDs. alevin-fry's feature file has IDs only, so there `gene_name` is blank and `feature_type` absent |
 | `obs["doublet_status"]` | `perform_doublet_detection` — `singlet` / `doublet`. The empty droplets of a `raw`/`full` matrix were never evaluated and read `singlet` |
+| `obs["scrublet_call"]`, `obs["scdblfinder_call"]`, `obs["scrublet_score"]`, `obs["scdblfinder_score"]`, `uns["doublet_method"]` | as above — each tool's own call and score, and the `doublet_consensus_method` that combined them into `doublet_status`. Barcodes no tool evaluated read `NaN` |
 | `layers["cellsweep"]` | `ambient_rna_remover = "cellsweep"`, `raw`/`full` only — the denoised counts, aligned to `X` |
 | `obs["is_empty"]`, `obs["celltype"]`, `obs["alpha_hat"]` | as above — empty-droplet call, Leiden grouping, per-cell ambient fraction. Barcodes called empty read `is_empty = True` and `celltype = "empty"`; CellSweep estimates no ambient fraction for them, so their `alpha_hat` is `NaN` and their `layers["cellsweep"]` row is zero |
 | `var["ambient_hat"]` | as above — per-gene ambient profile |
@@ -486,15 +524,27 @@ selection. See
 
 | Path | Description |
 | ---- | ----------- |
-| `gene_table/gene_table.tsv` | One row per GTF gene: `gene_id`, `gene_name`, `chrom`, `biotype`, `is_mito` (on `mt_contig`), `is_rrna` (biotype matches `grep_rrna`) and `pfam` (domains from `gene_annotation`). |
-| `gene_table/gene_table_stats.json` | How many genes are mitochondrial or rRNA, and how many annotation rows resolved to a gene. |
-| `<id>/<id>_mc2_cells.h5ad` | Every called cell. `X` holds the raw counts, `obs["metacell"]` its group, plus per-cell `total_umis`, `pct_mito`, `pct_rrna`, the doublet call, CellSweep's `alpha_hat` and `layers["cellsweep"]` when available. `var["is_mito"]`, `var["is_rrna"]` and `var["pfam"]` come from the gene table; `var["gene_name"]` keeps the matrix's own symbol and takes the gene table's only where the matrix has none (all of alevin-fry's). A gene the two name differently is logged. `uns["mc_fingerprint"]` identifies the assignment. |
-| `<id>/<id>_mc2_metacells.h5ad` | One row per group, with summed raw UMIs over every gene and the group's QC in `obs`: cells, UMIs, mito %, doublet %, mean `alpha_hat`, UMAP coordinates and top markers. |
-| `<id>/<id>_mc_summary.json` | The report's input for this sample. For a sample with too few cells it holds `status: skipped` and the reason, and the two h5ad files are absent. |
+| `gene_table/gene_table.tsv` | One row per GTF gene: `gene_id`, `gene_name`, `chrom`, `biotype`, `is_mito` (on `mt_contig`), `is_rrna` (biotype matches `grep_rrna`) `pfam` (domains from `gene_annotation`) and `annot_name` (the name `gene_annotation` gives, if any). |
+| `gene_table/gene_table_stats.json` | How many genes are mitochondrial or rRNA, and the annotation's detected format, and how many of its rows resolved to a gene. |
+| `<id>/<id>_mc2_cells.h5ad` | Every called cell. `X` holds the raw counts, `obs["metacell"]` its group, plus per-cell `total_umis`, `pct_mito`, `pct_rrna`, the doublet call, CellSweep's `alpha_hat` and `layers["cellsweep"]` when available. `var["is_mito"]`, `var["is_rrna"]`, `var["pfam"]` and `var["annot_name"]` come from the gene table; `var["gene_name"]` keeps the matrix's own symbol and takes the gene table's only where the matrix has none (all of alevin-fry's). A gene the two name differently is logged. `uns["mc_fingerprint"]` identifies the assignment. |
+| `<id>/<id>_mc2_metacells.h5ad` | One row per group, with summed raw UMIs over every gene and the group's QC in `obs`: cells, UMIs, mito %, doublet %, mean `alpha_hat`, UMAP coordinates, top markers, and `max_lfc` and `n_genes_lfc1`: the highest log2 fold change of any gene over the median metacell, and the number of genes above log2 FC 1 (non-mitochondrial genes with at least 5 UMIs in the metacell; empty for the pseudo-groups). |
+| `<id>/<id>_mc_summary.json` | The report's input for this sample: per metacell (with the two fold-change numbers above), per cell (barcode, group, UMIs, genes, mito and rRNA UMIs, doublet call, `alpha_hat`) and per gene (totals, cells, specificity τ), plus the metacell profiles of every marker, the 500 most expressed genes and the 1,000 that vary most across metacells (among those with at least one UMI per metacell on average), which the report correlates. About 3–5 MB per 100,000 cells. For a sample with too few cells it holds `status: skipped` and the reason, and the two h5ad files are absent. |
 
 Besides the metacells (named as Metacell2 names them, e.g. `M12.34`), `obs["metacell"]` uses two
 pseudo-groups: `__outliers__` for cells Metacell2 left out of every metacell, and `__excluded__`
 for cells it never grouped (outside `mc2_min_cell_umis`/`mc2_max_cell_umis`).
+
+A `filtering_report` group (see [Combining samples](usage.md#combining-samples)) has its
+directory `<group><suffix>/`, with the three files above and two more:
+
+| Path | Description |
+| ---- | ----------- |
+| `<id>/<id>_group_cells.h5ad` | The samples' cell-called objects, pooled: the input of the group's Metacell2 run. Cells are named `<sample>:<barcode>`; `obs["sample"]` gives each cell's sample and `obs["sample_id"]` its analytical run. Each sample's CellSweep values are lifted from its own raw object. `var["ambient_hat"]` is the samples' mean weighted by their cells, and `var["ambient_hat:<sample>"]` keeps each sample's own. `uns["group_members"]` lists the samples. |
+| `<id>/<id>_group_members.tsv` | The samples pooled, with their analytical run and their cells. |
+
+The group's `_mc2_cells.h5ad` keeps `obs["sample"]`. Its `_mc_summary.json` adds the samples
+(`sample.members`), each cell's sample (`cells.member`) and each metacell's cells per sample
+(`member_counts`).
 
 </details>
 
@@ -506,14 +556,31 @@ its CDN, so the first view needs an internet connection.
 
 | Tab | Contents |
 | --- | -------- |
-| Cell-level filtering | Histograms of mitochondrial %, doublet % and mean ambient fraction per metacell, with a draggable threshold line, Metacell2's UMAP (click or lasso to blacklist) beside the current blacklist, and a sortable metacell table. |
-| Gene-level filtering | Ranked total UMIs per gene and their histogram, with a draggable minimum on both, PFAM domains by tick-box, preset or regular expression, mitochondrial genes, a gene blacklist beside the genes those settings exclude, and a sortable table of all genes with their status. |
-| Export selection | *Apply settings to all samples* and *Reset all samples to defaults*, then three steps: a table of every sample with the status of its two levels (*Applied* or *Pending*) and what it keeps, the download of `metacell_selection.json`, and the rerun that applies it. Below them, *Load selection* continues from an earlier export. |
+| Cell-level filtering | Per-cell histograms with draggable thresholds: UMIs and genes detected (a minimum and a maximum each, with Metacell2's UMI range marked), mitochondrial and rRNA %, CellSweep α, and reads per cell (STARsolo). UMIs against genes detected, and sequencing depth against UMIs per cell, shaded by saturation band (0–50, 50–80, 80–90, > 90 %) with rays at 0, 50, 80 and 90 %, axes to the 99th percentile, and a toggle for doublet-called cells. |
+| Metacell-level filtering | A scatterplot of two QC metrics per metacell, picked from eight: median UMIs per cell, rRNA %, doublet %, max log2 fold change, genes above log2 FC 1, ambient RNA % (mean CellSweep α), mito % and cells. Each is over the cells the cell level keeps, except the two fold changes (all cells). Every metric has a threshold (a maximum for the percentages, a minimum for the others), switched on and set in the plot's bar for the axis that shows it and drawn there as a dashed line to drag; thresholds still on for metrics not plotted are listed, each a button that plots it. Click or lasso a metacell to blacklist it. A metric the sample lacks is left out, with the reason. Beside it, Metacell2's UMAP (click or lasso to blacklist), coloured by either of the plot's two metrics, by status or by a gene. Below, a static heatmap of each metacell's markers, whose status strip on top blacklists a metacell when clicked. A sortable metacell table with each metacell's status (Metacell2's two pseudo-groups, `__outliers__` and `__excluded__`, are on the blacklist by default; untick one to keep its cells); clicking a marker there colours the UMAP by it. |
+| Gene-level filtering | Ranked total UMIs per gene and their histogram, with a draggable minimum and/or maximum. Beside them, CellSweep's ambient share per gene, with a maximum. Every PFAM domain by its share of UMIs, with its number of genes: a search field narrows the chart and excludes the domains a name or regular expression matches, and a click selects a domain and lists its genes beside it, under a head with the domain's status and a button that blacklists it or removes it from the blacklist. Domains, top genes and the selected gene sit in three numbered columns, under a strip that shows the domain the genes are narrowed to (cleared there) and the gene open, with a finder that opens any gene by name or ID. Co-expression across metacells is Pearson r of log(1 + CP10k), over the kept metacells (all of them when fewer than 5 are kept). Beside the domains, the 50 genes (or the selected domain's genes) with most UMIs in those metacells: their share of those UMIs as bars, next to a clustered heatmap of their correlations, each bar beside its row; a click on either selects a gene. Beside that, the selected gene's correlation curve (every profiled gene ranked by r with it, where a module shows as a plateau before the drop) over the genes most correlated with it, with a cut-off, draggable on either, above which the kept genes can be blacklisted at once (e.g. a mitochondrial, ribosomal or stress module). The bar charts scroll under a fixed axis. A sortable table of all genes with their status, τ and three most co-expressed genes (or why a gene has none: most are too sparse to correlate, with fewer UMIs than one per metacell; the heatmap shows such genes in a grey band), searched with text or a regular expression (e.g. `^mt-`), whose kept matches can be blacklisted at once; a gene an excluded domain carries can be unticked to keep it alone (`gene_rules.pfam_keep` in the selection). |
 
-Each sample has its own cell- and gene-level settings. A level is *pending* until you open its
-tab with the sample selected, which applies it, or copy another sample's settings with *Apply
-settings to all samples* (which leaves each sample's blacklists alone). Only samples with both
-levels applied go into the selection.
+Every plot and table shows what the current settings exclude, and the summary at the top lists the settings in force and the running totals; there is no separate list of excluded items.
+| Export selection | *Apply settings to all samples* and *Reset all samples to defaults*, then three steps: a table of every sample with the status of its three levels (*Applied* or *Pending*) and what it keeps, the download of `metacell_selection.json`, and the rerun that applies it. Below them, *Load selection* continues from an earlier export. |
+
+The levels act in the pipeline's order. The cell level removes single cells. The metacell level
+judges each metacell on the cells left (Metacell2 is not rerun; its numbers are summed again).
+A cell is kept when it passes the cell level and its metacell is kept. Gene totals are over all
+called cells. Per-cell reads and saturation come from STARsolo's `CellReads.stats`. An
+alevin-fry run borrows the STARsolo run's of the same sample when at least 90 % of its barcodes
+match.
+
+Each sample has its own settings at each level. A level is *pending* until you open its tab
+with the sample selected, which applies it, or copy another sample's settings with *Apply
+settings to all samples* (which leaves each sample's blacklists alone). Only samples with every
+level applied go into the selection.
+
+A `filtering_report` group is one entry of the selector, labelled with its number of samples.
+Its statistics list the samples and their cells. Its mtDNA, rRNA and antisense read percentages
+are the samples' own, weighted by their cells. Each cell's reads come from its own sample's
+`CellReads.stats`. The metacell table gains a *Main sample %* column: the share of each
+metacell's cells from the sample it holds most of. The hover text of a metacell gives the full
+split.
 
 The report remembers your choices in the browser between visits. *Reset all samples to
 defaults* clears them.
@@ -530,7 +597,8 @@ Written by the `-resume --metacell_selection metacell_selection.json` rerun.
 | `matrix.mtx`, `barcodes.tsv`, `features.tsv` | The kept cells × kept genes, raw UMIs, in the 10x orientation. |
 | `<id>_final.h5ad` | The same cells, with `obs["metacell"]`, the per-cell QC and annotations, and `layers["cellsweep"]` when present. Under `metacell_gene_mode = "flag"` every gene is kept, with `var["pass_filter"]` and `var["exclusion_reasons"]`. |
 | `<id>_final_metacells.h5ad` | The kept metacells × genes, summed raw UMIs. |
-| `<id>_filter_summary.json` | What was kept and from what (cells, metacells, genes, UMIs), with the rules the selection recorded. |
+| `<id>_filter_summary.json` | What was kept and from what (cells, metacells, genes, UMIs), the cells the cell level excluded, and the cell, metacell and gene rules the selection recorded. For a group, also the cells kept per sample (`members_cells_kept`). |
+| `members/<sample>/` | Only for a `filtering_report` group: each sample's kept cells on their own, as `matrix.mtx`, `barcodes.tsv`, `features.tsv` and `<sample>_final.h5ad`. The barcodes are the sample's own again, without the `<sample>:` prefix. |
 
 </details>
 
@@ -576,8 +644,12 @@ on the mitochondrial genome. The name describes where the read maps, not the mol
 from. In RNA-seq nearly all of these reads come from mitochondrially encoded transcripts. This
 is the read-level counterpart of `percent.mt` / `pct_counts_mt`.
 
-**rRNA reads** are reads overlapping any feature whose biotype contains "rRNA" (rRNA, Mt_rRNA,
-rRNA_pseudogene, …), plus every read on a contig of `ref_gtf_addfeature`. Mt_rRNA (MT-RNR1/2)
+**rRNA reads** are reads with an aligned block overlapping, by at least 1 bp, either:
+- a feature of `ref_gtf` whose biotype contains "rRNA" (rRNA, Mt_rRNA, rRNA_pseudogene, …);
+- a locus of `ref_gtf_addfeature`;
+- a contig of `ref_fasta_addfeature`, over its whole length (`genome/rrna_regions.tsv`).
+
+Mt_rRNA (MT-RNR1/2)
 is polyadenylated and is often most of the rRNA signal in poly(A)-captured libraries. A read on
 it is both an mtDNA and an rRNA read, so the two percentages overlap and must not be summed.
 
@@ -690,7 +762,6 @@ reads are extracted from the BAM.
 | ---- | ----------- |
 | `<analytical_run>.k2report` | Kraken 2 report: reads assigned per taxon, with the standard rank hierarchy. |
 | `<analytical_run>*.sankey.html` | Pavian Sankey diagram of the classification. |
-| `kraken_db/kraken_db_path.txt` | The resolved path of the database used. |
 
 The Sankey data are embedded into the dashboard's Taxonomic Classification tab, so you do not
 need to open these files separately.
@@ -720,7 +791,7 @@ Seven tabs, plus one that appears only when the run produced an extended annotat
 
 | Tab | Content |
 | --- | ------- |
-| **Mapping** | Read counts, Q30 rates, uniquely/multi/unmapped percentages, intronic read percentage, rRNA and mtDNA read percentages (library and called cells, and mtDNA reads by strand; see `rRNA_mtDNA/`), cells, saturation, median UMIs and genes. Includes a cross-sample overview table. |
+| **Mapping** | Read counts, Q30 rates, barcodes on the whitelist (the [barcode check](CONFIGURATION_PARAMETERS.md#barcode-check)'s exact matches on the first reads, and STARsolo's `Reads With Valid Barcodes` for the whole run), uniquely/multi/unmapped percentages, intronic read percentage, rRNA and mtDNA read percentages (library and called cells, and mtDNA reads by strand; see `rRNA_mtDNA/`), cells, saturation, median UMIs and genes. Includes a cross-sample overview table. |
 | **Cell Calling** | Barcode-rank knee curves and second-derivative curves per sample, with the chosen cutoff marked, alongside `expected_cells` and the cutoffs each method would have chosen. |
 | **Saturation** | Saturation and residual curves. |
 | **Per-Cell Visualizations** | Per-cell scatter over intronic %, mtDNA %, rRNA %, mapped reads and cell/non-cell status. |
@@ -728,6 +799,13 @@ Seven tabs, plus one that appears only when the run produced an extended annotat
 | **Cell Filtering** | CellSweep ambient-contribution histogram, top ambient genes and UMAP comparison. |
 | **Gene Extension** | Only with `perform_geneext = true`. How many genes GeneExt extended and by how much, the 3′-extension length distribution, the MACS2 peak-filtering flow and coverage threshold, the `--maxdist` that was applied and any annotation fixes GeneExt made. |
 | **Configurations** | The run configuration merged with each sample's samplesheet row. |
+
+When the samplesheet has `qc_report` groups (see
+[Combining samples](usage.md#combining-samples)), a **Sample groups** box appears below the
+summary. It has a table of each group's samples with a pooled row, every sample's barcode-rank
+curve on one plot, and the mapped reads per called cell of every sample side by side. The summary
+table gains a *Group* column and the pooled rows, and the sample selector lists the samples under
+their group. Values that can only be approximated in the pooled row are marked ≈.
 
 All analytical runs of a sample appear together, so STARsolo, alevin-fry and GeneExt results
 are compared side by side. The Gene Extension tab is the exception: GeneExt runs once per

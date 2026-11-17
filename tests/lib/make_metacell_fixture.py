@@ -33,7 +33,8 @@ The gene axis carries the awkward cases the matching has to handle:
     GENE011                 one UMI, named like the report's placeholder
 
 The ambient (raw) h5ad holds the called cells shuffled among empty droplets, so a
-lift by position instead of by barcode gives wrong values.
+lift by position instead of by barcode gives wrong values. S1_starsolo_CellReads.stats
+gives every called cell its reads (cell_reads), for the per-cell saturation.
 
 Usage: make_metacell_fixture.py OUTDIR
 """
@@ -74,6 +75,35 @@ LOW_GENE = "GENE011"
 
 # Expected domains after build_gene_table.py has resolved and cleaned them
 EXPECTED_DOMAINS = {"GENE003": ["Ribosomal_L3"], "GENE004": ["PF00125"]}
+
+# The same for the other annotation formats build_gene_table.py detects: per file,
+# the format, the domains and annotation names per gene, and rows read / resolved
+ANNOTATION_FORMAT_CASES = {
+    "annot_headerless3.tsv": {
+        "format": "headerless",
+        "domains": {"GENE001": ["Actin"], "GENE002": ["Gp_dh_C", "Gp_dh_N"], "GENE004": ["Histone"]},
+        "names": {"GENE001": "ACTB", "GENE003": "RPL3", "GENE004": "H2AZ1"},
+        "rows": (6, 5),
+    },
+    "annot_headerless2.tsv": {
+        "format": "headerless",
+        "domains": {"GENE001": ["Actin"], "GENE003": ["Ribosomal_L3"]},
+        "names": {},
+        "rows": (3, 3),
+    },
+    "annot_emapper.tsv": {
+        "format": "emapper",
+        "domains": {"GENE001": ["Actin"], "GENE003": ["Ribosomal_L3"], "GENE004": ["Histone", "Histone_H2A_C"]},
+        "names": {"GENE001": "ACTB", "GENE003": "RPL3"},
+        "rows": (3, 3),
+    },
+    "annot_pfamscan.txt": {
+        "format": "pfamscan",
+        "domains": {"GENE003": ["Ribosomal_L3"], "GENE004": ["Histone", "Histone_H2A_C"]},
+        "names": {},
+        "rows": (4, 3),
+    },
+}
 
 MT_CONTIG = ["chrM", "MT"]
 
@@ -154,6 +184,29 @@ def doublet_status():
     return ["doublet" if c < DOUBLETS[g] else "singlet" for _, g, c in cells()]
 
 
+# The tools' own calls behind the AnySinglet consensus: both call the consensus doublets,
+# and Scrublet alone also calls the last cell, which the consensus keeps
+def scdblfinder_call():
+    return doublet_status()
+
+
+def scrublet_call():
+    calls = doublet_status()
+    return calls[:-1] + ["doublet"]
+
+
+def doublet_callers():
+    return [int(a == "doublet") | 2 * int(b == "doublet") for a, b in zip(scrublet_call(), scdblfinder_call())]
+
+
+def scrublet_score():
+    return [round(0.01 * (i + 1), 4) for i in range(len(barcodes()))]
+
+
+def scdblfinder_score():
+    return [round(1 - 0.01 * (i + 1), 4) for i in range(len(barcodes()))]
+
+
 def alpha_hat():
     return [ALPHA[g] for g in groups()]
 
@@ -189,6 +242,37 @@ def expected_doublet_pct(group):
     return 100.0 * DOUBLETS[group] / group_sizes()[group]
 
 
+def expected_tau():
+    """The specificity of every gene over the real metacells, from the dense counts:
+    tau = sum(1 - x / max x) / (n - 1), x = log1p(CP10k); None for a gene with no UMI."""
+    X = counts()
+    sums = np.array([X[[i for i, g in enumerate(groups()) if g == grp]].sum(axis=0) for grp in GROUPS])
+    x = np.log1p(1e4 * sums / sums.sum(axis=1, keepdims=True))
+    peak = x.max(axis=0)
+    return [float((1 - x[:, j] / peak[j]).sum() / (len(GROUPS) - 1)) if peak[j] > 0 else None
+            for j in range(X.shape[1])]
+
+
+def expected_enrichment():
+    """Per real metacell, from the dense counts: the highest log2 fold change over the gene's
+    median metacell (fractions, eps 1e-5) of a non-mito gene with at least 5 UMIs in it, and
+    how many such genes are above log2 FC 1."""
+    X = counts()
+    sums = np.array([X[[i for i, g in enumerate(groups()) if g == grp]].sum(axis=0) for grp in GROUPS])
+    frac = sums / sums.sum(axis=1, keepdims=True)
+    score = np.log2((frac + 1e-5) / (np.median(frac, axis=0) + 1e-5))
+    eligible = (sums >= 5) & ~np.isin(GENE_IDS, MITO_GENES)
+    out = {}
+    for k, grp in enumerate(GROUPS):
+        s = score[k][eligible[k]]
+        out[grp] = (float(s.max()) if s.size else None, int((s > 1).sum()))
+    return out
+
+
+def doublet_barcodes():
+    return [bc for bc, d in zip(barcodes(), doublet_status()) if d == "doublet"]
+
+
 def write_gtf(path):
     with open(path, "w") as fh:
         fh.write("#!genome-build fixture\n")
@@ -215,6 +299,56 @@ def write_annotation(path):
             fh.write(f"{key}\t{dom}\n")
 
 
+def write_annotation_headerless3(path):
+    # <sp>_long.pep.annotations.csv style: id, name, '/'-separated architecture with a
+    # trailing '/'; empty names, id-only rows and a name without domains
+    lines = [
+        "GENE001\tACTB\tActin/",
+        "TX002\t\tGp_dh_N/Gp_dh_C/",
+        "PROT004\tH2AZ1\tHistone/Histone/",
+        "GENE009",
+        "UNKNOWN_KEY\tFOO\tFoo/",
+        "GENE003\tRPL3\t",
+    ]
+    with open(path, "w") as fh:
+        fh.write("\n".join(lines) + "\n")
+
+
+def write_annotation_headerless2(path):
+    # <sp>_long.pep.pfamscan_archs.csv style: id, architecture; id-only rows
+    with open(path, "w") as fh:
+        fh.write("GENE001\tActin\nGENE009\nTX003\tRibosomal_L3\n")
+
+
+def write_annotation_emapper(path):
+    # eggNOG-mapper 2.x: '##' preamble and footer around a '#query' table of 21 columns
+    cols = ["#query", "seed_ortholog", "evalue", "score", "eggNOG_OGs", "max_annot_lvl", "COG_category",
+            "Description", "Preferred_name", "GOs", "EC", "KEGG_ko", "KEGG_Pathway", "KEGG_Module",
+            "KEGG_Reaction", "KEGG_rclass", "BRITE", "KEGG_TC", "CAZy", "BiGG_Reaction", "PFAMs"]
+    rows = [("PROT001", "ACTB", "Actin"), ("TX003.1", "RPL3", "Ribosomal_L3"),
+            ("PROT004", "-", "Histone,Histone_H2A_C")]
+    with open(path, "w") as fh:
+        fh.write("## Mon Nov 10 12:00:00 2026\n## emapper-2.1.12\n## command: emapper.py -i fixture.fasta\n##\n")
+        fh.write("\t".join(cols) + "\n")
+        for key, name, pfam in rows:
+            fields = ["-"] * len(cols)
+            fields[0], fields[8], fields[20] = key, name, pfam
+            fh.write("\t".join(fields) + "\n")
+        fh.write("## 3 queries scanned\n## Total time (seconds): 1.0\n")
+
+
+def write_annotation_pfamscan(path):
+    # pfam_scan.pl: comment block, whitespace-aligned columns, one row per hit
+    with open(path, "w") as fh:
+        fh.write("# pfam_scan.pl,  run at Wed May  3 15:24:15 2023\n#\n")
+        fh.write("# <seq id> <alignment start> <alignment end> <envelope start> <envelope end> <hmm acc> "
+                 "<hmm name> <type> <hmm start> <hmm end> <hmm length> <bit score> <E-value> <significance> <clan>\n\n")
+        fh.write("PROT004          3    243      3    243 PF00125.27  Histone           Family     1   233   233    240.7   1.5e-71   1 No_clan\n")
+        fh.write("PROT004        251    300    250    301 PF16211.8   Histone_H2A_C     Domain     1    50    50     60.0   1e-10     1 No_clan\n")
+        fh.write("TX003.1         10    100     10    100 PF00297.25  Ribosomal_L3      Family     1    90    90     99.6   1e-28     1 CL0107\n")
+        fh.write("UNKNOWN_KEY      1     10      1     10 PF00001.1   Foo               Family     1    10    10      5.0   1         1 No_clan\n")
+
+
 def write_metrics(outdir, sample_id):
     with open(os.path.join(outdir, f"{sample_id}_mt_rrna_metrics.txt"), "w") as fh:
         fh.write("Metric,Count\n")
@@ -226,6 +360,28 @@ def write_metrics(outdir, sample_id):
     with open(os.path.join(outdir, f"{sample_id}_antisense_metrics.txt"), "w") as fh:
         fh.write("Metric,Count\n")
         fh.write(f"Percentage of antisense reads (of reads assigned to genes),{FC_ANTISENSE_FRACTION:.4f}\n")
+
+
+def cell_reads():
+    """The reads STARsolo counted into the matrix for each called cell (countedU): three per
+    UMI plus the cell's position, so no two cells share a saturation."""
+    X = counts()
+    return [int(3 * X[i].sum() + i) for i in range(X.shape[0])]
+
+
+def write_cellreads(path):
+    """A STARsolo CellReads.stats: its pass-list row, every called cell, and empty droplets."""
+    X = counts()
+    cols = ["CB", "cbMatch", "cbPerfect", "exonic", "intronic", "mito", "genomicNoGene",
+            "countedU", "countedM", "nGenesUnique", "nGenesMulti", "nUMIunique", "nUMImulti"]
+    with open(path, "w") as fh:
+        fh.write("\t".join(cols) + "\n")
+        fh.write("CBnotInPasslist\t500\t0\t0\t0\t0\t0\t0\t0\t0\t0\t0\t0\n")
+        for i, (bc, reads) in enumerate(zip(barcodes(), cell_reads())):
+            umis, genes = int(X[i].sum()), int((X[i] > 0).sum())
+            fh.write(f"{bc}\t{reads}\t{reads}\t{reads}\t0\t0\t0\t{reads}\t0\t{genes}\t0\t{umis}\t0\n")
+        for i in range(N_EMPTY):
+            fh.write(f"EMPTY{i:03d}\t2\t2\t2\t0\t0\t0\t2\t0\t1\t0\t1\t0\n")
 
 
 SMOKE_TYPES = 4
@@ -271,7 +427,12 @@ def main(outdir):
     os.makedirs(outdir, exist_ok=True)
     write_gtf(os.path.join(outdir, "genes.gtf"))
     write_annotation(os.path.join(outdir, "pfam.tsv"))
+    write_annotation_headerless3(os.path.join(outdir, "annot_headerless3.tsv"))
+    write_annotation_headerless2(os.path.join(outdir, "annot_headerless2.tsv"))
+    write_annotation_emapper(os.path.join(outdir, "annot_emapper.tsv"))
+    write_annotation_pfamscan(os.path.join(outdir, "annot_pfamscan.txt"))
     write_metrics(outdir, "S1_starsolo")
+    write_cellreads(os.path.join(outdir, "S1_starsolo_CellReads.stats"))
 
     X = counts()
     bcs = barcodes()
@@ -281,11 +442,17 @@ def main(outdir):
     obs = pd.DataFrame(index=pd.Index(bcs))
     obs["sample_id"] = "S1"
     obs["doublet_status"] = pd.Categorical(doublet_status(), categories=["singlet", "doublet"])
+    obs["scrublet_call"] = pd.Categorical(scrublet_call(), categories=["singlet", "doublet"])
+    obs["scdblfinder_call"] = pd.Categorical(scdblfinder_call(), categories=["singlet", "doublet"])
+    obs["scrublet_score"] = scrublet_score()
+    obs["scdblfinder_score"] = scdblfinder_score()
     obs["mc_truth"] = groups()
-    ad.AnnData(X=sp.csr_matrix(X), obs=obs, var=var.copy()).write_h5ad(os.path.join(outdir, "cells.h5ad"))
+    ad.AnnData(X=sp.csr_matrix(X), obs=obs, var=var.copy(), uns={"doublet_method": "AnySinglet"}).write_h5ad(
+        os.path.join(outdir, "cells.h5ad"))
 
     # The same without doublet calls, for the 'absent' mode
-    ad.AnnData(X=sp.csr_matrix(X), obs=obs.drop(columns=["doublet_status"]), var=var.copy()).write_h5ad(
+    no_calls = ["doublet_status", "scrublet_call", "scdblfinder_call", "scrublet_score", "scdblfinder_score"]
+    ad.AnnData(X=sp.csr_matrix(X), obs=obs.drop(columns=no_calls), var=var.copy()).write_h5ad(
         os.path.join(outdir, "cells_nodoublets.h5ad"))
 
     # The raw object: called cells shuffled among empty droplets, CellSweep's results on it

@@ -12,7 +12,9 @@ process MTX_TO_H5AD {
     memory { BcaResources.scaledMemory(
         params.dynamic_memory?.MTX_TO_H5AD, [mtx, barcodes, features, cellsweep_h5ad], task.attempt, 10) }
 
-    container 'oras://community.wave.seqera.io/library/scanpy:1.12--45f1dccaf83880df'
+    container "${ workflow.containerEngine in ['singularity', 'apptainer'] && !task.ext.singularity_pull_docker_container ?
+        'oras://community.wave.seqera.io/library/scanpy:1.12--45f1dccaf83880df' :
+        'community.wave.seqera.io/library/scanpy:1.12--5ff2311f82c2a62b' }"
     conda "${moduleDir}/environment.yml"
 
     input:

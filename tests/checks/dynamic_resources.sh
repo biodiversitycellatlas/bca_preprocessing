@@ -1,5 +1,5 @@
 #!/usr/bin/env bash
-# description: Exercise lib/BcaResources.groovy, which sizes memory from input size
+# description: Exercise lib/BcaResources.groovy, which sizes memory, time and cpus from input size
 #
 # This code decides how much memory a task asks the scheduler for. A mistake here
 # does not throw -- it produces a plausible number that is too small, and the task
@@ -45,12 +45,26 @@ Cases:
   retry_ladder      task.attempt still multiplies the request
   staged_input      an input arriving as a staged TaskPath is measured, not read as 0
   staged_resident_floor  the resident floor survives that same trip
+  nested_inputs     a list of multi-file inputs is measured in full, not read as 0
+  files_ending_with only a directory's matching files are measured (Kraken2 *.k2d)
+  files_in          only the named files of a staged directory are measured (STARsolo raw/)
+  time_no_spec      an unmeasured process gets exactly its time limit
+  time_malformed    partial, empty and undefined time entries fall back, never throw
+  time_scaling      the time limit tracks the input size between floor and cap
+  time_floor_default without floor_h the label is the floor, so a limit never shrinks
+  time_cap          cap_h bounds the first attempt; without it the label does
+  time_retry_ladder task.attempt still multiplies the time limit
+  time_parses       every returned limit parses as a Nextflow Duration
+  time_staged_input a staged TaskPath input is measured for time too
+  cpus_off          tieredCpus gives the base count while its threshold is unset
+  cpus_tiered       tieredCpus steps up above the threshold, times task.attempt
   bamsort_derived   STAR's BAM sort budget is the allocation minus index and slack
   bamsort_pinned    params.star_limitBAMsortRAM is used verbatim
   bamsort_no_memory no allocation to derive from leaves STAR its own default
   bamsort_unmeasured  an unmeasurable index falls back to a fraction, not a guess
   bamsort_floor     an index larger than the allocation floors at 1 GB
-  config_shape      the dynamic_memory map in nextflow.config parses and is complete
+  config_shape      the dynamic_memory, dynamic_time and dynamic_cpus maps in
+                    nextflow.config parse and are complete
 EOF
 }
 
@@ -82,10 +96,20 @@ if [[ -z "$JAR" || ! -f "$JAR" ]]; then
 fi
 
 WORKDIR="$BCA_TEST_LOGDIR/dynamic_resources"
-mkdir -p "$WORKDIR/small_input" "$WORKDIR/big_reference"
+mkdir -p "$WORKDIR/small_input" "$WORKDIR/big_reference" "$WORKDIR/kraken_db/library"
 # 256 MB of input, 2 GB of resident reference.
 head -c 268435456 /dev/zero >"$WORKDIR/small_input/data.mtx" 2>/dev/null || true
 head -c 2147483648 /dev/zero >"$WORKDIR/big_reference/SA" 2>/dev/null || true
+# A Kraken2 database built in place: 3 MB of *.k2d, plus build leftovers that are not loaded.
+head -c 2097152 /dev/zero >"$WORKDIR/kraken_db/hash.k2d"
+head -c 1048576 /dev/zero >"$WORKDIR/kraken_db/taxo.k2d"
+head -c 4194304 /dev/zero >"$WORKDIR/kraken_db/seqid2taxid.map"
+head -c 8388608 /dev/zero >"$WORKDIR/kraken_db/library/library.fna"
+# A STARsolo Solo.out: 3 MB in the files a step reads, a 4 MB matrix next to them it does not.
+mkdir -p "$WORKDIR/solo_out/Gene/raw"
+head -c 2097152 /dev/zero >"$WORKDIR/solo_out/Gene/raw/matrix.mtx"
+head -c 1048576 /dev/zero >"$WORKDIR/solo_out/Gene/raw/barcodes.tsv"
+head -c 4194304 /dev/zero >"$WORKDIR/solo_out/Gene/raw/UniqueAndMult-EM.mtx"
 
 cat >"$WORKDIR/Spec.groovy" <<'GROOVY'
 import java.nio.file.Paths
@@ -165,6 +189,105 @@ check("staged_input", stagedBytes == BcaResources.totalBytes(bigRef) && stagedBy
 check("staged_resident_floor", BcaResources.scaledMemory(tiny, input, 1, 48, staged) == "3 GB",
       BcaResources.scaledMemory(tiny, input, 1, 48, staged) + " (want 3 GB)")
 
+// A path input that received a collected list reaches the directive as a list of its
+// own (a BlankSeparatedList), so GENERATE_DASHBOARD's inputs are a list of lists.
+def multi       = new nextflow.util.BlankSeparatedList([staged, input.resolve("data.mtx")])
+def nestedBytes = BcaResources.totalBytes([multi, [input]])
+check("nested_inputs", nestedBytes == 2147483648L + 2L * 268435456L,
+      "nested=" + nestedBytes + " (want " + (2147483648L + 2L * 268435456L) + ")")
+
+// Only the *.k2d files of a Kraken2 database are loaded; the library/ a database built
+// in place keeps, and its maps, must not count. The directory arrives staged.
+def k2d      = BcaResources.filesEndingWith(new TaskPath(new FileHolder(work.resolve("kraken_db"))), ".k2d")
+def k2dBytes = BcaResources.totalBytes(k2d)
+def noDir    = BcaResources.filesEndingWith(Paths.get("does-not-exist"), ".k2d")
+check("files_ending_with", k2d.size() == 2 && k2dBytes == 3145728L && noDir.isEmpty(),
+      k2d.size() + " files, " + k2dBytes + " bytes (want 2 files, 3145728 bytes); missing dir gives " + noDir.size())
+
+// Only the named files of a staged directory are measured: STARsolo's raw/ holds every
+// multi-gene matrix next to matrix.mtx, and only the analysed one is loaded. Absent
+// names, empty names and subdirectories are left out; nested paths resolve.
+def soloDir  = new TaskPath(new FileHolder(work.resolve("solo_out")))
+def named    = BcaResources.filesIn(soloDir,
+        ["Gene/raw/matrix.mtx", "Gene/raw/barcodes.tsv", "Velocyto/raw/spliced.mtx", "", null, "Gene/raw"])
+def namedBytes = BcaResources.totalBytes(named)
+def noSolo   = BcaResources.filesIn(Paths.get("does-not-exist"), ["matrix.mtx"])
+check("files_in", named.size() == 2 && namedBytes == 3145728L && noSolo.isEmpty(),
+      named.size() + " files, " + namedBytes + " bytes (want 2 files, 3145728 bytes; the 4 MB " +
+      "UniqueAndMult-EM.mtx left out); missing dir gives " + noSolo.size())
+
+// Time: an unmeasured process keeps exactly its limit, in a form Nextflow parses.
+check("time_no_spec", BcaResources.scaledTime(null, input, 1, 0.75) == "45m" &&
+      BcaResources.scaledTime(null, input, 1, 7) == "420m",
+      BcaResources.scaledTime(null, input, 1, 0.75) + ", " + BcaResources.scaledTime(null, input, 1, 7) +
+      " (want 45m, 420m)")
+
+def parsedTime = ConfigParserFactory.create()
+        .parse("params { dynamic_time = [ PARTIAL: [ exponent: 1.0 ] ] }")
+        .params.dynamic_time
+def tspec = [exponent: 1.0d, ref_gb: 0.25, time_h: 1, floor_h: 0.5, cap_h: 24]
+def tmalformed = [
+    BcaResources.scaledTime(parsedTime?.ABSENT,  input, 1, 2),
+    BcaResources.scaledTime(parsedTime?.PARTIAL, input, 1, 2),
+    BcaResources.scaledTime([:],                 input, 1, 2),
+    BcaResources.scaledTime(tspec, Paths.get("does-not-exist"), 1, 2),
+]
+check("time_malformed", tmalformed.every { it == "120m" }, tmalformed.join(", ") + " (all want 120m)")
+
+// The limit tracks the input: anchored at the input it is time_h, at 8x the anchor 8x.
+def atRef   = BcaResources.scaledTime(tspec, input, 1, 0.5)
+def bigger  = BcaResources.scaledTime([exponent: 1.0d, ref_gb: 0.03125, time_h: 1, floor_h: 0.5, cap_h: 24], input, 1, 0.5)
+check("time_scaling", atRef == "60m" && bigger == "480m",
+      "anchored=" + atRef + " (want 60m), 8x the anchor=" + bigger + " (want 480m)")
+
+// Without floor_h the label is the floor: an entry can lengthen a limit, never shorten it.
+def shortRun = [exponent: 1.0d, ref_gb: 1, time_h: 0.1, cap_h: 24]
+def explicit = [exponent: 1.0d, ref_gb: 1, time_h: 0.1, floor_h: 0.25, cap_h: 24]
+check("time_floor_default", BcaResources.scaledTime(shortRun, input, 1, 2) == "120m" &&
+      BcaResources.scaledTime(explicit, input, 1, 2) == "15m",
+      "no floor_h=" + BcaResources.scaledTime(shortRun, input, 1, 2) + " (want 120m), floor_h 0.25=" +
+      BcaResources.scaledTime(explicit, input, 1, 2) + " (want 15m)")
+
+// cap_h bounds the first attempt; without it the label does.
+def huge = [exponent: 1.0d, ref_gb: 0.001, time_h: 10, floor_h: 1]
+check("time_cap", BcaResources.scaledTime(huge + [cap_h: 48], input, 1, 2) == "2880m" &&
+      BcaResources.scaledTime(huge, input, 1, 2) == "120m",
+      "cap_h 48=" + BcaResources.scaledTime(huge + [cap_h: 48], input, 1, 2) + " (want 2880m), none=" +
+      BcaResources.scaledTime(huge, input, 1, 2) + " (want 120m)")
+
+check("time_retry_ladder", BcaResources.scaledTime(tspec, input, 2, 0.5) == "120m" &&
+      BcaResources.scaledTime(null, input, 2, 0.75) == "90m",
+      "attempt 2: " + BcaResources.scaledTime(tspec, input, 2, 0.5) + " (want 120m), unmeasured " +
+      BcaResources.scaledTime(null, input, 2, 0.75) + " (want 90m)")
+
+// Every value has to be a Duration, or the directive fails when the task is submitted.
+def durations = ["45m", "420m", "2880m", BcaResources.scaledTime(tspec, input, 1, 1.0d / 3)]
+def parsedDurations = durations.collect { new nextflow.util.Duration(it).toMinutes() }
+check("time_parses", parsedDurations == [45L, 420L, 2880L, 60L],
+      durations.join(", ") + " -> " + parsedDurations.join(", ") + " minutes")
+
+check("time_staged_input",
+      BcaResources.scaledTime([exponent: 1.0d, ref_gb: 2, time_h: 1, floor_h: 0.1, cap_h: 24], staged, 1, 1) == "60m",
+      BcaResources.scaledTime([exponent: 1.0d, ref_gb: 2, time_h: 1, floor_h: 0.1, cap_h: 24], staged, 1, 1) +
+      " (want 60m: the 2 GB staged reference at its own anchor)")
+
+// CPUs: off while above_gb is unset (including absent in a ConfigObject), on above it.
+def parsedCpus = ConfigParserFactory.create()
+        .parse("params { dynamic_cpus { NOTHRESHOLD { cpus = 16 } } }").params.dynamic_cpus
+def off = [
+    BcaResources.tieredCpus(null, input, 1, 8),
+    BcaResources.tieredCpus([above_gb: null, cpus: 16], input, 1, 8),
+    BcaResources.tieredCpus(parsedCpus?.NOTHRESHOLD, input, 1, 8),
+    BcaResources.tieredCpus([above_gb: 0.1, cpus: 16], Paths.get("does-not-exist"), 1, 8),
+]
+check("cpus_off", off == [8, 8, 8, 8], off.join(", ") + " (all want 8)")
+def cpuBelow = BcaResources.tieredCpus([above_gb: 1, cpus: 16], input, 1, 8)
+def cpuAbove = BcaResources.tieredCpus([above_gb: 0.1, cpus: 16], input, 1, 8)
+def cpuRetry = BcaResources.tieredCpus([above_gb: 0.1, cpus: 16], input, 2, 8)
+check("cpus_tiered", cpuBelow == 8 && cpuAbove == 16 && cpuRetry == 32,
+      "0.25 GB under 1 GB=" + cpuBelow + " (want 8), over 0.1 GB=" + cpuAbove + " (want 16), attempt 2=" +
+      cpuRetry + " (want 32)")
+
 // --limitBAMsortRAM: the allocation, less the genome index STAR keeps resident and
 // its own working memory. A value too large here is not caught by the scheduler --
 // STAR simply allocates past the cgroup limit and the task is killed.
@@ -196,19 +319,30 @@ check("bamsort_floor", squeezed.bytes == GB, squeezed.bytes + " (want " + GB + "
 // Every entry shipped in nextflow.config must be complete, or it silently does
 // nothing at all.
 def text = new File(root, "nextflow.config").text
-def start = text.indexOf("dynamic_memory = [")
-def depth = 0, end = start
-while (end < text.length()) {
-    if (text.charAt(end) == ('[' as char)) depth++
-    else if (text.charAt(end) == (']' as char)) { depth--; if (depth == 0) break }
-    end++
+def shippedMap = { String name ->
+    def start = text.indexOf(name + " = [")
+    if (start < 0) return [:]
+    def depth = 0, end = start
+    while (end < text.length()) {
+        if (text.charAt(end) == ('[' as char)) depth++
+        else if (text.charAt(end) == (']' as char)) { depth--; if (depth == 0) break }
+        end++
+    }
+    ConfigParserFactory.create().parse("params {\n" + text.substring(start, end + 1) + "\n}").params[name]
 }
-def shipped = ConfigParserFactory.create()
-        .parse("params {\n" + text.substring(start, end + 1) + "\n}").params.dynamic_memory
+def shipped = shippedMap("dynamic_memory")
 def incomplete = shipped.findAll { k, v -> !(v.exponent != null && v.ref_gb && v.mem_gb) }.keySet()
-check("config_shape", shipped.size() > 0 && incomplete.isEmpty(),
-      shipped.size() + " entries: " + shipped.keySet().join(", ") +
-      (incomplete ? "; INCOMPLETE: " + incomplete.join(", ") : ""))
+def shippedTime = shippedMap("dynamic_time")
+def incompleteTime = shippedTime.findAll { k, v -> !(v.exponent != null && v.ref_gb && v.time_h) }.keySet()
+def shippedCpus = shippedMap("dynamic_cpus")
+def badCpus = shippedCpus.findAll { k, v -> !(v.containsKey('above_gb') && v.cpus) }.keySet()
+check("config_shape", shipped.size() > 0 && incomplete.isEmpty() && shippedTime.size() > 0 &&
+      incompleteTime.isEmpty() && badCpus.isEmpty(),
+      "dynamic_memory " + shipped.size() + ", dynamic_time " + shippedTime.size() + " (" +
+      shippedTime.keySet().join(", ") + "), dynamic_cpus " + shippedCpus.size() + " entries" +
+      (incomplete ? "; INCOMPLETE memory: " + incomplete.join(", ") : "") +
+      (incompleteTime ? "; INCOMPLETE time: " + incompleteTime.join(", ") : "") +
+      (badCpus ? "; INCOMPLETE cpus: " + badCpus.join(", ") : ""))
 GROOVY
 
 # The JVM needs native paths and the platform's classpath separator, which under

@@ -1,13 +1,30 @@
 process MAPPING_STATS {
     publishDir path: { "${params.outdir}/summary_results" }, mode: 'copy', saveAs: { filename -> filename == 'versions.yml' ? null : filename }
-    label 'process_single_mem2'
+
+    // plot_umidist_cellgenecount.R reads every STARsolo run's raw matrix in turn and keeps
+    // only its counted barcodes, so memory tracks the largest one: the analysed matrix of
+    // each raw/ is measured, not the others next to it nor the rest of the staged files.
+    // Coefficients live in params.dynamic_memory; without an entry the request is
+    // process_single_mem2's 10 GB. 
+    cpus   1
+    time   { 30.m * task.attempt }
+    memory { BcaResources.scaledMemory(
+        params.dynamic_memory?.MAPPING_STATS,
+        [dests, files instanceof List ? files : [files]].transpose()
+            .findAll { dest, _f -> dest.toString().endsWith('/raw') }
+            .collect { _dest, f -> BcaResources.filesIn(f, [star_raw_matrix, 'barcodes.tsv', 'features.tsv']) }
+            .max { run -> BcaResources.totalBytes(run) } ?: [],
+        task.attempt, 10) }
 
     conda "${moduleDir}/environment.yml"
-    container "oras://community.wave.seqera.io/library/pandas_python_r-base_r-data.table_pruned:30aa8e8a69298cb8"
+    container "${ workflow.containerEngine in ['singularity', 'apptainer'] && !task.ext.singularity_pull_docker_container ?
+        'oras://community.wave.seqera.io/library/pandas_python_r-base_r-data.table_pruned:30aa8e8a69298cb8' :
+        'community.wave.seqera.io/library/pandas_python_r-base_r-data.table_pruned:2950ac95c27dea4f' }"
 
     input:
     // Each staged file with the path it has under the outdir, in the same order
     tuple val(dests), path(files, stageAs: "staged_inputs/?/*")
+    val star_raw_matrix   // the analysed matrix in STARsolo's raw/ (StarsoloMatrix.rawFileName)
 
     output:
     path("mapping_stats.tsv"),  emit: stats
@@ -39,7 +56,7 @@ process MAPPING_STATS {
 
     # UMI distribution and Cell + Gene count plots, for every run that mapped with STARsolo
     if [ -d '${root}/mapping_STARsolo' ]; then
-        plot_umidist_cellgenecount.R '${root}'
+        plot_umidist_cellgenecount.R '${root}' '${star_raw_matrix}'
     fi
 
     cat <<-END_VERSIONS > versions.yml

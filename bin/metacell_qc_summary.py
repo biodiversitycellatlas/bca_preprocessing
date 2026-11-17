@@ -23,9 +23,20 @@ them and the user can choose to keep them.
 
 The summary JSON is the report's only input per sample:
 
-    sample        id, mapping method, status, doublet mode, fingerprint, counts
+    sample        id, mapping method, status, doublet mode and consensus method,
+                  fingerprint, counts
     metacells     one record per group (see summarize_groups)
+    cells         per-cell arrays in obs order (see summarize_cells), so the report can
+                  filter single cells and re-sum each metacell over the cells it keeps
     genes         per-gene arrays aligned to one another (see summarize_genes)
+    expression    the metacell profiles of the genes the report can show across
+                  metacells (see expression_profiles)
+
+A 'filtering_report' group (merge_group_h5ad.py) is summarised like a sample. Its cells
+carry their member in ``obs['sample']``, which adds ``sample.members`` (each member's
+samplesheet name, analytical id and cells), ``cells.member`` (each cell's index into
+those) and, per metacell, ``member_counts`` (its cells per member). A plain sample has
+none of the three.
 """
 
 import argparse
@@ -49,7 +60,15 @@ PSEUDO_GROUPS = (PSEUDO_OUTLIERS, PSEUDO_EXCLUDED)
 METACELL_COL = "metacell"
 DOUBLET_COL = "doublet_status"
 ALPHA_COL = "alpha_hat"
+# Each doublet tool's own call and score (doublet_calls.annotate_callers), and its bit
+# in a cell's doublet_callers
+CALLER_BITS = {"scrublet": 1, "scdblfinder": 2}
+DOUBLET_METHOD_UNS = "doublet_method"
 AMBIENT_VAR_COL = "ambient_hat"
+# The member sample of each cell of a pooled filtering_report group, and the group's
+# members as merge_group_h5ad.py recorded them
+MEMBER_COL = "sample"
+MEMBERS_UNS = "group_members"
 
 SUMMARY_SCHEMA = "bca_metacell_summary"
 SUMMARY_VERSION = 1
@@ -57,6 +76,16 @@ SUMMARY_VERSION = 1
 N_MARKERS = 5
 MARKER_MIN_UMIS = 5
 MARKER_EPS = 1e-5
+# A gene counts as enriched in a metacell above this log2 fold change over the median metacell
+FC_LOG2_CUTOFF = 1.0
+
+# Besides every marker, the most expressed genes and the genes that vary most across metacells
+# get a metacell profile in the summary, so the report can correlate them. A variable gene needs
+# on average this many UMIs per metacell: below it a profile is mostly counting noise, and its
+# correlations shrink towards 0 whatever the biology.
+N_PROFILED_GENES = 500
+N_VARIABLE_GENES = 1000
+VARIABLE_MIN_UMIS_PER_METACELL = 1.0
 
 
 # --------------------------------------------------------------------------
@@ -66,6 +95,8 @@ MARKER_EPS = 1e-5
 def load_gene_table(path):
     """``build_gene_table.py``'s output, with flags as booleans and domains as lists."""
     table = pd.read_csv(path, sep="\t", dtype=str, keep_default_na=False)
+    if "annot_name" not in table.columns:  # tables built before annotation names were carried
+        table["annot_name"] = ""
     table["is_mito"] = table["is_mito"].astype(int).astype(bool)
     table["is_rrna"] = table["is_rrna"].astype(int).astype(bool)
     table["pfam"] = table["pfam"].map(lambda s: [d for d in s.split(",") if d])
@@ -122,6 +153,7 @@ def gene_info(var_names, table):
 
     info = pd.DataFrame(index=pd.Index(list(map(str, var_names))))
     info["gene_name"] = np.where(matched, table["gene_name"].to_numpy()[take], "")
+    info["annot_name"] = np.where(matched, table["annot_name"].to_numpy()[take], "")
     info["is_mito"] = np.where(matched, table["is_mito"].to_numpy()[take], False).astype(bool)
     info["is_rrna"] = np.where(matched, table["is_rrna"].to_numpy()[take], False).astype(bool)
     pfam = table["pfam"].to_numpy()
@@ -130,6 +162,18 @@ def gene_info(var_names, table):
     n = len(var_names)
     how["match_rate"] = (n - how["unmatched"]) / n if n else 0.0
     return info, how
+
+
+def display_names(info):
+    """
+    The name the report shows per feature: the functional annotation's where it gives
+    one (non-model GTFs often name genes only 'LOC...'), else the GTF's, else ''.
+    """
+    gtf = info["gene_name"].to_numpy()
+    if "annot_name" not in info.columns:
+        return gtf
+    annot = info["annot_name"].to_numpy()
+    return np.where(annot != "", annot, gtf)
 
 
 # --------------------------------------------------------------------------
@@ -211,9 +255,10 @@ def group_indicator(groups, order):
     return sp.csr_matrix((np.ones(len(rows), dtype=np.float64), (rows, cols)), shape=(len(order), len(rows)))
 
 
-def marker_genes(sums, names, usable, n_markers=N_MARKERS):
+def marker_indices(sums, usable, n_markers=N_MARKERS):
     """
-    The genes most enriched in each metacell over the mean of all metacells.
+    The genes most enriched in each metacell over the mean of all metacells, as
+    gene positions.
 
     Enrichment is log2 of the gene's fraction in the metacell over its mean fraction,
     on genes with at least MARKER_MIN_UMIS in that metacell so a single UMI in a small
@@ -224,7 +269,6 @@ def marker_genes(sums, names, usable, n_markers=N_MARKERS):
     totals[totals == 0] = 1.0
     fractions = sp.diags(1.0 / totals) @ sums
     mean_frac = np.asarray(fractions.mean(axis=0)).ravel()
-    names = np.asarray(names)
 
     markers = []
     for start in range(0, sums.shape[0], 256):
@@ -235,8 +279,71 @@ def marker_genes(sums, names, usable, n_markers=N_MARKERS):
         score[block_sums < MARKER_MIN_UMIS] = -np.inf
         for row in score:
             top = np.argsort(-row)[:n_markers]
-            markers.append([str(names[j]) for j in top if np.isfinite(row[j])])
+            markers.append([int(j) for j in top if np.isfinite(row[j])])
     return markers
+
+
+def enrichment_stats(sums, usable):
+    """
+    Per metacell (row), how distinct its expression programme is: the highest log2 fold
+    change of any gene over that gene's median metacell, and the number of genes above
+    FC_LOG2_CUTOFF. The genes eligible are the markers' (usable, at least MARKER_MIN_UMIS
+    in the metacell); a metacell with none has None and 0. Over the median, as the
+    report's marker heatmap is, so one strong peak does not raise every gene's background.
+    Columns are densified in chunks for the medians, rows for the scores.
+    """
+    sums = as_csr(sums)
+    n, n_genes = sums.shape
+    totals = np.asarray(sums.sum(axis=1)).ravel()
+    totals[totals == 0] = 1.0
+    fractions = (sp.diags(1.0 / totals) @ sums).tocsr()
+
+    by_gene = fractions.tocsc()
+    median = np.zeros(n_genes)
+    for start in range(0, n_genes, 512):
+        median[start:start + 512] = np.median(by_gene[:, start:start + 512].toarray(), axis=0)
+
+    max_lfc, n_enriched = [], []
+    for start in range(0, n, 256):
+        block_frac = fractions[start:start + 256].toarray()
+        block_sums = sums[start:start + 256].toarray()
+        score = np.log2((block_frac + MARKER_EPS) / (median + MARKER_EPS))
+        score[:, ~usable] = -np.inf
+        score[block_sums < MARKER_MIN_UMIS] = -np.inf
+        top = score.max(axis=1) if n_genes else np.full(len(score), -np.inf)
+        max_lfc += [float(v) if np.isfinite(v) else None for v in top]
+        n_enriched += [int(k) for k in (score > FC_LOG2_CUTOFF).sum(axis=1)]
+    return max_lfc, n_enriched
+
+
+def cp10k(sums):
+    """Each row scaled to 10,000 UMIs; an empty row stays empty."""
+    sums = as_csr(sums)
+    totals = np.asarray(sums.sum(axis=1)).ravel()
+    totals[totals == 0] = 1.0
+    return sp.diags(1e4 / totals) @ sums
+
+
+def specificity(sums):
+    """
+    The tissue-specificity index tau of every gene over the given metacells (rows):
+    0 for a gene expressed evenly across them, 1 for one expressed in a single one.
+
+        tau = sum_i (1 - x_i / max x) / (n - 1),   x = log1p(CP10k)
+
+    which is (n - sum x / max x) / (n - 1), so the matrix is never densified. None
+    for a gene with no UMI in any of them, or with fewer than two metacells.
+    """
+    n = sums.shape[0]
+    if n < 2:
+        return [None] * sums.shape[1]
+    x = cp10k(sums).tocsr()
+    x.data = np.log1p(x.data)
+    peak = np.asarray(x.max(axis=0).todense()).ravel()
+    total = np.asarray(x.sum(axis=0)).ravel()
+    with np.errstate(divide="ignore", invalid="ignore"):
+        tau = (n - total / peak) / (n - 1)
+    return [_r(t, 3) if p > 0 else None for t, p in zip(tau, peak)]
 
 
 def _r(value, digits=4):
@@ -254,7 +361,8 @@ def summarize_groups(adata, info, qc, mode, umap=None):
         id, pseudo, n_cells, umis, median_umis, mito_pct (pooled: mito UMIs over all
         UMIs of the group), median_cell_mito_pct, rrna_pct, n_doublets, doublet_pct
         (null unless the calls are annotated), alpha_hat_mean (null without CellSweep),
-        x, y (Metacell2's UMAP, null when not computed), markers
+        x, y (Metacell2's UMAP, null when not computed), markers, max_lfc and
+        n_genes_lfc1 (see enrichment_stats; null for a pseudo-group)
     """
     groups = adata.obs[METACELL_COL].astype(str).to_numpy()
     order = group_order(groups)
@@ -277,8 +385,11 @@ def summarize_groups(adata, info, qc, mode, umap=None):
     sums = ind @ as_csr(adata.X)
     real = [i for i, g in enumerate(order) if g not in PSEUDO_GROUPS]
     usable = ~info["is_mito"].to_numpy()
-    labels = np.where(info["gene_name"].to_numpy() != "", info["gene_name"].to_numpy(), info.index.to_numpy())
-    markers = dict(zip(real, marker_genes(sums[real], labels, usable))) if real else {}
+    names = display_names(info)
+    labels = np.where(names != "", names, info.index.to_numpy())
+    marker_idx = dict(zip(real, marker_indices(sums[real], usable))) if real else {}
+    markers = {i: [str(labels[j]) for j in idx] for i, idx in marker_idx.items()}
+    enrichment = dict(zip(real, zip(*enrichment_stats(sums[real], usable)))) if real else {}
 
     cell_mito = qc["pct_mito"].to_numpy()
     cell_umis = qc["total_umis"].to_numpy()
@@ -302,20 +413,127 @@ def summarize_groups(adata, info, qc, mode, umap=None):
             "x": None,
             "y": None,
             "markers": markers.get(i, []),
+            "max_lfc": _r(enrichment[i][0], 3) if i in enrichment else None,
+            "n_genes_lfc1": enrichment[i][1] if i in enrichment else None,
         }
         if umap is not None and g in umap.index:
             rec["x"], rec["y"] = _r(umap.loc[g, "x"]), _r(umap.loc[g, "y"])
         records.append(rec)
 
-    return records, order, sums
+    return records, order, sums, marker_idx
 
 
-def summarize_genes(adata, info):
+def summarize_cells(adata, qc, order, mode):
+    """
+    Per-cell arrays in obs order, all aligned to ``barcodes``:
+
+        barcodes, group (index into the metacell records), umis, n_genes, mito_umis,
+        rrna_umis (rounded to 2 decimals: EM counts are fractional), doublet (1 for a
+        consensus doublet, null unless the calls are annotated), alpha (CellSweep's
+        alpha_hat, null without it), doublet_callers (which tools called the cell a
+        doublet: 1 Scrublet, 2 scDblFinder, 3 both, 0 neither; null for a cell no tool
+        evaluated, and the whole array null without the tools' calls), scrublet_score
+        and scdblfinder_score (each tool's score, null without it)
+
+    The report filters single cells on these and re-sums each metacell over the cells
+    it keeps; ``apply_metacell_filter.py`` takes the barcodes it excludes as listed.
+    """
+    position = {g: i for i, g in enumerate(order)}
+    groups = adata.obs[METACELL_COL].astype(str).to_numpy()
+
+    doublet = None
+    if mode == "annotated":
+        doublet = [int(v) for v in (adata.obs[DOUBLET_COL].astype(str).str.lower() == "doublet")]
+    alpha = None
+    if ALPHA_COL in adata.obs.columns:
+        alpha = [_r(v) for v in pd.to_numeric(adata.obs[ALPHA_COL], errors="coerce")]
+
+    callers, scores = None, {}
+    if mode == "annotated":
+        present = {name: bit for name, bit in CALLER_BITS.items() if f"{name}_call" in adata.obs.columns}
+        if present:
+            bits = np.zeros(adata.n_obs, dtype=int)
+            evaluated = np.zeros(adata.n_obs, dtype=bool)
+            for name, bit in present.items():
+                call = adata.obs[f"{name}_call"].astype(object)
+                evaluated |= call.notna().to_numpy()
+                bits |= np.where(call.astype(str).str.lower() == "doublet", bit, 0)
+            callers = [int(b) if e else None for b, e in zip(bits, evaluated)]
+        for name in CALLER_BITS:
+            if f"{name}_score" in adata.obs.columns:
+                scores[name] = [_r(v) for v in pd.to_numeric(adata.obs[f"{name}_score"], errors="coerce")]
+
+    return {
+        "barcodes": [str(b) for b in adata.obs_names],
+        "group": [position[g] for g in groups],
+        "umis": [_r(v, 2) for v in qc["total_umis"]],
+        "n_genes": [int(v) for v in qc["n_genes"]],
+        "mito_umis": [_r(v, 2) for v in qc["mito_umis"]],
+        "rrna_umis": [_r(v, 2) for v in qc["rrna_umis"]],
+        "doublet": doublet,
+        "alpha": alpha,
+        "doublet_callers": callers,
+        "scrublet_score": scores.get("scrublet"),
+        "scdblfinder_score": scores.get("scdblfinder"),
+    }
+
+
+def expression_profiles(sums, order, marker_idx, total_umi, n_top=N_PROFILED_GENES,
+                        n_variable=N_VARIABLE_GENES):
+    """
+    CP10k of the genes the report can show and correlate across metacells: every marker,
+    the n_top genes with most UMIs, and the n_variable genes whose log1p(CP10k) varies most
+    across the real metacells among those with VARIABLE_MIN_UMIS_PER_METACELL UMIs per
+    metacell on average. The most expressed genes alone are mostly housekeeping, ribosomal
+    and mitochondrial; the variable ones carry the programmes (cell types, stress, ambient)
+    whose co-expression the report looks for. Most of these genes are in most metacells, so
+    each is stored dense and as small integers, the summary's largest block kept compact:
+
+        mc      the real metacells (indices into the metacell records), shared
+        genes   gene positions
+        max     each gene's highest CP10k over those metacells
+        q       per gene, log1p(CP10k) in each metacell as a percentage of log1p(max), rounded
+
+    so CP10k = expm1(q / 100 * log1p(max)). On the log scale a marker's low values elsewhere
+    keep their order of magnitude, where a linear percentage of its peak would round them
+    all to 0. Computed on all cells of each metacell, before any cell is filtered.
+    """
+    real = [i for i, g in enumerate(order) if g not in PSEUDO_GROUPS]
+    top = [int(j) for j in np.argsort(-np.asarray(total_umi))[:n_top] if total_umi[j] > 0]
+    if not real:
+        return {"mc": [], "genes": [], "max": [], "q": []}
+
+    x = cp10k(sums[real]).tocsc()
+    # Variance of log1p(CP10k) per gene; log1p keeps the zeros, so the matrix stays sparse
+    logx = x.copy()
+    logx.data = np.log1p(logx.data)
+    mean = np.asarray(logx.mean(axis=0)).ravel()
+    var = np.asarray(logx.multiply(logx).mean(axis=0)).ravel() - mean ** 2
+    umis = np.asarray(as_csr(sums[real]).sum(axis=0)).ravel()
+    var[umis < VARIABLE_MIN_UMIS_PER_METACELL * len(real)] = -np.inf
+    variable = [int(j) for j in np.argsort(-var)[:n_variable] if np.isfinite(var[j]) and var[j] > 0]
+
+    genes = sorted(set(top).union(variable, *marker_idx.values()))
+    if not genes:
+        return {"mc": [], "genes": [], "max": [], "q": []}
+    peaks, levels = [], []
+    for start in range(0, len(genes), 512):
+        block = x[:, genes[start:start + 512]].toarray()
+        peak = block.max(axis=0)
+        with np.errstate(divide="ignore", invalid="ignore"):
+            q = np.where(peak > 0, np.rint(100.0 * np.log1p(block) / np.log1p(peak)), 0).astype(int)
+        peaks += [_r(p, 2) for p in peak]
+        levels += [col.tolist() for col in q.T]
+    return {"mc": real, "genes": genes, "max": peaks, "q": levels}
+
+
+def summarize_genes(adata, info, tau=None):
     """
     Per-gene arrays, all aligned to ``ids``:
 
         ids, names, mito, rrna, pfam (domain lists), total_umi, n_cells,
-        ambient_hat (null where CellSweep gave none, or everywhere without it)
+        ambient_hat (null where CellSweep gave none, or everywhere without it),
+        tau (specificity over the real metacells, see specificity)
     """
     X = as_csr(adata.X)
     total = np.asarray(X.sum(axis=0)).ravel()
@@ -327,14 +545,46 @@ def summarize_genes(adata, info):
 
     return {
         "ids": list(info.index),
-        "names": list(info["gene_name"]),
+        "names": [str(n) for n in display_names(info)],
         "mito": [int(v) for v in info["is_mito"]],
         "rrna": [int(v) for v in info["is_rrna"]],
         "pfam": list(info["pfam"]),
         "total_umi": [_r(v, 2) for v in total],
         "n_cells": [int(v) for v in n_cells],
         "ambient_hat": ambient,
+        "tau": tau,
     }
+
+
+def summarize_members(adata, order):
+    """
+    ``(members, cell_member, member_counts)`` for a pooled group, or ``(None, None, None)``
+    for a plain sample: the members in the order merge_group_h5ad.py pooled them, each
+    cell's index into them, and per group (in ``order``) its cells per member.
+    """
+    if MEMBER_COL not in adata.obs.columns:
+        return None, None, None
+
+    col = adata.obs[MEMBER_COL]
+    if isinstance(col.dtype, pd.CategoricalDtype):
+        names = [str(c) for c in col.cat.categories]
+    else:
+        names = list(dict.fromkeys(col.astype(str)))
+    ids = dict(zip(names, names))
+    recorded = adata.uns.get(MEMBERS_UNS)
+    if isinstance(recorded, dict) and "sample" in recorded and "id" in recorded:
+        ids.update({str(s): str(i) for s, i in zip(recorded["sample"], recorded["id"])})
+
+    position = {n: k for k, n in enumerate(names)}
+    cell_member = np.array([position[str(v)] for v in col.astype(str)], dtype=int)
+    groups = adata.obs[METACELL_COL].astype(str).to_numpy()
+    group_pos = {g: i for i, g in enumerate(order)}
+    counts = np.zeros((len(order), len(names)), dtype=int)
+    np.add.at(counts, (np.array([group_pos[g] for g in groups], dtype=int), cell_member), 1)
+
+    totals = np.bincount(cell_member, minlength=len(names))
+    members = [{"sample": n, "id": ids[n], "n_cells": int(totals[k])} for k, n in enumerate(names)]
+    return members, [int(v) for v in cell_member], [[int(v) for v in row] for row in counts]
 
 
 def build_summary(adata, info, how, sample_id, mapping_method, removed=False, umap=None,
@@ -342,8 +592,17 @@ def build_summary(adata, info, how, sample_id, mapping_method, removed=False, um
     """The report's payload for one sample (see the module docstring)."""
     qc = per_cell_qc(adata.X, info["is_mito"].to_numpy(), info["is_rrna"].to_numpy())
     mode = doublet_mode(adata.obs, removed=removed)
-    groups, order, _ = summarize_groups(adata, info, qc, mode, umap=umap)
+    groups, order, sums, marker_idx = summarize_groups(adata, info, qc, mode, umap=umap)
     fp = fingerprint(adata.obs_names, adata.obs[METACELL_COL], adata.var_names)
+    real = [i for i, g in enumerate(order) if g not in PSEUDO_GROUPS]
+    genes = summarize_genes(adata, info, tau=specificity(sums[real]) if real else None)
+
+    members, cell_member, member_counts = summarize_members(adata, order)
+    cells = summarize_cells(adata, qc, order, mode)
+    if members is not None:
+        cells["member"] = cell_member
+        for rec, row in zip(groups, member_counts):
+            rec["member_counts"] = row
 
     return {
         "schema": SUMMARY_SCHEMA,
@@ -354,6 +613,7 @@ def build_summary(adata, info, how, sample_id, mapping_method, removed=False, um
             "status": status,
             "reason": reason,
             "doublet_mode": mode,
+            "doublet_method": str(adata.uns[DOUBLET_METHOD_UNS]) if DOUBLET_METHOD_UNS in adata.uns else None,
             "ambient_available": ALPHA_COL in adata.obs.columns,
             "fingerprint": fp,
             "n_cells": int(adata.n_obs),
@@ -363,9 +623,12 @@ def build_summary(adata, info, how, sample_id, mapping_method, removed=False, um
             "mito_pct": _r(100.0 * qc["mito_umis"].sum() / qc["total_umis"].sum()) if qc["total_umis"].sum() > 0 else 0.0,
             "gene_match": how,
             "params": params or {},
+            "members": members,
         },
         "metacells": groups,
-        "genes": summarize_genes(adata, info),
+        "cells": cells,
+        "genes": genes,
+        "expression": expression_profiles(sums, order, marker_idx, genes["total_umi"]),
     }
 
 
@@ -379,7 +642,9 @@ def skipped_summary(sample_id, mapping_method, reason, n_cells=None, params=None
             "reason": reason, "n_cells": n_cells, "params": params or {},
         },
         "metacells": [],
+        "cells": None,
         "genes": None,
+        "expression": None,
     }
 
 

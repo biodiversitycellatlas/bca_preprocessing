@@ -1,9 +1,18 @@
 process SALMON_SPLICI {
     publishDir path: { "${params.outdir}/genome" }, mode: 'copy', saveAs: { filename -> filename == 'versions.yml' ? null : filename }
-    label 'process_high'
+    
+    // Memory tracks the size of the reference the splici transcriptome is built from.
+    // Coefficients live in params.dynamic_memory; without an entry the request is
+    // process_high's 64 GB.
+    cpus   1
+    time   { 4.h * task.attempt }
+    memory { BcaResources.scaledMemory(
+        params.dynamic_memory?.SALMON_SPLICI, [ref_fasta, ref_gtf], task.attempt, 64) }
 
     conda "${moduleDir}/environment.yml"
-    container "oras://community.wave.seqera.io/library/bioconductor-biostrings_bioconductor-bsgenome_bioconductor-eisar_bioconductor-genomicfeatures_pruned:b68bd7a74397c700"
+    container "${ workflow.containerEngine in ['singularity', 'apptainer'] && !task.ext.singularity_pull_docker_container ?
+        'oras://community.wave.seqera.io/library/bioconductor-biostrings_bioconductor-bsgenome_bioconductor-eisar_bioconductor-genomicfeatures_pruned:b68bd7a74397c700' :
+        'community.wave.seqera.io/library/bioconductor-biostrings_bioconductor-bsgenome_bioconductor-eisar_bioconductor-genomicfeatures_pruned:ec4000fcab4cb278' }"
 
     input:
     tuple val(meta), path(fastq_cDNA), path(fastq_BC_UMI), path(fastq_indices), path(input_file)

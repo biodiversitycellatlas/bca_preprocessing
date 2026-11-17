@@ -8,12 +8,12 @@ process STARSOLO_ALIGN {
     publishDir path: { "${params.outdir}/mapping_STARsolo/${meta.id}" }, mode: 'copy', saveAs: { filename -> filename == 'versions.yml' ? null : filename }
     tag "${meta.id}"
 
-    // Memory tracks the size of the FASTQs being read, never below what the genome index
-    // needs. Coefficients live in params.dynamic_memory; without an entry the request is
-    // process_high2's 32 GB. Deliberately no resource label, since a withLabel setting would
-    // take precedence over these: cpus and time are process_high2's.
-    cpus   { 8 * task.attempt }
-    time   { 7.h * task.attempt }
+    // Memory and time track the size of the FASTQs being read, never below what the genome index needs.
+    // CPUs step up above a size in params.dynamic_cpus, and by default 8 while unset.
+    cpus   { BcaResources.tieredCpus(
+        params.dynamic_cpus?.STARSOLO_ALIGN, [fastq_cDNA, fastq_BC_UMI], task.attempt, 8) }
+    time   { BcaResources.scaledTime(
+        params.dynamic_time?.STARSOLO_ALIGN, [fastq_cDNA, fastq_BC_UMI], task.attempt, 7) }
     memory { BcaResources.scaledMemory(
         params.dynamic_memory?.STARSOLO_ALIGN,
         [fastq_cDNA, fastq_BC_UMI], task.attempt, 32, genome_index_files) }
@@ -23,7 +23,9 @@ process STARSOLO_ALIGN {
     errorStrategy { MappingRateCheck.errorStrategy(task, params) }
 
     conda "${moduleDir}/environment.yml"
-    container "oras://community.wave.seqera.io/library/htslib_samtools_seqspec_star_pruned:cef769c7e3b03dd0"
+    container "${ workflow.containerEngine in ['singularity', 'apptainer'] && !task.ext.singularity_pull_docker_container ?
+        'oras://community.wave.seqera.io/library/htslib_samtools_seqspec_star_pruned:cef769c7e3b03dd0' :
+        'community.wave.seqera.io/library/htslib_samtools_seqspec_star_pruned:583718e0c3d7bddd' }"
 
     input:
     tuple val(meta), path(fastq_cDNA), path(fastq_BC_UMI), path(fastq_indices), path(input_file)
@@ -34,7 +36,6 @@ process STARSOLO_ALIGN {
     val mapping_flag_dir                         // MappingRateCheck.flagDir(workflow), as a string
 
     output:
-    tuple val(meta), path("*"),                                 emit: starsolo_files
     tuple val(meta), path("*_Log.final.out"),                   emit: log_final_file
     tuple val(meta), path("*_Log.out"),                         emit: log_file
     tuple val(meta), path("*_Solo.out"),                        emit: star_solodir
@@ -62,7 +63,13 @@ process STARSOLO_ALIGN {
     def star_outSAMunmapped    = setting(seqtech, 'star_outSAMunmapped')
     def star_outSAMattributes  = setting(seqtech, 'star_outSAMattributes')
     def star_solocellfilter    = setting(seqtech, 'star_solocellfilter')
-    def star_extraargs         = setting(seqtech, 'star_extraargs', '')
+
+    // The protocol's extra arguments, then the custom ones: a custom option replaces the
+    // protocol's option of the same name, the others are kept (lib/StarSettings.groovy)
+    def star_extraargs         = StarSettings.mergeArgs(seqtech.star_extraargs, params.star_extraargs)
+
+    // star_soloStrand, or by default Reverse for a sample read from an Ultima CRAM and Forward otherwise
+    def star_soloStrand        = StarSettings.strand(params.star_soloStrand, params.cram_type, meta.input_format)
 
     // Minimal STARsolo run with only one feature enabled for 'geneext_only' mode.
     def solo_features = bam_only ? ['Gene'] : star_soloFeatures.tokenize(' ').findAll { it }
@@ -86,13 +93,10 @@ process STARSOLO_ALIGN {
     def whitelists = (bc_whitelist instanceof List ? bc_whitelist : [bc_whitelist]).findAll { wl -> wl }
     def safe_bc_whitelist = whitelists ? whitelists.join(' ') : 'None'
 
-    // Detect CRAM or BAM by inspecting the first file in the list.
-    def first_file     = fastq_cDNA instanceof List ? fastq_cDNA[0] : fastq_cDNA
-    def is_bam_or_cram = first_file.name.endsWith(".bam") || first_file.name.endsWith(".cram")
-    def read_files_command   = is_bam_or_cram ? "samtools view" : "pigz -dc -p ${task.cpus}"
-    def input_files          = is_bam_or_cram
-        ? (fastq_cDNA instanceof List ? fastq_cDNA.join(',') : "${fastq_cDNA}")
-        : "${fastq_cDNA} ${fastq_BC_UMI}"
+    // Reads always arrive as gzipped FASTQs: CRAM input is converted (CRAM_TO_FASTQ) or
+    // demultiplexed (SCALEBIO_DEMUX, Ultima) before mapping
+    def read_files_command   = "pigz -dc -p ${task.cpus}"
+    def input_files          = "${fastq_cDNA} ${fastq_BC_UMI}"
 
     // The barcode, UMI and gene tags are dropped when nothing will read them: either because
     // no BAM is written at all, or because the BAM exists only for GeneExt, which reads
@@ -108,9 +112,6 @@ process STARSOLO_ALIGN {
 
     // If star_generateBAM is false, do not output BAM (omit --outSAMtype), 'bam_only' forces it back on.
     def outSAMtype_option = (params.star_generateBAM || bam_only) ? '--outSAMtype BAM SortedByCoordinate' : '--outSAMtype None'
-
-    // If cellfilter_method is "second_derivative" or "manual_cutoff", the filtered matrices are dropped and the raw matrices are used for cell calling.
-    def drop_star_filtered = params.cellfilter_method in ["second_derivative", "manual_cutoff"]
 
     // Calculated in BcaResources.bamSortRam(), which returns a note and the byte count.
     // params.star_limitBAMsortRAM overrides whenever it is set to something non-zero.
@@ -140,6 +141,8 @@ process STARSOLO_ALIGN {
     echo "Expected cells: ${meta.expected_cells}"
     echo "limitBAMsortRAM: ${bamsort.note}"
     echo "star_soloTypestring: ${star_soloTypestring}"
+    echo "star_soloStrand (effective): ${star_soloStrand}"
+    echo "star_extraargs (effective): ${star_extraargs}"
     echo "star_generateBAM: ${params.star_generateBAM}"
     echo "bam_only (GeneExt): ${bam_only}"
     echo "star_solocellfilter (effective): ${star_solocellfilter_effective}"
@@ -196,14 +199,8 @@ process STARSOLO_ALIGN {
         --outFileNamePrefix ${meta.id}_ \\
         --genomeChrSetMitochondrial ${params.mt_contig} \\
         --limitBAMsortRAM ${bamsort.bytes} \\
-        --soloStrand ${params.star_soloStrand} \\
+        --soloStrand ${star_soloStrand} \\
         ${star_extraargs}
-
-    if [[ "${drop_star_filtered}" == "true" ]]; then
-        echo "cellfilter_method=${params.cellfilter_method}: removing STARsolo's own filtered matrices"
-        rm -rf ${meta.id}_Solo.out/GeneFull_Ex50pAS/filtered
-        rm -rf ${meta.id}_Solo.out/Gene/filtered
-    fi
 
     # STAR insists on writing a raw matrix for the one feature it counted; nothing reads it
     # in this mode. Summary.csv and Barcodes.stats are kept as free QC on the alignment.

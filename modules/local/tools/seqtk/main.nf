@@ -1,9 +1,16 @@
 process SUBSAMPLE_FASTQS {
     tag "${meta.id}"
-    label 'process_low'
+
+    // Time follows the FASTQs.
+    cpus   { 2 * task.attempt }
+    memory { 12.GB * task.attempt }
+    time   { BcaResources.scaledTime(
+        params.dynamic_time?.SUBSAMPLE_FASTQS, [fastq_cDNA, fastq_BC_UMI], task.attempt, 4) }
 
     conda "${moduleDir}/environment.yml"
-    container "oras://community.wave.seqera.io/library/seqtk_pigz_gzip:d149a1002a332e56"
+    container "${ workflow.containerEngine in ['singularity', 'apptainer'] && !task.ext.singularity_pull_docker_container ?
+        'oras://community.wave.seqera.io/library/seqtk_pigz_gzip:d149a1002a332e56' :
+        'community.wave.seqera.io/library/seqtk_pigz_gzip:2ccc46549294c318' }"
 
     input:
     tuple val(meta), path(fastq_cDNA), path(fastq_BC_UMI), path(fastq_indices), path(input_file)
@@ -20,8 +27,7 @@ process SUBSAMPLE_FASTQS {
 
     SEED=100
     NREADS=${params.subsample_nreads}
-    # COMPRESSOR="pigz -p ${task.cpus}"
-    COMPRESSOR="gzip"
+    COMPRESSOR="pigz -p ${task.cpus}"
 
     echo "[1/2] Subsampling paired reads..."
     seqtk sample -s\$SEED ${fastq_cDNA} \$NREADS | \$COMPRESSOR > ${meta.id}_subsampled_cDNA.fastq.gz

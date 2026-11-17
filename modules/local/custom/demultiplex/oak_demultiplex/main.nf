@@ -1,10 +1,17 @@
 process OAK_DEMUX {
     publishDir path: { "${params.outdir}/demultiplex/${meta.id}" }, mode: 'copy', saveAs: { filename -> filename == 'versions.yml' ? null : filename }
     tag "${meta.id}"
-    label 'process_single'
+
+    // Every aliquot reads the whole run's FASTQs, so time follows them (params.dynamic_time), never below 1 h
+    cpus   1
+    memory { 1.GB * task.attempt }
+    time   { BcaResources.scaledTime(
+        params.dynamic_time?.OAK_DEMUX, [fastq_cDNA, fastq_BC_UMI], task.attempt, 1) }
 
     conda "${moduleDir}/environment.yml"
-    container "oras://community.wave.seqera.io/library/seqtk_gawk_gzip:a2c1feaa489ca45f"
+    container "${ workflow.containerEngine in ['singularity', 'apptainer'] && !task.ext.singularity_pull_docker_container ?
+        'oras://community.wave.seqera.io/library/seqtk_gawk_gzip:a2c1feaa489ca45f' :
+        'community.wave.seqera.io/library/seqtk_gawk_gzip:72cec4f9d63b7d4f' }"
 
     input:
     tuple val(meta), path(fastq_cDNA), path(fastq_BC_UMI), path(fastq_indices), path(input_file)

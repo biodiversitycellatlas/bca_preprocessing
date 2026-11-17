@@ -59,6 +59,7 @@ workflow BCA_PREPROCESSING {
 
     take:
         samplesheet
+        sample_groups   // value: [qc_report: [sample: group], filtering_report: [sample: group]]
 
     main:
         // Initialize reporting channels
@@ -143,6 +144,7 @@ workflow BCA_PREPROCESSING {
                 mapping_out.secondderiv_knee,
                 mapping_out.secondderiv_stats,
                 mapping_out.secondderiv_cutoff,
+                mapping_out.matrix_stats,
                 filtering_workflow.out.cs_ambient_hist_plot,
                 filtering_workflow.out.cs_umap_comparison_plot,
                 filtering_workflow.out.cs_top_genes,
@@ -151,7 +153,8 @@ workflow BCA_PREPROCESSING {
                 mapping_out.fastqc_results,
                 mapping_out.kraken_report,
                 mapping_out.starsolo_genefull50_raw,
-                vendor_results_ch
+                vendor_results_ch,
+                mapping_out.barcode_check
             )
 
             multiqc_report_ch = reporting_workflow.out.multiqc_report
@@ -164,7 +167,9 @@ workflow BCA_PREPROCESSING {
                     filtering_workflow.out.h5ad,
                     mapping_out.ref_gtf,
                     mapping_out.featurecount_txt,
-                    mapping_out.antisense_txt
+                    mapping_out.antisense_txt,
+                    mapping_out.star_cellreads,
+                    sample_groups.map { groups -> groups.filtering_report }
                 )
                 ch_versions = ch_versions.mix(metacell_workflow.out.versions)
             }
@@ -202,7 +207,8 @@ workflow {
     // WORKFLOW: Run main workflow
     //
     BCA_PREPROCESSING (
-        PIPELINE_INITIALISATION.out.samplesheet
+        PIPELINE_INITIALISATION.out.samplesheet,
+        PIPELINE_INITIALISATION.out.sample_groups
     )
 
     //
@@ -256,6 +262,9 @@ workflow {
         exit status : ${workflow.exitStatus}
         """
         println summary
+
+        // Samples dropped by the barcode check before mapping
+        BarcodeCheck.summarise(params, log)
 
         // Samples cancelled for a low mapping rate, with the Kraken recommendation
         MappingRateCheck.summarise(workflow, params, log)

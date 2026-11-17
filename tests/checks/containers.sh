@@ -35,7 +35,7 @@ Options:
                       pull      download the full image
                       env       pull, then check that the image provides every
                                 package in the module's environment.yml
-                                (singularity/apptainer; needs python3)
+                                (needs python3)
                       auto      manifest for docker/podman, env for
                                 singularity/apptainer (default)
   --only PATTERN    Only check images matching PATTERN (grep -E).
@@ -47,9 +47,10 @@ Notes:
   * The 'coverage' case needs no engine: it fails for every module that has an
     environment.yml but no container, since such a module cannot run under the
     container profiles.
-  * Most modules declare oras:// images, which only singularity and apptainer
-    can consume. They are reported as skipped under docker/podman rather than
-    failed, with a count in the summary.
+  * Most modules pick their image by engine: an oras:// image for singularity
+    and apptainer, and a registry image of the same environment for the
+    others. Each engine checks only the image it would run; the other is
+    reported as skipped.
   * The wave profile builds images on demand through Seqera and needs
     TOWER_ACCESS_TOKEN plus the 'wave' CLI; without those it is skipped.
 
@@ -163,11 +164,18 @@ while IFS= read -r nf; do
         n_dynamic=$((n_dynamic + 1))
         continue
     fi
+    # A module that picks its image by engine declares a SIF for singularity/apptainer
+    # next to a registry image for the others; the registry image is then marked "alt",
+    # so it is not pulled a second time by the SIF engines.
+    has_sif=0
+    grep -qE '^(oras|https?)://' <<<"$literals" && has_sif=1
     while IFS= read -r ref; do
         # Redirect per line, not on the enclosing loop: the loop's stdout has to
         # stay free for record() to report on.
         if [[ -n "$ref" ]]; then
-            printf '%s\t%s\n' "$ref" "$module" >>"$refs_file"
+            role=any
+            [[ "$has_sif" -eq 1 && ! "$ref" =~ ^(oras|https?):// ]] && role=alt
+            printf '%s\t%s\t%s\n' "$ref" "$module" "$role" >>"$refs_file"
         fi
     done <<<"$literals"
 done < <(find "$PROJECT_ROOT/modules" -name main.nf | sort)
@@ -206,10 +214,11 @@ effective_depth() {
     esac
 }
 
-# check_env ENGINE SIF REF MODULES -- check a pulled image against the
-# environment.yml of each module that declares it (see lib/check_image_env.py).
+# check_env ENGINE IMAGE REF MODULES -- check a pulled image (a SIF file, or a
+# docker/podman image name) against the environment.yml of each module that
+# declares it (see lib/check_image_env.py).
 check_env() {
-    local engine="$1" sif="$2" ref="$3" modules="$4"
+    local engine="$1" image="$2" ref="$3" modules="$4"
     local module yml listing logfile
     if ! have_cmd python3; then
         record SKIP "$engine env: $ref" "needs python3"
@@ -217,8 +226,11 @@ check_env() {
     fi
     listing="$(mktemp -t bca_listing.XXXXXX)"
     # A glob that matches nothing makes ls fail, so the listing is judged by its content
-    "$engine" exec "$sif" sh -c 'ls -1 /opt/conda/conda-meta/*.json /opt/conda/lib/python3*/site-packages/ 2>/dev/null' \
-        >"$listing" 2>/dev/null || true
+    local list_cmd='ls -1 /opt/conda/conda-meta/*.json /opt/conda/lib/python3*/site-packages/ 2>/dev/null'
+    case "$engine" in
+        docker|podman) "$engine" run --rm --entrypoint sh "$image" -c "$list_cmd" ;;
+        *)             "$engine" exec "$image" sh -c "$list_cmd" ;;
+    esac >"$listing" 2>/dev/null || true
     for module in $modules; do
         yml="$PROJECT_ROOT/modules/$module/environment.yml"
         [[ -f "$yml" ]] || continue
@@ -233,9 +245,10 @@ check_env() {
     rm -f "$listing"
 }
 
-# check_ref ENGINE REF MODULES -- MODULES lists every module declaring REF
+# check_ref ENGINE REF MODULES ROLES -- MODULES lists every module declaring REF;
+# ROLES is "alt" when every one of them gives singularity/apptainer a SIF instead.
 check_ref() {
-    local engine="$1" ref="$2" module="$3"
+    local engine="$1" ref="$2" module="$3" roles="$4"
     local depth logfile slug sif
     depth="$(effective_depth "$engine")"
     slug="$(slugify "$engine-$ref")"
@@ -266,11 +279,19 @@ check_ref() {
                 else
                     record FAIL "$engine: $image" "pull failed ($module)"
                     tail_log "$logfile"
+                    return
+                fi
+                if [[ "$depth" == env ]]; then
+                    check_env "$engine" "$image" "$ref" "$module"
                 fi
             fi
             ;;
 
         singularity|apptainer)
+            if [[ "$roles" == alt ]]; then
+                record SKIP "$engine: $ref" "docker/podman image; $engine uses the module's oras:// image"
+                return
+            fi
             case "$ref" in
                 https://*|http://*)
                     if run_logged "$logfile" curl -fsSL -I "$ref"; then
@@ -339,7 +360,8 @@ for engine in $engines; do
     while IFS= read -r ref; do
         [[ -n "$ref" ]] || continue
         modules="$(awk -F'\t' -v r="$ref" '$1 == r { printf "%s ", $2 }' "$refs_file")"
-        check_ref "$engine" "$ref" "${modules% }"
+        roles="$(awk -F'\t' -v r="$ref" '$1 == r { print $3 }' "$refs_file" | sort -u | paste -sd, -)"
+        check_ref "$engine" "$ref" "${modules% }" "$roles"
     done < <(cut -f1 "$refs_file" | sort -u)
 done
 

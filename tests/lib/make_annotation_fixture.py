@@ -137,19 +137,36 @@ def write_alevin(outdir):
         f.write("\n".join(genes()) + "\n")
 
 
+def scrublet_call(c):
+    return "doublet" if c in DOUBLET_CELLS + [DOUBLET_ONE_TOOL] else "singlet"
+
+
+def scdblfinder_call(c):
+    return "doublet" if c in DOUBLET_CELLS else "singlet"
+
+
+# Each tool's score of an evaluated cell: distinct per cell, so a misplaced one shows
+def scrublet_score(c):
+    return round(0.05 + 0.1 * c, 2)
+
+
+def scdblfinder_score(c):
+    return round(0.9 - 0.1 * c, 2)
+
+
 def write_combined_results(path):
     """
     Demuxafy's Combine_Results.R output: one row per evaluated barcode, one
-    DropletType column per tool plus the AnySinglet consensus.
+    DropletType and score column per tool plus the AnySinglet consensus.
     """
     rows = []
     for c in range(N_EVALUATED):
-        scrublet = "doublet" if c in DOUBLET_CELLS + [DOUBLET_ONE_TOOL] else "singlet"
-        scdblfinder = "doublet" if c in DOUBLET_CELLS else "singlet"
         rows.append({
             "Barcode": barcode(c),
-            "scrublet_DropletType": scrublet,
-            "scDblFinder_DropletType": scdblfinder,
+            "scrublet_DropletType": scrublet_call(c),
+            "scrublet_Scores": scrublet_score(c),
+            "scDblFinder_DropletType": scdblfinder_call(c),
+            "scDblFinder_Score": scdblfinder_score(c),
             # AnySinglet: a doublet only where every tool agrees
             "AnySinglet_DropletType": "doublet" if c in DOUBLET_CELLS else "singlet",
         })

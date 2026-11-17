@@ -1,9 +1,16 @@
 process SAMTOOLS_MERGE {
     tag "merging_bams"
-    label 'process_low2'
+
+    // Time follows the BAMs being merged
+    cpus   { 2 * task.attempt }
+    memory { 1.GB * task.attempt }
+    time   { BcaResources.scaledTime(
+        params.dynamic_time?.SAMTOOLS_MERGE, [bams], task.attempt, 0.75) }
 
     conda "${moduleDir}/environment.yml"
-    container "oras://community.wave.seqera.io/library/samtools:1.22.1--9a10f06c24cdf05f"
+    container "${ workflow.containerEngine in ['singularity', 'apptainer'] && !task.ext.singularity_pull_docker_container ?
+        'oras://community.wave.seqera.io/library/samtools:1.22.1--9a10f06c24cdf05f' :
+        'community.wave.seqera.io/library/samtools:1.22.1--ab498d6f62305900' }"
 
     input:
     path(bams)

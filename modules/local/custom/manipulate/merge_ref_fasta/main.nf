@@ -13,7 +13,7 @@ process MERGE_REF_FASTA {
     script:
     def do_merge = add_fasta ? true : false
     """
-    if [ "$do_merge" = "true" ]; then
+    if [ "$do_merge" = "true" ] && [ -s "${add_fasta}" ]; then
         cat ${base_fasta} ${add_fasta} > ref.fasta
     else
         cp ${base_fasta} ref.fasta

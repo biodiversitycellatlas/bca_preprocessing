@@ -13,11 +13,13 @@ work/*
 conf/resources_tuned*.config
 conf/resources_dynamic*.config
 resource_efficiency_*/
+execution_reports/
 
 # Test suite scratch
 tests/.logs/
 tests/.cache/
 tests/.envs/
+output/
 
 # Python bytecode from bin/ and tests/lib/
 __pycache__/

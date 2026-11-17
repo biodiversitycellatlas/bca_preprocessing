@@ -127,6 +127,7 @@ import mtx_io
 from make_annotation_fixture import (
     barcode, gene, raw_value, denoised_value, alpha_hat, ambient_hat, is_empty, celltype,
     barcodes, genes, doublet_barcodes, kept_barcodes, raw_matrix,
+    scrublet_call, scdblfinder_call, scrublet_score, scdblfinder_score,
     N_GENES, N_CELLS, N_EVALUATED, DOUBLET_CELLS, CS_DROPPED_GENE,
 )
 
@@ -377,12 +378,14 @@ if run_logged "$BCA_TEST_LOGDIR/annotated_h5ad_plain.log" \
             --features "$STARSOLO/features.tsv" \
             --sample_id sampleA \
             --output_h5ad "$PLAIN"; then
+    # anndata >= 0.13 lists X itself among the layers, under the key None
     assert "h5ad_plain" \
-        "((lambda a: (np.array_equal(dense(a.X).T, raw_matrix())
+        "((lambda a, named: (np.array_equal(dense(a.X).T, raw_matrix())
                       and list(a.obs_names) == barcodes() and list(a.var_names) == genes()
                       and set(a.obs['sample_id']) == {'sampleA'}
-                      and len(a.layers) == 0 and 'doublet_status' not in a.obs,
-                      f'{a.n_obs} x {a.n_vars}, layers {list(a.layers)}'))(read_h5ad(A[0])))" \
+                      and named == [] and 'doublet_status' not in a.obs,
+                      f'{a.n_obs} x {a.n_vars}, layers {named}'))(
+            *(lambda a: (a, [k for k in a.layers if k is not None]))(read_h5ad(A[0]))))" \
         "cells x genes, no annotations without inputs" \
         "$PLAIN"
 
@@ -418,6 +421,21 @@ if run_logged "$BCA_TEST_LOGDIR/annotated_h5ad_merge.log" \
                       f\"flagged {[bc for bc in a.obs_names if a.obs['doublet_status'][bc] == 'doublet']}\"))(
             read_h5ad(A[0])))" \
         "exactly the consensus calls, everything else singlet" \
+        "$ANNOTATED"
+
+    # Each tool's own call and score beside the consensus; the barcodes no tool
+    # evaluated have neither
+    assert "h5ad_doublets.callers" \
+        "((lambda a: (all(str(a.obs['scrublet_call'][barcode(c)]) == scrublet_call(c)
+                          and str(a.obs['scdblfinder_call'][barcode(c)]) == scdblfinder_call(c)
+                          and a.obs['scrublet_score'][barcode(c)] == scrublet_score(c)
+                          and a.obs['scdblfinder_score'][barcode(c)] == scdblfinder_score(c)
+                          for c in range(N_EVALUATED))
+                      and a.obs['scrublet_call'].isna().sum() == N_CELLS - N_EVALUATED
+                      and a.obs['scdblfinder_score'].isna().sum() == N_CELLS - N_EVALUATED
+                      and a.uns['doublet_method'] == 'AnySinglet',
+                      f\"scrublet {list(a.obs['scrublet_call'].astype(str))}\"))(read_h5ad(A[0])))" \
+        "each tool's call and score per evaluated barcode, the method in uns" \
         "$ANNOTATED"
 
     # The CellSweep object holds only the non-empty barcodes, shuffled, and misses a

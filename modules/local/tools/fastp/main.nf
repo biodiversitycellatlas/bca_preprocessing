@@ -5,7 +5,9 @@ process FASTP {
     debug true
 
     conda "${moduleDir}/environment.yml"
-    container "oras://community.wave.seqera.io/library/fastp:0.24.0--0397de619771c7ae"
+    container "${ workflow.containerEngine in ['singularity', 'apptainer'] && !task.ext.singularity_pull_docker_container ?
+        'oras://community.wave.seqera.io/library/fastp:0.24.0--0397de619771c7ae' :
+        'community.wave.seqera.io/library/fastp:0.24.0--0ee57846e27f8af5' }"
 
     input:
     tuple val(meta), path(fastq_cDNA), path(fastq_BC_UMI), path(fastq_indices), path(input_file)
@@ -31,7 +33,7 @@ process FASTP {
     fastp \\
         --html fastp_${meta.id}.html \\
         --json fastp_${meta.id}.json \\
-        --thread 8 \\
+        --thread ${task.cpus} \\
         --in1 ${fastq_cDNA} \\
         --in2 ${fastq_BC_UMI} \\
         --out1 trimmed_${fastq_cDNA} \\

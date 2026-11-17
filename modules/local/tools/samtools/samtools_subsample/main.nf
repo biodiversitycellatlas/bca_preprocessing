@@ -1,9 +1,16 @@
 process SAMTOOLS_SUBSAMPLE {
     tag "${meta.id}"
-    label 'process_low2'
+
+    // Time follows the BAMs size
+    cpus   { 2 * task.attempt }
+    memory { 1.GB * task.attempt }
+    time   { BcaResources.scaledTime(
+        params.dynamic_time?.SAMTOOLS_SUBSAMPLE, [bam_file], task.attempt, 0.75) }
 
     conda "${moduleDir}/environment.yml"
-    container "oras://community.wave.seqera.io/library/samtools:1.22.1--9a10f06c24cdf05f"
+    container "${ workflow.containerEngine in ['singularity', 'apptainer'] && !task.ext.singularity_pull_docker_container ?
+        'oras://community.wave.seqera.io/library/samtools:1.22.1--9a10f06c24cdf05f' :
+        'community.wave.seqera.io/library/samtools:1.22.1--ab498d6f62305900' }"
 
     input:
     tuple val(meta), path(bam_file)

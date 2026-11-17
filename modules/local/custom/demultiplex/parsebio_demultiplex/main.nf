@@ -1,10 +1,17 @@
 process PARSEBIO_CUSTOM_DEMUX {
     publishDir path: { "${params.outdir}/demultiplex/demux_custom/${meta.id}" }, mode: 'copy', saveAs: { filename -> filename == 'versions.yml' ? null : filename }
     tag "${meta.id}"
-    label 'process_medium'
+
+    // Time follows the reads (params.dynamic_time), never below 4 h.
+    cpus   1
+    memory { 2.GB * task.attempt }
+    time   { BcaResources.scaledTime(
+        params.dynamic_time?.PARSEBIO_CUSTOM_DEMUX, [fastq_cDNA, fastq_BC_UMI], task.attempt, 4) }
 
     conda "${moduleDir}/environment.yml"
-    container "oras://community.wave.seqera.io/library/python:3.14.2--0bd36b5fd9edb930"
+    container "${ workflow.containerEngine in ['singularity', 'apptainer'] && !task.ext.singularity_pull_docker_container ?
+        'oras://community.wave.seqera.io/library/python:3.14.2--0bd36b5fd9edb930' :
+        'community.wave.seqera.io/library/python:3.14.2--0562a0df3245213a' }"
 
     input:
     tuple val(meta), path(fastq_cDNA), path(fastq_BC_UMI), path(fastq_indices), path(input_file)

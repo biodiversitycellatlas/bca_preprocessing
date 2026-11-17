@@ -9,7 +9,7 @@ lognormal populations whose sizes *are* the answer -- the assertions restate
 ``PLANTED_BOUNDARY`` rather than hard-coding a rank some earlier run happened to
 produce.
 
-Three archetypes, each targeting a different failure:
+Four archetypes, each targeting a different failure:
 
 ``sharp``
     One cell population an order of magnitude above the ambient cloud.  Every
@@ -36,6 +36,13 @@ Three archetypes, each targeting a different failure:
     find, and the honest outcome is a loosely determined one: the criterion's
     minimum is broad, so its basin should be far wider than on ``sharp``.  A
     method that reports a confident cutoff here is lying.
+
+``ambient_shoulder``
+    Shaped like the fly embryo library this pipeline produces: 2,500 cells, then
+    a dense shoulder of 60,000 ambient-rich droplets around 160 UMIs, then the
+    empty tail.  The shoulder's lower edge is the deepest bend on the curve, and
+    a rule that searches past the --min-umis floor or lets the expected count
+    widen its window takes it and calls the whole shoulder.
 
 Importable, so the checks name the same constants that generated the data.
 """
@@ -66,6 +73,11 @@ ARCHETYPES: Dict[str, Dict[str, Tuple[int, float, float]]] = {
     "no_knee": {
         "all": (20000, 300.0, 0.80),
     },
+    "ambient_shoulder": {
+        "cells": (2500, 2000.0, 0.60),
+        "shoulder": (60000, 160.0, 0.25),
+        "ambient": (300000, 15.0, 0.80),
+    },
 }
 
 # The rank the cell/ambient boundary sits at: every non-ambient barcode.
@@ -73,6 +85,7 @@ PLANTED_BOUNDARY: Dict[str, Optional[int]] = {
     "sharp": 800,
     "two_knee": 1000,
     "no_knee": None,
+    "ambient_shoulder": 2500,
 }
 
 # The competing, deeper bend in ``two_knee``: where the bright sub-population
@@ -82,6 +95,7 @@ DECOY_BEND: Dict[str, Optional[int]] = {
     "sharp": None,
     "two_knee": 200,
     "no_knee": None,
+    "ambient_shoulder": 62500,
 }
 
 # What the pipeline would be told to expect for each fixture.
@@ -89,6 +103,7 @@ EXPECTED_CELLS: Dict[str, Optional[int]] = {
     "sharp": 800,
     "two_knee": 1000,
     "no_knee": 2000,
+    "ambient_shoulder": 2500,
 }
 
 # Half-width of the acceptance band around a planted boundary, in decades of

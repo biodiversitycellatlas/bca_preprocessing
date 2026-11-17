@@ -59,6 +59,13 @@ workflow restage_mapping_workflow {
         // whatever it says now -- that is what makes the cells re-callable
         def ch_meta = ch_samplesheet.map { row -> row[0] }
 
+        // The raw matrix analysed downstream (lib/StarsoloMatrix.groovy). A multi-gene one only
+        // exists when the previous run listed that type in star_soloMultiMappers.
+        def star_raw_matrix = StarsoloMatrix.rawFileName(params)
+        def star_raw_label  = star_raw_matrix == StarsoloMatrix.UNIQUE_FILE
+            ? "GeneFull_Ex50pAS/raw/${star_raw_matrix}"
+            : "GeneFull_Ex50pAS/raw/${star_raw_matrix} (star_soloMultiMappers = '${StarsoloMatrix.setting(params)}'; set it to what the previous run used)"
+
         /*
          * STARsolo
          */
@@ -79,6 +86,7 @@ workflow restage_mapping_workflow {
                     [ "${meta.id}_Solo.out",                  solo ],
                     [ "GeneFull_Ex50pAS",                     gene ],
                     [ "GeneFull_Ex50pAS/raw",                 file("${gene}/raw") ],
+                    [ star_raw_label,                         file("${gene}/raw/${star_raw_matrix}") ],
                     [ "GeneFull_Ex50pAS/Summary.csv",         file("${gene}/Summary.csv") ],
                     [ "GeneFull_Ex50pAS/CellReads.stats",     file("${gene}/CellReads.stats") ],
                     [ "GeneFull_Ex50pAS/UMIperCellSorted.txt", file("${gene}/UMIperCellSorted.txt") ],
@@ -103,8 +111,8 @@ workflow restage_mapping_workflow {
             .set { ch_star }
 
         // All optional upstream: the BAM only exists with star_generateBAM, STARsolo's own
-        // filtered matrix is dropped whenever this pipeline re-calls cells, and Velocyto/raw
-        // only exists when the previous run set 'perform_velocity'
+        // filtered matrix is missing from runs made before it was kept under re-called cells,
+        // and Velocyto/raw only exists when the previous run set 'perform_velocity'
         def ch_star_bam = ch_star.bam.filter { _meta, bam -> bam.exists() }
         def ch_star_filtered = ch_star.filtered.filter { _meta, dir -> dir.exists() }
         def ch_star_velo_raw = ch_star.velo_raw.filter { _meta, dir -> dir.exists() }

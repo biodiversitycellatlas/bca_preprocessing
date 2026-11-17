@@ -4,7 +4,9 @@ process MULTIQC {
 
 
     conda "${moduleDir}/environment.yml"
-    container "oras://community.wave.seqera.io/library/multiqc:1.30--d3e586af7b974fba"
+    container "${ workflow.containerEngine in ['singularity', 'apptainer'] && !task.ext.singularity_pull_docker_container ?
+        'oras://community.wave.seqera.io/library/multiqc:1.30--d3e586af7b974fba' :
+        'community.wave.seqera.io/library/multiqc:1.30--d0fc0003e17da8ee' }"
 
     input:
     path(multiqc_files, stageAs: "?/*")

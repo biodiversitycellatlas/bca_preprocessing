@@ -1,8 +1,13 @@
 process CELLSWEEP {
     publishDir path: { "${params.outdir}/cellsweep/${meta.id}" }, mode: 'copy', saveAs: { filename -> filename == 'versions.yml' ? null : filename }
     tag "${meta.id} | ${meta.mapping_method}"
-    label 'process_low2'
-    debug true
+
+    // Memory tracks the size of the raw matrix, which is loaded in full
+    cpus   2
+    time   { BcaResources.scaledTime(
+        params.dynamic_time?.CELLSWEEP, [mtx, barcodes, features], task.attempt, 0.75) }
+    memory { BcaResources.scaledMemory(
+        params.dynamic_memory?.CELLSWEEP, [mtx, barcodes, features], task.attempt, 6) }
 
     // A matrix with too few cells to cluster exits 3 from bin/run_cellsweep.py; the
     // sample is then dropped from this step and published without denoised counts.
@@ -22,7 +27,9 @@ process CELLSWEEP {
     maxRetries 1
 
     conda "${moduleDir}/environment.yml"
-    container "oras://community.wave.seqera.io/library/python_pip_anndata_scanpy_pruned:c51d8166168b70dd"
+    container "${ workflow.containerEngine in ['singularity', 'apptainer'] && !task.ext.singularity_pull_docker_container ?
+        'oras://community.wave.seqera.io/library/python_pip_anndata_scanpy_pruned:c51d8166168b70dd' :
+        'community.wave.seqera.io/library/python_pip_anndata_scanpy_pruned:482ff25ccf8e0ce3' }"
 
     input:
     tuple val(meta), path(mtx), path(barcodes), path(features), path(doublet_results)

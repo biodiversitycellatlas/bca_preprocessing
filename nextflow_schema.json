@@ -34,10 +34,11 @@
                     "type": "string",
                     "description": "Sequencing technology, which selects the pre-processing and the read layout in conf/seqtech_parameters.config.",
                     "enum": [
-                        "10xv1", "10xv2", "10xv3", "10xv4", "ultima_genomics", "oak_v1",
+                        "10xv1", "10xv2", "10xv3", "10xv4", "oak_v1",
                         "parse_biosciences_WT_mini", "parse_biosciences_WT",
                         "bd_rhapsody_v1", "bd_rhapsody_enhancedbeads",
-                        "sciRNAseq3", "marsseq_v1", "marsseq_v2", "seqspec"
+                        "sciRNAseq3", "marsseq_v1", "marsseq_v2",
+                        "scalebio_quantum_rna", "scalebio_rna_v1_1", "seqspec"
                     ]
                 },
                 "ref_fasta": {
@@ -61,13 +62,13 @@
                     "type": "string",
                     "format": "file-path",
                     "exists": true,
-                    "description": "Extra sequences (e.g. rRNA) appended to 'ref_fasta' for mapping."
+                    "description": "Extra sequences (e.g. a consensus rDNA unit) appended to 'ref_fasta' for mapping. Records that copy sequence already in 'ref_fasta' are dropped. Every read on an added contig counts as an rRNA read."
                 },
                 "ref_gtf_addfeature": {
                     "type": "string",
                     "format": "file-path",
                     "exists": true,
-                    "description": "Extra annotation (e.g. rRNA) appended to 'ref_gtf' for mapping."
+                    "description": "rRNA loci (GTF rows of any feature type) on contigs of 'ref_fasta' or 'ref_fasta_addfeature', counted in the read-level rRNA metrics. Not added to the mapping annotation, so the count matrices are unaffected."
                 },
                 "bc_whitelist": {
                     "type": "string",
@@ -78,6 +79,55 @@
                     "format": "file-path",
                     "exists": true,
                     "description": "Well whitelist the Parse Biosciences demultiplexing splits the reads on."
+                },
+                "parse_collapse_bc1": {
+                    "type": "boolean",
+                    "default": true,
+                    "description": "Parse Biosciences: rewrite each read's round-1 barcode to its well's oligo-dT barcode before mapping, so a cell's oligo-dT, random-hexamer and targeted reads form one cell. Needs 'bc_whitelist_parse_splitwells'."
+                },
+                "scalebio_max_mismatches": {
+                    "type": "integer",
+                    "minimum": 0,
+                    "maximum": 2,
+                    "description": "ScaleBio: substitutions corrected per barcode (Hamming distance). Unset uses the protocol's setting (1)."
+                },
+                "scalebio_i5_revcomp": {
+                    "type": "string",
+                    "default": "auto",
+                    "enum": ["auto", "true", "false"],
+                    "description": "ScaleBio: whether the I2 read holds the PCR (i5) index reverse-complemented, as on some sequencers. 'auto' decides per lane from its first 200,000 reads."
+                },
+                "scalebio_write_unassigned": {
+                    "type": "boolean",
+                    "default": false,
+                    "description": "ScaleBio: also write the reads whose barcodes are valid but whose RT/PCR wells belong to no sample, to demultiplex/scalebio/<library>/."
+                },
+                "scalebio_ultima_tags": {
+                    "type": "string",
+                    "pattern": "^\\s*\\w+=[A-Za-z][A-Za-z0-9](:\\d+)?(\\s*,\\s*\\w+=[A-Za-z][A-Za-z0-9](:\\d+)?)*\\s*$",
+                    "description": "ScaleBio, Ultima CRAMs: the SAM tag holding each barcode, as 'segment=TAG[:START],...', START being where the barcode begins in the tag's value (0-based) when a constant linker comes first. Unset uses the protocol's (QuantumScale: 'pcr=RG,bead1=b1,bead2=b2:4,bead3=b3:4,rt=b4')."
+                },
+                "scalebio_ultima_umi": {
+                    "type": "string",
+                    "pattern": "^(tag:[A-Za-z][A-Za-z0-9]|seq:\\d+:\\d+)$",
+                    "description": "ScaleBio, Ultima CRAMs: where the UMI is, 'tag:XX' (a SAM tag) or 'seq:START:LENGTH' (its place in the read, 0-based; it is cut from the cDNA). Unset uses the protocol's (QuantumScale: 'tag:UM')."
+                },
+                "cram_type": {
+                    "type": "string",
+                    "default": "illumina",
+                    "enum": ["illumina", "ultima"],
+                    "description": "What the samplesheet's 'cram' files hold: 'illumina', unaligned read pairs with the index reads in the BC/QT tags (any protocol; converted to FASTQ), or 'ultima', Ultima Genomics reads whose ScaleBio barcodes the Ultima trimmer moved into tags (ScaleBio only)."
+                },
+                "cram_reference": {
+                    "type": "string",
+                    "format": "file-path",
+                    "exists": true,
+                    "description": "FASTA the 'cram' files were compressed against. Unaligned CRAMs need none."
+                },
+                "cram_index_format": {
+                    "type": "string",
+                    "default": "auto",
+                    "description": "How the index reads are read from a CRAM's BC tag (samtools fastq --index-format), e.g. 'i8i8' when two indices are joined without a separator. 'auto' counts the indices by their separator ('ACGT-TTGG' is two)."
                 },
                 "run_method": {
                     "type": "string",
@@ -125,9 +175,27 @@
                 },
                 "alevin_resolution": {
                     "type": "string",
-                    "default": "cr-like",
+                    "default": "cr-like-em",
                     "enum": ["cr-like", "cr-like-em"],
-                    "description": "alevin-fry UMI resolution. cr-like discards UMIs that stay ambiguous between genes, as Cell Ranger and STARsolo's matrix.mtx do; cr-like-em splits them by expectation-maximisation."
+                    "description": "alevin-fry UMI resolution. cr-like discards UMIs that stay ambiguous between genes, as Cell Ranger and STARsolo with star_soloMultiMappers 'Unique' do; cr-like-em splits them by expectation-maximisation, the counterpart of STARsolo's default 'EM'."
+                },
+                "skip_barcode_check": {
+                    "type": "boolean",
+                    "default": false,
+                    "description": "Never cancel a sample for barcodes that do not match the whitelist."
+                },
+                "min_barcode_match": {
+                    "type": "number",
+                    "default": 10,
+                    "minimum": 0,
+                    "maximum": 100,
+                    "description": "Percentage of the checked reads whose barcode is on the whitelist (exact match) below which a sample is cancelled before mapping; 0 disables the check."
+                },
+                "barcode_check_reads": {
+                    "type": "integer",
+                    "default": 100000,
+                    "minimum": 1,
+                    "description": "Number of reads the barcode check reads per sample, from the start of the barcode FASTQ."
                 },
                 "skip_mapping_rate_check": {
                     "type": "boolean",
@@ -145,7 +213,7 @@
                     "type": "string",
                     "default": "abort",
                     "enum": ["abort", "skip_sample"],
-                    "description": "What a failed mapping-rate check does: stop the pipeline, or drop only that sample."
+                    "description": "What a failed mapping-rate check or barcode check does: stop the pipeline, or drop only that sample."
                 },
                 "mapping_rate_check_reads": {
                     "type": "integer",
@@ -193,12 +261,18 @@
                 },
                 "star_soloStrand": {
                     "type": "string",
-                    "default": "Forward",
-                    "enum": ["Forward", "Reverse", "Unstranded"]
+                    "enum": ["Forward", "Reverse", "Unstranded"],
+                    "description": "Strand of the reads relative to the gene (STAR --soloStrand; alevin-fry and the antisense metrics follow it). Unset: 'Forward', or 'Reverse' for samples read from Ultima CRAMs (cram_type 'ultima')."
                 },
                 "star_genomeSAsparseD": {
                     "type": "integer",
                     "minimum": 1
+                },
+                "star_genomeChrBinNbits": {
+                    "type": "integer",
+                    "minimum": 1,
+                    "maximum": 32,
+                    "description": "STAR --genomeChrBinNbits for the index build; derived as min(18, log2(max(genome length / number of sequences, read length))) when unset."
                 },
                 "star_soloFeatures": {
                     "type": "string"
@@ -223,13 +297,16 @@
                     "type": "string"
                 },
                 "star_soloMultiMappers": {
-                    "type": "string"
+                    "type": "string",
+                    "description": "STARsolo counting of multi-gene reads, and so the matrix analysed: 'Unique' (raw/matrix.mtx) or 'EM', 'Uniform', 'PropUnique', 'Rescue' (raw/UniqueAndMult-<type>.mtx, fractional). Defaults to the protocol's: 'PropUnique' for ScaleBio, 'EM' for the others.",
+                    "pattern": "^(Unique|EM|Uniform|PropUnique|Rescue)( (Unique|EM|Uniform|PropUnique|Rescue))*$"
                 },
                 "star_clipAdapterType": {
                     "type": "string"
                 },
                 "star_extraargs": {
-                    "type": "string"
+                    "type": "string",
+                    "description": "Further STAR options, added to the protocol's own (conf/seqtech_parameters.config). An option given here replaces the protocol's option of the same name."
                 },
                 "star_genomeSAindexNbases": {
                     "type": "integer",
@@ -397,7 +474,7 @@
                 },
                 "mc2_target_metacell_size": {
                     "type": "integer",
-                    "default": 48,
+                    "default": 96,
                     "minimum": 2
                 },
                 "mc2_random_seed": {
@@ -432,7 +509,13 @@
                     "type": "string",
                     "format": "file-path",
                     "exists": true,
-                    "description": "TSV with a header giving protein domains (PFAM) per gene, transcript or protein id."
+                    "description": "Protein domains (PFAM) per gene, transcript or protein id: pfam_scan.pl output, eggNOG-mapper's .emapper.annotations, or a TSV with or without header."
+                },
+                "gene_annotation_format": {
+                    "type": "string",
+                    "default": "auto",
+                    "enum": ["auto", "table", "emapper", "pfamscan", "headerless"],
+                    "description": "Format of 'gene_annotation'; 'auto' detects it from the file's first lines."
                 },
                 "gene_annotation_id_col": {
                     "type": "string",
@@ -441,6 +524,10 @@
                 "gene_annotation_pfam_col": {
                     "type": "string",
                     "default": "pfam"
+                },
+                "gene_annotation_name_col": {
+                    "type": "string",
+                    "description": "Gene name column of a 'gene_annotation' with header; eggNOG-mapper's Preferred_name is used without it."
                 },
                 "mcfilter_max_mito_pct": {
                     "type": "number",

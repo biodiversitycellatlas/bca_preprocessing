@@ -27,6 +27,7 @@ workflow bam_inspection_workflow {
     take:
         bam_file
         ref_gtf
+        rrna_regions
         summary_csv
         log_final_file
         secondderiv_stats
@@ -94,13 +95,9 @@ workflow bam_inspection_workflow {
             .map { meta, bam, filtered, cellreads -> [meta, bam, filtered ?: [], cellreads ?: []] }
             .set { ch_metrics_inputs }
 
-        def ch_rrna_gtf = params.ref_gtf_addfeature
-            ? channel.value(file(params.ref_gtf_addfeature, checkIfExists: true))
-            : channel.value([])
-
         // Percentages of mtDNA and rRNA reads, per library, per called cell and per barcode,
         // and the antisense share of gene reads from STARsolo's CellReads.stats (stranded runs only).
-        CALC_READ_METRICS(ch_metrics_inputs, ref_gtf, ch_rrna_gtf)
+        CALC_READ_METRICS(ch_metrics_inputs, ref_gtf, rrna_regions)
         ch_versions = ch_versions.mix(CALC_READ_METRICS.out.versions)
 
         // Inspecting unmapped reads using Kraken2
@@ -109,16 +106,26 @@ workflow bam_inspection_workflow {
             // Extract unmapped reads
             SAMTOOLS_VIEW_UNMAPPED(bam_file)
 
+            // The database is staged into KRAKEN as a directory, so its memory can be sized
+            // from it: the one given in kraken_db_path, or else the downloaded default
+            def ch_kraken_db
+            if (params.kraken_db_path) {
+                ch_kraken_db = channel.value(file(params.kraken_db_path, type: 'dir', checkIfExists: true))
+            }
+            else {
+                KRAKEN_CREATE_DB()
+                ch_kraken_db = KRAKEN_CREATE_DB.out.db
+                ch_versions = ch_versions.mix(KRAKEN_CREATE_DB.out.versions)
+            }
+
             // Perform kraken tools plus visualization with Pavian
-            KRAKEN_CREATE_DB()
-            KRAKEN(KRAKEN_CREATE_DB.out.db_path_file, SAMTOOLS_VIEW_UNMAPPED.out.filtered_unmapped_fasta)
+            KRAKEN(ch_kraken_db, SAMTOOLS_VIEW_UNMAPPED.out.filtered_unmapped_fasta)
             PAVIAN(KRAKEN.out.k2report)
             ch_pavian_sankey = PAVIAN.out.sankey
             ch_kraken_report = KRAKEN.out.k2report
 
             ch_versions = ch_versions.mix(
                 SAMTOOLS_VIEW_UNMAPPED.out.versions,
-                KRAKEN_CREATE_DB.out.versions,
                 KRAKEN.out.versions,
                 PAVIAN.out.versions
             )

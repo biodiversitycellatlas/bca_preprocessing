@@ -18,7 +18,11 @@ import pandas as pd
 
 logger = logging.getLogger("DoubletCalls")
 
+# Each tool's prefix in the Combine_Results.R table, and the obs columns its call and
+# score land in
 DOUBLET_COL = "doublet_status"
+CALLERS = {"scrublet": "scrublet", "scDblFinder": "scdblfinder"}
+METHOD_UNS = "doublet_method"
 
 
 def read_combined_results(combined_results):
@@ -62,4 +66,32 @@ def annotate(adata, barcodes):
         categories=["singlet", "doublet"],
     )
     logger.info(f"Annotated {int(is_doublet.sum())} / {adata.n_obs} barcodes as consensus doublets")
+    return adata
+
+
+def _score_column(combined, prefix):
+    """The tool's score column (Scrublet writes ``_Scores``, scDblFinder ``_Score``), or None."""
+    return next((c for c in combined.columns
+                 if c.lower().startswith(prefix.lower() + "_") and "score" in c.lower()), None)
+
+
+def annotate_callers(adata, combined, method):
+    """
+    Each tool's own call and score, beside the consensus: ``.obs['<tool>_call']``
+    (singlet / doublet) and ``.obs['<tool>_score']``, NaN for the barcodes never
+    evaluated, and ``.uns['doublet_method']``, the consensus rule. A tool missing
+    from the table leaves its columns out; a missing score only the score.
+    """
+    table = combined.set_index("Barcode")
+    for prefix, name in CALLERS.items():
+        call_col = f"{prefix}_DropletType"
+        if call_col not in table.columns:
+            logger.warning(f"No '{call_col}' column in the combined results; {name} calls left out")
+            continue
+        calls = table[call_col].astype(str).str.lower().reindex(adata.obs_names)
+        adata.obs[f"{name}_call"] = pd.Categorical(calls, categories=["singlet", "doublet"])
+        score_col = _score_column(table, prefix)
+        if score_col:
+            adata.obs[f"{name}_score"] = pd.to_numeric(table[score_col], errors="coerce").reindex(adata.obs_names).to_numpy()
+    adata.uns[METHOD_UNS] = method
     return adata

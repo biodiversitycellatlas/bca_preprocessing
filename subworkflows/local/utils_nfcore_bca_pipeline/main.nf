@@ -112,6 +112,15 @@ workflow PIPELINE_INITIALISATION {
         )
     }
 
+    // The doublet tools run inside Demuxafy.sif, which only singularity and apptainer can use
+    if (params.perform_doublet_detection && workflow.containerEngine && !(workflow.containerEngine in ['singularity', 'apptainer'])) {
+        error(
+            "'perform_doublet_detection' runs Scrublet and scDblFinder from the Demuxafy singularity image,\n" +
+            "which the '${workflow.containerEngine}' engine cannot run. Use -profile apptainer or singularity,\n" +
+            "or unset 'perform_doublet_detection'."
+        )
+    }
+
     //
     // 'perform_featurecounts' is retired: CALC_READ_METRICS runs for every STARsolo BAM,
     // since PERCELL_METRICS takes its per-barcode counts from it
@@ -152,17 +161,49 @@ workflow PIPELINE_INITIALISATION {
             error("Unknown 'metacell_gene_mode' = '${params.metacell_gene_mode}'. Use one of: drop, flag.")
         }
         if (params.gene_annotation) {
+            def formats = ["auto", "table", "emapper", "pfamscan", "headerless"]
+            if (!(params.gene_annotation_format in formats)) {
+                error("Unknown 'gene_annotation_format' = '${params.gene_annotation_format}'. Use one of: ${formats.join(', ')}.")
+            }
             def annotation = file(params.gene_annotation)
             if (!annotation.exists()) {
                 error("'gene_annotation' = '${params.gene_annotation}' does not exist.")
             }
-            def header  = annotation.withReader { reader -> reader.readLine() } ?: ""
-            def columns = header.split("\t").collect { col -> col.trim().replaceFirst(/^#/, "") }
-            def absent  = [params.gene_annotation_id_col, params.gene_annotation_pfam_col].findAll { col -> !(col in columns) }
-            if (absent) {
+            // The format is detected as build_gene_table.py's detect_format does it: from the
+            // first line that is neither blank nor a '##' comment (eggNOG-mapper's preamble),
+            // a pfam_scan.pl comment counting as such a line. 200 lines pass both preambles.
+            def head     = annotation.withReader { reader -> (1..200).collect { _n -> reader.readLine() } }
+            def isPfamscanComment = { line -> line.startsWith("#") && (line.contains("pfam_scan") || line.contains("<seq id>")) }
+            def first    = head.find { line -> line != null && line.trim() && (!line.startsWith("##") || isPfamscanComment(line)) } ?: ""
+            def pfamscan = isPfamscanComment(first)
+            def columns  = first.split("\t", -1).collect { col -> col.trim().replaceFirst(/^#+/, "") }
+            def format  = params.gene_annotation_format
+            if (format == "auto") {
+                format = pfamscan ? "pfamscan"
+                    : first.startsWith("#query") ? "emapper"
+                    : params.gene_annotation_id_col in columns ? "table"
+                    : "headerless"
+            }
+            if (format in ["table", "emapper"]) {
+                // eggNOG-mapper's own column names stand in for the defaults
+                def wanted = [
+                    [params.gene_annotation_id_col,   format == "emapper" ? "query" : null],
+                    [params.gene_annotation_pfam_col, format == "emapper" ? "PFAMs" : null],
+                ]
+                if (params.gene_annotation_name_col) wanted << [params.gene_annotation_name_col, null]
+                def absent = wanted.findAll { alts -> !alts.any { col -> col && col in columns } }.collect { alts -> alts[0] }
+                if (absent) {
+                    error(
+                        "'gene_annotation' (read as '${format}') has no column(s) ${absent.join(', ')} in its header (${columns.join(', ')}).\n" +
+                        "Set 'gene_annotation_id_col', 'gene_annotation_pfam_col' (and 'gene_annotation_name_col') to its identifier, domain (and name) columns."
+                    )
+                }
+            }
+            if (format == "headerless" && columns.drop(3).any { col -> col }) {
                 error(
-                    "'gene_annotation' has no column(s) ${absent.join(', ')} in its header (${columns.join(', ')}).\n" +
-                    "Set 'gene_annotation_id_col' and 'gene_annotation_pfam_col' to the identifier and domain columns."
+                    "'gene_annotation' has ${columns.size()} columns but no header with column '${params.gene_annotation_id_col}'.\n" +
+                    "A file without header has 'id, domains' or 'id, name, domains'. For a file with header, set\n" +
+                    "'gene_annotation_id_col' and 'gene_annotation_pfam_col' to its identifier and domain columns."
                 )
             }
         }
@@ -220,6 +261,14 @@ workflow PIPELINE_INITIALISATION {
         error("'min_mapping_rate' = '${params.min_mapping_rate}' must be a percentage between 0 and 100 (0 disables the check).")
     }
     MappingRateCheck.reset(workflow)
+
+    // The barcode check runs before mapping and follows mapping_rate_action
+    if (!(params.min_barcode_match instanceof Number) || params.min_barcode_match < 0 || params.min_barcode_match > 100) {
+        error("'min_barcode_match' = '${params.min_barcode_match}' must be a percentage between 0 and 100 (0 disables the check).")
+    }
+    if (!(params.barcode_check_reads instanceof Number) || params.barcode_check_reads < 1) {
+        error("'barcode_check_reads' = '${params.barcode_check_reads}' must be a number of reads, at least 1.")
+    }
 
     if (!(params.geneext_downstream in AnalyticalRuns.VALID_GENEEXT_DOWNSTREAM)) {
         error("Unknown 'geneext_downstream' = '${params.geneext_downstream}'. Use one of: ${AnalyticalRuns.VALID_GENEEXT_DOWNSTREAM.join(', ')}.")
@@ -319,6 +368,15 @@ workflow PIPELINE_INITIALISATION {
     }
 
     //
+    // Sample groups: 'qc_report' pools samples in the dashboard, 'filtering_report' pools
+    // their cell-called objects into one Metacell2 run and one filtering report entry
+    //
+    // Both are read here rather than carried in meta: every process hashes meta, so a
+    // group added to a finished run would otherwise re-map every sample on -resume.
+    //
+    def groups_of_samples = sampleGroups(samplesheet_rows)
+
+    //
     // Resolve the FASTQs of every row, and fail fast on the ones that are not there
     //
     // A relative path is read against the samplesheet's own folder, so a samplesheet can sit
@@ -339,11 +397,16 @@ workflow PIPELINE_INITIALISATION {
         if (!sample) {
             problems << "line ${line}: no 'sample'"
         }
-        def fastqs = ['fastq_cDNA', 'fastq_BC_UMI', 'fastq_indices'].collectEntries { col ->
+        // A row gives its reads either as FASTQs or as unaligned CRAM/BAM files ('cram')
+        def is_cram = row.cram?.toString()?.trim() as boolean
+        if (is_cram && (row.fastq_cDNA?.toString()?.trim() || row.fastq_BC_UMI?.toString()?.trim() || row.fastq_indices?.toString()?.trim())) {
+            problems << "line ${line} (${sample}): give the reads either as 'cram' or as FASTQs, not both"
+        }
+        def fastqs = ['fastq_cDNA', 'fastq_BC_UMI', 'fastq_indices', 'cram'].collectEntries { col ->
             def value = row[col]?.toString()?.trim()
             if (!value) {
-                if (needs_fastqs && col != 'fastq_indices') {
-                    problems << "line ${line} (${sample}): no '${col}'"
+                if (needs_fastqs && !is_cram && col in ['fastq_cDNA', 'fastq_BC_UMI']) {
+                    problems << "line ${line} (${sample}): no '${col}' (or 'cram')"
                 }
                 return [col, []]
             }
@@ -374,12 +437,46 @@ workflow PIPELINE_INITIALISATION {
         )
     }
 
+    //
+    // CRAM input: fail fast on combinations the pipeline cannot read
+    //
+    def scalebio   = params.protocol in ['scalebio_quantum_rna', 'scalebio_rna_v1_1']
+    def cram_rows  = samplesheet_rows.findAll { row -> row.cram?.toString()?.trim() }
+    if (cram_rows) {
+        if (params.cram_type == 'ultima' && !scalebio) {
+            error("'cram_type' = 'ultima' reads ScaleBio barcodes from the Ultima trimmer's tags, so it needs a ScaleBio 'protocol' (got '${params.protocol}').")
+        }
+        if (params.cram_type == 'illumina' && !params.seqtech_parameters[params.protocol]?.cdna_read) {
+            error("CRAM input needs to know which read holds the cDNA ('cdna_read' in conf/seqtech_parameters.config), which protocol '${params.protocol}' does not set.")
+        }
+        if (params.cram_type == 'ultima' && !(params.scalebio_ultima_umi ?: params.seqtech_parameters[params.protocol]?.scalebio_ultima_umi)) {
+            error(
+                "Ultima CRAMs: protocol '${params.protocol}' has no default UMI location; set 'scalebio_ultima_umi' to where the Ultima trimmer left the UMI, either 'tag:XX'\n" +
+                "(a SAM tag) or 'seq:START:LENGTH' (its place in the read, 0-based; it is cut from the cDNA).\n" +
+                "Look at a read with: samtools view ${cram_rows[0].cram} | head -1"
+            )
+        }
+        if (params.cram_type == 'ultima' && !(params.scalebio_ultima_tags ?: params.seqtech_parameters[params.protocol]?.scalebio_ultima_tags)) {
+            error("Ultima CRAMs: protocol '${params.protocol}' has no default barcode tags; set 'scalebio_ultima_tags' (e.g. 'lig=b1,rt=b2,pcr=RG').")
+        }
+        if (params.cram_type == 'ultima' && !params.star_soloStrand) {
+            log.info(
+                "Ultima CRAMs: 'star_soloStrand' is not set, so the ${cram_rows.size()} samplesheet row(s) read from CRAMs are counted on the\n" +
+                "reverse strand (Ultima reads are antisense to the gene). Set 'star_soloStrand' to count another strand."
+            )
+        }
+    }
+
     // One entry per sample: the rows of a sample (e.g. its lanes) are merged, with the
     // metadata of its first row
     def samples = resolved_rows
         .groupBy { entry -> entry[0] }
         .collect { sample, entries ->
             def row  = entries[0][1]
+            def formats = entries.collect { entry -> entry[2].cram ? 'cram' : 'fastq' }.unique()
+            if (formats.size() > 1) {
+                error("Sample '${sample}' gives its reads as CRAMs in some rows and as FASTQs in others; use one or the other.")
+            }
             def meta = [
                 id             : sample,
                 expected_cells : row.expected_cells ? row.expected_cells.toInteger() : null,
@@ -387,10 +484,13 @@ workflow PIPELINE_INITIALISATION {
                 p5             : row.p5 ? row.p5 : '',
                 p7             : row.p7 ? row.p7 : '',
                 rt             : row.rt ? row.rt : '',
+                input_format   : formats[0],
             ]
+            // CRAMs take the cDNA slot until they are converted (or demultiplexed, Ultima)
+            def is_cram = formats[0] == 'cram'
             [
                 meta,
-                entries.collectMany { entry -> entry[2].fastq_cDNA },
+                entries.collectMany { entry -> is_cram ? entry[2].cram : entry[2].fastq_cDNA },
                 entries.collectMany { entry -> entry[2].fastq_BC_UMI },
                 entries.collectMany { entry -> entry[2].fastq_indices },
                 samples_file
@@ -400,8 +500,9 @@ workflow PIPELINE_INITIALISATION {
     def ch_samplesheet = channel.fromList(samples)
 
     emit:
-    samplesheet = ch_samplesheet
-    versions    = ch_versions
+    samplesheet   = ch_samplesheet
+    sample_groups = channel.value(groups_of_samples)
+    versions      = ch_versions
 }
 
 /*
@@ -542,6 +643,71 @@ def schemaParamTypes() {
     return groups.collectEntries { group ->
         ((group['properties'] ?: [:]) as Map).collectEntries { name, spec -> [name, [spec['type']].flatten()] }
     }
+}
+
+//
+// The sample groups of the samplesheet, as [qc_report: [sample: group], filtering_report: [sample: group]]
+//
+// An empty column leaves a sample ungrouped. Every row of a sample must give the same
+// group, a group may not be named like a sample (the outputs and the reports would
+// collide), and it may not end in an analytical-run suffix, which the reports strip to
+// find a run's sample. A group of one sample is allowed: it runs under the group's name.
+//
+def sampleGroups(List rows) {
+    def run_suffixes = ['_starsolo', '_subsampled_starsolo', '_geneext_starsolo',
+                        '_geneext_subsampled_starsolo', '_alevinfry', '_geneext_alevinfry']
+    def sample_names = rows.collect { row -> row.sample?.toString()?.trim() }.findAll { s -> s }.toSet()
+    def problems = []
+    def groups   = [:]
+
+    ['qc_report', 'filtering_report'].each { col ->
+        def by_sample = [:]
+        rows.each { row ->
+            def sample = row.sample?.toString()?.trim()
+            if (!sample) {
+                return
+            }
+            def group = row[col]?.toString()?.trim() ?: ''
+            if (by_sample.containsKey(sample) && by_sample[sample] != group) {
+                problems << "sample '${sample}' gives '${col}' = '${by_sample[sample]}' in one row and '${group}' in another"
+            }
+            by_sample[sample] = group
+        }
+        def grouped = by_sample.findAll { _sample, group -> group }
+        if (col == 'filtering_report') {
+            // The pooled object names its cells '<sample>:<barcode>'
+            grouped.keySet().findAll { sample -> sample.contains(':') }.each { sample ->
+                problems << "sample '${sample}' is in a 'filtering_report' group, so its name cannot hold ':'"
+            }
+        }
+        // toSet(), not unique(): unique() works in place, which a map's values view refuses
+        grouped.values().toSet().each { group ->
+            if (group in sample_names) {
+                problems << "'${col}' group '${group}' has the name of a sample; give the group a name of its own"
+            }
+            def suffix = run_suffixes.find { sfx -> group.endsWith(sfx) }
+            if (suffix) {
+                problems << "'${col}' group '${group}' ends in '${suffix}', which names an analytical run; rename the group"
+            }
+        }
+        grouped.groupBy { _sample, group -> group }.each { group, members ->
+            if (members.size() == 1) {
+                log.info "'${col}' group '${group}' holds only ${members.keySet().first()}; it runs under the group's name."
+            }
+        }
+        groups[col] = grouped
+    }
+
+    if (problems) {
+        error("The sample groups of the samplesheet cannot be used:\n  " + problems.join("\n  "))
+    }
+    if (groups.filtering_report && !params.perform_metacells) {
+        log.warn(
+            "The samplesheet sets 'filtering_report' groups, which pool samples into one Metacell2 run,\n" +
+            "but 'perform_metacells' is false, so they are ignored."
+        )
+    }
+    return groups
 }
 
 //

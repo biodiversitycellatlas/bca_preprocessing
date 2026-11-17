@@ -4,7 +4,9 @@ Report HPC resource efficiency across Nextflow runs and retune the scheduled
 resources for the next one.
 
 Reads the ``execution_trace_*.txt`` files that this pipeline writes into
-``<outdir>/pipeline_info/`` and compares, per process, what each task actually
+``execution_reports/`` in the launch directory, pairs each with the run config,
+samplesheet and params in ``<outdir>/pipeline_info/`` (traces written there by
+earlier versions are read too), and compares, per process, what each task actually
 consumed against what the scheduler was asked for. Because the trace records
 every task's own input volume (``rchar``), usage can be plotted against dataset
 size -- within one run across samples of differing depth, and across runs on
@@ -26,6 +28,9 @@ Usage modes
 -----------
 Report only (default; writes nothing outside --output):
     resource_efficiency.py --results /path/to/outdir
+
+Runs launched from somewhere other than the pipeline checkout:
+    resource_efficiency.py --results /path/to/outdir --traces /launch/dir/execution_reports
 
 Several runs, for a scaling fit:
     resource_efficiency.py --results /path/run_A --results /path/run_B --results /path/run_C
@@ -81,7 +86,6 @@ FALLBACK_RESOURCE_LABELS: List[str] = [
     "process_medium",
     "process_high",
     "process_high_memory",
-    "process_long",
 ]
 
 RESOURCE_LABELS: List[str] = list(FALLBACK_RESOURCE_LABELS)
@@ -162,6 +166,16 @@ TOOL_MEMORY_CAPS: Dict[str, Tuple[str, str]] = {
     ),
 }
 
+# How many times a process reads its input over. The trace's rchar counts every
+# pass, while BcaResources.scaledMemory() measures the staged file once, so a
+# `ref_gb` taken straight from rchar sits this many times too high and every request
+# collapses to the floor. `--dynamic` divides rchar by this before anchoring.
+#   {process: passes}
+INPUT_READ_PASSES: Dict[str, float] = {
+    # samtools count, a pysam flagstat, a filtered rewrite and sort, then the tag dump
+    "SATURATION_TABLE": 7,
+}
+
 # Values of a cap param that mean "derive it from task.memory" rather than a pin.
 CAP_AUTO_TOKENS = {"", "0", "null", "none", "auto"}
 
@@ -196,6 +210,8 @@ _PROCESS_DECL_RE = re.compile(r"^\s*process\s+([A-Za-z_][A-Za-z0-9_]*)\s*\{")
 _LABEL_RE = re.compile(r"""^\s*label\s*:?\s*['"]([A-Za-z0-9_]+)['"]""")
 _SECTION_RE = re.compile(r"^\s*(input|output|script|shell|exec|when|stub)\s*:")
 _DYNAMIC_MEMORY_RE = re.compile(r"BcaResources\.scaledMemory\s*\(")
+_DYNAMIC_TIME_RE = re.compile(r"BcaResources\.scaledTime\s*\(")
+_DYNAMIC_CPUS_RE = re.compile(r"BcaResources\.tieredCpus\s*\(")
 
 
 # ---------------------------------------------------------------------------
@@ -475,13 +491,24 @@ class ProcessLabels:
     """Labels declared by one ``process`` block in a module file."""
 
     def __init__(self, name: str, labels: List[str], source: str,
-                 dynamic_memory: bool = False) -> None:
+                 dynamic_memory: bool = False, dynamic_time: bool = False,
+                 dynamic_cpus: bool = False) -> None:
         self.name = name
         self.labels = labels
         self.source = source
         # True when the module sizes its memory from its input through
         # BcaResources.scaledMemory(), so a flat memory override must never be emitted.
         self.dynamic_memory = dynamic_memory
+        # The same for time (BcaResources.scaledTime()) and cpus (tieredCpus()).
+        self.dynamic_time = dynamic_time
+        self.dynamic_cpus = dynamic_cpus
+
+    @property
+    def scaled(self) -> Set[str]:
+        """The directives this module sizes from its input, which no config may override."""
+        return {directive for directive, on in (("memory", self.dynamic_memory),
+                                                ("time", self.dynamic_time),
+                                                ("cpus", self.dynamic_cpus)) if on}
 
     @property
     def tier(self) -> str:
@@ -543,28 +570,32 @@ def scan_module_labels(pipeline_dir: str) -> Dict[str, ProcessLabels]:
 
         current: Optional[str] = None
         labels: List[str] = []
-        dynamic = False
+        dynamic: Dict[str, bool] = {}
         for line in lines:
             decl = _PROCESS_DECL_RE.match(line)
             if decl:
                 if current:
-                    found[current] = ProcessLabels(current, labels, path, dynamic)
-                current, labels, dynamic = decl.group(1), [], False
+                    found[current] = ProcessLabels(current, labels, path, **dynamic)
+                current, labels, dynamic = decl.group(1), [], {}
                 continue
             if current is None:
                 continue
             # Labels and directives are declared in the directive block, before input:/script:.
             if _SECTION_RE.match(line):
-                found[current] = ProcessLabels(current, labels, path, dynamic)
-                current, labels, dynamic = None, [], False
+                found[current] = ProcessLabels(current, labels, path, **dynamic)
+                current, labels, dynamic = None, [], {}
                 continue
             label = _LABEL_RE.match(line)
             if label:
                 labels.append(label.group(1))
             if _DYNAMIC_MEMORY_RE.search(line):
-                dynamic = True
+                dynamic["dynamic_memory"] = True
+            if _DYNAMIC_TIME_RE.search(line):
+                dynamic["dynamic_time"] = True
+            if _DYNAMIC_CPUS_RE.search(line):
+                dynamic["dynamic_cpus"] = True
         if current:
-            found[current] = ProcessLabels(current, labels, path, dynamic)
+            found[current] = ProcessLabels(current, labels, path, **dynamic)
 
     return found
 
@@ -856,28 +887,98 @@ def _pair_by_suffix(pipeline_info: str, prefix: str, extension: str,
     return earlier[-1] if earlier else candidates[0][1]
 
 
-def _pair_params_json(pipeline_info: str, run_key: str) -> Dict[str, Any]:
-    """Find the ``params_*.json`` belonging to *run_key*.
+TRACE_PREFIX = "execution_trace_"
+TRACE_SUFFIX = ".txt"
 
-    These files are timestamped by their own ``new Date()`` call, not by
-    ``params.trace_report_suffix``, so their filename is off by seconds from the
-    trace's. They do however *contain* ``trace_report_suffix``, so the pairing is
-    done on that value rather than on filename proximity.
+
+def _trace_key(trace_path: str) -> str:
+    """The timestamp suffix of an ``execution_trace_<suffix>.txt`` path."""
+    return os.path.basename(trace_path)[len(TRACE_PREFIX):-len(TRACE_SUFFIX)]
+
+
+def _index_params_json(pipeline_info: str) -> Dict[str, Dict[str, Any]]:
+    """Map each ``trace_report_suffix`` recorded in *pipeline_info* to its params JSON.
+
+    Every launch writes a ``params_*.json``, ``-resume`` included, timestamped by its
+    own ``new Date()`` call rather than by ``params.trace_report_suffix``, so the
+    filename is off by seconds from the trace's. The file does however *contain*
+    ``trace_report_suffix``, which is exactly the trace's filename suffix. That makes
+    it both the way to pair a trace with its params and the way to tell which of the
+    traces in a shared launch-directory ``execution_reports/`` belong to this outdir.
     """
+    index: Dict[str, Dict[str, Any]] = {}
     for path in sorted(glob.glob(os.path.join(pipeline_info, "params_*.json"))):
         try:
             with open(path, "r", encoding="utf-8", errors="replace") as handle:
                 payload = json.load(handle)
         except (OSError, ValueError):
             continue
-        for container in (payload, payload.get("params", {}) if isinstance(payload, dict) else {}):
-            if isinstance(container, dict) and container.get("trace_report_suffix") == run_key:
-                return payload
-    return {}
+        if not isinstance(payload, dict):
+            continue
+        for container in (payload, payload.get("params", {})):
+            suffix = container.get("trace_report_suffix") if isinstance(container, dict) else None
+            if isinstance(suffix, str) and suffix:
+                index.setdefault(suffix, payload)
+                break
+    return index
 
 
-def discover_runs(results_dirs: Sequence[str], results_root: Optional[str]) -> List[RunContext]:
+def _index_traces(trace_dirs: Sequence[str]) -> Dict[str, str]:
+    """Map each trace's timestamp suffix to its path, over every folder in *trace_dirs*.
+
+    Folders are searched in the order given, and the first folder holding a suffix wins.
+    """
+    index: Dict[str, str] = {}
+    for trace_dir in trace_dirs:
+        pattern = os.path.join(trace_dir, f"{TRACE_PREFIX}*{TRACE_SUFFIX}")
+        for path in sorted(glob.glob(pattern)):
+            index.setdefault(_trace_key(path), path)
+    return index
+
+
+def _attach_metadata(run: RunContext, pipeline_info: str,
+                     params_index: Dict[str, Dict[str, Any]]) -> None:
+    """Fill *run* with the run config, samplesheet and params JSON from *pipeline_info*."""
+    run_config = _pair_by_suffix(pipeline_info, "run_config_", ".txt", run.key)
+    if run_config:
+        run.run_config_path = run_config
+        run.params = dict(_read_run_config(run_config))
+
+    samplesheet = _pair_by_suffix(pipeline_info, "samplesheet_", ".csv", run.key)
+    if samplesheet:
+        run.samplesheet_path = samplesheet
+        run.samples = _read_samplesheet(samplesheet)
+
+    payload = params_index.get(run.key, {})
+    for field in ("pipeline_version", "version", "git_commit", "commit"):
+        if field in payload:
+            run.params.setdefault(field, str(payload[field]))
+
+
+def default_trace_dirs(pipeline_dir: str) -> List[str]:
+    """The ``execution_reports/`` folders searched when no ``--traces`` is given.
+
+    ``nextflow.config`` writes the trace into ``execution_reports/`` under the launch
+    directory. ``submit_nextflow.sh`` launches from the pipeline checkout, so that is
+    searched first, then the current directory in case the run was launched from here.
+    """
+    dirs: List[str] = []
+    for base in (pipeline_dir, os.getcwd()):
+        candidate = os.path.join(base, "execution_reports")
+        if all(os.path.realpath(candidate) != os.path.realpath(seen) for seen in dirs):
+            dirs.append(candidate)
+    return dirs
+
+
+def discover_runs(results_dirs: Sequence[str], results_root: Optional[str],
+                  trace_dirs: Sequence[str] = ()) -> List[RunContext]:
     """Collect every run whose trace is reachable from the given directories.
+
+    A run's trace sits in the launch directory's ``execution_reports/``, while its run
+    config, samplesheet and params JSON sit in ``<outdir>/pipeline_info/``. A trace is
+    taken for an outdir when that outdir's params JSON names its suffix, so traces of
+    other outdirs launched from the same directory are left out. Traces still inside
+    ``pipeline_info/``, where earlier versions of the pipeline wrote them, are read too.
 
     Parameters
     ----------
@@ -885,6 +986,9 @@ def discover_runs(results_dirs: Sequence[str], results_root: Optional[str]) -> L
         Explicit ``params.outdir`` paths.
     results_root:
         A directory whose immediate children are treated as result directories.
+    trace_dirs:
+        Folders holding ``execution_trace_*.txt`` files. When no results directory is
+        given at all, every trace in them is analysed, without sample or protocol details.
 
     Returns
     -------
@@ -897,7 +1001,19 @@ def discover_runs(results_dirs: Sequence[str], results_root: Optional[str]) -> L
             if os.path.isdir(full):
                 candidates.append(full)
 
+    trace_index = _index_traces(trace_dirs)
     runs: Dict[str, RunContext] = {}
+
+    if not results_dirs and not results_root:
+        for key, trace_path in trace_index.items():
+            runs[key] = RunContext(key, trace_path, os.path.dirname(trace_path))
+        if runs:
+            sys.stderr.write(
+                "Warning: no --results given, so the runs have no sample or protocol details.\n"
+                "         Pass --results <outdir> as well to attach them.\n")
+        return [runs[key] for key in sorted(runs)]
+
+    searched = ", ".join(trace_dirs) if trace_dirs else "(none)"
     for results_dir in candidates:
         pipeline_info = os.path.join(results_dir, "pipeline_info")
         if not os.path.isdir(pipeline_info):
@@ -909,36 +1025,44 @@ def discover_runs(results_dirs: Sequence[str], results_root: Optional[str]) -> L
                 sys.stderr.write(f"Warning: no pipeline_info/ under {results_dir}, skipping\n")
                 continue
 
-        traces = sorted(glob.glob(os.path.join(pipeline_info, "execution_trace_*.txt")))
-        if not traces:
-            sys.stderr.write(
-                f"Warning: no execution_trace_*.txt in {pipeline_info}.\n"
-                f"         Runs from before the trace block was restored in nextflow.config\n"
-                f"         produce no trace; re-run the pipeline to collect one.\n")
-            continue
+        params_index = _index_params_json(pipeline_info)
 
-        for trace_path in traces:
-            base = os.path.basename(trace_path)
-            key = base[len("execution_trace_"):-len(".txt")]
+        # Traces left in pipeline_info/ by earlier versions of the pipeline come
+        # first: they can only belong to this outdir.
+        traces: Dict[str, str] = {
+            _trace_key(path): path
+            for path in sorted(glob.glob(
+                os.path.join(pipeline_info, f"{TRACE_PREFIX}*{TRACE_SUFFIX}")))
+        }
+        unmatched = []
+        for key in params_index:
+            if key in traces:
+                continue
+            if key in trace_index:
+                traces[key] = trace_index[key]
+            else:
+                unmatched.append(key)
+
+        if not traces:
+            if params_index:
+                sys.stderr.write(
+                    f"Warning: none of the {len(params_index)} run(s) recorded in {pipeline_info}\n"
+                    f"         has a trace in the folders searched: {searched}.\n"
+                    f"         Pass --traces <launch dir>/execution_reports for runs launched elsewhere.\n")
+            else:
+                sys.stderr.write(
+                    f"Warning: no execution trace and no params_*.json in {pipeline_info}, skipping.\n")
+            continue
+        if unmatched:
+            sys.stderr.write(
+                f"Note: {len(unmatched)} of the {len(params_index)} run(s) recorded in "
+                f"{pipeline_info} have no trace in the folders searched; they are left out.\n")
+
+        for key in sorted(traces):
             if key in runs:
                 continue
-            run = RunContext(key, trace_path, results_dir)
-
-            run_config = _pair_by_suffix(pipeline_info, "run_config_", ".txt", key)
-            if run_config:
-                run.run_config_path = run_config
-                run.params = dict(_read_run_config(run_config))
-
-            samplesheet = _pair_by_suffix(pipeline_info, "samplesheet_", ".csv", key)
-            if samplesheet:
-                run.samplesheet_path = samplesheet
-                run.samples = _read_samplesheet(samplesheet)
-
-            payload = _pair_params_json(pipeline_info, key)
-            for field in ("pipeline_version", "version", "git_commit", "commit"):
-                if isinstance(payload, dict) and field in payload:
-                    run.params.setdefault(field, str(payload[field]))
-
+            run = RunContext(key, traces[key], results_dir)
+            _attach_metadata(run, pipeline_info, params_index)
             runs[key] = run
 
     return [runs[key] for key in sorted(runs)]
@@ -1714,7 +1838,7 @@ def render_config(plans: Dict[str, TierPlan],
                   n_tasks: int,
                   cap_findings: Sequence[CapFinding],
                   args: argparse.Namespace,
-                  dynamic_processes: Optional[Set[str]] = None) -> str:
+                  dynamic_processes: Optional[Dict[str, Set[str]]] = None) -> str:
     """Render the tuned ``withLabel``/``withName`` blocks as a Nextflow config.
 
     Every block carries its provenance -- task and run counts, the observed
@@ -1722,12 +1846,13 @@ def render_config(plans: Dict[str, TierPlan],
     statistic -- because a resource number a reader cannot audit will not be
     trusted, and rightly so.
 
-    *dynamic_processes* names the module processes that size their memory from their
-    input. Their ``withName`` blocks carry ``cpus``/``time`` only: a ``memory`` setting
-    there would take precedence over the module's scaled request and flatten it again.
-    Their memory is retuned through ``params.dynamic_memory`` (``--dynamic``) instead.
+    *dynamic_processes* maps each module process that sizes directives from its input
+    to those directives (``memory``, ``time``, ``cpus``; :attr:`ProcessLabels.scaled`).
+    Its ``withName`` block leaves them out: a setting there would take precedence over
+    the module's scaled request and flatten it again. They are retuned through
+    ``params.dynamic_memory`` and ``params.dynamic_time`` (``--dynamic``) instead.
     """
-    dynamic_processes = dynamic_processes or set()
+    dynamic_processes = dynamic_processes or {}
     stamp = datetime.datetime.now().strftime("%Y-%m-%d %H:%M:%S")
     lines: List[str] = [
         "/*",
@@ -1834,20 +1959,23 @@ def render_config(plans: Dict[str, TierPlan],
         if not plan:
             continue
         for stats in sorted(plan.outliers, key=lambda s: -(s.max_peak_rss or 0.0)):
-            dynamic = (stats.module_process or stats.name) in dynamic_processes
-            directives = emit_directives("        ", stats.rec_cpus,
-                                         None if dynamic else stats.rec_memory,
-                                         stats.rec_time)
+            scaled = dynamic_processes.get(stats.module_process or stats.name, set())
+            dynamic = bool(scaled)
+            scaled_names = "/".join(d for d in ("cpus", "memory", "time") if d in scaled)
+            directives = emit_directives("        ",
+                                         None if "cpus" in scaled else stats.rec_cpus,
+                                         None if "memory" in scaled else stats.rec_memory,
+                                         None if "time" in scaled else stats.rec_time)
             if dynamic and not directives:
                 lines.append("")
-                lines.append(f"    // {stats.name}: memory is sized from its input "
-                             "(params.dynamic_memory), cpus and time need no change.")
+                lines.append(f"    // {stats.name}: {scaled_names} sized from its input, "
+                             "the rest needs no change.")
                 continue
             emitted = True
             origin = ("unlabelled, inherits the shared process{} default"
                       if label == DEFAULT_TIER else f"outlier within {label}")
             if dynamic:
-                origin = "sizes its memory from its input"
+                origin = f"sizes its {scaled_names} from its input"
             lines.append("")
             lines.append(f"    // {stats.name}: {origin}. "
                          f"{stats.n_tasks} task(s), {stats.n_runs} run(s).")
@@ -1861,7 +1989,7 @@ def render_config(plans: Dict[str, TierPlan],
             if stats.clamped:
                 lines.append(f"    // clamped to --max-{'/'.join(stats.clamped)}.")
             if dynamic:
-                lines.append("    // memory left to params.dynamic_memory: a memory setting here would "
+                lines.append(f"    // {scaled_names} left to the module: a setting here would "
                              "override the input-size scaling. Retune it with --dynamic.")
             lines.append(f"    withName:'.*:{stats.name}' {{")
             lines += directives
@@ -1900,21 +2028,26 @@ def render_dynamic(ordered: Sequence[ProcessStats],
 
     Only a process whose fit passed every quality gate gets an entry; the rest keep
     a flat request, which is what the evidence supports.
+
+    A ``params.dynamic_time`` block follows, anchored the same way on the time fit.
+    Its floor is the shortest limit the process was given, not the shortest run: the
+    floors are the former fixed limits, and lowering them is a separate decision.
     """
     stamp = datetime.datetime.now().strftime("%Y-%m-%d %H:%M:%S")
     lines: List[str] = [
         "/*",
         "~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~",
-        "    Input-size dependent memory -- GENERATED FILE, DO NOT EDIT BY HAND",
+        "    Input-size dependent memory and time -- GENERATED FILE, DO NOT EDIT BY HAND",
         "~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~",
         f"    Generated by bin/resource_efficiency.py on {stamp}",
         "",
-        "    Replaces the `dynamic_memory` map in nextflow.config. A process only",
-        "    honours its entry if its module calls BcaResources.scaledMemory(); the",
-        "    entries below for processes that do not are inert until one does.",
+        "    Replaces the `dynamic_memory` and `dynamic_time` maps in nextflow.config. A",
+        "    process only honours its entry if its module calls BcaResources.scaledMemory()",
+        "    or scaledTime(); the entries below for processes that do not are inert until",
+        "    one does.",
         "",
-        "    Reading: at `ref_gb` of input the process needed `mem_gb`, and memory",
-        "    grows as size**`exponent` from there, clamped to [floor_gb, cap_gb].",
+        "    Reading: at `ref_gb` of input the process needed `mem_gb` (or took `time_h`",
+        "    hours), and grows as size**`exponent` from there, clamped to the floor and cap.",
         "",
         "    Apply with:  nextflow run ... -c <this file>",
         "----------------------------------------------------------------------------------------",
@@ -1924,24 +2057,34 @@ def render_dynamic(ordered: Sequence[ProcessStats],
         "    dynamic_memory = [",
     ]
 
+    def anchor(stats: ProcessStats, fit: FitResult):
+        """Observed sizes, read passes, ref_gb and a predictor in the fit's units."""
+        sizes = [task.rchar for task in stats.tasks if task.rchar and task.rchar > 0]
+        if not sizes:
+            return None
+        # Anchor at the geometric mean of the observed sizes: on log axes that is
+        # the centre of the fitted range, so it is where the fit is best supported.
+        log_mean = sum(math.log10(size) for size in sizes) / len(sizes)
+        # The fit is in rchar; the module scales on the staged file. Dividing the
+        # anchor's size only moves the intercept, so the slope stays as fitted.
+        passes = INPUT_READ_PASSES.get(stats.module_process or stats.name, 1)
+        ref_gb = max(0.001, 10 ** log_mean / passes / 1024 ** 3)
+        predict = lambda size: 10 ** (fit.intercept + fit.slope * math.log10(size))  # noqa: E731
+        return sizes, passes, ref_gb, predict(10 ** log_mean), predict(max(sizes))
+
     emitted = 0
     for stats in ordered:
         fit = stats.fits.get("memory")
         if fit is None or not fit.trusted or not stats.rec_memory:
             continue
 
-        sizes = [task.rchar for task in stats.tasks if task.rchar and task.rchar > 0]
-        if not sizes:
+        anchored = anchor(stats, fit)
+        if anchored is None:
             continue
+        sizes, passes, ref_gb, at_ref, at_max = anchored
         emitted += 1
 
-        # Anchor at the geometric mean of the observed sizes: on log axes that is
-        # the centre of the fitted range, so it is where the fit is best supported.
-        log_mean = sum(math.log10(size) for size in sizes) / len(sizes)
-        ref_bytes = 10 ** log_mean
-        anchor_bytes = (10 ** (fit.intercept + fit.slope * log_mean)) * args.safety_memory
-
-        ref_gb = max(0.001, ref_bytes / 1024 ** 3)
+        anchor_bytes = at_ref * args.safety_memory
         mem_gb = max(1, int(math.ceil(anchor_bytes / 1024 ** 3)))
 
         # The floor is the *smallest* peak ever observed, not a fraction of the
@@ -1953,8 +2096,7 @@ def render_dynamic(ordered: Sequence[ProcessStats],
         # The cap has to clear both the largest prediction and the declared tier --
         # a process already close to exhausting its tier needs room above it, or the
         # cap simply reinstates the failure the scaling was meant to avoid.
-        predicted_hi = (10 ** (fit.intercept + fit.slope * math.log10(max(sizes)))) \
-            * args.safety_memory
+        predicted_hi = at_max * args.safety_memory
         tier = tiers.get(stats.tier)
         tier_gb = (tier.memory / 1024 ** 3) if tier and tier.memory else 0
         cap_gb = max(1, int(math.ceil(max(predicted_hi * 2 / 1024 ** 3, tier_gb))))
@@ -1962,11 +2104,13 @@ def render_dynamic(ordered: Sequence[ProcessStats],
         note = ""
         if fit.slope < 0.15:
             note = "  // exponent near zero: barely scales, a flat request is nearly as good"
+        passes_note = f" rchar divided by {passes:g} read passes." if passes != 1 else ""
 
         lines += [
             f"        // {stats.name}: {stats.n_tasks} task(s), {stats.n_runs} run(s); "
-            f"exponent {fit.slope:.2f}, r2 {fit.r2:.2f}.",
-            f"        //   observed input {fmt_bytes(min(sizes))} to {fmt_bytes(max(sizes))}; "
+            f"exponent {fit.slope:.2f}, r2 {fit.r2:.2f}.{passes_note}",
+            f"        //   observed input {fmt_bytes(min(sizes) / passes)} to "
+            f"{fmt_bytes(max(sizes) / passes)}; "
             f"peak memory {fmt_bytes(stats.max_peak_rss)}; flat would be "
             f"{fmt_bytes(stats.rec_memory)}.{note}",
             f"        {stats.name}: [ exponent: {fit.slope:.2f}, ref_gb: {ref_gb:.3g}, "
@@ -1976,6 +2120,42 @@ def render_dynamic(ordered: Sequence[ProcessStats],
     if not emitted:
         lines.append("        // Nothing qualified: no process had a scaling fit that passed")
         lines.append("        // every quality gate, so sizing from input would be guesswork.")
+
+    lines += ["    ]", "", "    dynamic_time = ["]
+
+    emitted = 0
+    for stats in ordered:
+        fit = stats.fits.get("time")
+        if fit is None or not fit.trusted:
+            continue
+        anchored = anchor(stats, fit)
+        if anchored is None:
+            continue
+        sizes, passes, ref_gb, at_ref, at_max = anchored
+        emitted += 1
+
+        time_h = max(1.0 / 60.0, at_ref * args.safety_time / 3600.0)
+        # The shortest limit a first attempt was given is the floor that was in force;
+        # the declared tier stands in when the trace recorded no requests.
+        requested = [task.req_time for task in stats.first_attempt_tasks if task.req_time]
+        tier = tiers.get(stats.tier)
+        floor_s = min(requested) if requested else (tier.time if tier and tier.time else 3600.0)
+        floor_h = floor_s / 3600.0
+        cap_h = max(1, int(math.ceil(max(at_max * args.safety_time * 2 / 3600.0, floor_h))))
+        passes_note = f" rchar divided by {passes:g} read passes." if passes != 1 else ""
+
+        lines += [
+            f"        // {stats.name}: {stats.n_tasks} task(s), {stats.n_runs} run(s); "
+            f"exponent {fit.slope:.2f}, r2 {fit.r2:.2f}.{passes_note}",
+            f"        //   observed input {fmt_bytes(min(sizes) / passes)} to "
+            f"{fmt_bytes(max(sizes) / passes)}; longest run {fmt_duration(stats.max_realtime)}.",
+            f"        {stats.name}: [ exponent: {fit.slope:.2f}, ref_gb: {ref_gb:.3g}, "
+            f"time_h: {time_h:.3g}, floor_h: {floor_h:.3g}, cap_h: {cap_h} ],",
+        ]
+
+    if not emitted:
+        lines.append("        // Nothing qualified: no process had a time fit that passed")
+        lines.append("        // every quality gate.")
 
     lines += ["    ]", "}", ""]
     return "\n".join(lines)
@@ -2582,11 +2762,17 @@ def parse_args(argv: Optional[List[str]] = None) -> argparse.Namespace:
     # ── Inputs ──────────────────────────────────────────────────────────────
     parser.add_argument("-r", "--results", action="append", default=[], metavar="DIR",
                         help="Pipeline result directory (a params.outdir) holding "
-                             "pipeline_info/. Repeatable; more runs give a better "
-                             "scaling fit.")
+                             "pipeline_info/. Its runs are matched to their traces in "
+                             "--traces. Repeatable; more runs give a better scaling fit.")
     parser.add_argument("-R", "--results-root", metavar="DIR",
                         help="Directory whose immediate subdirectories are result "
                              "directories. Convenient when every run went to its own outdir.")
+    parser.add_argument("-t", "--traces", action="append", default=[], metavar="DIR",
+                        help="Folder holding execution_trace_*.txt files: the "
+                             "execution_reports/ in the directory the pipeline was launched "
+                             "from. Repeatable. Default: execution_reports/ in --pipeline-dir "
+                             "and in the current directory. Given without --results, every "
+                             "trace in it is analysed, without sample or protocol details.")
     parser.add_argument("-p", "--pipeline-dir", metavar="DIR",
                         help="Pipeline checkout holding modules/ and conf/base.config, used "
                              "to recover the process->label mapping. Default: the parent of "
@@ -2603,11 +2789,10 @@ def parse_args(argv: Optional[List[str]] = None) -> argparse.Namespace:
                         help="Write the tuned config to <pipeline-dir>/conf/resources_tuned.config, "
                              "where submit_nextflow.sh picks it up on the next run.")
     parser.add_argument("--dynamic", action="store_true",
-                        help="Also write input-size dependent `memory` directives for the "
-                             "processes whose usage provably tracks their input, as "
-                             "paste-ready snippets for the module files. A flat request "
-                             "has to cover the largest dataset; a closure over the input "
-                             "size does not.")
+                        help="Also write params.dynamic_memory and params.dynamic_time "
+                             "entries for the processes whose memory or run time provably "
+                             "tracks their input. A flat request has to cover the largest "
+                             "dataset; a request scaled on the input size does not.")
     parser.add_argument("--no-plots", action="store_true",
                         help="Skip the figures and the HTML report. Needs no matplotlib.")
     parser.add_argument("--max-panels", type=int, default=40, metavar="N",
@@ -2637,11 +2822,16 @@ def parse_args(argv: Optional[List[str]] = None) -> argparse.Namespace:
 
     args = parser.parse_args(argv)
 
-    if not args.results and not args.results_root:
-        parser.error("give at least one --results DIR (or --results-root DIR)")
+    if not args.results and not args.results_root and not args.traces:
+        parser.error("give at least one --results DIR (or --results-root DIR, or --traces DIR)")
 
     if not args.pipeline_dir:
         args.pipeline_dir = os.path.dirname(os.path.dirname(os.path.abspath(__file__)))
+
+    for trace_dir in args.traces:
+        if not os.path.isdir(trace_dir):
+            parser.error(f"--traces {trace_dir}: no such directory")
+    args.trace_dirs = args.traces or default_trace_dirs(args.pipeline_dir)
 
     if not args.output:
         stamp = datetime.datetime.now().strftime("%Y-%m-%d_%H-%M-%S")
@@ -2658,13 +2848,14 @@ def main() -> None:
     args = parse_args()
 
     # ── Discover runs ───────────────────────────────────────────────────────
-    runs = discover_runs(args.results, args.results_root)
+    runs = discover_runs(args.results, args.results_root, args.trace_dirs)
     if not runs:
         sys.stderr.write(
             "Error: no execution traces found.\n"
-            "  Each run writes <outdir>/pipeline_info/execution_trace_<timestamp>.txt.\n"
-            "  If that file is missing, the run predates the trace block in nextflow.config;\n"
-            "  re-run the pipeline and try again.\n")
+            "  Each run writes execution_reports/execution_trace_<timestamp>.txt in the\n"
+            "  directory it was launched from (older versions: <outdir>/pipeline_info/).\n"
+            f"  Searched: {', '.join(args.trace_dirs)}\n"
+            "  Point --traces at the launch directory's execution_reports/ if it is elsewhere.\n")
         sys.exit(1)
 
     print(f"Found {len(runs)} run(s):")
@@ -2768,7 +2959,7 @@ def main() -> None:
     write_tsv(tsv_path, ordered)
 
     plans = build_tier_plans(stats_by_name, tiers, module_labels, args)
-    dynamic_processes = {name for name, info in module_labels.items() if info.dynamic_memory}
+    dynamic_processes = {name: info.scaled for name, info in module_labels.items() if info.scaled}
     config_text = render_config(plans, tiers, runs, len(all_tasks), cap_findings, args,
                                 dynamic_processes)
     config_path = os.path.join(args.output, f"resources_tuned_{stamp}.config")

@@ -4,7 +4,9 @@ process BDRHAP_PIPELINE {
     label 'process_high'
 
     conda "${moduleDir}/environment.yml"
-    container "oras://community.wave.seqera.io/library/cwltool_python:d7b534cc8e4f1511"
+    container "${ workflow.containerEngine in ['singularity', 'apptainer'] && !task.ext.singularity_pull_docker_container ?
+        'oras://community.wave.seqera.io/library/cwltool_python:d7b534cc8e4f1511' :
+        'community.wave.seqera.io/library/cwltool_python:910578d904c1d231' }"
 
     input:
     tuple val(meta), path(bd_ref_path), path(input_yaml), path(fastq_cDNA), path(fastq_BC_UMI), path(fastq_indices), path(input_file)

@@ -4,7 +4,9 @@ process RM_VARBASES {
 
 
     conda "${moduleDir}/environment.yml"
-    container "oras://community.wave.seqera.io/library/cutadapt:5.2--5505472a18e9cce0"
+    container "${ workflow.containerEngine in ['singularity', 'apptainer'] && !task.ext.singularity_pull_docker_container ?
+        'oras://community.wave.seqera.io/library/cutadapt:5.2--5505472a18e9cce0' :
+        'community.wave.seqera.io/library/cutadapt:5.2--0bf1fa95d2357cb7' }"
 
     input:
     tuple val(meta), path(fastq_cDNA), path(fastq_BC_UMI), path(fastq_indices), path(input_file)
@@ -17,6 +19,7 @@ process RM_VARBASES {
     """
     # Run cutadapt to remove the variable bases
     cutadapt \\
+        -j ${task.cpus} \\
         -g "^A" -g "^GT" -g "^TCA" \\
         --quality-cutoff 0 \\
         -o noVB_${meta.id}_R1_001.fastq.gz -p noVB_${meta.id}_R2_001.fastq.gz \\

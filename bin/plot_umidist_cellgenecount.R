@@ -26,9 +26,12 @@ if (!require('RColorBrewer')) install.packages('RColorBrewer'); library('RColorB
 # Get command line arguments
 args <- commandArgs(trailingOnly = TRUE)
 if (length(args) < 1) {
-  stop("Usage: Rscript create_visualizations.R <data_directory>")
+  stop("Usage: Rscript plot_umidist_cellgenecount.R <data_directory> [raw_matrix_name]")
 }
 data_dir <- args[1]
+# The analysed matrix in each raw/ directory: matrix.mtx (unique-gene counts) or a
+# multi-gene UniqueAndMult-<type>.mtx, which holds fractional counts
+raw_matrix <- if (length(args) >= 2) args[2] else "matrix.mtx"
 
 # Define a base font size and set a global theme
 base_font <- 14
@@ -65,7 +68,7 @@ for (sample_id in sample_ids) {
 # =============================================================================
 read_star_data <- function(directory, dataset_name) {
   # Read matrix, features, and barcodes
-  mat <- Matrix::readMM(file.path(directory, "matrix.mtx"))
+  mat <- Matrix::readMM(file.path(directory, raw_matrix))
   features <- data.table::fread(file.path(directory, "features.tsv"), header = FALSE)
   barcodes_dt <- data.table::fread(file.path(directory, "barcodes.tsv"), header = FALSE)
 
@@ -75,13 +78,17 @@ read_star_data <- function(directory, dataset_name) {
 
   # Compute per-cell summaries
   cell_umis <- Matrix::colSums(mat)
-  cell_genes <- Matrix::colSums(mat > 0)
+  # A gene counts as detected from one UMI on, so EM fractions do not count as genes
+  cell_genes <- Matrix::colSums(mat >= 1)
 
-  # Create a data.table for cells
+  # Create a data.table for cells. Only barcodes with counts are kept: raw/ lists the whole
+  # whitelist, every plot below drops the empty ones anyway, and keeping them would hold a
+  # whitelist-sized table per run until the end
+  counted <- cell_umis > 0
   cell_dt <- data.table(
-    cells      = colnames(mat),
-    cell_sizes = cell_umis,
-    cell_genes = cell_genes
+    cells      = colnames(mat)[counted],
+    cell_sizes = cell_umis[counted],
+    cell_genes = cell_genes[counted]
   )
 
   # Compute per-gene summaries

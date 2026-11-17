@@ -1,7 +1,12 @@
 process SCRUBLET {
     publishDir path: { "${params.outdir}/doublet_filtering/${meta.id}/scrublet" }, mode: 'copy', saveAs: { filename -> filename == 'versions.yml' ? null : filename }
     tag "${meta.id} | ${meta.mapping_method}"
-    label 'process_low2'
+
+    // Memory tracks the cell-called matrix
+    cpus   1
+    time   { 45.m * task.attempt }
+    memory { BcaResources.scaledMemory(
+        params.dynamic_memory?.SCRUBLET, [tenx_dir], task.attempt, 6) }
 
     // Scrublet cannot model every matrix (too few cells, no bimodal score split). The
     // sample then continues without doublet annotation instead of ending the run.

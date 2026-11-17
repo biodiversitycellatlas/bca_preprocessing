@@ -1,10 +1,26 @@
 process PERCELL_METRICS {
     publishDir path: { "${params.outdir}/summary_results/per-cell_metrics" }, mode: 'copy', saveAs: { filename -> filename == 'versions.yml' ? null : filename }
     tag "${meta.id}"
-    label 'process_single_long2'
+
+    // Memory tracks the barcodes, not the counts: every table is indexed by STARsolo's raw
+    // barcode list (the whole whitelist), the called cells get a row each in the metrics
+    // table, and with Velocyto its three raw matrices are read too. Only those files are
+    // measured, not the rest of Solo.out. 
+    cpus   1
+    time   { 1.h * task.attempt }
+    memory { BcaResources.scaledMemory(
+        params.dynamic_memory?.PERCELL_METRICS,
+        [barcode_reads,
+         BcaResources.filesIn(star_solodir, [
+            'GeneFull_Ex50pAS/CellReads.stats', 'GeneFull_Ex50pAS/raw/barcodes.tsv',
+            'Velocyto/raw/spliced.mtx', 'Velocyto/raw/unspliced.mtx', 'Velocyto/raw/ambiguous.mtx']),
+         filtered_matrix_dir ? BcaResources.filesIn(filtered_matrix_dir, ['barcodes.tsv']) : []],
+        task.attempt, 4) }
 
     conda "${moduleDir}/environment.yml"
-    container "oras://community.wave.seqera.io/library/python_numpy_pandas_scipy_pruned:cf1c1895e9c6e6ec"
+    container "${ workflow.containerEngine in ['singularity', 'apptainer'] && !task.ext.singularity_pull_docker_container ?
+        'oras://community.wave.seqera.io/library/python_numpy_pandas_scipy_pruned:cf1c1895e9c6e6ec' :
+        'community.wave.seqera.io/library/python_numpy_pandas_scipy_pruned:fa325a520dd2005b' }"
 
     input:
     tuple val(meta),   path(barcode_reads)     // CALC_READ_METRICS' per-barcode reads; the BAM is not read

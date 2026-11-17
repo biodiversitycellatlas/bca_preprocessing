@@ -7,7 +7,8 @@
 # SAM in which every number can be derived by hand -- a nuclear multimapper with a
 # secondary alignment on chrM, an mtDNA multimapper on mitochondrial rRNA, reads
 # sense, antisense and outside the mitochondrial genes, an rRNA read on an added
-# rRNA contig, and reads from a called and an uncalled barcode -- and the cases
+# rRNA contig, an rRNA read on an added rRNA locus with reads on the same contig
+# outside it, and reads from a called and an uncalled barcode -- and the cases
 # assert those exact numbers for calculate_read_metrics.py (CALC_READ_METRICS) and
 # per-cell_images.py (PERCELL_METRICS). The antisense cases read a hand-written
 # STARsolo CellReads.stats instead of the BAM.
@@ -21,8 +22,8 @@
 #   r6   chr1  1100  +  NH1  AAAA  nuclear rRNA gene
 #   r7   rDNA   100  +  NH1  CCCC  added rRNA contig
 #   r8   unmapped            AAAA
-#   r9   chr1  3200  +  NH1  GGGG
-#   r10  chr1  3300  +  NH1  AAAA
+#   r9   chr1  3200  +  NH1  GGGG  on the added rRNA locus chr1:3151-3240
+#   r10  chr1  3300  +  NH1  AAAA  same contig, outside that locus
 #
 # Needs samtools (to build the fixture) and a Python with pysam; the per-cell case
 # also needs pandas, scipy and matplotlib in that Python.
@@ -51,6 +52,8 @@ Options:
 
 Cases:
   library         mapped, unique and multimapped reads; rRNA and mtDNA of each
+  added_regions   added rRNA loci count only where annotated, added contigs as a whole;
+                  only regions expected in the BAM are warned about when absent
   origin          mtDNA reads sense, antisense and outside mitochondrial genes
   unstranded      without a strand only "outside" is reported
   called_cells    the same metrics restricted to the filtered barcodes
@@ -95,9 +98,6 @@ trap cleanup EXIT
 FIX="$WORKDIR/fixture"
 mkdir -p "$FIX"
 
-# The added rRNA reference carries no biotype at all: its contig counts as rRNA
-# as a whole. The pipeline's ref_gtf arrives merged with it, so it is appended.
-printf 'rDNA\tadded\texon\t1\t500\t.\t+\t.\tgene_id "rDNA"; transcript_id "rDNA.1";\n' > "$FIX/added.gtf"
 {
     gtf() { printf '%s\ttest\t%s\t%s\t%s\t.\t%s\t.\tgene_id "%s"; transcript_id "%s.1"; gene_biotype "%s";\n' "$@"; }
     for ft in gene exon; do
@@ -107,8 +107,21 @@ printf 'rDNA\tadded\texon\t1\t500\t.\t+\t.\tgene_id "rDNA"; transcript_id "rDNA.
         gtf chrM "$ft" 801 1200 - MT-ND6 MT-ND6 protein_coding
         gtf chrM "$ft" 1301 1500 + MT-RNR2 MT-RNR2 Mt_rRNA
     done
-    cat "$FIX/added.gtf"
 } > "$FIX/ref.gtf"
+
+# The added rRNA regions, as PREPARE_ADDFEATURE writes them (0-based, half-open):
+#   an Rfam-style locus on chr1 inside GENE1: r9 counts, r5 and r10 on chr1 do not;
+#   the added contig rDNA, counted over its whole length: r7;
+#   a locus and an added contig on contigs absent from the BAM, which are warned about;
+#   a record dropped as a copy, absent from the BAM as expected, which is not.
+{
+    printf 'contig\tstart\tend\tname\tkind\n'
+    printf 'chr1\t3150\t3240\tSSU_rRNA_eukarya_1\tfeature\n'
+    printf 'scaffold_x\t10\t200\t5S_rRNA_1\tfeature\n'
+    printf 'rDNA\t0\t500\trDNA\tadded_contig\n'
+    printf 'rDNA_missing\t0\t300\trDNA_missing\tadded_contig\n'
+    printf 'LSU_copy\t0\t400\tLSU_copy\tduplicate_contig\n'
+} > "$FIX/rrna_regions.tsv"
 
 {
     printf '@HD\tVN:1.6\tSO:unsorted\n'
@@ -196,22 +209,23 @@ expect() {
 # --------------------------------------------------------------------------
 
 OUT="$WORKDIR/stranded"
-if run_metrics stranded "$OUT" --rrna-gtf "$FIX/added.gtf" --cell-barcodes "$FIX/barcodes.tsv" --strand Forward; then
+if run_metrics stranded "$OUT" --rrna-regions "$FIX/rrna_regions.tsv" --cell-barcodes "$FIX/barcodes.tsv" --strand Forward; then
     M="$OUT/metrics.csv"
 
     # 9 mapped reads in 12 mapped records: r4 and r5 add 3 secondary records.
     # r4's primary is on Mt_rRNA, so it is both an mtDNA and an rRNA read; r5's
-    # secondary on chrM is not an mtDNA read, only an mtDNA alignment.
+    # secondary on chrM is not an mtDNA read, only an mtDNA alignment. rRNA reads:
+    # r4 (Mt_rRNA), r6 (rRNA biotype), r7 (added contig), r9 (added locus).
     expect library "$M" \
         "Mapped reads=9" \
         "Unmapped reads=1" \
         "Uniquely mapped reads=7" \
         "Multimapped reads (primary alignment)=2" \
         "Multimapped read alignments (all alignments)=5" \
-        "rRNA reads in mapped reads (primary alignment)=3" \
-        "Percentage of rRNA reads (of mapped reads, primary alignment)=0.3333" \
-        "rRNA reads in uniquely mapped reads=2" \
-        "Percentage of rRNA reads (of uniquely mapped reads)=0.2857" \
+        "rRNA reads in mapped reads (primary alignment)=4" \
+        "Percentage of rRNA reads (of mapped reads, primary alignment)=0.4444" \
+        "rRNA reads in uniquely mapped reads=3" \
+        "Percentage of rRNA reads (of uniquely mapped reads)=0.4286" \
         "rRNA reads in multimapped reads (primary alignment)=1" \
         "Percentage of rRNA reads (of multimapped reads, primary alignment)=0.5000" \
         "rRNA alignments in multimapped read alignments (all alignments)=1" \
@@ -224,6 +238,20 @@ if run_metrics stranded "$OUT" --rrna-gtf "$FIX/added.gtf" --cell-barcodes "$FIX
         "Percentage of mtDNA reads (of multimapped reads, primary alignment)=0.5000" \
         "mtDNA alignments in multimapped read alignments (all alignments)=2" \
         "Percentage of mtDNA alignments (of multimapped read alignments, all alignments)=0.4000"
+
+    # Regions: RNA45S and MT-RNR2 (the gene rows win the feature-type tie), the chr1
+    # locus and rDNA. Only the absent locus and the absent added contig are warned about.
+    expect added_regions "$M" \
+        "rRNA reference contigs (added)=rDNA" \
+        "rRNA regions counted=4"
+    LOG="$BCA_TEST_LOGDIR/mt_rrna_metrics_stranded.log"
+    if grep -q "absent from the BAM header: rDNA_missing" "$LOG" \
+            && grep -q "annotates contig(s) absent from the BAM header: scaffold_x" "$LOG" \
+            && ! grep -q "LSU_copy" "$LOG"; then
+        record PASS "added_regions_warnings" "absent locus and added contig warned about; absent copy not"
+    else
+        record FAIL "added_regions_warnings" "unexpected warnings, see mt_rrna_metrics_stranded.log"
+    fi
 
     # Of the 4 mtDNA reads: r1 and r4 sense, r2 antisense, r3 between genes
     expect origin "$M" \
@@ -273,14 +301,15 @@ if run_metrics stranded "$OUT" --rrna-gtf "$FIX/added.gtf" --cell-barcodes "$FIX
         "Percentage of intronic antisense reads (of intronic reads, called cells)=0.2000"
 
     # Per barcode, primary alignments: AAAA r1 r2 r4 r5 r6 r10 (mtDNA r1 r2 r4, rRNA r4
-    # on Mt_rRNA and r6), CCCC r3 r7 (mtDNA r3, rRNA r7 on the added contig), GGGG r9.
+    # on Mt_rRNA and r6), CCCC r3 r7 (mtDNA r3, rRNA r7 on the added contig), GGGG r9
+    # (rRNA, on the added locus).
     # The called barcodes (AAAA) must add up to the called-cell rows above.
     if out="$("$PYTHON" - "$OUT/barcode_reads.tsv.gz" "$M" <<'PY'
 import csv, gzip, sys
 with gzip.open(sys.argv[1], "rt") as fh:
     rows = {r["CB"]: (int(r["MappedReads"]), int(r["MTReads"]), int(r["rRNAReads"]))
             for r in csv.DictReader(fh, delimiter="\t")}
-want = {"AAAA": (6, 3, 2), "CCCC": (2, 1, 1), "GGGG": (1, 0, 0)}
+want = {"AAAA": (6, 3, 2), "CCCC": (2, 1, 1), "GGGG": (1, 0, 1)}
 bad = [f"{bc}: {rows.get(bc)} != {v}" for bc, v in want.items() if rows.get(bc) != v]
 if set(rows) != set(want):
     bad.append(f"barcodes {sorted(rows)} != {sorted(want)}")
@@ -307,7 +336,7 @@ fi
 # --------------------------------------------------------------------------
 
 OUT="$WORKDIR/unstranded"
-if run_metrics unstranded "$OUT" --rrna-gtf "$FIX/added.gtf" --strand Unstranded; then
+if run_metrics unstranded "$OUT" --rrna-regions "$FIX/rrna_regions.tsv" --strand Unstranded; then
     M="$OUT/metrics.csv"
     expect unstranded "$M" \
         "mtDNA reads sense to mitochondrial genes (primary alignment)=N/A" \
@@ -356,7 +385,7 @@ else
             --solo-output "$SOLO" --read-counts "$COUNTS" --outdir "$WORKDIR/percell" \
             --cell-barcodes "$FIX/barcodes.tsv"; then
         # AAAA: 6 mapped, mtDNA r1 r2 r4, rRNA r4 (Mt_rRNA) r6. CCCC: r3 r7, r7 on the
-        # added contig. GGGG: r9 only.
+        # added contig. GGGG: r9 only, on the added locus.
         if out="$("$PYTHON" - "$WORKDIR/percell/sample_metrics.csv" <<'PY'
 import sys
 import pandas as pd
@@ -364,7 +393,7 @@ df = pd.read_csv(sys.argv[1]).set_index("Cell")
 want = {
     "AAAA": dict(MappedReads=6, MTPercent=50.0, rRNAPercent=100 * 2 / 6, IntronicPercent=30.0, UnsplicedPercent=30.0, IsCell=1),
     "CCCC": dict(MappedReads=2, MTPercent=50.0, rRNAPercent=50.0, IntronicPercent=10.0, UnsplicedPercent=100.0, IsCell=0),
-    "GGGG": dict(MappedReads=1, MTPercent=0.0, rRNAPercent=0.0, IntronicPercent=0.0, UnsplicedPercent=0.0, IsCell=0),
+    "GGGG": dict(MappedReads=1, MTPercent=0.0, rRNAPercent=100.0, IntronicPercent=0.0, UnsplicedPercent=0.0, IsCell=0),
 }
 bad = [f"{bc}.{col}: {df.loc[bc, col]} != {v}" for bc, cols in want.items()
        for col, v in cols.items() if abs(float(df.loc[bc, col]) - v) > 1e-6]

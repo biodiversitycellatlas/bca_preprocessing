@@ -17,14 +17,26 @@ ready-to-use config that fixes over- or under-sized requests for your next run.
 ## Quick start
 
 1. **Run the pipeline as normal.** 
-  Each run automatically creates the files required into `<outdir>/pipeline_info/`, named with the run's
-  timestamp, so repeated runs into the same directory accumulate instead of overwriting. 
+  Each run writes its execution trace into `execution_reports/` in the directory you
+  launched it from, and its run config, samplesheet and parameters into
+  `<outdir>/pipeline_info/`. All are named with the run's timestamp, so repeated runs
+  accumulate instead of overwriting.
 
 
 2. **Run the tool** against your results directory:
 
    ```bash
    bin/resource_efficiency.py --results /path/to/outdir
+   ```
+
+   The tool looks for the traces in `execution_reports/` in the pipeline folder (where
+   `submit_nextflow.sh` launches from) and in the current folder. It only takes the
+   traces of runs recorded in that outdir's `pipeline_info/`, so runs with other outdirs
+   launched from the same folder are left out. If you launched from somewhere else, say
+   where:
+
+   ```bash
+   bin/resource_efficiency.py --results /path/to/outdir --traces /launch/dir/execution_reports
    ```
 
    This prints a summary table and writes an HTML report you can open in a browser.
@@ -75,55 +87,54 @@ nextflow run
     ...
 ```
 
-## Dynamic memory
+## Dynamic time and memory
 
 A label like `process_low` gives every step the same memory, and it has to be big
 enough for the largest dataset you will ever run. On everything smaller, most of that
 is reserved and left idle.
 
-For eight steps we noticed that memory tracks the size of their input, so
-they scale with it instead of using a fixed amount of resources:
-
-| Step | Dependent on | Scale |
-| --- | --- | --- |
-| `STARSOLO_ALIGN` | FASTQ size | ~5 GB small, ~160 GB very large |
-| `STARSOLO_INDEX` | Reference genome size |  ~4 GB small, ~34 GB large |
-| `MTX_TO_H5AD` | Matrix size, plus CellSweep's denoised matrix where it ran | ~3 GB small, up to 96 GB |
-| `MTX_TO_10X` | Matrix size | ~3 GB small, up to 48 GB |
-| `DOUBLET_FILTER` | Matrix size | ~3 GB small, up to 48 GB |
-| `SATURATION_TABLE` | STARsolo BAM size | ~13 GB small, up to 128 GB |
-| `SUBSET_VELOCYTO_MATRICES` | Velocyto matrix size | ~3 GB small, up to 48 GB |
-| `VELOCITY_H5AD` | Velocyto or USA matrix size | ~3 GB small, up to 48 GB |
-
-`DOUBLET_FILTER` only runs with `perform_doublet_filtering = true`, and the last two only
-with `perform_velocity = true`. `MTX_TO_H5AD` reads two matrices where CellSweep ran — the
-counts and the denoised counts it merges in as a layer — which is why its ceiling is the
-higher one; its coefficients were measured before that and are worth re-measuring.
-
-The numbers live in `dynamic_memory` in [`nextflow.config`](../nextflow.config), and you can refresh them
-based on your own runs:
+For these steps memory tracks the size of their input, so they scale with it instead of
+using a fixed amount of resources. The numbers live in `dynamic_memory` in 
+[`nextflow.config`](../nextflow.config), and you can refresh them based on your own runs:
 
 ```bash
 bin/resource_efficiency.py --results /path/to/outdir --dynamic
 ```
 
 That writes a `resources_dynamic_*.config` you can pass with `-c`, or copy into
-`nextflow.config`.
+`nextflow.config`. It holds the `dynamic_time` and `dynamic_memory`.
 
-`perform_velocity = true` is worth a note of its own. It adds a third feature structure
-to STARsolo's solo post-map step, so `STARSOLO_ALIGN` needs more memory — but its entry
-scales on **FASTQ size**, which does not change when a feature is added. The anchor
-(`mem_gb` at `ref_gb`) therefore under-provisions with velocity on. The retry ladder
-absorbs a single overrun, but if `STARSOLO_ALIGN` starts retrying on memory once you
-enable velocity, raise `dynamic_memory.STARSOLO_ALIGN.mem_gb` (and `cap_gb` if you are
-hitting it) rather than assuming the fit is wrong.
+`dynamic_cpus` steps a CPU count up above an input size. It has three entries:
 
-One thing to watch when copying an entry across: `--dynamic` calibrates `ref_gb` from
-the trace's `rchar`, the total bytes a task read, while the module measures the file
-as it was staged. For a step that reads its input more than once the two differ —
-`SATURATION_TABLE` reads its BAM roughly seven times — so a generated `ref_gb` has to
-be converted back to staged size first, or the anchor sits far too high and every
-request collapses to the floor.
+- `STARSOLO_ALIGN: [ above_gb: 1.5, cpus: 16 ]` gives 16 cores to FASTQs above 1.5 GiB,
+  and 8 below. On `genoa64`, 3.1 GiB of ScaleBio reads took 38 min at 8 threads, 26 at
+  12 and 20–21 at 16, with 88 % of the 16 cores busy and a 3.9 GB peak. 1.5 GiB is
+  where 8 threads would take about 20 minutes. Setting `above_gb` to `null` keeps 8
+  cores for every input. To measure it on your own cluster or data, rerun a finished
+  alignment at several thread counts:
+
+  ```bash
+  # from the launch directory of a finished run; the hash is the task's, from the trace
+  bash tests/bench/star_thread_sweep.sh --fraction 0.5 work/9c/cb31d3* sweep_out
+  # once the jobs have finished:
+  bash tests/bench/star_thread_sweep.sh --collect sweep_out
+  ```
+
+  Each thread count (8, 12 and 16 by default; `--threads`) runs as its own SLURM job,
+  on the full reads and on the first half (`--fraction`), through the task's own
+  `.command.run`, so the environment is the pipeline's. The task directory is only
+  read. `sweep_out/sweep.tsv` lists each run's time, CPU use, peak memory and the reads
+  STAR mapped (`reads`, from its `Log.final.out`: the half-size runs should show half).
+  If 16 threads are clearly faster than 8 (say 1.4× or more), set `above_gb` to the
+  input size at which 8 threads take about 20 minutes.
+- `STARSOLO_INDEX: [ above_gb: 1, cpus: 8 ]` gives 8 cores to a genome and GTF above
+  1 GB, and 2 below. On *C. elegans* (0.1 GB) genome generation used about one core of
+  eight.
+- `KRAKEN: [ above_gb: 1, cpus: 8 ]` gives 8 cores to an unmapped-reads FASTA above
+  1 GB, and 2 below it. kraken2 loads its database on one thread before it classifies
+  on the others, so a small FASTA leaves extra cores idle. To refine the threshold,
+  compare kraken2's `... processed in Xs` line in a task's `.command.log` with the
+  task's run time: what remains is the database load.
 
 
 ## Tips
@@ -131,7 +142,8 @@ request collapses to the floor.
 - **The more runs, the better.** A single run still gives useful numbers, but seeing a
   few runs on different-sized datasets lets the tool predict resource needs for future
   larger or smaller datasets too.
-- **Don't delete `pipeline_info/`** in your results folders, that's where the usage
-  data comes from.
+- **Don't delete `execution_reports/`** in your launch folder, or `pipeline_info/` in
+  your results folders. The first holds the usage data, the second tells the tool which
+  run each trace belongs to and what data it processed.
 - **A step marked "insufficient data"** hasn't run enough times yet for a reliable
   recommendation; its current setting is left unchanged.

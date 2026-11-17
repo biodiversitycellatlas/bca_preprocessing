@@ -55,6 +55,11 @@ Cases:
   coverage_guard          a partly observed tier is never lowered
   dynamic_memory          no input-size scaled module carries a resource label,
                           and the generated config never overrides its memory
+  read_passes             --dynamic divides rchar by a process's read passes
+                          before anchoring ref_gb, leaving mem_gb as fitted
+  dynamic_time            no module scaling time or cpus carries a resource label,
+                          the generated config never overrides them, and
+                          --dynamic writes a complete dynamic_time map
   emitted_config          the generated config is valid Nextflow (needs nextflow)
 EOF
 }
@@ -521,6 +526,161 @@ else
 fi
 
 # --------------------------------------------------------------------------
+# Case: read_passes
+#
+# rchar counts every pass over the input, while BcaResources.scaledMemory() measures
+# the staged file once. For a process that reads its input N times, ref_gb taken
+# straight from rchar sits N times too high and every request collapses onto the
+# floor -- which is how SATURATION_TABLE was handed 4 GB for a 600 M-read BAM. The
+# generator must divide the anchor's size by N and leave mem_gb and the exponent alone.
+# --------------------------------------------------------------------------
+
+PASSES_OUT="$WORKDIR/read_passes.txt"
+if "$PYTHON" - "$PROJECT_ROOT" "$MULTI_DIR" "$WORKDIR/read_passes" >"$PASSES_OUT" 2>&1 <<'PYEOF'
+import contextlib
+import glob
+import importlib.util
+import io
+import os
+import re
+import sys
+
+root, results, outdir = sys.argv[1:4]
+spec = importlib.util.spec_from_file_location(
+    "re_mod", os.path.join(root, "bin", "resource_efficiency.py"))
+mod = importlib.util.module_from_spec(spec)
+spec.loader.exec_module(mod)
+
+# STARSOLO_ALIGN carries the fixture's trusted fit, so it stands in for any process.
+PROCESS, PASSES = "STARSOLO_ALIGN", 7
+entry_re = re.compile(PROCESS + r": \[ exponent: ([0-9.]+), ref_gb: ([0-9.e+-]+), "
+                      r"mem_gb: ([0-9]+),")
+
+def emitted(passes_table, tag):
+    mod.INPUT_READ_PASSES = passes_table
+    out = os.path.join(outdir, tag)
+    sys.argv = ["resource_efficiency.py", "--results", results, "--no-plots",
+                "--dynamic", "--output", out]
+    # The tool reports on stdout, which would land ahead of the verdict line.
+    with contextlib.redirect_stdout(io.StringIO()), contextlib.redirect_stderr(io.StringIO()):
+        mod.main()
+    configs = glob.glob(os.path.join(out, "resources_dynamic_*.config"))
+    match = entry_re.search(open(configs[0], encoding="utf-8").read()) if configs else None
+    return match.groups() if match else None
+
+plain = emitted({}, "plain")
+divided = emitted({PROCESS: PASSES}, "divided")
+if plain is None or divided is None:
+    print(f"FAIL\tno {PROCESS} entry emitted (plain={plain}, divided={divided})")
+    raise SystemExit(0)
+
+ratio = float(plain[1]) / float(divided[1])
+if abs(ratio - PASSES) > 0.05 * PASSES:
+    print(f"FAIL\tref_gb {plain[1]} -> {divided[1]}, ratio {ratio:.2f}, want {PASSES}")
+elif plain[0] != divided[0] or plain[2] != divided[2]:
+    print(f"FAIL\texponent/mem_gb changed: {plain[0]}/{plain[2]} -> {divided[0]}/{divided[2]}")
+else:
+    print(f"PASS\tref_gb {plain[1]} -> {divided[1]} over {PASSES} passes; "
+          f"exponent {plain[0]} and mem_gb {plain[2]} unchanged")
+PYEOF
+then
+    IFS=$'\t' read -r status detail <"$PASSES_OUT" || status=FAIL
+    record "${status:-FAIL}" "read_passes" "${detail:-no result produced}"
+else
+    record FAIL "read_passes" "$(tail -3 "$PASSES_OUT" | tr '\n' ' ')"
+fi
+
+# --------------------------------------------------------------------------
+# Case: dynamic_time
+#
+# The time limits and CPU counts a module scales from its input (scaledTime,
+# tieredCpus) are lost to a resource label or a withName block just as memory is.
+# --dynamic must also write a complete dynamic_time map, which read_passes above
+# has already generated from the multi-run fixture.
+# --------------------------------------------------------------------------
+
+DYNT_OUT="$WORKDIR/dynamic_time.txt"
+DYNT_CONFIG="$(ls -1 "$WORKDIR/read_passes/plain"/resources_dynamic_*.config 2>/dev/null | head -1)"
+if "$PYTHON" - "$PROJECT_ROOT" "${MULTI_CONFIG:-}" "${DYNT_CONFIG:-}" >"$DYNT_OUT" 2>&1 <<'PYEOF'
+import importlib.util
+import os
+import re
+import sys
+
+root, config, dynamic_config = sys.argv[1:4]
+spec = importlib.util.spec_from_file_location(
+    "re_mod", os.path.join(root, "bin", "resource_efficiency.py"))
+mod = importlib.util.module_from_spec(spec)
+spec.loader.exec_module(mod)
+mod.adopt_resource_labels(mod.parse_base_config(os.path.join(root, "conf", "base.config")))
+labels = mod.scan_module_labels(root)
+
+scaled = {name: info.scaled - {"memory"} for name, info in labels.items()
+          if info.dynamic_time or info.dynamic_cpus}
+if not scaled:
+    print("FAIL\tno module calling BcaResources.scaledTime() or tieredCpus() was found")
+else:
+    labelled = sorted(f"{name} ({labels[name].tier})" for name in scaled
+                      if labels[name].tier != mod.DEFAULT_TIER)
+    if labelled:
+        print("FAIL\tresource label overrides the scaled time/cpus of: " + "; ".join(labelled))
+    else:
+        print(f"PASS\t{len(scaled)} modules scale time or cpus, none with a resource label")
+
+if not config or not os.path.exists(config):
+    print("FAIL\tno emitted config to inspect")
+else:
+    text = open(config, encoding="utf-8").read()
+    blocks = re.findall(r"withName:'\.\*:([A-Za-z0-9_]+)'\s*\{([^}]*)\}", text)
+    seen, leaked = [], []
+    for name, body in blocks:
+        directives = scaled.get(mod.resolve_label(name, labels)[0], set())
+        if directives:
+            seen.append(name)
+            leaked += [f"{name}.{d}" for d in sorted(directives)
+                       if re.search(r"^\s*" + d + r"\s*=", body, re.MULTILINE)]
+    if leaked:
+        print("FAIL\tthe tuned config overrides scaled directives: " + ", ".join(leaked))
+    elif not seen:
+        print("FAIL\tthe fixture emitted no withName block for a time-scaled process, nothing was tested")
+    else:
+        print(f"PASS\t{len(seen)} withName block(s) for time-scaled processes, none sets time or cpus")
+
+if not dynamic_config or not os.path.exists(dynamic_config):
+    print("FAIL\tno --dynamic output to inspect")
+else:
+    text = open(dynamic_config, encoding="utf-8").read()
+    block = text[text.find("dynamic_time = ["):]
+    entries = re.findall(r"^\s*([A-Z0-9_]+): \[ (.*) \],$", block, re.MULTILINE)
+    incomplete = [name for name, body in entries
+                  if not all(key + ":" in body for key in ("exponent", "ref_gb", "time_h", "floor_h", "cap_h"))]
+    if "dynamic_time = [" not in text:
+        print("FAIL\t--dynamic wrote no dynamic_time map")
+    elif not entries:
+        print("FAIL\tdynamic_time map is empty for a fixture with a known time scaling")
+    elif incomplete:
+        print("FAIL\tincomplete dynamic_time entries: " + ", ".join(incomplete))
+    else:
+        print(f"PASS\t{len(entries)} dynamic_time entries: " + ", ".join(n for n, _ in entries))
+PYEOF
+then
+    n=0
+    while IFS=$'\t' read -r status detail; do
+        n=$((n + 1))
+        case "$n" in
+            1) name="dynamic_time.unlabelled" ;;
+            2) name="dynamic_time.tuned_config" ;;
+            3) name="dynamic_time.generated" ;;
+            *) name="dynamic_time.extra_$n" ;;
+        esac
+        record "$status" "$name" "$detail"
+    done <"$DYNT_OUT"
+    [[ "$n" -ge 3 ]] || record FAIL "dynamic_time" "$(tail -3 "$DYNT_OUT" | tr '\n' ' ')"
+else
+    record FAIL "dynamic_time" "$(tail -3 "$DYNT_OUT" | tr '\n' ' ')"
+fi
+
+# --------------------------------------------------------------------------
 # Case: single_run_fallback
 #
 # One run cannot distinguish scaling from sample spread, so no fit may be
@@ -547,6 +707,103 @@ else
 fi
 
 # --------------------------------------------------------------------------
+# Case: launchdir_traces
+#
+# The pipeline writes its traces into execution_reports/ under the launch
+# directory, which every run launched from there shares, whatever its outdir.
+# The tool must take from it only the traces whose suffix the outdir's own
+# params JSON records, and leave the other outdirs' traces out.
+# --------------------------------------------------------------------------
+
+LD_DIR="$WORKDIR/launchdir"
+LD_TRACES="$LD_DIR/execution_reports"
+if "$PYTHON" "$FIXTURE_GEN" --outdir "$LD_DIR/outdir_A" --traces-dir "$LD_TRACES" \
+        --runs 2 --samples 2 --seed 3 --no-kill \
+        >"$BCA_TEST_LOGDIR/resource_efficiency_launchdir_fixture.log" 2>&1 \
+    && "$PYTHON" "$FIXTURE_GEN" --outdir "$LD_DIR/outdir_B" --traces-dir "$LD_TRACES" \
+        --runs 2 --samples 3 --seed 4 --no-kill --day-offset 1 \
+        >>"$BCA_TEST_LOGDIR/resource_efficiency_launchdir_fixture.log" 2>&1; then
+    # A trace from a third outdir that was never passed to the tool.
+    cp "$(ls -1 "$LD_TRACES"/execution_trace_*.txt | head -1)" \
+        "$LD_TRACES/execution_trace_2027-01-01_00-00-00.txt"
+
+    if [[ -n "$(ls -A "$LD_DIR/outdir_A/pipeline_info"/execution_trace_* 2>/dev/null)" ]]; then
+        record FAIL "launchdir_traces.fixture" "the fixture wrote traces into pipeline_info/"
+    fi
+
+    # Every run must carry the outdir it was found under and that outdir's samples.
+    LD_EXPECT="lambda want: (sorted(r['results_dir'].rstrip('/').rsplit('/', 1)[-1] for r in d['runs']) == want
+                             and all(r['protocol'] == '10xv3' and r['n_samples'] > 0 for r in d['runs'])
+                             and all('/execution_reports/' in r['trace'] for r in d['runs']),
+                             [(r['key'], r['results_dir'], r['n_samples']) for r in d['runs']])"
+
+    if run_logged "$BCA_TEST_LOGDIR/resource_efficiency_launchdir_A.log" \
+            "$PYTHON" "$TOOL" --results "$LD_DIR/outdir_A" --traces "$LD_TRACES" \
+            --no-plots --output "$WORKDIR/launchdir_A_report" --json "$WORKDIR/launchdir_A.json"; then
+        assert_json "launchdir_traces.one_outdir" "$WORKDIR/launchdir_A.json" \
+            "($LD_EXPECT)(['outdir_A', 'outdir_A'])" \
+            "only outdir_A's 2 runs taken from the shared folder, with their samples"
+    else
+        record FAIL "launchdir_traces.one_outdir" "see resource_efficiency_launchdir_A.log"
+    fi
+
+    if run_logged "$BCA_TEST_LOGDIR/resource_efficiency_launchdir_AB.log" \
+            "$PYTHON" "$TOOL" --results "$LD_DIR/outdir_A" --results "$LD_DIR/outdir_B" \
+            --traces "$LD_TRACES" \
+            --no-plots --output "$WORKDIR/launchdir_AB_report" --json "$WORKDIR/launchdir_AB.json"; then
+        assert_json "launchdir_traces.two_outdirs" "$WORKDIR/launchdir_AB.json" \
+            "($LD_EXPECT)(['outdir_A', 'outdir_A', 'outdir_B', 'outdir_B'])" \
+            "each outdir gets its own 2 runs; the stray trace is left out"
+    else
+        record FAIL "launchdir_traces.two_outdirs" "see resource_efficiency_launchdir_AB.log"
+    fi
+
+    # The default trace folder is execution_reports/ in --pipeline-dir or in the
+    # current directory; run from the launch directory, no --traces is needed.
+    if (cd "$LD_DIR" && run_logged "$BCA_TEST_LOGDIR/resource_efficiency_launchdir_default.log" \
+            "$PYTHON" "$TOOL" --results "$LD_DIR/outdir_B" --pipeline-dir "$PROJECT_ROOT" \
+            --no-plots --output "$WORKDIR/launchdir_default_report" \
+            --json "$WORKDIR/launchdir_default.json"); then
+        assert_json "launchdir_traces.default_dir" "$WORKDIR/launchdir_default.json" \
+            "($LD_EXPECT)(['outdir_B', 'outdir_B'])" \
+            "./execution_reports/ searched without --traces"
+    else
+        record FAIL "launchdir_traces.default_dir" "see resource_efficiency_launchdir_default.log"
+    fi
+
+    LD_ALONE_LOG="$BCA_TEST_LOGDIR/resource_efficiency_launchdir_alone.log"
+    if run_logged "$LD_ALONE_LOG" \
+            "$PYTHON" "$TOOL" --traces "$LD_TRACES" \
+            --no-plots --output "$WORKDIR/launchdir_alone_report" --json "$WORKDIR/launchdir_alone.json"; then
+        assert_json "launchdir_traces.traces_only" "$WORKDIR/launchdir_alone.json" \
+            "(len(d['runs']) == 5 and all(r['n_samples'] == 0 for r in d['runs']),
+              [(r['key'], r['n_samples']) for r in d['runs']])" \
+            "--traces alone analyses all 5 traces, without sample details"
+        if grep -q "no --results given" "$LD_ALONE_LOG"; then
+            record PASS "launchdir_traces.traces_only_warning" "missing metadata is reported"
+        else
+            record FAIL "launchdir_traces.traces_only_warning" "no warning about missing sample details"
+        fi
+    else
+        record FAIL "launchdir_traces.traces_only" "see $(basename "$LD_ALONE_LOG")"
+    fi
+
+    # Traces that cannot be found must stop the tool with a pointer to --traces.
+    mkdir -p "$LD_DIR/empty_reports"
+    LD_MISSING_LOG="$BCA_TEST_LOGDIR/resource_efficiency_launchdir_missing.log"
+    if "$PYTHON" "$TOOL" --results "$LD_DIR/outdir_A" --traces "$LD_DIR/empty_reports" \
+            --no-plots --output "$WORKDIR/launchdir_missing_report" >"$LD_MISSING_LOG" 2>&1; then
+        record FAIL "launchdir_traces.missing" "the tool succeeded without any trace"
+    elif grep -q -- "--traces" "$LD_MISSING_LOG"; then
+        record PASS "launchdir_traces.missing" "fails and points at --traces"
+    else
+        record FAIL "launchdir_traces.missing" "failed without mentioning --traces, see $(basename "$LD_MISSING_LOG")"
+    fi
+else
+    record FAIL "launchdir_traces.fixture" "see resource_efficiency_launchdir_fixture.log"
+fi
+
+# --------------------------------------------------------------------------
 # Case: emitted_config
 #
 # A config the tool cannot itself validate is a config that breaks the next run.
@@ -558,7 +815,7 @@ elif [[ -z "$MULTI_CONFIG" ]]; then
     record FAIL "emitted_config" "no config was emitted"
 else
     if run_logged "$BCA_TEST_LOGDIR/resource_efficiency_config.log" \
-            nextflow config -c "$MULTI_CONFIG" "$PROJECT_ROOT"; then
+            nextflow -c "$MULTI_CONFIG" config "$PROJECT_ROOT"; then
         record PASS "emitted_config" "nextflow config parses the generated file"
     else
         record FAIL "emitted_config" "see resource_efficiency_config.log"

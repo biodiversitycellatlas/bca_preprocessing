@@ -38,7 +38,7 @@ process PARSEBIO_PIPELINE {
         --chemistry v3 \\
         --fq1 ${fastq_cDNA} \\
         --fq2 ${fastq_BC_UMI} \\
-        --nthreads 16 \\
+        --nthreads ${task.cpus} \\
         --genome_dir genome_index \\
         --output_dir . \\
         --parfile config_${params.protocol}_splitpipe.txt \\
