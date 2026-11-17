@@ -10,8 +10,8 @@ process DOWNLOAD_DEMUXAFY_SIF {
 
     script:
     // dl=1 makes Dropbox serve the raw file instead of the HTML preview page
-    def sif_url = 'https://www.dropbox.com/scl/fi/kykwi78vk4yifbbag5ajz/Demuxafy.sif?rlkey=5hcugu6ztpy0eik3xno63xiar&dl=1'
-    def md5_url = 'https://www.dropbox.com/scl/fi/37oj9y1frzhqazl4h8s21/Demuxafy.sif.md5?rlkey=o2bn5wp9q68numlaav8gg95kh&dl=1'
+    def sif_url = 'https://drive.usercontent.google.com/download?id=19QBwd9kfhcGyTMJmQ4F28X3fojrFJC_9&export=download&confirm=t'
+    def md5_url = 'https://drive.usercontent.google.com/download?id=1ds2voi76v2HoUxrZ4IS5Q6vOUD3xER0w&export=download&confirm=t'
     """
     echo -e "\\n\\n==================  DOWNLOAD DEMUXAFY SIF =================="
 
