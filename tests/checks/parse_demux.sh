@@ -1,9 +1,9 @@
 #!/usr/bin/env bash
 #
-# A read's round-1 barcode is matched at the smallest edit (Levenshtein) distance, 
-# at most max_edit_dist, over A/C/G/T only. Between 8-nt strings, distance 2 includes 
-# one deletion plus one insertion (a shifted barcode), and a barcode with N never matches. 
-# The matches are looked up in a table built once from the whitelist; a scan of the whole 
+# A read's round-1 barcode is matched at the smallest edit (Levenshtein) distance,
+# at most max_edit_dist, over A/C/G/T only. Between 8-nt strings, distance 2 includes
+# one deletion plus one insertion (a shifted barcode), and a barcode with N never matches.
+# The matches are looked up in a table built once from the whitelist; a scan of the whole
 # whitelist per read is kept as the reference:
 #
 #   - every barcode at 0-3 substitutions or with a deletion + insertion from a whitelist

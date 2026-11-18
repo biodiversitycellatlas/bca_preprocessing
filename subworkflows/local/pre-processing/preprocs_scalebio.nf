@@ -94,7 +94,7 @@ def scalebioIndexRead(String name) {
     return 0
 }
 
-/* 
+/*
     A FASTQ's lane key: its folder and name with the read token blanked, so R1/R2/I1/I2 of one
     lane share it. Null for names without a bcl-convert read token.
 */
@@ -113,7 +113,7 @@ def scalebioIsCram(Object file) {
     return file.toString() ==~ /(?i).*\.(cram|bam|sam)$/
 }
 
-/* 
+/*
     The SCALEBIO_DEMUX tasks: samples read from the same FASTQs (or Ultima CRAMs) form one
     library, read once per lane (or CRAM). Each task: [library, chunk, cDNA, barcode read,
     I1 (or []), I2 (or [])]; for an Ultima CRAM: [library, chunk, CRAM, [], [], []]

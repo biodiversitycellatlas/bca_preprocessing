@@ -1,6 +1,6 @@
 process GENERATE_DASHBOARD {
     publishDir path: { "${params.outdir}" }, mode: 'copy', overwrite: true, saveAs: { filename -> filename == 'versions.yml' ? null : filename }
-    
+
     // The dashboard reads and embeds everything it is given, so memory tracks the total
     // size of its inputs, which grows with the number of runs. Coefficients live in
     // params.dynamic_memory; without an entry the request is process_single_mem2's 10 GB.

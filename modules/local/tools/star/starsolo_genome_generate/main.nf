@@ -32,7 +32,7 @@ process STARSOLO_INDEX {
     def star_genomeSAindexNbases = params.star_genomeSAindexNbases ?: params.seqtech_parameters[params.protocol].star_genomeSAindexNbases
     def star_genomeSAsparseD = params.star_genomeSAsparseD ?: params.seqtech_parameters[params.protocol].star_genomeSAsparseD
 
-    // Derive it from task.memory * 0.85, and allow for a user override via params.star_limitGenomeGenerateRAM. 
+    // Derive it from task.memory * 0.85, and allow for a user override via params.star_limitGenomeGenerateRAM.
     def genomegen_ram = params.star_limitGenomeGenerateRAM
         ?: ((task.memory ? task.memory.toBytes() : 32000000000L) * 0.85) as long
 

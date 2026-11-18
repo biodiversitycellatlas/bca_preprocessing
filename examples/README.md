@@ -33,7 +33,7 @@ Replace `crg` with the profile for your own institution, and `conda` with anothe
 
 ### Or: on a SLURM cluster via `submit_nextflow.sh`
 
-[submit_nextflow.sh](../submit_nextflow.sh) already contains the test command. Comment out the default `nextflow run ...` line, and uncomment the test line under *Test the pipeline*:
+[submit_nextflow.sh](../submit_nextflow.sh) already contains the test command. Comment out the default `nextflow run ...` line, and uncomment the test line under _Test the pipeline_:
 
 ```bash
 nextflow run -profile crg,conda,test -c examples/10x/conf/spis_10x_parameters.config -ansi-log false "$@" & pid=$!
@@ -49,16 +49,16 @@ sbatch submit_nextflow.sh main.nf
 
 Both test datasets were **subsampled** from the public releases below. They are only meant for testing the pipeline and are not suitable for biological analysis.
 
-### 10x Genomics (*Stylophora pistillata*)
+### 10x Genomics (_Stylophora pistillata_)
 
-| | |
-|---|---|
-| Publication | <https://www.nature.com/articles/s41586-025-09623-6> |
-| SRA | [SRR32332771](https://trace.ncbi.nlm.nih.gov/Traces/?view=run_browser&acc=SRR32332771&display=metadata) |
+|             |                                                                                                         |
+| ----------- | ------------------------------------------------------------------------------------------------------- |
+| Publication | <https://www.nature.com/articles/s41586-025-09623-6>                                                    |
+| SRA         | [SRR32332771](https://trace.ncbi.nlm.nih.gov/Traces/?view=run_browser&acc=SRR32332771&display=metadata) |
 
-### MARS-seq (*Nematostella vectensis*)
+### MARS-seq (_Nematostella vectensis_)
 
-| | |
-|---|---|
-| Publication | <https://www.cell.com/cell/fulltext/S0092-8674(18)30596-8> |
-| SRA | [SRR6502902](https://trace.ncbi.nlm.nih.gov/Traces/?view=run_browser&acc=SRR6502902&display=download) |
+|             |                                                                                                       |
+| ----------- | ----------------------------------------------------------------------------------------------------- |
+| Publication | <https://www.cell.com/cell/fulltext/S0092-8674(18)30596-8>                                            |
+| SRA         | [SRR6502902](https://trace.ncbi.nlm.nih.gov/Traces/?view=run_browser&acc=SRR6502902&display=download) |

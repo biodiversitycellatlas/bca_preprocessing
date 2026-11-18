@@ -5,7 +5,7 @@ process MAPPING_STATS {
     // only its counted barcodes, so memory tracks the largest one: the analysed matrix of
     // each raw/ is measured, not the others next to it nor the rest of the staged files.
     // Coefficients live in params.dynamic_memory; without an entry the request is
-    // process_single_mem2's 10 GB. 
+    // process_single_mem2's 10 GB.
     cpus   1
     time   { 30.m * task.attempt }
     memory { BcaResources.scaledMemory(

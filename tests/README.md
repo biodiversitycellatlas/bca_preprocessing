@@ -1,7 +1,7 @@
 # Test suite
 
 Checks that validate the pipeline's environments and container images without
-needing sequencing data. Each check is skipped rather than failed when the tool it needs is missing, so the suite is safe to run anywhere.  
+needing sequencing data. Each check is skipped rather than failed when the tool it needs is missing, so the suite is safe to run anywhere.
 
 Run everything with:
 
@@ -179,12 +179,12 @@ bash tests/run_tests.sh nextflow_versions --list-versions
 Each version goes through a ladder of increasingly demanding steps, selected
 with `--depth`:
 
-| depth | what it runs | what it catches |
-| --- | --- | --- |
-| `launch` | `nextflow -version` | the version is usable at all |
-| `config` | `nextflow config` | config syntax, profiles, included configs |
-| `parse` (default) | `nextflow run --help` | plugin compatibility (`nf-schema`), entry script compilation, parameter schema |
-| `preview` | `nextflow run -preview` | the whole include graph and every channel |
+| depth             | what it runs            | what it catches                                                                |
+| ----------------- | ----------------------- | ------------------------------------------------------------------------------ |
+| `launch`          | `nextflow -version`     | the version is usable at all                                                   |
+| `config`          | `nextflow config`       | config syntax, profiles, included configs                                      |
+| `parse` (default) | `nextflow run --help`   | plugin compatibility (`nf-schema`), entry script compilation, parameter schema |
+| `preview`         | `nextflow run -preview` | the whole include graph and every channel                                      |
 
 ```bash
 # Quick: does each version still read the config?
@@ -251,7 +251,7 @@ Notes:
 
 - Needs only a `python3`; the tool's analysis path is standard library only and the
   check runs it with `--no-plots`. It skips cleanly if no interpreter is found.
-- `default_fields` covers a trace written with Nextflow's *default* `trace.fields`,
+- `default_fields` covers a trace written with Nextflow's _default_ `trace.fields`,
   which records no `cpus`/`memory`/`time`. Without a denominator every efficiency is
   blank and both overview charts come out empty, so the tool substitutes the declared
   `conf/base.config` values; this case asserts it does, and that it still tells the
@@ -264,7 +264,7 @@ Notes:
   cpus/memory/time triple — it catches the parser silently returning `None` after a
   formatting change to that file.
 - `coverage_guard` asserts that a tier only partly exercised by the runs is never
-  *lowered*, since the members that did not run would be under-provisioned.
+  _lowered_, since the members that did not run would be under-provisioned.
 - `dynamic_memory` and `dynamic_time` assert that no module sizing its memory, time
   or cpus from its input carries a resource label, and that the generated config
   never writes those directives for it: either would override the scaled request.
@@ -281,7 +281,7 @@ mistake in it does not throw — it produces a plausible number that is too smal
 the task is killed part-way through a long run.
 
 The cases pin the properties that have to hold regardless of the coefficients: a
-process with no entry in `params.dynamic_memory` gets *exactly* its label value, a
+process with no entry in `params.dynamic_memory` gets _exactly_ its label value, a
 malformed or absent entry falls back rather than throwing (Nextflow's config returns
 an empty `ConfigObject` for a missing key, not `null`, which is easy to get wrong), a
 large resident reference raises the floor so a small input can never be handed less
@@ -292,7 +292,7 @@ entry missing `ref_gb` or `mem_gb` silently does nothing.
 Two cases work on a `TaskPath`, which is what an input really is once it reaches a
 process: a path named after the staged file, whose file system provider is not the
 one that owns it, so every `java.nio.file.Files` call on it throws. Measured
-carelessly through one of those, *every* input reads as 0 bytes and every request
+carelessly through one of those, _every_ input reads as 0 bytes and every request
 falls back to its label without a word in the log — so the cases construct one and
 assert the size comes back the same as for the path it stands for.
 
@@ -332,7 +332,7 @@ discrepancy GeneExt has between its report and its log, which is what tells the 
 code paths apart in the assertions.
 
 The cases also pin the two reductions the dashboard makes deliberately: GeneExt's
-per-gene extension table and its orphan-peak BED are *not* carried over, since they
+per-gene extension table and its orphan-peak BED are _not_ carried over, since they
 dominate the report's size and are one click away in the report itself.
 
 ```bash
@@ -619,6 +619,7 @@ Checks that STARsolo's multi-gene matrix (`raw/UniqueAndMult-EM.mtx`, or
 `UniqueAndMult-PropUnique.mtx` for ScaleBio; analysed whenever `star_soloMultiMappers` lists
 a multi-gene type, as every protocol does by default) is what cell calling reads end to end.
 Covered:
+
 - the `umis` curve and the `filter` of
   [`secondderiv_filter_matrices.py`](../bin/secondderiv_filter_matrices.py), with a cell that
   clears the cutoff only with its EM counts;
@@ -643,6 +644,7 @@ bash tests/run_tests.sh starsolo_em_matrix
 
 Checks the two STAR settings that [`lib/StarSettings.groovy`](../lib/StarSettings.groovy)
 resolves from more than one source. Covered:
+
 - the strand: `star_soloStrand` when set; unset, `Reverse` only for a sample read from an
   Ultima CRAM;
 - `star_extraargs`: the custom options are added to the protocol's, and an option given in
@@ -662,6 +664,7 @@ bash tests/run_tests.sh star_settings
 Checks [`bin/barcode_check.sh`](../bin/barcode_check.sh), which `BARCODE_CHECK` runs on every
 sample before mapping. The barcode reads and whitelists are generated by the check, so it
 needs no data and no mapper. Covered:
+
 - one barcode segment and three: every barcode on its whitelist passes, another whitelist
   fails with the `BARCODE CHECK FAILED` block, and the script still exits 0, since the
   verdict is in the TSV;

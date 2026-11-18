@@ -9,9 +9,10 @@ process STARSOLO_ALIGN {
     tag "${meta.id}"
 
     // Memory and time track the size of the FASTQs being read, never below what the genome index needs.
-    // CPUs step up above a size in params.dynamic_cpus, and by default 8 while unset.
+    // CPUs step up above a size in params.dynamic_cpus, and by default 8 while unset. A retry
+    // keeps the same count: retries follow memory kills, and memory and time already double.
     cpus   { BcaResources.tieredCpus(
-        params.dynamic_cpus?.STARSOLO_ALIGN, [fastq_cDNA, fastq_BC_UMI], task.attempt, 8) }
+        params.dynamic_cpus?.STARSOLO_ALIGN, [fastq_cDNA, fastq_BC_UMI], 1, 8) }
     time   { BcaResources.scaledTime(
         params.dynamic_time?.STARSOLO_ALIGN, [fastq_cDNA, fastq_BC_UMI], task.attempt, 7) }
     memory { BcaResources.scaledMemory(

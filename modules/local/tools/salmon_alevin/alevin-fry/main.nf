@@ -1,7 +1,7 @@
 process ALEVIN_FRY {
     publishDir path: { "${params.outdir}/mapping_alevin/${meta.id}" }, mode: 'copy', saveAs: { filename -> filename == 'versions.yml' ? null : filename }
     tag "${meta.id}"
-    
+
 
     // Time follows the FASTQs and memory follows the salmon index size.
     // Salmon's mapping stops gaining at about 8 threads (66 s for 30 M pairs at 8, 12 and 16), so more only adds cost.

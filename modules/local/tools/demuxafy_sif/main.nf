@@ -1,4 +1,5 @@
-// Downloads Demuxafy.sif; only runs without params.demuxafy_sif, which filtering_workflow.nf uses where it is
+// Downloads Demuxafy.sif; filtering_workflow.nf only runs it when neither params.demuxafy_sif
+// nor an image published by an earlier run (<outdir>/containers/demuxafy/Demuxafy.sif) exists
 process DOWNLOAD_DEMUXAFY_SIF {
     publishDir path: { "${params.outdir}/containers/demuxafy" }, mode: 'copy', overwrite: false, saveAs: { filename -> filename == 'versions.yml' ? null : filename }
     tag "demuxafy_sif"

@@ -4,7 +4,7 @@ process COLLAPSE_ALEVIN_USA {
 
     // Memory tracks the USA matrix, which is loaded in full; the directory holds only that one.
     // Coefficients live in params.dynamic_memory; without an entry the request is
-    // process_single_mem2's 10 GB. 
+    // process_single_mem2's 10 GB.
     cpus   1
     time   { 30.m * task.attempt }
     memory { BcaResources.scaledMemory(

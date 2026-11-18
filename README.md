@@ -1,15 +1,13 @@
 # BCA Pre-Processing Pipeline
 
 [![website][]][website-link]
-[![nextflow][]][nextflow-link]
+[![Nextflow](https://img.shields.io/badge/version-%E2%89%A525.10.0-green?style=flat&logo=nextflow&logoColor=white&color=%230DC09D&link=https%3A%2F%2Fnextflow.io)](https://www.nextflow.io/)
 [![conda][]][conda-link]
 [![docker][]][docker-link]
 [![singularity][]][singularity-link]
 
 [website]: https://img.shields.io/badge/website-biodiversitycellatlas.org-blue
 [website-link]: https://biodiversitycellatlas.org
-[nextflow]: https://img.shields.io/badge/version-%E2%89%A525.04.0-green?style=flat&logo=nextflow&logoColor=white&color=%230DC09D&link=https%3A%2F%2Fnextflow.io
-[nextflow-link]: https://www.nextflow.io/
 [conda]: http://img.shields.io/badge/run%20with-conda-3EB049?labelColor=000000&logo=anaconda
 [conda-link]: https://docs.conda.io/en/latest/
 [docker]: https://img.shields.io/badge/run%20with-docker-0db7ed?labelColor=000000&logo=docker
@@ -49,12 +47,12 @@ The pipeline is highly configurable, and many processes can be enabled, disabled
 
 <br clear="right">
 
-
 ---
 
 ## Installation
 
 1. **Clone the pipeline**
+
 ```
 git clone --recurse-submodules https://github.com/biodiversitycellatlas/bca_preprocessing.git
 ```
@@ -62,6 +60,7 @@ git clone --recurse-submodules https://github.com/biodiversitycellatlas/bca_prep
 2. **Check dependencies**
 
 In order to run the pipeline, you must have [Nextflow](https://www.nextflow.io/docs/latest/index.html) installed, as well as access to one of the following environment managers: Conda, Mamba, Micromamba, Singularity/Apptainer or Docker. To verify the installations, print the versions of the available software:
+
 ```
 nextflow -v
 conda -V
@@ -73,8 +72,7 @@ docker --version
 
 3. **(Optionally) Installing an external pipeline as validation**
 
-For instructions on how to download the supported external pipelines and configure additional the parameters, read  [supported external pipelines](docs/INSTALLATION_EXTERNAL_PIPELINES.md). 
-
+For instructions on how to download the supported external pipelines and configure additional the parameters, read [supported external pipelines](docs/INSTALLATION_EXTERNAL_PIPELINES.md).
 
 ## Quick Setup
 
@@ -83,6 +81,7 @@ For instructions on how to download the supported external pipelines and configu
 The samplesheet should be a comma-seperated file, specifying the sample id, locations of the FASTQ files (compressed or uncompressed) and details necessary for pipeline execution. Depending on the chosen sequencing technique the order of the FASTQ files is altered, R1 might contain the cDNA while in other cases this might contain the Cell barcode & UMI's, check the available documentation or do a manual inspection. One samplesheet should be created for every species, and duplicate sample id's will be merged before mapping.
 
 This following example shows one configuration example for every type of protocol, [`example_samplesheet.csv`](./examples/example_samplesheet.csv):
+
 ```
 sample,fastq_cDNA,fastq_BC_UMI,fastq_indices,expected_cells,p5,p7,rt
 10x_OAKSEQ_EXAMPLE,BCA001_S0_L001_R2_001.fastq.gz,BCA001_S0_L001_R1_001.fastq.gz,,2500,,,
@@ -90,10 +89,10 @@ BD_RHAPSODY_EXAMPLE,BCA001_R2_001.fastq.gz,BCA001_R1_001.fastq.gz,,2500,,,
 PARSE_BIOSCIENCES_EXAMPLE,BCA001_R1_001.fastq.gz,BCA001_R2_001.fastq.gz,,2500,,,A1-A3
 SCIRNASEQ3_EXAMPLE,BCA001_R2_001.fastq.gz,BCA001_R1_001.fastq.gz,,2500,A02,D09,P02-A01:P02-H07
 ```
+
 For a more detailed explanation of the samplesheet configuration per protocol see [detailed samplesheet configurations](docs/PROTOCOLS_AND_WHITELISTS.md).
 
 A duplicate sample id is only right for rows that hold the same cells, such as lanes or a top-up sequencing of one library. Rows with different cells, such as channels, sublibraries or replicates, keep their own ids. Two optional columns combine them after mapping: `qc_report` pools them in the dashboard, and `filtering_report` pools them into one set of metacells and one entry of the filtering report. See [Combining samples](docs/usage.md#combining-samples).
-
 
 ### 2. Create a custom configuration file
 
@@ -101,6 +100,7 @@ In the custom configuration file the user specifies the location of required fil
 To modify the behaviour of certain processes or enable external pipelines, many additional variables can be added to the configuration file, see an overview of [all configuration parameters](docs/CONFIGURATION_PARAMETERS.md).
 
 Example [`custom_parameters.config`](./conf/custom_parameters.config):
+
 ```
 params {
 
@@ -130,7 +130,6 @@ params {
 }
 ```
 
-
 ## Usage
 
 > [!WARNING]
@@ -147,12 +146,12 @@ nextflow run main.nf
 sbatch submit_nextflow.sh main.nf
 ```
 
-
 ## Output
 
 The pipeline outputs are organized into sub-directories based on the analysis steps performed, see [output.md](/docs/output.md) for a comprehensive description of the ouput directory content.
 
 Below is an example of the possible directory structure:
+
 ```
 output_directory/
 ├── dashboard.html                  # Portable HTML dashboard — start here
@@ -186,11 +185,9 @@ output_directory/
 └── BDrhapsody_pipeline/            # (Optional) External BD Rhapsody outputs
 ```
 
-
 ## Citations
 
 An extensive list of references for the tools used by the pipeline can be found in the [CITATIONS.md](CITATIONS.md) file.
-
 
 ## Contact us
 

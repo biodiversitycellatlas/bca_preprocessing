@@ -189,11 +189,17 @@ workflow filtering_workflow {
         if (params.perform_doublet_detection) {
 
             // Resolve the Demuxafy .sif image once per run: use params.demuxafy_sif where it is
-            // if provided, otherwise download it and mount it straight from the task work directory.
+            // if provided, else the image an earlier run published to this outdir, and only
+            // otherwise download it and mount it straight from the task work directory.
             // The tools take the image as an absolute path, since they run it from their own work directory.
+            def published_sif = file("${params.outdir}/containers/demuxafy/Demuxafy.sif")
             def ch_demuxafy_sif
             if (params.demuxafy_sif) {
                 ch_demuxafy_sif = channel.value(file(params.demuxafy_sif, checkIfExists: true).toRealPath().toString())
+            } else if (published_sif.exists() && published_sif.size() > 0) {
+                // MD5-checked when it was downloaded; delete it to force a fresh download
+                log.info "Reusing the Demuxafy image from an earlier run: ${published_sif}"
+                ch_demuxafy_sif = channel.value(published_sif.toRealPath().toString())
             } else {
                 DOWNLOAD_DEMUXAFY_SIF()
                 ch_demuxafy_sif = DOWNLOAD_DEMUXAFY_SIF.out.sif_file
@@ -205,7 +211,7 @@ workflow filtering_workflow {
             SCRUBLET(MTX_TO_10X.out.tenx_dir, ch_demuxafy_sif)
             SCDBLFINDER(MTX_TO_10X.out.tenx_dir, ch_demuxafy_sif)
 
-            // Both tools ran on the same matrix, so they share a meta and join on it directly. 
+            // Both tools ran on the same matrix, so they share a meta and join on it directly.
             COMBINE_DOUBLET_RESULTS(
                 SCRUBLET.out.scrublet_results.join(SCDBLFINDER.out.scdblfinder_results),
                 ch_demuxafy_sif

@@ -1,7 +1,7 @@
 process BARCODE_CHECK {
     tag "${meta.id}"
 
-    // Reads the start of one FASTQ and the whitelist: seconds, and the largest whitelist fits well within this. 
+    // Reads the start of one FASTQ and the whitelist: seconds, and the largest whitelist fits well within this.
     cpus   1
     memory { 4.GB * task.attempt }
     time   { 30.m * task.attempt }

@@ -16,7 +16,7 @@ ready-to-use config that fixes over- or under-sized requests for your next run.
 
 ## Quick start
 
-1. **Run the pipeline as normal.** 
+1. **Run the pipeline as normal.**
   Each run writes its execution trace into `execution_reports/` in the directory you
   launched it from, and its run config, samplesheet and parameters into
   `<outdir>/pipeline_info/`. All are named with the run's timestamp, so repeated runs
@@ -94,7 +94,7 @@ enough for the largest dataset you will ever run. On everything smaller, most of
 is reserved and left idle.
 
 For these steps memory tracks the size of their input, so they scale with it instead of
-using a fixed amount of resources. The numbers live in `dynamic_memory` in 
+using a fixed amount of resources. The numbers live in `dynamic_memory` in
 [`nextflow.config`](../nextflow.config), and you can refresh them based on your own runs:
 
 ```bash
@@ -130,7 +130,7 @@ That writes a `resources_dynamic_*.config` you can pass with `-c`, or copy into
 - `STARSOLO_INDEX: [ above_gb: 1, cpus: 8 ]` gives 8 cores to a genome and GTF above
   1 GB, and 2 below. On *C. elegans* (0.1 GB) genome generation used about one core of
   eight.
-- `KRAKEN: [ above_gb: 1, cpus: 8 ]` gives 8 cores to an unmapped-reads FASTA above
+- `KRAKEN: [ above_gb: 1, cpus: 4 ]` gives 4 cores to an unmapped-reads FASTA above
   1 GB, and 2 below it. kraken2 loads its database on one thread before it classifies
   on the others, so a small FASTA leaves extra cores idle. To refine the threshold,
   compare kraken2's `... processed in Xs` line in a task's `.command.log` with the

@@ -1,9 +1,9 @@
 process GENERATE_FILTERING_REPORT {
     publishDir path: { "${params.outdir}" }, mode: 'copy', overwrite: true, saveAs: { filename -> filename == 'versions.yml' ? null : filename }
-    
+
     // Memory tracks the summaries and the per-barcode CellReads.stats it parses, which
     // grow with the number of runs. Coefficients live in params.dynamic_memory; without
-    // an entry the request is process_single_mem2's 10 GB. 
+    // an entry the request is process_single_mem2's 10 GB.
     cpus   1
     time   { 30.m * task.attempt }
     memory { BcaResources.scaledMemory(

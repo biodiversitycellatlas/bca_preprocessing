@@ -37,13 +37,11 @@ workflow PIPELINE_INITIALISATION {
     ch_versions = channel.empty()
 
     //
-    // Print the help and stop. Up to Nextflow 25.10, nf-schema answers --help itself (the
-    // validation.help config) before this is reached; Nextflow 26.04 no longer reads that
-    // config for nf-schema 2.3.0, so the help is printed here instead.
+    // Stop after the help. nf-schema prints the validation.help config and cancels the
+    // run, but from 2.5 on the workflow is still reached, which would go on to check and
+    // summarise the parameters.
     //
     if (params.help || params.help_full) {
-        def show_hidden = params.help_full || (params.containsKey('show_hidden') && params.get('show_hidden'))
-        log.info params.schema_before_text + schemaHelpText(show_hidden) + params.schema_after_text
         exit 0
     }
 
@@ -174,8 +172,8 @@ workflow PIPELINE_INITIALISATION {
             // a pfam_scan.pl comment counting as such a line. 200 lines pass both preambles.
             def head     = annotation.withReader { reader -> (1..200).collect { _n -> reader.readLine() } }
             def isPfamscanComment = { line -> line.startsWith("#") && (line.contains("pfam_scan") || line.contains("<seq id>")) }
-            def first    = head.find { line -> line != null && line.trim() && (!line.startsWith("##") || isPfamscanComment(line)) } ?: ""
-            def pfamscan = isPfamscanComment(first)
+            def first    = head.find { line -> line != null && line.trim() && (!line.startsWith("##") || isPfamscanComment.call(line)) } ?: ""
+            def pfamscan = isPfamscanComment.call(first)
             def columns  = first.split("\t", -1).collect { col -> col.trim().replaceFirst(/^#+/, "") }
             def format  = params.gene_annotation_format
             if (format == "auto") {
@@ -565,9 +563,10 @@ workflow PIPELINE_COMPLETION {
 // Up to Nextflow 25.10, '--perform_kraken false' arrives as a boolean and '--min_mapping_rate 20'
 // as a number. From 26.04 every command-line value is text, and text is true whatever it says,
 // so the first would switch Kraken on and the second would fail the range check. A -params-file
-// or a -c config file keeps the types on every version. For a parameter the schema types as a
-// boolean or number, text fails the schema validation as well, so 'true' is caught too; for one
-// it does not know, 'true' as text still reads as true and needs no check.
+// or a -c config file keeps the types on every version. 'true' as text still reads as true, and
+// nf-schema (2.7.2 and later) validates command-line text as the type the schema gives, so a bare
+// flag such as '--version' or '--perform_kraken' (text 'true' on 26.04) is fine. nf-schema only
+// casts the copy it validates, not params, which is why 'false' and numbers are still stopped here.
 //
 def checkCommandLineParamTypes() {
     def given = (workflow.commandLine ?: '').tokenize(' ')
@@ -578,13 +577,10 @@ def checkCommandLineParamTypes() {
     def param_types = schemaParamTypes()
     def mistyped = given.findAll { name ->
         def value = params.containsKey(name) ? params.get(name) : null
-        if (!(value instanceof CharSequence)) {
-            return false
-        }
         def types = param_types[name]
-        types == null
-            ? value.toString().trim() ==~ /(?i)false|-?\d+(\.\d+)?/
-            : !('string' in types) && value.toString().trim() ==~ /(?i)true|false|-?\d+(\.\d+)?/
+        value instanceof CharSequence
+            && !(types != null && 'string' in types)
+            && value.toString().trim() ==~ /(?i)false|-?\d+(\.\d+)?/
     }
 
     if (mistyped) {
@@ -598,35 +594,6 @@ def checkCommandLineParamTypes() {
             "and run with '-params-file params.yml', or set them in the -c config file."
         )
     }
-}
-
-//
-// Help text built from nextflow_schema.json: every parameter group with each parameter's type
-// and description, leaving out hidden parameters unless asked for
-//
-def schemaHelpText(show_hidden) {
-    def schema = new groovy.json.JsonSlurper().parseText(file("${projectDir}/nextflow_schema.json").text)
-    def lines  = [
-        "Typical pipeline command:",
-        "",
-        "  nextflow run -profile <institution_config>,conda -c /path/to/custom_config",
-        ""
-    ]
-    ((schema['$defs'] ?: schema['definitions'] ?: [:]) as Map).each { group_name, group ->
-        def shown = ((group['properties'] ?: [:]) as Map).findAll { _name, spec -> show_hidden || !spec['hidden'] }
-        if (shown) {
-            def width = shown.keySet().collect { name -> name.length() }.max() + 2
-            lines << (group['title'] ?: group_name).toString()
-            shown.each { name, spec ->
-                lines << "  --${name.padRight(width)} [${spec['type']}] ${spec['description'] ?: ''}".toString()
-            }
-            lines << ""
-        }
-    }
-    if (!show_hidden) {
-        lines << "Hidden parameters are not shown; use --help_full to list them as well."
-    }
-    return lines.join('\n')
 }
 
 //

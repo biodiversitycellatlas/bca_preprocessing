@@ -2,7 +2,7 @@
 """
 Split paired FASTQs by group using a whitelist and edit-distance (≤2) barcode matching.
 
-The round-1 barcode is matched like its correction tables do 
+The round-1 barcode is matched like its correction tables do
 (smallest Levenshtein distance, A/C/G/T only), a read is kept
 when any of its best-matching wells is in the group, and wells are given in Parse's
 notation ('A1:C6' block, 'A1-B6' range in plate order, 'C4' single well).

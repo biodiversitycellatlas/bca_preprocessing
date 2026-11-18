@@ -4,13 +4,50 @@ lint:
   nf_test_content: False # skip nf-core test content
   actions_nf_test: False # skip GitHub Action test check
   actions_awsfulltest: False # skip AWS workflow test check
+  pipeline_name_conventions: False # the repository name has an underscore
+  # --release only: compares manifest.version with the template version in this file, which
+  # has no template section (nf-core 3.3.2 then crashes with KeyError: 'template')
+  version_consistency: False
 
   files_unchanged:
     - docs/README.md
     - .gitignore
     - .prettierignore
 
+  # nf-core template files this pipeline does not use: tests are in tests/ (not nf-test),
+  # modules set their options themselves (no conf/modules.config), no iGenomes, no AWS
+  # tests, no RO-Crate, and the logo is the BCA one
+  files_exist:
+    - .github/workflows/nf-test.yml
+    - .github/actions/nf-test/action.yml
+    - .github/workflows/awstest.yml
+    - .github/workflows/awsfulltest.yml
+    - assets/nf-core-bca_preprocessing_logo_light.png
+    - conf/modules.config
+    - conf/test_full.config
+    - conf/igenomes.config
+    - conf/igenomes_ignored.config
+    - nf-test.config
+    - tests/default.nf.test
+    - ro-crate-metadata.json
+  modules_config: False
+
+  # no DAG is written; the execution reports are
   nextflow_config:
     - manifest.name
     - manifest.homePage
     - manifest.version
+    - dag.enabled
+    - dag.file
+
+  # the MultiQC report keeps MultiQC's own section order, plots and header (the section
+  # order and export_plots checks cannot be ignored one by one, so the whole test is off)
+  multiqc_config: False
+
+  # a Python format string ('{{' is a literal brace), not a Jinja template
+  template_strings:
+    - bin/dashboard_mappingstats.py
+
+  # not an nf-core pipeline, so no nf-core template badge
+  readme:
+    - nfcore_template_badge

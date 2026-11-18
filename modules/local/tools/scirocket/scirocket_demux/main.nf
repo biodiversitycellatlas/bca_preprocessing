@@ -1,7 +1,7 @@
 process SCIROCKET_DEMUX {
     publishDir path: { "${params.outdir}" }, mode: 'copy', saveAs: { filename -> filename == 'versions.yml' ? null : filename }
     tag "${meta.id}, ${fastq_cDNA}, ${fastq_BC_UMI}"
-    
+
     cpus   1
     memory { 4.GB * task.attempt }
     time   { 4.h  * task.attempt }

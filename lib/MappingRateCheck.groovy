@@ -32,7 +32,7 @@ class MappingRateCheck {
 
     static final List<String> VALID_ACTIONS = ['abort', 'skip_sample']
 
-    /** 
+    /**
     * Takes the two settings rather than params: a bare 'params' in a process script is
     * hashed by object identity, which differs on every launch (see flagDir).
     */
@@ -45,7 +45,7 @@ class MappingRateCheck {
     * process script: Nextflow hashes every global a script references, and neither
     * 'workflow' (its startTime) nor 'workflow.workDir' (a Path, hashed with its mtime)
     * hashes the same twice, so -resume would rerun the mapper every time.
-    */ 
+    */
     static Path flagDir(workflow) {
         return workflow.workDir.resolve('.mapping_rate_check').resolve(workflow.sessionId.toString())
     }
