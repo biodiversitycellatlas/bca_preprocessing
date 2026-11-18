@@ -772,9 +772,9 @@ need to open these files separately.
 <summary><code>containers/</code></summary>
 
 `containers/demuxafy/Demuxafy.sif` — the Demuxafy singularity image (~7.5 GB), downloaded
-automatically and MD5-verified when `demuxafy_sif` is not set. It is published with
-`overwrite: false`, so it is downloaded once and reused. Set `demuxafy_sif` to this path on
-subsequent runs to skip the download entirely.
+automatically and MD5-verified when `demuxafy_sif` is not set. A later run with the same
+`outdir` finds it here and reuses it instead of downloading it again. Set `demuxafy_sif` to
+this path to share the image with runs that write to another `outdir`.
 
 </details>
 
