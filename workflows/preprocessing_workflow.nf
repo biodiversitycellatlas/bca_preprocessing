@@ -19,6 +19,7 @@ include { scalebio_workflow             } from '../subworkflows/local/pre-proces
 include { MERGE_FASTQS                  } from '../modules/local/custom/manipulate/merge_files/main'
 include { CRAM_TO_FASTQ                 } from '../modules/local/tools/samtools/cram_to_fastq/main'
 include { DOWNLOAD_WHITELIST            } from '../modules/local/custom/manipulate/download_whitelist/main'
+include { SEQSPEC_LAYOUT                } from '../modules/local/custom/manipulate/seqspec_layout/main'
 
 /*
 ~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~
@@ -117,6 +118,10 @@ workflow preprocessing_workflow {
             resolved_whitelist = channel.value(whitelist_tokens.collect { token -> file(token) })
         }
 
+        // The barcode/UMI layout read from the seqspec file (protocol 'seqspec'), which both
+        // mappers and the barcode check take; empty for the other protocols
+        def seqspec_layout_ch = channel.value([])
+
         // Check for protocol and run appropriate pre-processing workflow
         if (params.protocol in ['parse_biosciences_WT_mini', 'parse_biosciences_WT']) {
             parse_workflow(merged_samplesheet)
@@ -179,10 +184,52 @@ workflow preprocessing_workflow {
             if (!params.seqspec_file || !file(params.seqspec_file).exists()) {
                 error("'protocol' = 'seqspec' reads the read layout from 'seqspec_file', which is ${params.seqspec_file ? "'${params.seqspec_file}' and does not exist" : 'not set'}.")
             }
+            // The layout is read once, before any index is built, so a spec the mappers cannot
+            // use stops the run here. The remote onlists are downloaded only when they are used.
+            def seqspec_path = file(params.seqspec_file, checkIfExists: true)
+            SEQSPEC_LAYOUT(seqspec_path, !whitelist_tokens)
+            seqspec_layout_ch = SEQSPEC_LAYOUT.out.layout
+            ch_versions = ch_versions.mix(SEQSPEC_LAYOUT.out.versions)
+
             seqspec_workflow(merged_samplesheet)
             data_output_ch = seqspec_workflow.out.data_output
-            bc_whitelist_ch  = resolved_whitelist
             ch_versions = ch_versions.mix(seqspec_workflow.out.versions)
+
+            if (whitelist_tokens) {
+                log.info "protocol 'seqspec': barcode whitelist(s) from 'bc_whitelist'; the seqspec file's onlists are not used"
+                bc_whitelist_ch = resolved_whitelist
+            } else {
+                // The spec's onlists, one per barcode region in read order: remote ones as
+                // SEQSPEC_LAYOUT downloaded them, local ones read relative to the spec's folder
+                def spec_dir = seqspec_path.parent
+                def ch_fetched = SEQSPEC_LAYOUT.out.onlist_files
+                    .map { files -> [[files].flatten()] }
+                    .ifEmpty([[]])
+                bc_whitelist_ch = SEQSPEC_LAYOUT.out.onlists
+                    .combine(ch_fetched)
+                    .map { tsv, fetched ->
+                        def rows = tsv.readLines().findAll { line -> line.trim() }.collect { line -> line.split('\t', -1) as List }
+                        def without = rows.findAll { row -> !row[3] }
+                        if (without.size() == rows.size() && rows.size() == 1) {
+                            log.warn "protocol 'seqspec': the barcode region has no onlist in the seqspec file and 'bc_whitelist' is not set, so STARsolo runs without a whitelist, the barcode check is skipped and alevin-fry uses its knee."
+                            return []
+                        }
+                        if (without) {
+                            error("protocol 'seqspec': barcode region(s) ${without.collect { row -> row[1] }.join(', ')} have no onlist in '${params.seqspec_file}'. Set 'bc_whitelist' to the whitelists, one per barcode region in read order.")
+                        }
+                        def lists = rows.collect { row ->
+                            def onlist = row[2] == 'local'
+                                ? spec_dir.resolve(row[3])
+                                : fetched.find { f -> f.name == "onlist_${row[0]}.txt" }
+                            if (!onlist || !onlist.exists()) {
+                                error("protocol 'seqspec': the onlist of barcode region '${row[1]}' (${row[3]}) was not found${row[2] == 'local' ? " (local onlists are read relative to the seqspec file's folder, ${spec_dir})" : ''}.")
+                            }
+                            onlist
+                        }
+                        log.info "protocol 'seqspec': barcode whitelist(s) from the seqspec file's onlists: ${rows.collect { row -> row[3] }.join(', ')}"
+                        lists
+                    }
+            }
 
         } else {
             error """
@@ -209,6 +256,7 @@ workflow preprocessing_workflow {
         merged_samplesheet = merged_samplesheet
         data_output     = data_output_ch
         bc_whitelist    = bc_whitelist_ch
+        seqspec_layout  = seqspec_layout_ch
         vendor_results  = ch_vendor_results
         versions        = ch_versions
 }

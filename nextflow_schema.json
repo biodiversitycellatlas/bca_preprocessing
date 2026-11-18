@@ -32,7 +32,7 @@
                 },
                 "protocol": {
                     "type": "string",
-                    "description": "Sequencing technology, which selects the pre-processing and the read layout in conf/seqtech_parameters.config.",
+                    "description": "Sequencing technology, which selects the pre-processing and the read layout in conf/seqtech_parameters.config. 'seqspec' reads the layout from 'seqspec_file'.",
                     "enum": [
                         "10xv1",
                         "10xv2",
@@ -82,7 +82,7 @@
                 },
                 "bc_whitelist": {
                     "type": "string",
-                    "description": "Barcode whitelist(s): one or more URLs or paths separated by whitespace, one per barcode segment in segment order. URLs are downloaded."
+                    "description": "Barcode whitelist(s): one or more URLs or paths separated by whitespace, one per barcode segment in segment order. URLs are downloaded. With protocol 'seqspec', unset takes the seqspec file's onlists."
                 },
                 "bc_whitelist_parse_splitwells": {
                     "type": "string",
@@ -154,7 +154,8 @@
                     "type": "string",
                     "format": "file-path",
                     "exists": true,
-                    "description": "seqspec file with the read layout, for protocol 'seqspec'."
+                    "description": "seqspec file for protocol 'seqspec'. The barcode and UMI positions of STARsolo and alevin-fry are derived from its 'rna' modality, and its barcode onlists are the whitelists when 'bc_whitelist' is unset (local onlists are read relative to the file's folder).",
+                    "help_text": "The read holding the cell barcode(s) and the UMI goes in the samplesheet's 'fastq_BC_UMI' column, the read holding the cDNA in 'fastq_cDNA'. One barcode region gives STARsolo's CB_UMI_Simple, several give CB_UMI_Complex. Every region up to the end of the barcodes and UMI must have a fixed length."
                 },
                 "bcl2fastq": {
                     "type": "string",
@@ -307,11 +308,11 @@
                     "type": "string"
                 },
                 "star_soloTypestring": {
-                    "description": "STARsolo's --soloType with the barcode and UMI layout of the reads, e.g. '--soloType CB_UMI_Simple --soloCBstart 1 --soloCBlen 16 --soloUMIstart 17 --soloUMIlen 12'. Unset: the protocol's default in conf/seqtech_parameters.config. Not used with protocol 'seqspec', whose layout comes from the seqspec file.",
+                    "description": "STARsolo's --soloType with the barcode and UMI layout of the reads, e.g. '--soloType CB_UMI_Simple --soloCBstart 1 --soloCBlen 16 --soloUMIstart 17 --soloUMIlen 12'. Unset: the protocol's default in conf/seqtech_parameters.config; with protocol 'seqspec', derived from the seqspec file.",
                     "type": "string"
                 },
                 "star_soloCBmatchWLtype": {
-                    "description": "STARsolo's --soloCBmatchWLtype: how cell barcodes are matched to the whitelist. Unset: the protocol's default in conf/seqtech_parameters.config.",
+                    "description": "STARsolo's --soloCBmatchWLtype: how cell barcodes are matched to the whitelist. Unset: the protocol's default in conf/seqtech_parameters.config; a split-barcode seqspec layout (CB_UMI_Complex) uses '1MM', as the 1MM_multi types work only for CB_UMI_Simple.",
                     "type": "string"
                 },
                 "star_soloUMIfiltering": {
@@ -345,15 +346,15 @@
                     "type": "string"
                 },
                 "alevin_bc_geometry": {
-                    "description": "alevin-fry position(s) of the cell barcode, e.g. '1[1-16]' or '1[1-9,14-22,27-35]'. Unset: the protocol's default in conf/seqtech_parameters.config. Protocol 'seqspec' has none, so it must be set there to run alevin-fry.",
+                    "description": "alevin-fry position(s) of the cell barcode, e.g. '1[1-16]' or '1[1-9,14-22,27-35]'. Unset: the protocol's default in conf/seqtech_parameters.config; with protocol 'seqspec', derived from the seqspec file.",
                     "type": "string"
                 },
                 "alevin_umi_geometry": {
-                    "description": "alevin-fry position of the UMI, e.g. '1[17-28]'. Unset: the protocol's default in conf/seqtech_parameters.config. Protocol 'seqspec' has none, so it must be set there to run alevin-fry.",
+                    "description": "alevin-fry position of the UMI, e.g. '1[17-28]'. Unset: the protocol's default in conf/seqtech_parameters.config; with protocol 'seqspec', derived from the seqspec file.",
                     "type": "string"
                 },
                 "alevin_read_geometry": {
-                    "description": "alevin-fry position of the biological sequence, '2[1-end]' for every protocol. Unset: the protocol's default in conf/seqtech_parameters.config.",
+                    "description": "alevin-fry position of the biological sequence, '2[1-end]' for every built-in protocol. Unset: the protocol's default in conf/seqtech_parameters.config; with protocol 'seqspec', derived from where the cDNA starts in the cDNA read.",
                     "type": "string"
                 }
             }
@@ -780,8 +781,7 @@
             "properties": {
                 "perform_trimming": {
                     "type": "boolean",
-                    "description": "Trim adapters and low-quality bases with fastp, where applicable (sci-RNA-seq3 and seqspec protocols).",
-                    "default": true
+                    "description": "Trim adapters and low-quality bases with fastp, where applicable (sci-RNA-seq3 and seqspec protocols). Unset: the protocol's default in conf/seqtech_parameters.config, on for sci-RNA-seq3 and off for seqspec."
                 },
                 "fastp_length_required": {
                     "description": "fastp's --length_required: reads shorter than this are dropped. Unset: the protocol's default in conf/seqtech_parameters.config.",

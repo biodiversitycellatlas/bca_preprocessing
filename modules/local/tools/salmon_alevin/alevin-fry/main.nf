@@ -22,10 +22,11 @@ process ALEVIN_FRY {
 
     input:
     tuple val(meta), path(fastq_cDNA), path(fastq_BC_UMI), path(fastq_indices), path(input_file)
-    path(bc_whitelist, stageAs: 'whitelist_?/*')  // in barcode-segment order; empty without a whitelist
+    path(bc_whitelist, stageAs: 'whitelist_?/*')        // in barcode-segment order; empty without a whitelist
+    path(seqspec_layout, stageAs: 'seqspec_layout/*')   // SEQSPEC_LAYOUT's layout for protocol 'seqspec', empty otherwise
     path(splici_index_reference)
     path(salmon_index)
-    val mapping_flag_dir                         // MappingRateCheck.flagDir(workflow), as a string
+    val mapping_flag_dir                                // MappingRateCheck.flagDir(workflow), as a string
 
     output:
     tuple val(meta), path("${meta.id}_*"), emit: mapping_files
@@ -36,12 +37,22 @@ process ALEVIN_FRY {
     path "versions.yml",                                                emit: versions
 
     script:
-    // Retrieve settings from custom parameters if set, otherwise from conf/seqtech_parameters.config
-    def bc_geom = params.alevin_bc_geometry ?: params.seqtech_parameters[params.protocol].alevin_bc_geometry
-    def umi_geom = params.alevin_umi_geometry ?: params.seqtech_parameters[params.protocol].alevin_umi_geometry
-    def read_geom = params.alevin_read_geometry ?: params.seqtech_parameters[params.protocol].alevin_read_geometry
+    // Retrieve settings from custom parameters if set, otherwise from conf/seqtech_parameters.config.
+    // Protocol 'seqspec' fills the ones not set from the layout derived from the seqspec file
+    // (SEQSPEC_LAYOUT), in the script below.
+    def seqtech = params.seqtech_parameters[params.protocol]
+    def bc_geom = params.alevin_bc_geometry ?: seqtech.alevin_bc_geometry
+    def umi_geom = params.alevin_umi_geometry ?: seqtech.alevin_umi_geometry
+    def read_geom = params.alevin_read_geometry ?: seqtech.alevin_read_geometry
+    
+    // The seqspec layout replaces the protocol's geometries, but not geometries set in the run
+    def geom_from_layout = seqspec_layout ? [
+        bc:   params.alevin_bc_geometry ? '' : 'yes',
+        umi:  params.alevin_umi_geometry ? '' : 'yes',
+        read: params.alevin_read_geometry ? '' : 'yes'
+    ] : [bc: '', umi: '', read: '']
 
-    if (!bc_geom || !umi_geom || !read_geom) {
+    if (!seqspec_layout && (!bc_geom || !umi_geom || !read_geom)) {
         error "No alevin geometry defined for protocol '${params.protocol}'. Set 'alevin_bc_geometry', 'alevin_umi_geometry' and 'alevin_read_geometry' in the configuration file."
     }
 
@@ -82,7 +93,21 @@ process ALEVIN_FRY {
     echo "Splici reference: ${splici_index_reference}"
     echo "cDNA read: ${fastq_cDNA}"
     echo "CB/UMI read: ${fastq_BC_UMI}"
-    echo "Geometry (bc / umi / read): ${bc_geom} / ${umi_geom} / ${read_geom}"
+    BC_GEOM="${bc_geom ?: ''}"
+    UMI_GEOM="${umi_geom ?: ''}"
+    READ_GEOM="${read_geom ?: ''}"
+    if [[ -n "${seqspec_layout}" ]]; then
+        # Geometry derived from the seqspec file (SEQSPEC_LAYOUT, bin/seqspec_layout.py)
+        source ${seqspec_layout}
+        if [[ "${geom_from_layout.bc}" == "yes" ]]; then BC_GEOM="\${SEQSPEC_ALEVIN_BC}"; fi
+        if [[ "${geom_from_layout.umi}" == "yes" ]]; then UMI_GEOM="\${SEQSPEC_ALEVIN_UMI}"; fi
+        if [[ "${geom_from_layout.read}" == "yes" ]]; then READ_GEOM="\${SEQSPEC_ALEVIN_READ}"; fi
+    fi
+    if [[ -z "\${BC_GEOM}" || -z "\${UMI_GEOM}" || -z "\${READ_GEOM}" ]]; then
+        echo "ERROR: no alevin geometry for protocol '${params.protocol}' (bc '\${BC_GEOM}', umi '\${UMI_GEOM}', read '\${READ_GEOM}'). Set 'alevin_bc_geometry', 'alevin_umi_geometry' and 'alevin_read_geometry'." >&2
+        exit 1
+    fi
+    echo "Geometry (bc / umi / read): \${BC_GEOM} / \${UMI_GEOM} / \${READ_GEOM}"
     echo "Expected orientation: ${expected_ori} (star_soloStrand ${star_soloStrand})"
     echo "Resolution: ${params.alevin_resolution}"
 
@@ -94,9 +119,9 @@ process ALEVIN_FRY {
         -1 ${fastq_BC_UMI} \\
         -2 ${fastq_cDNA} \\
         -p ${task.cpus} \\
-        --bc-geometry "${bc_geom}" \\
-        --umi-geo "${umi_geom}" \\
-        --read-geo "${read_geom}" \\
+        --bc-geometry "\${BC_GEOM}" \\
+        --umi-geo "\${UMI_GEOM}" \\
+        --read-geo "\${READ_GEOM}" \\
         -o ./${meta.id}_run \\
         --justAlign
 

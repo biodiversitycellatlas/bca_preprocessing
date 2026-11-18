@@ -23,6 +23,7 @@ workflow mapping_alevin_workflow {
     take:
         data_output
         bc_whitelist
+        seqspec_layout
         ref_gtf
         ref_fasta
         remap_geneext
@@ -39,6 +40,7 @@ workflow mapping_alevin_workflow {
         ALEVIN_FRY(
             data_output,
             bc_whitelist,
+            seqspec_layout,
             SALMON_SPLICI.out.splici_index_reference,
             SALMON_INDEX.out.salmon_index,
             MappingRateCheck.flagDir(workflow).toString()

@@ -55,6 +55,7 @@ workflow QC_mapping_workflow {
     take:
         data_output
         bc_whitelist
+        seqspec_layout
 
     main:
         // Initialize channels
@@ -143,14 +144,13 @@ workflow QC_mapping_workflow {
             def solo_type_string = params.star_soloTypestring != null
                 ? params.star_soloTypestring
                 : (seqtech.star_soloTypestring ?: '')
-            def seqspec = params.protocol == 'seqspec' ? file(params.seqspec_file, checkIfExists: true) : []
             def min_match = params.min_barcode_match
 
             BARCODE_CHECK(
                 data_output.map { row -> [row[0], row[2]] },
                 bc_whitelist_safe,
                 solo_type_string,
-                seqspec,
+                seqspec_layout,
                 min_match,
                 params.barcode_check_reads
             )
@@ -211,7 +211,7 @@ workflow QC_mapping_workflow {
         def star_index_standard = null
         if (runs.geneext_input == 'own_run') {
             mapping_starsolo_geneext_input_workflow(apply_suffix(ch_samples, AnalyticalRuns.GENEEXT_INPUT_SUFFIX),
-                                                    bc_whitelist_safe, ref_gtf_ch, ref_fasta_ch, 'false',
+                                                    bc_whitelist_safe, seqspec_layout, ref_gtf_ch, ref_fasta_ch, 'false',
                                                     params.geneext_bam_only as boolean, null)
 
             // Same reference, so a standard subsampled run does not build a second index
@@ -239,7 +239,7 @@ workflow QC_mapping_workflow {
                 : apply_suffix(ch_samples, runs.star_standard)
             ch_mapped_ss = ch_mapped_ss.mix(apply_suffix(ch_samples, runs.star_standard))
 
-            mapping_starsolo_workflow(ch_star_input, bc_whitelist_safe, ref_gtf_ch, ref_fasta_ch, 'false', false, star_index_standard)
+            mapping_starsolo_workflow(ch_star_input, bc_whitelist_safe, seqspec_layout, ref_gtf_ch, ref_fasta_ch, 'false', false, star_index_standard)
 
             // Assign starsolo standard mapping outputs
             ch_starsolo_bam                 = ch_starsolo_bam.mix(mapping_starsolo_workflow.out.starsolo_bam)
@@ -320,7 +320,7 @@ workflow QC_mapping_workflow {
                 : apply_suffix(ch_samples, runs.star_geneext)
             ch_mapped_ss = ch_mapped_ss.mix(apply_suffix(ch_samples, runs.star_geneext))
 
-            mapping_starsolo_geneext_workflow(ch_geneext, bc_whitelist_safe, ref_gtf_geneext_ch, ref_fasta_geneext_ch, 'true', false, null)
+            mapping_starsolo_geneext_workflow(ch_geneext, bc_whitelist_safe, seqspec_layout, ref_gtf_geneext_ch, ref_fasta_geneext_ch, 'true', false, null)
 
             // Mix the geneext starsolo outputs with standard run
             ch_starsolo_bam                 = ch_starsolo_bam.mix(mapping_starsolo_geneext_workflow.out.starsolo_bam)
@@ -368,7 +368,7 @@ workflow QC_mapping_workflow {
             def ch_alevin = apply_suffix(ch_samples, "_alevinfry")
             ch_mapped_ss = ch_mapped_ss.mix(ch_alevin)
             // Same reference as the standard STARsolo run, so the two mappers are compared like for like
-            mapping_alevin_workflow(ch_alevin, bc_whitelist_safe, ref_gtf_ch, ref_fasta_ch, 'false')
+            mapping_alevin_workflow(ch_alevin, bc_whitelist_safe, seqspec_layout, ref_gtf_ch, ref_fasta_ch, 'false')
 
             ch_alevin_meta_info    = ch_alevin_meta_info.mix(mapping_alevin_workflow.out.af_meta_info)
             ch_alevin_quant_json   = ch_alevin_quant_json.mix(mapping_alevin_workflow.out.af_quant_json)
@@ -389,7 +389,7 @@ workflow QC_mapping_workflow {
         if (runs.alevin_geneext) {
             def ch_alevin_geneext = apply_suffix(ch_samples, "_geneext_alevinfry")
             ch_mapped_ss = ch_mapped_ss.mix(ch_alevin_geneext)
-            mapping_alevin_geneext_workflow(ch_alevin_geneext, bc_whitelist_safe, ref_gtf_geneext_ch, ref_fasta_geneext_ch, 'true')
+            mapping_alevin_geneext_workflow(ch_alevin_geneext, bc_whitelist_safe, seqspec_layout, ref_gtf_geneext_ch, ref_fasta_geneext_ch, 'true')
 
             ch_alevin_meta_info    = ch_alevin_meta_info.mix(mapping_alevin_geneext_workflow.out.af_meta_info)
             ch_alevin_quant_json   = ch_alevin_quant_json.mix(mapping_alevin_geneext_workflow.out.af_quant_json)

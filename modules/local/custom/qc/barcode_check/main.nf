@@ -6,8 +6,7 @@ process BARCODE_CHECK {
     memory { 4.GB * task.attempt }
     time   { 30.m * task.attempt }
 
-    // The environment and container of STARSOLO_ALIGN: pigz and awk for the check, seqspec
-    // for the layout of protocol 'seqspec'
+    // The environment and container of STARSOLO_ALIGN: pigz and awk for the check
     conda "${moduleDir}/../../../tools/star/starsolo_align/environment.yml"
     container "${ workflow.containerEngine in ['singularity', 'apptainer'] && !task.ext.singularity_pull_docker_container ?
         'oras://community.wave.seqera.io/library/htslib_samtools_seqspec_star_pruned:cef769c7e3b03dd0' :
@@ -17,7 +16,7 @@ process BARCODE_CHECK {
     tuple val(meta), path(fastq_BC_UMI)
     path(bc_whitelist, stageAs: 'whitelist_?/*')  // in barcode-segment order; empty without a whitelist
     val solo_type_string                          // the --soloType ... options STARsolo gets for this protocol
-    path(seqspec, stageAs: 'seqspec/*')           // the seqspec file for protocol 'seqspec', empty otherwise
+    path(seqspec_layout, stageAs: 'seqspec_layout/*') // SEQSPEC_LAYOUT's layout for protocol 'seqspec', empty otherwise
     val min_barcode_match                         // % of reads on the whitelist below which the sample fails
     val check_reads                               // number of reads checked, from the start of the file
 
@@ -27,17 +26,19 @@ process BARCODE_CHECK {
 
     script:
     def whitelists = (bc_whitelist instanceof List ? bc_whitelist : [bc_whitelist]).findAll { wl -> wl }
+    // Protocol 'seqspec': the layout derived from the seqspec file, unless star_soloTypestring is set
+    def use_seqspec_layout = seqspec_layout && !solo_type_string
     """
     echo -e "\\n\\n==============  BARCODE CHECK  ================"
     echo "Sample: ${meta.id}"
     echo "FASTQ BC & UMI: ${fastq_BC_UMI}"
     echo "Barcode whitelist: ${whitelists ? whitelists.join(' ') : 'None'}"
 
-    if [[ -n "${seqspec}" ]]; then
-        # Barcode structure information from seqspec file, as STARSOLO_ALIGN reads it
-        layout="--soloType CB_UMI_Simple \$(seqspec index -m rna -t starsolo -s file ${seqspec})"
-    else
-        layout="${solo_type_string}"
+    layout="${solo_type_string}"
+    if [[ "${use_seqspec_layout}" == "true" ]]; then
+        # Barcode layout derived from the seqspec file, as STARSOLO_ALIGN reads it
+        source ${seqspec_layout}
+        layout="\${SEQSPEC_STAR_TYPE}"
     fi
     echo "Layout: \${layout}"
 

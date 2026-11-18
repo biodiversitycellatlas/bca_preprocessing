@@ -33,8 +33,8 @@ process STARSOLO_ALIGN {
     path(bc_whitelist, stageAs: 'whitelist_?/*')  // in barcode-segment order; empty without a whitelist
     val bam_only
     path genome_index_files
-    path(seqspec, stageAs: 'seqspec/*')          // the seqspec file for protocol 'seqspec', empty otherwise
-    val mapping_flag_dir                         // MappingRateCheck.flagDir(workflow), as a string
+    path(seqspec_layout, stageAs: 'seqspec_layout/*')
+    val mapping_flag_dir
 
     output:
     tuple val(meta), path("*_Log.final.out"),                   emit: log_final_file
@@ -64,6 +64,13 @@ process STARSOLO_ALIGN {
     def star_outSAMunmapped    = setting(seqtech, 'star_outSAMunmapped')
     def star_outSAMattributes  = setting(seqtech, 'star_outSAMattributes')
     def star_solocellfilter    = setting(seqtech, 'star_solocellfilter')
+
+    // Protocol 'seqspec': the barcode layout comes from the seqspec file, unless
+    // star_soloTypestring is set. A split-barcode layout (CB_UMI_Complex) cannot use the
+    // 1MM_multi* whitelist matching of CB_UMI_Simple, so it switches to the layout's
+    // matching, unless star_soloCBmatchWLtype is set.
+    def use_seqspec_layout     = seqspec_layout && !star_soloTypestring
+    def keep_cbmatch           = params.star_soloCBmatchWLtype != null || !"${star_soloCBmatchWLtype}".startsWith('1MM_multi')
 
     // The protocol's extra arguments, then the custom ones: a custom option replaces the
     // protocol's option of the same name, the others are kept (lib/StarSettings.groovy)
@@ -154,16 +161,32 @@ process STARSOLO_ALIGN {
     echo "outSAMtype_option: ${outSAMtype_option}"
     echo "Mapping-rate check: ${mapping_guard_note}"
 
-    if [[ -n \"${seqspec}\" ]];
-    then
-        # Barcode structure information from seqspec file
-        bc_struct=\$(seqspec index -m rna -t starsolo -s file ${seqspec})
-        SOLO_TYPE_STRING="--soloType CB_UMI_Simple \${bc_struct}"
-    else
-        # Use predefined barcode structure information based on protocol
-        SOLO_TYPE_STRING="${star_soloTypestring}"
+    SOLO_TYPE_STRING="${star_soloTypestring}"
+    SOLO_CB_MATCH="${star_soloCBmatchWLtype}"
+    if [[ "${use_seqspec_layout}" == "true" ]]; then
+        # Barcode layout derived from the seqspec file (SEQSPEC_LAYOUT, bin/seqspec_layout.py)
+        source ${seqspec_layout}
+        SOLO_TYPE_STRING="\${SEQSPEC_STAR_TYPE}"
+        if [[ -n "\${SEQSPEC_STAR_CBMATCH}" && "${keep_cbmatch}" == "false" ]]; then
+            echo "soloCBmatchWLtype: ${star_soloCBmatchWLtype} works only for CB_UMI_Simple; the seqspec layout uses \${SEQSPEC_STAR_CBMATCH}"
+            SOLO_CB_MATCH="\${SEQSPEC_STAR_CBMATCH}"
+        fi
     fi
     echo "SOLO_TYPE_STRING: \${SOLO_TYPE_STRING}"
+    echo "soloCBmatchWLtype (effective): \${SOLO_CB_MATCH}"
+
+    # STAR reads only plain-text whitelists: a gzipped one is decompressed first
+    SOLO_WHITELIST=""
+    n_wl=0
+    for wl in ${safe_bc_whitelist}; do
+        n_wl=\$(( n_wl + 1 ))
+        if [[ "\$wl" != "None" ]] && pigz -t "\$wl" 2>/dev/null; then
+            pigz -dc "\$wl" > "whitelist_plain_\${n_wl}.txt"
+            echo "Whitelist \${wl} is gzipped: decompressed to whitelist_plain_\${n_wl}.txt"
+            wl="whitelist_plain_\${n_wl}.txt"
+        fi
+        SOLO_WHITELIST="\${SOLO_WHITELIST} \${wl}"
+    done
 
     # Adjust soloCellFilter arguments. "None" takes no parameters of its own.
     SOLO_CELL_FILTER_ARGS=""
@@ -184,12 +207,12 @@ process STARSOLO_ALIGN {
         --readFilesIn ${input_files} \\
         --genomeDir ${genome_index_files} \\
         --readFilesCommand ${read_files_command} \\
-        --soloCBmatchWLtype ${star_soloCBmatchWLtype} \\
+        --soloCBmatchWLtype \${SOLO_CB_MATCH} \\
         --soloUMIfiltering ${star_soloUMIfiltering} \\
         --soloMultiMappers ${star_soloMultiMappers} \\
         --soloUMIdedup ${star_soloUMIdedup} \\
         --soloFeatures ${star_soloFeatures_effective} \\
-        --soloCBwhitelist ${safe_bc_whitelist} \\
+        --soloCBwhitelist \${SOLO_WHITELIST} \\
         --soloCellReadStats ${star_soloCellReadStats} \\
         --soloCellFilter \${SOLO_CELL_FILTER_ARGS} \\
         --clipAdapterType ${star_clipAdapterType} \\

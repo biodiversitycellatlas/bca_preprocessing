@@ -38,6 +38,7 @@ tests/
 │   ├── resource_efficiency.sh
 │   ├── sample_groups.sh
 │   ├── scalebio_demux.sh
+│   ├── seqspec_layout.sh
 │   ├── star_settings.sh
 │   ├── starsolo_em_matrix.sh
 │   └── velocity_matrix.sh
@@ -53,6 +54,7 @@ tests/
     ├── make_group_fixture.py      # two samples of one filtering_report group, the
     │                              # second with every value shifted
     ├── make_metacell_fixture.py   # generates a sample with a planted metacell assignment
+    ├── make_seqspec_split_fixture.sh # split-barcode variant of the seqspec demo (e2e)
     ├── report_harness.js          # runs filtering_report.html's script to export a selection
     ├── make_trace_fixture.py      # generates synthetic runs with a known exponent
     └── make_velocyto_fixture.py   # generates synthetic Velocyto and USA matrices
@@ -683,6 +685,34 @@ Needs only `bash`, `awk` and `gzip`; it passes with both gawk and mawk.
 ```bash
 bash tests/run_tests.sh barcode_check
 ```
+
+## `seqspec_layout`
+
+Checks [`bin/seqspec_layout.py`](../bin/seqspec_layout.py), which `SEQSPEC_LAYOUT` runs once
+for `protocol = "seqspec"` to derive both mappers' barcode layouts. Each case writes a small
+seqspec file and compares the output with values worked out by hand:
+
+- the demo spec ([examples/seqspec](../examples/seqspec/conf)): `CB_UMI_Simple` 1/16/17/12,
+  `1[1-16]` / `1[17-28]` / `2[1-end]`, and its remote onlist;
+- a barcode after a 4-nt spacer and a cDNA read starting with a 4-nt linker:
+  `--soloCBstart 5 --soloCBlen 16` and `2[5-end]`. The case detail shows seqspec's own
+  `index -t starsolo` output, whose `--soloCBlen 20` is the barcode's end;
+- three barcodes between linkers: `CB_UMI_Complex` positions, `1MM` matching,
+  `1[1-9,14-22,27-35]`, and local and remote onlists in read order, nothing downloaded;
+- the env file sources in bash with its brackets, commas and spaces intact;
+- refused: a variable-length region before the barcode, barcode and UMI in different reads,
+  no UMI.
+
+Needs a Python with the seqspec package, e.g. the `STARSOLO_ALIGN` conda env; it is skipped
+without one.
+
+```bash
+bash tests/run_tests.sh seqspec_layout -- --python <env>/bin/python
+```
+
+`tests/lib/make_seqspec_split_fixture.sh` builds the split-barcode variant of the demo for an
+end-to-end run: read 1 of the 10x example with a linker inside the barcode, the two halves of
+the 10x v3 whitelist as local onlists, a matching spec, samplesheet and `-c` config.
 
 ## Adding a check
 
