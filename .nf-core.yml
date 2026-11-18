@@ -5,6 +5,9 @@ lint:
   actions_nf_test: False # skip GitHub Action test check
   actions_awsfulltest: False # skip AWS workflow test check
   pipeline_name_conventions: False # the repository name has an underscore
+  # --release only: compares manifest.version with the template version in this file, which
+  # has no template section (nf-core 3.3.2 then crashes with KeyError: 'template')
+  version_consistency: False
 
   files_unchanged:
     - docs/README.md
@@ -37,11 +40,9 @@ lint:
     - dag.enabled
     - dag.file
 
-  # the MultiQC report keeps MultiQC's own section order, plots and header
-  multiqc_config:
-    - report_section_order
-    - export_plots
-    - report_comment
+  # the MultiQC report keeps MultiQC's own section order, plots and header (the section
+  # order and export_plots checks cannot be ignored one by one, so the whole test is off)
+  multiqc_config: False
 
   # a Python format string ('{{' is a literal brace), not a Jinja template
   template_strings:

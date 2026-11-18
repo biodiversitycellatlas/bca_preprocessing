@@ -140,6 +140,7 @@
                     "description": "How the index reads are read from a CRAM's BC tag (samtools fastq --index-format), e.g. 'i8i8' when two indices are joined without a separator. 'auto' counts the indices by their separator ('ACGT-TTGG' is two)."
                 },
                 "run_method": {
+                    "description": "Which part of the pipeline runs: 'standard', 'geneext_only', 'external_pipeline_only' or 'post_mapping', which picks a finished run up where mapping ended and redoes everything after it.",
                     "type": "string",
                     "default": "standard",
                     "enum": ["standard", "geneext_only", "external_pipeline_only", "post_mapping"]
@@ -168,11 +169,13 @@
             "default": "",
             "properties": {
                 "mapping_software": {
+                    "description": "Mapper(s) to run: 'starsolo', 'alevin' (alevin-fry), 'both' or 'alevin_starsolo' (the two together), or 'alevin_subsampled_starsolo'.",
                     "type": "string",
                     "default": "starsolo",
                     "enum": ["starsolo", "alevin", "both", "alevin_starsolo", "alevin_subsampled_starsolo"]
                 },
                 "cellfilter_method": {
+                    "description": "How cells are called: 'star_solocellfilter' (each mapper's own filter: STARsolo's --soloCellFilter, alevin-fry's knee), 'second_derivative' or 'manual_cutoff'. The last two filter every mapper's matrix on a UMI cutoff.",
                     "type": "string",
                     "default": "second_derivative",
                     "enum": ["star_solocellfilter", "second_derivative", "manual_cutoff"]
@@ -250,6 +253,7 @@
                     "description": "Prebuilt STARsolo index to map against; built in the run when unset."
                 },
                 "mt_contig": {
+                    "description": "Mitochondrial contig name(s) in the reference, separated by spaces. Reads on them count as mtDNA, and their genes are the mitochondrial genes of the metacell report and of CellSweep.",
                     "type": "string",
                     "default": "chrM M MT"
                 },
@@ -275,6 +279,7 @@
                     "description": "Strand of the reads relative to the gene (STAR --soloStrand; alevin-fry and the antisense metrics follow it). Unset: 'Forward', or 'Reverse' for samples read from Ultima CRAMs (cram_type 'ultima')."
                 },
                 "star_genomeSAsparseD": {
+                    "description": "STAR's --genomeSAsparseD: suffix array sparsity of the index. Unset: the protocol's default in conf/seqtech_parameters.config.",
                     "type": "integer",
                     "minimum": 1
                 },
@@ -285,25 +290,32 @@
                     "description": "STAR --genomeChrBinNbits for the index build; derived as min(18, log2(max(genome length / number of sequences, read length))) when unset."
                 },
                 "star_soloFeatures": {
+                    "description": "STARsolo's --soloFeatures: the features UMIs are counted for. Velocyto is added by 'perform_velocity'. Unset: the protocol's default in conf/seqtech_parameters.config.",
                     "type": "string"
                 },
                 "star_outFilterScoreMin": {
+                    "description": "STAR's --outFilterScoreMin: the lowest alignment score that is written. Unset: the protocol's default in conf/seqtech_parameters.config.",
                     "type": "integer",
                     "minimum": 0
                 },
                 "star_outSAMattributes": {
+                    "description": "STAR's --outSAMattributes: the SAM attributes written to the BAM. Unset: the protocol's default in conf/seqtech_parameters.config.",
                     "type": "string"
                 },
                 "star_outSAMunmapped": {
+                    "description": "STAR's --outSAMunmapped: whether unmapped reads are written to the BAM. Unset: the protocol's default in conf/seqtech_parameters.config.",
                     "type": "string"
                 },
                 "star_soloTypestring": {
+                    "description": "STARsolo's --soloType with the barcode and UMI layout of the reads, e.g. '--soloType CB_UMI_Simple --soloCBstart 1 --soloCBlen 16 --soloUMIstart 17 --soloUMIlen 12'. Unset: the protocol's default in conf/seqtech_parameters.config. Not used with protocol 'seqspec', whose layout comes from the seqspec file.",
                     "type": "string"
                 },
                 "star_soloCBmatchWLtype": {
+                    "description": "STARsolo's --soloCBmatchWLtype: how cell barcodes are matched to the whitelist. Unset: the protocol's default in conf/seqtech_parameters.config.",
                     "type": "string"
                 },
                 "star_soloUMIfiltering": {
+                    "description": "STARsolo's --soloUMIfiltering: which UMIs are filtered out. Unset: the protocol's default in conf/seqtech_parameters.config.",
                     "type": "string"
                 },
                 "star_soloMultiMappers": {
@@ -312,6 +324,7 @@
                     "pattern": "^(Unique|EM|Uniform|PropUnique|Rescue)( (Unique|EM|Uniform|PropUnique|Rescue))*$"
                 },
                 "star_clipAdapterType": {
+                    "description": "STAR's --clipAdapterType: adapter clipping. Unset: the protocol's default in conf/seqtech_parameters.config.",
                     "type": "string"
                 },
                 "star_extraargs": {
@@ -319,22 +332,28 @@
                     "description": "Further STAR options, added to the protocol's own (conf/seqtech_parameters.config). An option given here replaces the protocol's option of the same name."
                 },
                 "star_genomeSAindexNbases": {
+                    "description": "STAR's --genomeSAindexNbases: length of the suffix array pre-index. Unset: the protocol's default in conf/seqtech_parameters.config.",
                     "type": "integer",
                     "minimum": 1
                 },
                 "star_solocellfilter": {
+                    "description": "STARsolo's --soloCellFilter, as the filter name only (e.g. 'EmptyDrops_CR', 'CellRanger2.2', 'None'): the pipeline adds the filter's arguments, starting with the sample's expected_cells. It decides the cells only with cellfilter_method 'star_solocellfilter'. Unset: the protocol's default in conf/seqtech_parameters.config.",
                     "type": "string"
                 },
                 "star_soloUMIdedup": {
+                    "description": "STARsolo's --soloUMIdedup: how UMIs are deduplicated. Unset: the protocol's default in conf/seqtech_parameters.config.",
                     "type": "string"
                 },
                 "alevin_bc_geometry": {
+                    "description": "alevin-fry position(s) of the cell barcode, e.g. '1[1-16]' or '1[1-9,14-22,27-35]'. Unset: the protocol's default in conf/seqtech_parameters.config. Protocol 'seqspec' has none, so it must be set there to run alevin-fry.",
                     "type": "string"
                 },
                 "alevin_umi_geometry": {
+                    "description": "alevin-fry position of the UMI, e.g. '1[17-28]'. Unset: the protocol's default in conf/seqtech_parameters.config. Protocol 'seqspec' has none, so it must be set there to run alevin-fry.",
                     "type": "string"
                 },
                 "alevin_read_geometry": {
+                    "description": "alevin-fry position of the biological sequence, '2[1-end]' for every protocol. Unset: the protocol's default in conf/seqtech_parameters.config.",
                     "type": "string"
                 }
             }
@@ -346,6 +365,7 @@
             "default": "",
             "properties": {
                 "perform_demultiplexing": {
+                    "description": "Demultiplex the FASTQ files of protocols that need it (MARS-seq, OAK, Parse Biosciences, sci-RNA-seq3).",
                     "type": "boolean",
                     "default": true
                 },
@@ -355,9 +375,11 @@
                     "description": "OAK: Hamming distance allowed between a read's index and the aliquot's i7/i5 barcodes."
                 },
                 "marsseq_read1_design": {
+                    "description": "MARS-seq layout of read 1 for demultiplexing, e.g. '5I4B45M5I'. Unset: the protocol's default in conf/seqtech_parameters.config.",
                     "type": "string"
                 },
                 "marsseq_read2_design": {
+                    "description": "MARS-seq layout of read 2 for demultiplexing, e.g. '6W4R5I'. Unset: the protocol's default in conf/seqtech_parameters.config.",
                     "type": "string"
                 },
                 "perform_10x_saturate": {
@@ -366,6 +388,7 @@
                     "description": "Compute the sequencing saturation curves with 10x_saturate."
                 },
                 "saturation_target": {
+                    "description": "Sequencing saturation (0 to 1) for which the number of reads needed is predicted.",
                     "type": "number",
                     "default": 0.7,
                     "minimum": 0,
@@ -411,6 +434,7 @@
                     "description": "GeneExt's own --subsamplebam, applied to the merged BAM. Downsamples uniformly and so does not balance samples against each other; use 'geneext_subsample_nreads' for that."
                 },
                 "perform_velocity": {
+                    "description": "Also count for RNA velocity: STARsolo's Velocyto feature (spliced, unspliced, ambiguous) and alevin-fry's unspliced counts, with a velocity-ready .h5ad per mapper.",
                     "type": "boolean",
                     "default": false
                 }
@@ -428,6 +452,7 @@
                     "hidden": true
                 },
                 "grep_rrna": {
+                    "description": "Text that marks the rRNA features in the annotation, used to count rRNA reads.",
                     "type": "string",
                     "default": "rRNA"
                 }
@@ -440,11 +465,13 @@
             "default": "",
             "properties": {
                 "ambient_rna_remover": {
+                    "description": "Ambient RNA removal: 'cellsweep' or 'none'.",
                     "type": "string",
                     "default": "cellsweep",
                     "enum": ["cellsweep", "none"]
                 },
                 "h5ad_compression": {
+                    "description": "HDF5 compression of the AnnData objects: 'gzip', 'lzf' (several times faster to write, about 15% larger, readable only through h5py) or 'none'.",
                     "type": "string",
                     "default": "gzip",
                     "enum": ["gzip", "lzf", "none"]
@@ -483,35 +510,44 @@
                     "description": "Group called cells into Metacell2 metacells and build filtering_report.html."
                 },
                 "mc2_target_metacell_size": {
+                    "description": "Metacell2's target number of cells per metacell.",
                     "type": "integer",
                     "default": 96,
                     "minimum": 2
                 },
                 "mc2_random_seed": {
+                    "description": "Seed for Metacell2's random steps, fixed so that a rerun reproduces the assignment a selection was made on.",
                     "type": "integer",
                     "default": 42
                 },
                 "mc2_min_cell_umis": {
+                    "description": "Cells with fewer UMIs are not grouped; they are reported as the '__excluded__' group.",
                     "type": "number",
                     "default": 100
                 },
                 "mc2_max_cell_umis": {
+                    "description": "Cells with more UMIs are not grouped; they are reported as the '__excluded__' group. Unset: no upper limit.",
                     "type": "number"
                 },
                 "mc2_max_excluded_genes_fraction": {
+                    "description": "Metacell2's cap on the fraction of a cell's UMIs in excluded (e.g. mitochondrial) genes. Unset: off, so mito-rich cells stay visible in the report.",
                     "type": "number"
                 },
                 "mc2_excluded_gene_patterns": {
+                    "description": "Extra genes kept out of the grouping, as space-separated regular expressions. The mitochondrial genes are always excluded.",
                     "type": "string"
                 },
                 "mc2_lateral_gene_patterns": {
+                    "description": "Genes marked lateral (e.g. cell-cycle genes), as space-separated regular expressions. They do not drive the grouping but are still used to detect outliers.",
                     "type": "string"
                 },
                 "mc2_min_cells": {
+                    "description": "Fewest groupable cells a sample needs; a sample with fewer is shown in the report as skipped.",
                     "type": "integer",
                     "default": 300
                 },
                 "mc2_skip_subsampled": {
+                    "description": "Make no metacells for the '_subsampled_starsolo' and '_geneext_subsampled_starsolo' runs.",
                     "type": "boolean",
                     "default": true
                 },
@@ -528,10 +564,12 @@
                     "description": "Format of 'gene_annotation'; 'auto' detects it from the file's first lines."
                 },
                 "gene_annotation_id_col": {
+                    "description": "Identifier column of a 'gene_annotation' with header. For eggNOG-mapper, 'query' is used when the file has no such column.",
                     "type": "string",
                     "default": "gene_id"
                 },
                 "gene_annotation_pfam_col": {
+                    "description": "Domain column of a 'gene_annotation' with header. For eggNOG-mapper, 'PFAMs' is used when the file has no such column.",
                     "type": "string",
                     "default": "pfam"
                 },
@@ -540,21 +578,26 @@
                     "description": "Gene name column of a 'gene_annotation' with header; eggNOG-mapper's Preferred_name is used without it."
                 },
                 "mcfilter_max_mito_pct": {
+                    "description": "Filtering report's starting threshold on mitochondrial UMIs per metacell (%). Unset: the threshold starts switched off.",
                     "type": "number",
                     "default": 20
                 },
                 "mcfilter_max_doublet_pct": {
+                    "description": "Filtering report's starting threshold on consensus doublets per metacell (%). Unset: the threshold starts switched off.",
                     "type": "number",
                     "default": 50
                 },
                 "mcfilter_max_alpha_hat": {
+                    "description": "Filtering report's starting threshold on the mean CellSweep ambient fraction per metacell. Unset: the threshold starts switched off.",
                     "type": "number"
                 },
                 "mcfilter_min_gene_umis": {
+                    "description": "Filtering report's starting minimum of total UMIs per gene.",
                     "type": "number",
                     "default": 10
                 },
                 "mcfilter_pfam_presets": {
+                    "description": "Domain regular expressions offered as one-click presets in the filtering report, separated by ';'.",
                     "type": "string",
                     "default": "^Ribosomal;^Histone"
                 },
@@ -565,6 +608,7 @@
                     "description": "selection.json exported from filtering_report.html; rerun with -resume to apply it."
                 },
                 "metacell_gene_mode": {
+                    "description": "'drop' removes the excluded genes from the final matrices; 'flag' keeps every gene and records the decision in var['pass_filter'] and var['exclusion_reasons'].",
                     "type": "string",
                     "default": "drop",
                     "enum": ["drop", "flag"]
@@ -578,6 +622,7 @@
             "default": "",
             "properties": {
                 "perform_kraken": {
+                    "description": "Classify the unmapped reads with Kraken2.",
                     "type": "boolean"
                 },
                 "kraken_db_path": {
@@ -595,9 +640,11 @@
             "default": "",
             "properties": {
                 "perform_cellranger": {
+                    "description": "Also run the Cell Ranger pipeline.",
                     "type": "boolean"
                 },
                 "splitpipe_installation": {
+                    "description": "Path to the split-pipe (Parse Biosciences) installation folder.",
                     "type": "string",
                     "format": "directory-path",
                     "exists": true
@@ -613,9 +660,11 @@
                     "description": "split-pipe's demultiplexing script; the pipeline's own demultiplexer runs when unset."
                 },
                 "splitpipe_kit": {
+                    "description": "split-pipe kit name, e.g. 'WT', passed as --kit with --kit_score_skip. Unset: split-pipe scores the kit itself.",
                     "type": "string"
                 },
                 "rhapsody_installation": {
+                    "description": "Path to the BD Rhapsody pipeline installation folder.",
                     "type": "string",
                     "format": "directory-path",
                     "exists": true
@@ -656,21 +705,16 @@
                     "default": "0.2.4",
                     "hidden": true
                 },
-                "code_dir": {
-                    "type": "string",
-                    "hidden": true
-                },
-                "publish_dir_mode": {
-                    "type": "string",
-                    "default": "copy"
-                },
                 "email": {
+                    "description": "Email address for the completion summary.",
                     "type": "string"
                 },
                 "email_on_fail": {
+                    "description": "Email address for the completion summary, sent only when the pipeline fails.",
                     "type": "string"
                 },
                 "plaintext_email": {
+                    "description": "Send the summary email as plain text instead of HTML.",
                     "type": "boolean"
                 },
                 "validate_params": {
@@ -681,10 +725,12 @@
                     "hidden": true
                 },
                 "monochrome_logs": {
+                    "description": "Do not use coloured log output.",
                     "type": "boolean",
                     "default": true
                 },
                 "custom_config_base": {
+                    "description": "Base directory or URL of the institutional configs (nf-core/configs).",
                     "type": "string",
                     "default": "https://raw.githubusercontent.com/nf-core/configs/master"
                 },
@@ -695,22 +741,28 @@
                     "hidden": true
                 },
                 "custom_config_version": {
+                    "description": "Git commit id of the institutional configs (nf-core/configs).",
                     "type": "string",
                     "default": "master"
                 },
                 "config_profile_url": {
+                    "description": "Institutional config URL link.",
                     "type": "string"
                 },
                 "config_profile_name": {
+                    "description": "Institutional config name.",
                     "type": "string"
                 },
                 "config_profile_description": {
+                    "description": "Institutional config description.",
                     "type": "string"
                 },
                 "config_profile_contact": {
+                    "description": "Institutional config contact information.",
                     "type": "string"
                 },
                 "hook_url": {
+                    "description": "Incoming hook URL of a messaging service (Slack or Microsoft Teams) to post the run summary to.",
                     "type": "string"
                 },
                 "gpu_cluster_options": {
@@ -732,10 +784,12 @@
                     "default": true
                 },
                 "fastp_length_required": {
+                    "description": "fastp's --length_required: reads shorter than this are dropped. Unset: the protocol's default in conf/seqtech_parameters.config.",
                     "type": "integer",
                     "minimum": 0
                 },
                 "fastp_qualified_quality_phred": {
+                    "description": "fastp's --qualified_quality_phred: the base quality from which a base counts as qualified. Unset: the protocol's default in conf/seqtech_parameters.config.",
                     "type": "integer",
                     "minimum": 0
                 }
