@@ -159,7 +159,7 @@ workflow BCA_PREPROCESSING {
 
             multiqc_report_ch = reporting_workflow.out.multiqc_report
             ch_versions = ch_versions.mix(filtering_workflow.out.versions, reporting_workflow.out.versions)
-            
+
             // Metacells and the interactive filtering report; with --metacell_selection
             // (and -resume) also the filtered UMI matrices the report's selection asks for
             if (params.perform_metacells) {

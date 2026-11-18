@@ -1,6 +1,6 @@
 {
     "$schema": "https://json-schema.org/draft/2020-12/schema",
-    "$id": "https://raw.githubusercontent.com/biodiversitycellatlas/bca_preprocessing//nextflow_schema.json",
+    "$id": "https://raw.githubusercontent.com/biodiversitycellatlas/bca_preprocessing/main/nextflow_schema.json",
     "title": "biodiversitycellatlas/bca_preprocessing pipeline parameters",
     "description": "Biodiversity Cell Atlas Pre-processing Pipeline",
     "type": "object",
@@ -34,11 +34,21 @@
                     "type": "string",
                     "description": "Sequencing technology, which selects the pre-processing and the read layout in conf/seqtech_parameters.config.",
                     "enum": [
-                        "10xv1", "10xv2", "10xv3", "10xv4", "oak_v1",
-                        "parse_biosciences_WT_mini", "parse_biosciences_WT",
-                        "bd_rhapsody_v1", "bd_rhapsody_enhancedbeads",
-                        "sciRNAseq3", "marsseq_v1", "marsseq_v2",
-                        "scalebio_quantum_rna", "scalebio_rna_v1_1", "seqspec"
+                        "10xv1",
+                        "10xv2",
+                        "10xv3",
+                        "10xv4",
+                        "oak_v1",
+                        "parse_biosciences_WT_mini",
+                        "parse_biosciences_WT",
+                        "bd_rhapsody_v1",
+                        "bd_rhapsody_enhancedbeads",
+                        "sciRNAseq3",
+                        "marsseq_v1",
+                        "marsseq_v2",
+                        "scalebio_quantum_rna",
+                        "scalebio_rna_v1_1",
+                        "seqspec"
                     ]
                 },
                 "ref_fasta": {
@@ -483,7 +493,7 @@
                 },
                 "mc2_min_cell_umis": {
                     "type": "number",
-                    "default": 200
+                    "default": 100
                 },
                 "mc2_max_cell_umis": {
                     "type": "number"

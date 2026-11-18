@@ -1,6 +1,6 @@
 process SALMON_INDEX {
     publishDir path: { "${params.outdir}/genome" }, mode: 'copy', saveAs: { filename -> filename == 'versions.yml' ? null : filename }
-    
+
     // Memory tracks the size of the splici transcriptome being indexed. Coefficients live in
     // params.dynamic_memory; without an entry the request is process_high's 64 GB.
     cpus   8

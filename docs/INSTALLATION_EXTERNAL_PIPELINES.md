@@ -26,7 +26,7 @@ git clone https://github.com/odomlab2/sci-rocket
 
 ## BD Single-Cell Multiomics Software (BD Rhapsody)
 
-First, download the ['cwl' folder](https://bitbucket.org/CRSwDev/cwl/src/master/) of the BD Single-Cell Multiomics Software, hosted on Bitbucket. This repository contains the CWL and YML files required to run the BD Rhapsody pipeline locally. 
+First, download the ['cwl' folder](https://bitbucket.org/CRSwDev/cwl/src/master/) of the BD Single-Cell Multiomics Software, hosted on Bitbucket. This repository contains the CWL and YML files required to run the BD Rhapsody pipeline locally.
 
 Second, pull the docker image using Docker or Apptainer:
 
@@ -37,7 +37,7 @@ apptainer pull docker://bdgenomics/rhapsody
 
 
 ## split-pipe (Parse Biosciences)
-In order to incorporate the commercial Parse Biosciences pipeline (also called split-pipe), first create an account and install the code from the personal account page on the official Parse Biosciences website. 
+In order to incorporate the commercial Parse Biosciences pipeline (also called split-pipe), first create an account and install the code from the personal account page on the official Parse Biosciences website.
 
 *Important to note, we only tested version 1.3.1.*
 
@@ -61,4 +61,3 @@ To test if the installation of split-pipe was successful:
 ```
 split-pipe -h
 ```
-

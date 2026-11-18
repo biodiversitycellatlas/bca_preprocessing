@@ -149,7 +149,7 @@ def read_level_stats(cellreads_path: Optional[str], cell_barcodes: Set[str]) -> 
 
     # Sequencing saturation is the duplication rate of the reads counted into the
     # matrix, so it is a property of the cell set: 1 - unique UMIs / counted reads
-    # over the retained cells. 
+    # over the retained cells.
     if _UNIQUE_UMI_COLUMN in stats.columns and reads_in_cells > 0:
         umis_in_cells = float(in_cells[_UNIQUE_UMI_COLUMN].sum())
         out["sequencing_saturation"] = 1.0 - (umis_in_cells / reads_in_cells)

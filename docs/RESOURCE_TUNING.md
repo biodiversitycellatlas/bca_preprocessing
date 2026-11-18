@@ -16,7 +16,7 @@ ready-to-use config that fixes over- or under-sized requests for your next run.
 
 ## Quick start
 
-1. **Run the pipeline as normal.** 
+1. **Run the pipeline as normal.**
   Each run writes its execution trace into `execution_reports/` in the directory you
   launched it from, and its run config, samplesheet and parameters into
   `<outdir>/pipeline_info/`. All are named with the run's timestamp, so repeated runs
@@ -94,7 +94,7 @@ enough for the largest dataset you will ever run. On everything smaller, most of
 is reserved and left idle.
 
 For these steps memory tracks the size of their input, so they scale with it instead of
-using a fixed amount of resources. The numbers live in `dynamic_memory` in 
+using a fixed amount of resources. The numbers live in `dynamic_memory` in
 [`nextflow.config`](../nextflow.config), and you can refresh them based on your own runs:
 
 ```bash

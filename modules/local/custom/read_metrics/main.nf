@@ -32,7 +32,7 @@ process CALC_READ_METRICS {
     // The filtered matrix's barcodes add the called-cell rows; runs without one
     // (bam_only, or no cell calling) report those rows as N/A
     def cells_arg     = filtered_matrix_dir ? "--cell-barcodes ${filtered_matrix_dir}/barcodes.tsv" : ""
-    
+
     // Antisense comes from STARsolo's own read flags; without CellReads.stats it is skipped
     def cellreads_arg = cellreads_stats ? "--cellreads ${cellreads_stats}" : ""
 

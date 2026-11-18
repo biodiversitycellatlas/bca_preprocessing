@@ -63,9 +63,6 @@
             }
         },
         "required": ["sample", "expected_cells"],
-        "anyOf": [
-            { "required": ["fastq_cDNA", "fastq_BC_UMI"] },
-            { "required": ["cram"] }
-        ]
+        "anyOf": [{ "required": ["fastq_cDNA", "fastq_BC_UMI"] }, { "required": ["cram"] }]
     }
 }

@@ -5,7 +5,7 @@ process PERCELL_METRICS {
     // Memory tracks the barcodes, not the counts: every table is indexed by STARsolo's raw
     // barcode list (the whole whitelist), the called cells get a row each in the metrics
     // table, and with Velocyto its three raw matrices are read too. Only those files are
-    // measured, not the rest of Solo.out. 
+    // measured, not the rest of Solo.out.
     cpus   1
     time   { 1.h * task.attempt }
     memory { BcaResources.scaledMemory(

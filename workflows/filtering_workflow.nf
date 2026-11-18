@@ -211,7 +211,7 @@ workflow filtering_workflow {
             SCRUBLET(MTX_TO_10X.out.tenx_dir, ch_demuxafy_sif)
             SCDBLFINDER(MTX_TO_10X.out.tenx_dir, ch_demuxafy_sif)
 
-            // Both tools ran on the same matrix, so they share a meta and join on it directly. 
+            // Both tools ran on the same matrix, so they share a meta and join on it directly.
             COMBINE_DOUBLET_RESULTS(
                 SCRUBLET.out.scrublet_results.join(SCDBLFINDER.out.scdblfinder_results),
                 ch_demuxafy_sif

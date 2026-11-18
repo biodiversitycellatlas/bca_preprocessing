@@ -243,4 +243,3 @@ nextflow run main.nf -profile <institution_config>,conda -c </path/to/custom_par
 Only the filtering step runs. The filtered matrices are written to `<outdir>/metacell_filtering/<sample>/<sample>_final/`. See [Metacells and the filtering report](CONFIGURATION_PARAMETERS.md#metacells-and-the-filtering-report) for the report's settings.
 
 Samples in a `filtering_report` group are filtered together, as one entry of the report, see [Combining samples](#combining-samples).
-

@@ -1,6 +1,6 @@
 process SALMON_SPLICI {
     publishDir path: { "${params.outdir}/genome" }, mode: 'copy', saveAs: { filename -> filename == 'versions.yml' ? null : filename }
-    
+
     // Memory tracks the size of the reference the splici transcriptome is built from.
     // Coefficients live in params.dynamic_memory; without an entry the request is
     // process_high's 64 GB.

@@ -31,8 +31,8 @@ const vm = require("vm");
 
 const [htmlPath, choicesPath, summaryPath] = process.argv.slice(2);
 if (!htmlPath || !choicesPath) {
-    console.error("Usage: report_harness.js REPORT.html CHOICES.json");
-    process.exit(2);
+  console.error("Usage: report_harness.js REPORT.html CHOICES.json");
+  process.exit(2);
 }
 
 const html = fs.readFileSync(htmlPath, "utf8");
@@ -40,44 +40,87 @@ const choices = JSON.parse(fs.readFileSync(choicesPath, "utf8"));
 
 const dataMatch = html.match(/<script id="report-data" type="application\/json">([\s\S]*?)<\/script>/);
 if (!dataMatch) throw new Error("no report-data block");
-const scripts = [...html.matchAll(/<script>([\s\S]*?)<\/script>/g)].map(m => m[1]);
+const scripts = [...html.matchAll(/<script>([\s\S]*?)<\/script>/g)].map((m) => m[1]);
 if (scripts.length !== 1) throw new Error(`expected one inline script, found ${scripts.length}`);
 
 function element(id) {
-    return {
-        id, value: "", checked: false, disabled: false, textContent: "", innerHTML: "",
-        dataset: {}, style: {}, files: null, max: "100", min: "0",
-        classList: { toggle() {}, add() {}, remove() {}, contains() { return false; } },
-        addEventListener() {}, querySelector() { return element(); }, querySelectorAll() { return []; },
-        insertAdjacentHTML() {}, appendChild() {}, remove() {}, click() {}, closest() { return null; },
-        setAttribute() {}, getAttribute() { return null; },
-        // Plotly's event API, recorded so drags and clicks on the plots can be replayed
-        _handlers: {},
-        on(event, fn) { this._handlers[event] = fn; },
-    };
+  return {
+    id,
+    value: "",
+    checked: false,
+    disabled: false,
+    textContent: "",
+    innerHTML: "",
+    dataset: {},
+    style: {},
+    files: null,
+    max: "100",
+    min: "0",
+    classList: {
+      toggle() {},
+      add() {},
+      remove() {},
+      contains() {
+        return false;
+      },
+    },
+    addEventListener() {},
+    querySelector() {
+      return element();
+    },
+    querySelectorAll() {
+      return [];
+    },
+    insertAdjacentHTML() {},
+    appendChild() {},
+    remove() {},
+    click() {},
+    closest() {
+      return null;
+    },
+    setAttribute() {},
+    getAttribute() {
+      return null;
+    },
+    // Plotly's event API, recorded so drags and clicks on the plots can be replayed
+    _handlers: {},
+    on(event, fn) {
+      this._handlers[event] = fn;
+    },
+  };
 }
 
 const elements = new Map();
 const document = {
-    activeElement: null,
-    body: element("body"),
-    getElementById(id) {
-        if (id === "report-data") return { textContent: dataMatch[1] };
-        if (!elements.has(id)) elements.set(id, element(id));
-        return elements.get(id);
-    },
-    querySelector() { return element(); },
-    querySelectorAll() { return []; },
-    createElement() { return element(); },
+  activeElement: null,
+  body: element("body"),
+  getElementById(id) {
+    if (id === "report-data") return { textContent: dataMatch[1] };
+    if (!elements.has(id)) elements.set(id, element(id));
+    return elements.get(id);
+  },
+  querySelector() {
+    return element();
+  },
+  querySelectorAll() {
+    return [];
+  },
+  createElement() {
+    return element();
+  },
 };
 
 const context = vm.createContext({
-    document,
-    window: {},
-    console,
-    Plotly: { react() {}, purge() {} },
-    requestAnimationFrame: () => 0,   // renders are driven explicitly below
-    setTimeout, URL, Blob: function () {}, navigator: {}, confirm: () => true,
+  document,
+  window: {},
+  console,
+  Plotly: { react() {}, purge() {} },
+  requestAnimationFrame: () => 0, // renders are driven explicitly below
+  setTimeout,
+  URL,
+  Blob: function () {},
+  navigator: {},
+  confirm: () => true,
 });
 context.window = context;
 
@@ -86,7 +129,8 @@ vm.runInContext(scripts[0], context, { filename: "filtering_report.html" });
 // The page's top-level bindings live in the context's global lexical scope
 context.__choices = choices;
 context.__summary = null;
-const selection = vm.runInContext(`
+const selection = vm.runInContext(
+  `
     (() => {
         const c = __choices;
         for (const [id, s] of Object.entries(c.samples || {})) {
@@ -339,7 +383,9 @@ const selection = vm.runInContext(`
         };
         return sel;
     })()
-`, context);
+`,
+  context,
+);
 
 if (summaryPath) fs.writeFileSync(summaryPath, JSON.stringify(context.__summary));
 process.stdout.write(JSON.stringify(selection, null, 1) + "\n");

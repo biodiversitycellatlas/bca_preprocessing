@@ -39,7 +39,7 @@ process SECONDDERIV_CELLCALLING {
 
     script:
     def usa_counts = params.alevin_usa_counts ?: 'SUA'
-    
+
     // With "manual_cutoff" the threshold is taken from the samplesheet and the search is
     // skipped, so expected_cells (which only informs that search) has nothing left to do.
     // The UMI curve is still needed, since the report plots it either way.

@@ -4521,7 +4521,7 @@
         axisEl.classList.toggle("hidden", !shown.length);
         if (!shown.length) { purgePlot(el); purgePlot(axisEl); }
         else drawCorrBars(s, calls, U, el, axisEl, shown);
-        
+
         // The module: the genes in the band, and the gene itself when the band reaches r = 1; the
         // kept ones, as a setting may exclude the others already
         _corrModule = (_corrMax >= 1 ? [j] : []).concat(band.map(c => c.j)).filter(g => !calls.reasons[g].length);

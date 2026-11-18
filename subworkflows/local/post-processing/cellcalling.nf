@@ -84,7 +84,7 @@ workflow cellcalling_workflow {
             ch_secondderiv_knee   = SECONDDERIV_CELLCALLING.out.json_data
             ch_secondderiv_cutoff = SECONDDERIV_CELLCALLING.out.cutoff
             ch_versions           = ch_versions.mix(SECONDDERIV_CELLCALLING.out.versions, FILTER_MATRICES.out.versions)
-            
+
         } else if (matrix_name && matrix_name != StarsoloMatrix.UNIQUE_FILE) {
             // STAR's own cell call, applied to the multi-gene matrix
             def ch_subset_input = matrix
