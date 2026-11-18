@@ -174,8 +174,8 @@ workflow PIPELINE_INITIALISATION {
             // a pfam_scan.pl comment counting as such a line. 200 lines pass both preambles.
             def head     = annotation.withReader { reader -> (1..200).collect { _n -> reader.readLine() } }
             def isPfamscanComment = { line -> line.startsWith("#") && (line.contains("pfam_scan") || line.contains("<seq id>")) }
-            def first    = head.find { line -> line != null && line.trim() && (!line.startsWith("##") || isPfamscanComment(line)) } ?: ""
-            def pfamscan = isPfamscanComment(first)
+            def first    = head.find { line -> line != null && line.trim() && (!line.startsWith("##") || isPfamscanComment.call(line)) } ?: ""
+            def pfamscan = isPfamscanComment.call(first)
             def columns  = first.split("\t", -1).collect { col -> col.trim().replaceFirst(/^#+/, "") }
             def format  = params.gene_annotation_format
             if (format == "auto") {
