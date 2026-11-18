@@ -19,8 +19,9 @@ lint:
 
   # nf-core template files this pipeline does not use: tests are in tests/ (not nf-test),
   # modules set their options themselves (no conf/modules.config), no iGenomes, no AWS
-  # tests, no RO-Crate, and the logo is the BCA one
+  # tests, no RO-Crate, the logo is the BCA one, and lint results are not posted as a PR comment
   files_exist:
+    - .github/workflows/linting_comment.yml
     - .github/workflows/nf-test.yml
     - .github/actions/nf-test/action.yml
     - .github/workflows/awstest.yml
