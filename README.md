@@ -8,7 +8,7 @@
 
 [website]: https://img.shields.io/badge/website-biodiversitycellatlas.org-blue
 [website-link]: https://biodiversitycellatlas.org
-[nextflow]: https://img.shields.io/badge/version-%E2%89%A525.04.0-green?style=flat&logo=nextflow&logoColor=white&color=%230DC09D&link=https%3A%2F%2Fnextflow.io
+[nextflow]: https://img.shields.io/badge/version-%E2%89%A525.10.0-green?style=flat&logo=nextflow&logoColor=white&color=%230DC09D&link=https%3A%2F%2Fnextflow.io
 [nextflow-link]: https://www.nextflow.io/
 [conda]: http://img.shields.io/badge/run%20with-conda-3EB049?labelColor=000000&logo=anaconda
 [conda-link]: https://docs.conda.io/en/latest/

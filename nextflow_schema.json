@@ -458,7 +458,7 @@
                     "type": "string",
                     "format": "file-path",
                     "exists": true,
-                    "description": "Demuxafy Singularity image; downloaded (~7.5 GB) when unset."
+                    "description": "Demuxafy Singularity image; when unset, <outdir>/containers/demuxafy/Demuxafy.sif is reused if present, otherwise downloaded (~7.5 GB)."
                 }
             }
         },
