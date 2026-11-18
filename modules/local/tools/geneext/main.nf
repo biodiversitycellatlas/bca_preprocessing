@@ -1,8 +1,8 @@
 process GENE_EXT {
     publishDir path: { "${params.outdir}/gene_ext" }, mode: 'copy', saveAs: { filename -> filename == 'versions.yml' ? null : filename }
 
-    // Time follows the BAM size, never below 2 h.
-    cpus   4
+    // Time follows the BAM size
+    cpus   2
     memory { 6.GB * task.attempt }
     time   { BcaResources.scaledTime(
         params.dynamic_time?.GENE_EXT, [bam_file], task.attempt, 2) }

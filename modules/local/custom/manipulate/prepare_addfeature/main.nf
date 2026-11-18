@@ -1,6 +1,6 @@
 process PREPARE_ADDFEATURE {
     publishDir path: { "${params.outdir}/genome" }, mode: 'copy', saveAs: { filename -> filename in ['addfeature_report.tsv', 'rrna_regions.tsv'] ? filename : null }
-    label 'process_single_long2'
+    label 'process_single'
 
     container "${ workflow.containerEngine in ['singularity', 'apptainer'] && !task.ext.singularity_pull_docker_container ?
         'oras://community.wave.seqera.io/library/python:3.14.2--0bd36b5fd9edb930' :
