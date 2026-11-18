@@ -8,6 +8,9 @@ lint:
   # --release only: compares manifest.version with the template version in this file, which
   # has no template section (nf-core 3.3.2 then crashes with KeyError: 'template')
   version_consistency: False
+  # --release only: expects an include of pipeline/<name>.config from nf-core/configs, which
+  # has no config for this pipeline (the institutional profiles are still included)
+  included_configs: False
 
   files_unchanged:
     - docs/README.md
