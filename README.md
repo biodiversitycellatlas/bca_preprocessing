@@ -81,13 +81,13 @@ For instructions on how to download the supported external pipelines and configu
 The samplesheet is a comma-separated file with one row per sample (or per lane of a sample): its name, its FASTQ files and the number of cells you expect. Which read holds the cDNA and which the cell barcode and UMI depends on the protocol. Create one samplesheet per species.
 
 ```
-sample,fastq_cDNA,fastq_BC_UMI,expected_cells,rt
-PARSE_EXAMPLE,BCA001_R1_001.fastq.gz,BCA001_R2_001.fastq.gz,2500,A1-A3
+sample,fastq_cDNA,fastq_BC_UMI,expected_cells
+10X_EXAMPLE,BCA001_R2_001.fastq.gz,BCA001_R1_001.fastq.gz,2500
 ```
 
 Rows with the same sample name are merged before mapping, which is only right for rows that hold the same cells, such as lanes. Rows with different cells, such as channels, sublibraries or replicates, keep their own names and can be combined after mapping with the optional `qc_report` and `filtering_report` columns.
 
-See [Samplesheet](docs/SAMPLESHEET.md) for every column, the columns per protocol, combining samples and more examples, and [`example_samplesheet.csv`](./examples/example_samplesheet.csv) for one row per protocol.
+See [Samplesheet](docs/SAMPLESHEET.md) for all available columns, which columns to specify per protocol, combining samples and examples.
 
 ### 2. Create a custom configuration file
 
@@ -109,7 +109,6 @@ params {
 
     // Mapping parameters
     mapping_software = "starsolo"       // Mapping method: "starsolo", "alevin", "both"/"alevin_starsolo" or "alevin_subsampled_starsolo"
-    star_soloMultiMappers = "EM"        // STARsolo's counting method for reads mapping to multiple genes
 
     // References
     ref_gtf = ""                        // Path to the gene annotation GTF
