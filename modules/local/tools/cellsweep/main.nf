@@ -12,9 +12,10 @@ process CELLSWEEP {
     // A matrix with too few cells to cluster exits 3 from bin/run_cellsweep.py; the
     // sample is then dropped from this step and published without denoised counts.
     // Other failures keep the error_optional rule from conf/base.config: one retry for
-    // the transient exit codes, otherwise skipped the same way.
+    // the transient exit codes on the first attempt (past maxRetries a 'retry' stops the
+    // run instead), otherwise skipped the same way.
     errorStrategy {
-        if (task.exitStatus in ((130..145) + 104 + 175 + 255)) {
+        if (task.exitStatus in ((130..145) + 104 + 175 + 255) && task.attempt == 1) {
             return 'retry'
         }
         def reason = task.exitStatus == 3

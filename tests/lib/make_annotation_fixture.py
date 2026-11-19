@@ -156,7 +156,7 @@ def scdblfinder_score(c):
 
 def write_combined_results(path):
     """
-    Demuxafy's Combine_Results.R output: one row per evaluated barcode, one
+    demuxafy_combine_results.R output (Demuxafy's Combine_Results.R, ported): one row per evaluated barcode, one
     DropletType and score column per tool plus the AnySinglet consensus.
     """
     rows = []

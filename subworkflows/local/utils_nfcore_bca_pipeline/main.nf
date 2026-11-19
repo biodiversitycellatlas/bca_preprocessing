@@ -110,12 +110,15 @@ workflow PIPELINE_INITIALISATION {
         )
     }
 
-    // The doublet tools run inside Demuxafy.sif, which only singularity and apptainer can use
-    if (params.perform_doublet_detection && workflow.containerEngine && !(workflow.containerEngine in ['singularity', 'apptainer'])) {
-        error(
-            "'perform_doublet_detection' runs Scrublet and scDblFinder from the Demuxafy singularity image,\n" +
-            "which the '${workflow.containerEngine}' engine cannot run. Use -profile apptainer or singularity,\n" +
-            "or unset 'perform_doublet_detection'."
+    //
+    // 'demuxafy_sif' is retired: the doublet callers run from their own conda environments
+    // and containers, under every profile
+    //
+    if (params.demuxafy_sif) {
+        log.warn(
+            "'demuxafy_sif' is deprecated and has no effect: Scrublet and scDblFinder no longer run\n" +
+            "from the Demuxafy image. Remove it from your configuration; an image an earlier run\n" +
+            "downloaded to <outdir>/containers/demuxafy can be deleted."
         )
     }
 

@@ -490,13 +490,20 @@
                 "doublet_consensus_method": {
                     "type": "string",
                     "default": "AnySinglet",
-                    "description": "Combine_Results.R method; AnySinglet calls a doublet only if all tools agree (intersection), AnyDoublet if any tool calls it (union)."
+                    "description": "Consensus rule (Demuxafy's Combine_Results.R methods); AnySinglet calls a doublet only if all tools agree (intersection), AnyDoublet if any tool calls it (union). With two tools MajoritySinglet equals AnyDoublet and AtLeastHalfSinglet equals AnySinglet.",
+                    "enum": ["AnySinglet", "AnyDoublet", "MajoritySinglet", "AtLeastHalfSinglet"]
+                },
+                "doublet_rate_per_1000": {
+                    "type": "number",
+                    "default": 0.008,
+                    "exclusiveMinimum": 0,
+                    "maximum": 1,
+                    "description": "Expected doublet rate per 1,000 cells, for Scrublet and scDblFinder: the expected rate of a matrix is this times its cells / 1,000 (capped at 0.5). The default is the 10x loading rate Demuxafy uses."
                 },
                 "demuxafy_sif": {
                     "type": "string",
-                    "format": "file-path",
-                    "exists": true,
-                    "description": "Demuxafy Singularity image; when unset, <outdir>/containers/demuxafy/Demuxafy.sif is reused if present, otherwise downloaded (~7.5 GB)."
+                    "description": "Deprecated: doublet detection no longer runs from the Demuxafy image; this parameter has no effect.",
+                    "hidden": true
                 }
             }
         },

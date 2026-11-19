@@ -28,6 +28,7 @@ tests/
 │   ├── containers.sh
 │   ├── cram_input.sh
 │   ├── dashboard_geneext.sh
+│   ├── doublet_detection.sh
 │   ├── dynamic_resources.sh
 │   ├── merge_fastqs.sh
 │   ├── metacell_filtering.sh
@@ -48,6 +49,7 @@ tests/
     ├── common.sh                  # logging, result recording, summary
     ├── check_image_env.py         # compares an image's packages with an environment.yml
     ├── extract_containers.awk     # pulls image refs out of module definitions
+    ├── make_doublet_fixture.py    # synthetic 10x matrices with known heterotypic doublets
     ├── make_annotation_fixture.py # generates both mappers' triplets plus doublet
     │                              # and CellSweep annotations to merge
     ├── make_geneext_fixture.py    # generates a synthetic GeneExt report and log
@@ -273,6 +275,41 @@ Notes:
   `dynamic_time` also checks that `--dynamic` writes a complete `dynamic_time` map.
 - `emitted_config` runs `nextflow config` over the generated file and skips, rather
   than fails, when Nextflow is not installed.
+
+## `doublet_detection`
+
+Runs the doublet callers ported from Demuxafy
+([`bin/demuxafy_scrublet.py`](../bin/demuxafy_scrublet.py) through
+[`bin/run_scrublet_doublet.py`](../bin/run_scrublet_doublet.py),
+[`bin/demuxafy_scdblfinder.R`](../bin/demuxafy_scdblfinder.R)) and their consensus
+([`bin/demuxafy_combine_results.R`](../bin/demuxafy_combine_results.R)) on a synthetic
+660-cell matrix with 60 known heterotypic doublets
+([`lib/make_doublet_fixture.py`](lib/make_doublet_fixture.py)). It asserts what the
+pipeline relies on:
+
+- each caller writes the columns the consensus and the h5ad read, and calls mostly true
+  doublets;
+- the expected rate follows `--doublet_rate_per_1000` and is capped at 0.5;
+- Scrublet without a threshold exits 3 and the wrapper's bootstrap re-run takes over,
+  while any other Scrublet failure fails the wrapper. A shim makes skimage's
+  `threshold_minimum` raise, since which real matrices give no threshold is hard to
+  pin down;
+- scDblFinder is seeded (a rerun gives the same table), and its training does not fail.
+  That failure, from an xgboost 3 API change, only shows as a warning;
+- the four consensus rules with both tools (AnySinglet = intersection, AnyDoublet = union),
+  with either tool alone (every rule gives that tool's calls; the fallback when one caller
+  could not run), and the errors for no input or an unknown rule;
+- `filter_doublets.py` and `doublet_calls.annotate_callers` work on a one-tool table.
+
+It needs the two module environments; it skips without them.
+
+```bash
+bash tests/run_tests.sh doublet_detection -- \
+    --python <scrublet env>/bin/python --rscript <scDblFinder env>/bin/Rscript \
+    --h5ad-python <env with anndata>/bin/python
+```
+
+Takes about 2.5 minutes, most of it scDblFinder's two runs.
 
 ## `dynamic_resources`
 

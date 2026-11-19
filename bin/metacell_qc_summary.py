@@ -614,6 +614,9 @@ def build_summary(adata, info, how, sample_id, mapping_method, removed=False, um
             "reason": reason,
             "doublet_mode": mode,
             "doublet_method": str(adata.uns[DOUBLET_METHOD_UNS]) if DOUBLET_METHOD_UNS in adata.uns else None,
+            # The callers whose calls the consensus holds: one when the other could not run
+            "doublet_callers_ran": ([name for name in CALLER_BITS if f"{name}_call" in adata.obs.columns]
+                                    if mode == "annotated" else None),
             "ambient_available": ALPHA_COL in adata.obs.columns,
             "fingerprint": fp,
             "n_cells": int(adata.n_obs),

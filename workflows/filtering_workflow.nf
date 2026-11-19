@@ -16,7 +16,6 @@ include { SCDBLFINDER             } from '../modules/local/tools/scdblfinder/mai
 include { COMBINE_DOUBLET_RESULTS } from '../modules/local/tools/doublet_combine/main'
 include { DOUBLET_FILTER as DOUBLET_FILTER_RAW         } from '../modules/local/tools/doublet_filter/main'
 include { DOUBLET_FILTER as DOUBLET_FILTER_CELL_CALLED } from '../modules/local/tools/doublet_filter/main'
-include { DOWNLOAD_DEMUXAFY_SIF   } from '../modules/local/tools/demuxafy_sif/main'
 include { COLLAPSE_ALEVIN_USA     } from '../modules/local/custom/manipulate/collapse_alevin_usa/main'
 include { COLLAPSE_ALEVIN_USA as COLLAPSE_ALEVIN_UNSPLICED } from '../modules/local/custom/manipulate/collapse_alevin_usa/main'
 include { VELOCITY_H5AD as VELOCITY_H5AD_STARSOLO } from '../modules/local/tools/velocity_h5ad/main'
@@ -188,50 +187,52 @@ workflow filtering_workflow {
 
         if (params.perform_doublet_detection) {
 
-            // Resolve the Demuxafy .sif image once per run: use params.demuxafy_sif where it is
-            // if provided, else the image an earlier run published to this outdir, and only
-            // otherwise download it and mount it straight from the task work directory.
-            // The tools take the image as an absolute path, since they run it from their own work directory.
-            def published_sif = file("${params.outdir}/containers/demuxafy/Demuxafy.sif")
-            def ch_demuxafy_sif
-            if (params.demuxafy_sif) {
-                ch_demuxafy_sif = channel.value(file(params.demuxafy_sif, checkIfExists: true).toRealPath().toString())
-            } else if (published_sif.exists() && published_sif.size() > 0) {
-                // MD5-checked when it was downloaded; delete it to force a fresh download
-                log.info "Reusing the Demuxafy image from an earlier run: ${published_sif}"
-                ch_demuxafy_sif = channel.value(published_sif.toRealPath().toString())
-            } else {
-                DOWNLOAD_DEMUXAFY_SIF()
-                ch_demuxafy_sif = DOWNLOAD_DEMUXAFY_SIF.out.sif_file
-                    .map { sif -> sif.toRealPath().toString() }
-            }
-
             MTX_TO_10X(ch_cell_called_matrices)
 
-            SCRUBLET(MTX_TO_10X.out.tenx_dir, ch_demuxafy_sif)
-            SCDBLFINDER(MTX_TO_10X.out.tenx_dir, ch_demuxafy_sif)
+            SCRUBLET(MTX_TO_10X.out.tenx_dir)
+            SCDBLFINDER(MTX_TO_10X.out.tenx_dir)
 
-            // Both tools ran on the same matrix, so they share a meta and join on it directly.
+            // A caller that fails is ignored (see its errorStrategy) and emits nothing for
+            // that matrix. Every matrix the callers were given is therefore keyed here and
+            // joined with whatever each produced: [meta, true, scrublet | null, scdblfinder | null].
+            // Both tools ran on the same matrix, so they share a meta and join on it directly;
+            // the `true` keeps the row width fixed even when a caller emitted nothing at all.
+            def ch_caller_results = MTX_TO_10X.out.tenx_dir
+                .map { meta, _dir -> [meta, true] }
+                .join(SCRUBLET.out.scrublet_results, remainder: true)
+                .join(SCDBLFINDER.out.scdblfinder_results, remainder: true)
+
+            // One caller is enough: the consensus then holds that caller's calls alone
+            ch_caller_results
+                .filter { _meta, _attempted, scrublet, scdblfinder -> (scrublet == null) != (scdblfinder == null) }
+                .view { meta, _attempted, scrublet, _scdblfinder ->
+                    def failed = scrublet == null ? 'Scrublet' : 'scDblFinder'
+                    def used   = scrublet == null ? 'scDblFinder' : 'Scrublet'
+                    "[WARNING] ${failed} could not run on ${meta.id} (${meta.mapping_method}); " +
+                    "its doublets are flagged from the ${used} calls alone."
+                }
+
             COMBINE_DOUBLET_RESULTS(
-                SCRUBLET.out.scrublet_results.join(SCDBLFINDER.out.scdblfinder_results),
-                ch_demuxafy_sif
+                ch_caller_results
+                    .filter { _meta, _attempted, scrublet, scdblfinder -> scrublet != null || scdblfinder != null }
+                    .map { meta, _attempted, scrublet, scdblfinder -> [meta, scrublet ?: [], scdblfinder ?: []] }
             )
 
             ch_calls_by_meta      = COMBINE_DOUBLET_RESULTS.out.combined_results
             ch_calls_by_sample    = ch_calls_by_meta.map { meta, calls -> [sample_key.call(meta), calls] }
             ch_scrublet_histogram = SCRUBLET.out.scrublet_histogram
-            ch_versions           = ch_versions.mix(SCRUBLET.out.versions)
+            ch_versions           = ch_versions.mix(SCRUBLET.out.versions, SCDBLFINDER.out.versions)
 
-            // Warn once for a sample that lost a caller: it continues through every stage
+            // Warn once for a sample left without calls: it continues through every stage
             // below unannotated and unfiltered, rather than ending the run.
             ch_cell_called_matrices
                 .map { meta, _mtx, _barcodes, _features -> [sample_key.call(meta), meta] }
                 .join(ch_calls_by_sample, remainder: true)
                 .filter { row -> row[1] != null && row[2] == null }
                 .view { _key, meta, _calls ->
-                    "[WARNING] No doublet calls for ${meta.id} (${meta.mapping_method}): a caller " +
-                    "could not run on this matrix, which usually means too few cells were called. " +
-                    "The sample continues without doublet annotation."
+                    "[WARNING] No doublet calls for ${meta.id} (${meta.mapping_method}): neither " +
+                    "Scrublet nor scDblFinder could run on this matrix, which usually means too few " +
+                    "cells were called. The sample continues without doublet annotation."
                 }
         }
 
