@@ -9,7 +9,7 @@ process MC_GENE_TABLE {
 
     input:
     path(ref_gtf)
-    path(gene_annotation)
+    path(pfam_annotation)
 
     output:
     path("gene_table.tsv"),        emit: gene_table
@@ -17,10 +17,10 @@ process MC_GENE_TABLE {
     path "versions.yml",           emit: versions
 
     script:
-    def annotation_arg = gene_annotation
-        ? "--annotation ${gene_annotation} --annotation_format '${params.gene_annotation_format ?: 'auto'}'" +
-          " --annotation_id_col '${params.gene_annotation_id_col}' --annotation_pfam_col '${params.gene_annotation_pfam_col}'" +
-          (params.gene_annotation_name_col ? " --annotation_name_col '${params.gene_annotation_name_col}'" : "")
+    def annotation_arg = pfam_annotation
+        ? "--annotation ${pfam_annotation} --annotation_format '${params.pfam_annotation_format ?: 'auto'}'" +
+          " --annotation_id_col '${params.pfam_annotation_id_col}' --annotation_pfam_col '${params.pfam_annotation_pfam_col}'" +
+          (params.pfam_annotation_name_col ? " --annotation_name_col '${params.pfam_annotation_name_col}'" : "")
         : ""
     """
     build_gene_table.py \\

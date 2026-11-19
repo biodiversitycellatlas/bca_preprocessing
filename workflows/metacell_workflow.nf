@@ -74,7 +74,7 @@ workflow metacell_workflow {
          * object is that same full object, it already carries them.
          */
         def ch_mc_input
-        if (params.ambient_rna_remover == "cellsweep") {
+        if (params.perform_cellsweep) {
             def ch_ambient = ch_candidates
                 .filter { meta, _h5ad -> meta.datatype in ['raw', 'full'] }
                 .map { meta, h5ad -> [sample_key.call(meta), meta, h5ad] }
@@ -148,7 +148,7 @@ workflow metacell_workflow {
         // Built once from the reference annotation and shared by every sample
         MC_GENE_TABLE(
             ref_gtf,
-            params.gene_annotation ? file(params.gene_annotation, checkIfExists: true) : []
+            params.pfam_annotation ? file(params.pfam_annotation, checkIfExists: true) : []
         )
 
         METACELL2(ch_mc_input, MC_GENE_TABLE.out.gene_table)

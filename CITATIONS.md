@@ -18,13 +18,33 @@
 
   > He, D., Zakeri, M., Sarkar, H. et al. Alevin-fry unlocks rapid, accurate and memory-frugal quantification of single-cell RNA-seq data. Nat Methods 19, 316–322 (2022).
 
+- [alevinQC](https://bioconductor.org/packages/alevinQC)
+
+  > Soneson, C., Srivastava, A. alevinQC: Generate QC Reports For Alevin Output. R/Bioconductor package. doi: 10.18129/B9.bioc.alevinQC
+
+- [anndata](https://doi.org/10.21105/joss.04371)
+
+  > Virshup, I., Rybakov, S., Theis, F. J., Angerer, P., Wolf, F. A. anndata: Access and store annotated data matrices. Journal of Open Source Software 9(101), 4371 (2024).
+
+- [Bioconductor](https://doi.org/10.1038/nmeth.3252)
+
+  > Huber, W., Carey, V. J., Gentleman, R. et al. Orchestrating high-throughput genomic analysis with Bioconductor. Nat Methods 12, 115–121 (2015).
+
 - [CellSweep](https://www.biorxiv.org/content/10.64898/2026.03.04.709349v1)
 
   > Maya Caskey, Joseph Rich, Ryan Weber et al. Single-Cell Genomics Decontamination with CellSweep. bioRxiv 2026.03.04.709349, doi: https://doi.org/10.64898/2026.03.04.709349.
 
+- [Cutadapt](https://doi.org/10.14806/ej.17.1.200)
+
+  > Martin, M. Cutadapt removes adapter sequences from high-throughput sequencing reads. EMBnet.journal 17(1), 10–12 (2011).
+
 - [Demuxafy](https://doi.org/10.1186/s13059-024-03224-8) (Scrublet, scDblFinder and consensus wrappers, ported into `bin/`)
 
   > Neavin, D., Senabouth, A., Arora, H. et al. Demuxafy: improvement in droplet assignment by integrating multiple single-cell demultiplexing and doublet detection methods. Genome Biol 25, 94 (2024).
+
+- [eisaR](https://doi.org/10.1371/journal.pcbi.1008585) (spliced + intronic reference for alevin-fry)
+
+  > Soneson, C., Srivastava, A., Patro, R., Stadler, M. B. Preprocessing choices affect RNA velocity results for droplet scRNA-seq data. PLoS Comput Biol 17(1), e1008585 (2021).
 
 - [fastp](https://www.ncbi.nlm.nih.gov/pubmed/30423086/)
 
@@ -34,9 +54,21 @@
 
   > Andrews, S. (2010). FastQC: A Quality Control Tool for High Throughput Sequence Data.
 
-- [featureCounts](https://pubmed.ncbi.nlm.nih.gov/24227677/)
+- [GenomicFeatures, Biostrings and BSgenome](https://doi.org/10.1371/journal.pcbi.1003118)
 
-  > Liao Y, Smyth GK, Shi W. featureCounts: an efficient general purpose program for assigning sequence reads to genomic features. Bioinformatics. 2014 Apr 1;30(7):923-30. doi: 10.1093/bioinformatics/btt656. Epub 2013 Nov 13. PubMed PMID: 24227677.
+  > Lawrence, M., Huber, W., Pagès, H. et al. Software for computing and annotating genomic ranges. PLoS Comput Biol 9(8), e1003118 (2013).
+
+- [ggplot2](https://ggplot2.tidyverse.org/)
+
+  > Wickham, H. ggplot2: Elegant Graphics for Data Analysis. Springer-Verlag New York (2016).
+
+- [h5py](https://www.h5py.org/)
+
+  > Collette, A. Python and HDF5. O'Reilly (2013).
+
+- [HTSlib](https://doi.org/10.1093/gigascience/giab007)
+
+  > Bonfield, J. K., Marshall, J., Danecek, P. et al. HTSlib: C library for reading/writing high-throughput sequencing data. GigaScience 10(2), giab007 (2021).
 
 - [Kraken2](https://doi.org/10.1186/s13059-019-1891-0)
 
@@ -45,6 +77,10 @@
 - [matplotlib](https://matplotlib.org/)
 
   > J. D. Hunter. (2007). Matplotlib: A 2D Graphics Environment, Computing in Science & Engineering, vol. 9, no. 3, pp. 90-95. https://ieeexplore.ieee.org/document/4160265
+
+- [Metacells](https://doi.org/10.1186/s13059-022-02667-1)
+
+  > Ben-Kiki, O., Bercovich, A., Lifshitz, A., Tanay, A. Metacell-2: a divide-and-conquer metacell algorithm for scalable scRNA-seq analysis. Genome Biol 23, 100 (2022).
 
 - [MultiQC](https://pubmed.ncbi.nlm.nih.gov/27312411/)
 
@@ -62,9 +98,17 @@
 
   > The pigz developement team. (2023). pigz: A parallel implementation of gzip for modern multi-processor, multi-core machines.
 
+- [Plotly.js](https://plotly.com/javascript/) (dashboard and filtering reports)
+
+  > Plotly Technologies Inc. (2015). Collaborative data science. Montréal, QC. https://plot.ly
+
 - [pysam](https://github.com/pysam-developers/pysam)
 
   > pysam: a Python module for reading and manipulating SAM/BAM files.
+
+- [R](https://www.r-project.org/)
+
+  > R Core Team. R: A Language and Environment for Statistical Computing. R Foundation for Statistical Computing, Vienna, Austria.
 
 - [Salmon](https://www.nature.com/articles/nmeth.4197)
 
@@ -74,25 +118,53 @@
 
   > Li H, Handsaker B, Wysoker A, Fennell T, Ruan J, Homer N, Marth G, Abecasis G, Durbin R; 1000 Genome Project Data Processing Subgroup. The Sequence Alignment/Map format and SAMtools. Bioinformatics. 2009 Aug 15;25(16):2078-9. doi: 10.1093/bioinformatics/btp352. Epub 2009 Jun 8. PubMed PMID: 19505943; PubMed Central PMCID: PMC2723002.
 
+- [Scanpy](https://doi.org/10.1186/s13059-017-1382-0)
+
+  > Wolf, F. A., Angerer, P., Theis, F. J. SCANPY: large-scale single-cell gene expression data analysis. Genome Biol 19, 15 (2018).
+
 - [scDblFinder](https://doi.org/10.12688/f1000research.73600.2)
 
   > Germain, P.-L., Lun, A., Garcia Meixide, C., Macnair, W., Robinson, M. D. Doublet identification in single-cell sequencing data using scDblFinder. F1000Research 10, 979 (2021).
+
+- [scikit-learn](https://jmlr.org/papers/v12/pedregosa11a.html)
+
+  > Pedregosa, F., Varoquaux, G., Gramfort, A. et al. Scikit-learn: Machine Learning in Python. Journal of Machine Learning Research 12, 2825–2830 (2011).
+
+- [SciPy](https://doi.org/10.1038/s41592-019-0686-2)
+
+  > Virtanen, P., Gommers, R., Oliphant, T. E. et al. SciPy 1.0: fundamental algorithms for scientific computing in Python. Nat Methods 17, 261–272 (2020).
 
 - [Scrublet](https://doi.org/10.1016/j.cels.2018.11.005)
 
   > Wolock, S. L., Lopez, R., Klein, A. M. Scrublet: computational identification of cell doublets in single-cell transcriptomic data. Cell Systems 8, 281–291 (2019).
 
+- [seaborn](https://doi.org/10.21105/joss.03021)
+
+  > Waskom, M. L. seaborn: statistical data visualization. Journal of Open Source Software 6(60), 3021 (2021).
+
+- [seqspec](https://doi.org/10.1093/bioinformatics/btae168)
+
+  > Booeshaghi, A. S., Chen, X., Pachter, L. A machine-readable specification for genomics assays. Bioinformatics 40(4), btae168 (2024).
+
 - [seqtk](https://github.com/lh3/seqtk)
 
   > Li, H. et al. (2023). Seqtk: a fast and lightweight tool for processing sequences in the FASTA or FASTQ format.
 
-- [Simpleaf](https://doi.org/10.1093/bioinformatics/btad614)
+- [SingleCellExperiment](https://doi.org/10.1038/s41592-019-0654-x)
 
-  > He, D., Patro, R. simpleaf: a simple, flexible, and scalable framework for single-cell data processing using alevin-fry, Bioinformatics 39, 10 (2023).
+  > Amezquita, R. A., Lun, A. T. L., Becht, E. et al. Orchestrating single-cell analysis with Bioconductor. Nat Methods 17, 137–145 (2020).
+
+- [STAR](https://pubmed.ncbi.nlm.nih.gov/23104886/)
+
+  > Dobin A, Davis CA, Schlesinger F, Drenkow J, Zaleski C, Jha S, Batut P, Chaisson M, Gingeras TR. STAR: ultrafast universal RNA-seq aligner. Bioinformatics. 2013 Jan 1;29(1):15-21. doi: 10.1093/bioinformatics/bts635. PubMed PMID: 23104886.
 
 - [STARsolo](https://www.biorxiv.org/content/10.1101/2021.05.05.442755v1)
 
   > Benjamin Kaminow, Dinar Yunusov, Alexander Dobin. STARsolo: accurate, fast and versatile mapping/quantification of single-cell and single-nucleus RNA-seq data. BioRxiv 2021.05.05.442755 (2021).
+
+- [XGBoost](https://doi.org/10.1145/2939672.2939785) (used by scDblFinder)
+
+  > Chen, T., Guestrin, C. XGBoost: A Scalable Tree Boosting System. Proceedings of the 22nd ACM SIGKDD International Conference on Knowledge Discovery and Data Mining, 785–794 (2016).
 
 ## Git modules
 
@@ -103,6 +175,16 @@
 - [GeneExt](https://github.com/zolotarovgl/GeneExt)
 
   > Zolotarov, G., Grau-Bové, X., & Sebé-Pedrós, A. GeneExt: a gene model extension tool for enhanced single-cell RNA-seq analysis. bioRxiv 2023.12.05.570120. https://doi.org/10.1101/2023.12.05.570120
+
+  GeneExt relies on:
+
+  - [bedtools](https://doi.org/10.1093/bioinformatics/btq033)
+
+    > Quinlan, A. R., Hall, I. M. BEDTools: a flexible suite of utilities for comparing genomic features. Bioinformatics 26(6), 841–842 (2010).
+
+  - [MACS2](https://doi.org/10.1186/gb-2008-9-9-r137)
+
+    > Zhang, Y., Liu, T., Meyer, C. A. et al. Model-based Analysis of ChIP-Seq (MACS). Genome Biol 9, R137 (2008).
 
 - [pavianCore](https://github.com/Enthusiasm23/pavianCore)
 
@@ -117,6 +199,10 @@
 - [BD Rhapsody™ Sequence Analysis Pipeline](https://www.bdbiosciences.com/en-us/products/software/rhapsody-sequence-analysis-pipeline)
 
   > Becton, Dickinson and Company (2023). BD Rhapsody™ Sequence Analysis Pipeline: performs analysis of single-cell multiomic sequence read (FASTQ) data.
+
+- [cwltool / Common Workflow Language](https://doi.org/10.1145/3486897) (runs the BD Rhapsody pipeline)
+
+  > Crusoe, M. R., Abeln, S., Iosup, A. et al. Methods included: standardizing computational reuse and portability with the Common Workflow Language. Communications of the ACM 65(6), 54–63 (2022).
 
 - [sci-rocket](https://github.com/lauren-saunders-lab/sci-rocket)
 

@@ -179,7 +179,7 @@ workflow filtering_workflow {
         /*
          * Doublet detection, on the cell-called matrices of both mappers.
          *
-         * Independent of params.ambient_rna_remover: the calls are an annotation in their own
+         * Independent of params.perform_cellsweep: the calls are an annotation in their own
          * right, and MTX_TO_H5AD carries them whether or not CellSweep ran.
          */
         def ch_calls_by_meta   = channel.empty()
@@ -283,7 +283,7 @@ workflow filtering_workflow {
          */
         def ch_cellsweep_by_sample = channel.empty()
 
-        if (params.ambient_rna_remover == "cellsweep") {
+        if (params.perform_cellsweep) {
 
             CELLSWEEP(
                 params.perform_doublet_filtering
@@ -304,7 +304,7 @@ workflow filtering_workflow {
          * each carries whatever the stages above produced for it. Only the ambient matrices
          * have denoised counts to merge; the cell-called ones get the doublet calls alone.
          */
-        def ch_h5ad_ambient = params.ambient_rna_remover == "cellsweep"
+        def ch_h5ad_ambient = params.perform_cellsweep
             ? attach_annotation(ch_ambient_with_calls, ch_cellsweep_by_sample, sample_key)
             : ch_ambient_with_calls.map { row -> (row as List) + [[]] }
 

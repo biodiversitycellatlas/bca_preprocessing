@@ -40,7 +40,7 @@ export NXF_JVM_ARGS="-Xms2g -Xmx5g"
 #     -c examples/10x/conf/spis_10x_parameters.config
 
 ## Test run on the small test dataset with capped resources
-# nextflow run -profile crg,conda,test -c examples/10x/conf/spis_10x_parameters.config -ansi-log false "$@" & pid=$!
+# nextflow run main.nf -profile crg,conda,test -c examples/10x/conf/spis_10x_parameters.config -ansi-log false "$@" & pid=$!
 
 ## TEST SUITE -- Checks conda environments and container images (no data needed)
 ## Run `bash tests/run_tests.sh --list` for the available checks.
@@ -52,9 +52,11 @@ export NXF_JVM_ARGS="-Xms2g -Xmx5g"
 ####################
 
 # The command uses the arguments passed to this script, e.g:
+# -c <config>   : 	specifies a custom configuration file
+# -w <path>     :   path to the nextflow work directory, where temporary data will be stored
 # -resume       : 	resumes previous work, followed by hash name of used working directory
 
-nextflow run -profile crg,conda -c conf/custom_parameters.config -ansi-log false "$@" & pid=$!
+nextflow run -profile crg,conda -ansi-log false "$@" & pid=$!
 
 # Wait for the pipeline to finish
 echo "Waiting for ${pid}"

@@ -91,13 +91,16 @@ def checkCondaChannels() {
         def config = parser.load("conda config --show channels".execute().text)
         channels = config.channels
     }
+    // The logger takes a message, not an exception on its own: log.debug(e) throws
+    // "Invalid method invocation", which stopped the run wherever `conda` is not
+    // installed (e.g. -profile micromamba on a machine with only micromamba)
     catch (NullPointerException e) {
-        log.debug(e)
+        log.debug("Could not read 'conda config --show channels'", e)
         log.warn("Could not verify conda channel configuration.")
         return null
     }
     catch (IOException e) {
-        log.debug(e)
+        log.debug("Could not run 'conda config --show channels'", e)
         log.warn("Could not verify conda channel configuration.")
         return null
     }

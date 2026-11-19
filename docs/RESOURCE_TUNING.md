@@ -9,7 +9,7 @@ ready-to-use config that fixes over- or under-sized requests for your next run.
 - [Quick start](#quick-start)
 - [Reading the report](#reading-the-report)
 - [Applying the recommendations](#applying-the-recommendations)
-- [Dynamic memory](#dynamic-memory)
+- [Dynamic time and memory](#dynamic-time-and-memory)
 - [Tips](#tips)
 
 ---

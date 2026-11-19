@@ -99,7 +99,7 @@ workflow PIPELINE_INITIALISATION {
     // Fail fast on doublet options that would silently do nothing
     //
     // Doublet detection annotates the consensus calls, doublet filtering additionally removes
-    // them from the matrix. Both are independent of 'ambient_rna_remover': the calls reach the
+    // them from the matrix. Both are independent of 'perform_cellsweep': the calls reach the
     // published AnnData through MTX_TO_H5AD whether or not CellSweep ran.
     //
     if (params.perform_doublet_filtering && !params.perform_doublet_detection) {
@@ -144,6 +144,30 @@ workflow PIPELINE_INITIALISATION {
     }
 
     //
+    // 'ambient_rna_remover' is retired: CellSweep is the only ambient RNA method left,
+    // switched on and off with 'perform_cellsweep'
+    //
+    if (params.ambient_rna_remover != null) {
+        log.warn(
+            "'ambient_rna_remover' is deprecated and has no effect: CellSweep is switched on and off\n" +
+            "with 'perform_cellsweep' (true by default). Replace it in your configuration."
+        )
+    }
+
+    //
+    // 'gene_annotation*' is retired: renamed to 'pfam_annotation*', so the PFAM domain file
+    // is not mistaken for the GTF
+    //
+    ['gene_annotation', 'gene_annotation_format', 'gene_annotation_id_col', 'gene_annotation_pfam_col', 'gene_annotation_name_col']
+        .findAll { name -> params[name] != null }
+        .each { name ->
+            log.warn(
+                "'${name}' is deprecated and has no effect: it was renamed to '${name.replace('gene_annotation', 'pfam_annotation')}'.\n" +
+                "Rename it in your configuration."
+            )
+        }
+
+    //
     // Fail fast on metacell options that would fail late or silently do nothing
     //
     // The metacells are grouped at the very end of a run, and the selection is applied on
@@ -161,14 +185,19 @@ workflow PIPELINE_INITIALISATION {
         if (!(params.metacell_gene_mode in ["drop", "flag"])) {
             error("Unknown 'metacell_gene_mode' = '${params.metacell_gene_mode}'. Use one of: drop, flag.")
         }
-        if (params.gene_annotation) {
+        def pfam_annotation = params.pfam_annotation
+        if (pfam_annotation) {
+            def pfam_format   = params.pfam_annotation_format
+            def pfam_id_col   = params.pfam_annotation_id_col
+            def pfam_pfam_col = params.pfam_annotation_pfam_col
+            def pfam_name_col = params.pfam_annotation_name_col
             def formats = ["auto", "table", "emapper", "pfamscan", "headerless"]
-            if (!(params.gene_annotation_format in formats)) {
-                error("Unknown 'gene_annotation_format' = '${params.gene_annotation_format}'. Use one of: ${formats.join(', ')}.")
+            if (!(pfam_format in formats)) {
+                error("Unknown 'pfam_annotation_format' = '${pfam_format}'. Use one of: ${formats.join(', ')}.")
             }
-            def annotation = file(params.gene_annotation)
+            def annotation = file(pfam_annotation)
             if (!annotation.exists()) {
-                error("'gene_annotation' = '${params.gene_annotation}' does not exist.")
+                error("'pfam_annotation' = '${pfam_annotation}' does not exist.")
             }
             // The format is detected as build_gene_table.py's detect_format does it: from the
             // first line that is neither blank nor a '##' comment (eggNOG-mapper's preamble),
@@ -178,33 +207,33 @@ workflow PIPELINE_INITIALISATION {
             def first    = head.find { line -> line != null && line.trim() && (!line.startsWith("##") || isPfamscanComment.call(line)) } ?: ""
             def pfamscan = isPfamscanComment.call(first)
             def columns  = first.split("\t", -1).collect { col -> col.trim().replaceFirst(/^#+/, "") }
-            def format  = params.gene_annotation_format
+            def format  = pfam_format
             if (format == "auto") {
                 format = pfamscan ? "pfamscan"
                     : first.startsWith("#query") ? "emapper"
-                    : params.gene_annotation_id_col in columns ? "table"
+                    : pfam_id_col in columns ? "table"
                     : "headerless"
             }
             if (format in ["table", "emapper"]) {
                 // eggNOG-mapper's own column names stand in for the defaults
                 def wanted = [
-                    [params.gene_annotation_id_col,   format == "emapper" ? "query" : null],
-                    [params.gene_annotation_pfam_col, format == "emapper" ? "PFAMs" : null],
+                    [pfam_id_col,   format == "emapper" ? "query" : null],
+                    [pfam_pfam_col, format == "emapper" ? "PFAMs" : null],
                 ]
-                if (params.gene_annotation_name_col) wanted << [params.gene_annotation_name_col, null]
+                if (pfam_name_col) wanted << [pfam_name_col, null]
                 def absent = wanted.findAll { alts -> !alts.any { col -> col && col in columns } }.collect { alts -> alts[0] }
                 if (absent) {
                     error(
-                        "'gene_annotation' (read as '${format}') has no column(s) ${absent.join(', ')} in its header (${columns.join(', ')}).\n" +
-                        "Set 'gene_annotation_id_col', 'gene_annotation_pfam_col' (and 'gene_annotation_name_col') to its identifier, domain (and name) columns."
+                        "'pfam_annotation' (read as '${format}') has no column(s) ${absent.join(', ')} in its header (${columns.join(', ')}).\n" +
+                        "Set 'pfam_annotation_id_col', 'pfam_annotation_pfam_col' (and 'pfam_annotation_name_col') to its identifier, domain (and name) columns."
                     )
                 }
             }
             if (format == "headerless" && columns.drop(3).any { col -> col }) {
                 error(
-                    "'gene_annotation' has ${columns.size()} columns but no header with column '${params.gene_annotation_id_col}'.\n" +
+                    "'pfam_annotation' has ${columns.size()} columns but no header with column '${pfam_id_col}'.\n" +
                     "A file without header has 'id, domains' or 'id, name, domains'. For a file with header, set\n" +
-                    "'gene_annotation_id_col' and 'gene_annotation_pfam_col' to its identifier and domain columns."
+                    "'pfam_annotation_id_col' and 'pfam_annotation_pfam_col' to its identifier and domain columns."
                 )
             }
         }
