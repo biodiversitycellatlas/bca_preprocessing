@@ -492,7 +492,6 @@ matrix.
 | `<datatype>/<id>_<datatype>_doublet_filtered/` | Count matrix with doublets **removed**, as an `mtx`/`barcodes`/`features` triplet — only when `perform_doublet_filtering = true`. This is what ambient RNA removal then denoises and what `anndata/` publishes. |
 | `<datatype>/<id>_<datatype>_doublet_filter_summary.txt` | What was removed. |
 | `<datatype>/<id>_<datatype>_doublet_filtering_summary.png` | Visual summary of the filtering. |
-| `10x_export/<id>_10x/` | Cell-called matrix exported in 10x format, used as input to the doublet callers. |
 
 > [!NOTE]
 > By default doublets are **annotated, not removed** — set `perform_doublet_filtering = true`

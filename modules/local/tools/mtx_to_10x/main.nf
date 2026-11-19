@@ -1,5 +1,4 @@
 process MTX_TO_10X {
-    publishDir path: { "${params.outdir}/doublet_filtering/${meta.id}/10x_export" }, mode: 'copy', saveAs: { filename -> filename == 'versions.yml' ? null : filename }
     tag "${meta.id} | ${meta.mapping_method}"
 
     // Memory tracks the size of the matrix being read. Coefficients live in
