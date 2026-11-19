@@ -1561,7 +1561,7 @@
                     <div class="section-head">
                         <h3>Genes</h3>
                     </div>
-                    <div class="plot-empty hidden" id="pfam-missing">No domain annotation was given (gene_annotation),
+                    <div class="plot-empty hidden" id="pfam-missing">No domain annotation was given (pfam_annotation),
                         so genes cannot be filtered by domain.</div>
                     <!-- Where the user is: the domain narrowing the genes, the gene open on the right -->
                     <div class="gene-nav" id="gene-nav">
@@ -3030,7 +3030,7 @@
         }
 
         availability("panel-calpha", "plot-calpha", "calpha-note", !!C.alpha,
-                     "No CellSweep estimates for this sample (ambient_rna_remover off, or CellSweep could not run).");
+                     "No CellSweep estimates for this sample (perform_cellsweep off, or CellSweep could not run).");
         if (C.alpha) {
             const amax = maxOf(C.alpha, 0.05);
             oneSided("calpha", "maxAlpha", C.alpha, "ambient",

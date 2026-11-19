@@ -465,11 +465,15 @@
             "description": "",
             "default": "",
             "properties": {
+                "perform_cellsweep": {
+                    "description": "Remove ambient RNA with CellSweep, on the unfiltered matrices.",
+                    "type": "boolean",
+                    "default": true
+                },
                 "ambient_rna_remover": {
-                    "description": "Ambient RNA removal: 'cellsweep' or 'none'.",
                     "type": "string",
-                    "default": "cellsweep",
-                    "enum": ["cellsweep", "none"]
+                    "description": "Deprecated: replaced by 'perform_cellsweep'; this parameter has no effect.",
+                    "hidden": true
                 },
                 "h5ad_compression": {
                     "description": "HDF5 compression of the AnnData objects: 'gzip', 'lzf' (several times faster to write, about 15% larger, readable only through h5py) or 'none'.",
@@ -559,31 +563,56 @@
                     "type": "boolean",
                     "default": true
                 },
-                "gene_annotation": {
+                "pfam_annotation": {
                     "type": "string",
                     "format": "file-path",
                     "exists": true,
-                    "description": "Protein domains (PFAM) per gene, transcript or protein id: pfam_scan.pl output, eggNOG-mapper's .emapper.annotations, or a TSV with or without header."
+                    "description": "Protein domains (PFAM) per gene, transcript or protein id (not the GTF): pfam_scan.pl output, eggNOG-mapper's .emapper.annotations, or a TSV with or without header."
                 },
-                "gene_annotation_format": {
+                "pfam_annotation_format": {
                     "type": "string",
                     "default": "auto",
                     "enum": ["auto", "table", "emapper", "pfamscan", "headerless"],
-                    "description": "Format of 'gene_annotation'; 'auto' detects it from the file's first lines."
+                    "description": "Format of 'pfam_annotation'; 'auto' detects it from the file's first lines."
                 },
-                "gene_annotation_id_col": {
-                    "description": "Identifier column of a 'gene_annotation' with header. For eggNOG-mapper, 'query' is used when the file has no such column.",
+                "pfam_annotation_id_col": {
+                    "description": "Identifier column of a 'pfam_annotation' with header. For eggNOG-mapper, 'query' is used when the file has no such column.",
                     "type": "string",
                     "default": "gene_id"
                 },
-                "gene_annotation_pfam_col": {
-                    "description": "Domain column of a 'gene_annotation' with header. For eggNOG-mapper, 'PFAMs' is used when the file has no such column.",
+                "pfam_annotation_pfam_col": {
+                    "description": "Domain column of a 'pfam_annotation' with header. For eggNOG-mapper, 'PFAMs' is used when the file has no such column.",
                     "type": "string",
                     "default": "pfam"
                 },
+                "pfam_annotation_name_col": {
+                    "type": "string",
+                    "description": "Gene name column of a 'pfam_annotation' with header; eggNOG-mapper's Preferred_name is used without it."
+                },
+                "gene_annotation": {
+                    "type": "string",
+                    "description": "Deprecated: renamed to 'pfam_annotation'; this parameter has no effect.",
+                    "hidden": true
+                },
+                "gene_annotation_format": {
+                    "type": "string",
+                    "description": "Deprecated: renamed to 'pfam_annotation_format'; this parameter has no effect.",
+                    "hidden": true
+                },
+                "gene_annotation_id_col": {
+                    "type": "string",
+                    "description": "Deprecated: renamed to 'pfam_annotation_id_col'; this parameter has no effect.",
+                    "hidden": true
+                },
+                "gene_annotation_pfam_col": {
+                    "type": "string",
+                    "description": "Deprecated: renamed to 'pfam_annotation_pfam_col'; this parameter has no effect.",
+                    "hidden": true
+                },
                 "gene_annotation_name_col": {
                     "type": "string",
-                    "description": "Gene name column of a 'gene_annotation' with header; eggNOG-mapper's Preferred_name is used without it."
+                    "description": "Deprecated: renamed to 'pfam_annotation_name_col'; this parameter has no effect.",
+                    "hidden": true
                 },
                 "mcfilter_max_mito_pct": {
                     "description": "Filtering report's starting threshold on mitochondrial UMIs per metacell (%). Unset: the threshold starts switched off.",

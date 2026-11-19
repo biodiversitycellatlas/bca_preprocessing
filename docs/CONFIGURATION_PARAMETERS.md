@@ -376,12 +376,13 @@ would leave GeneExt with nothing to read.
 
 | Variable               | Required/Optional | Description |
 |------------------------|-------------------|-------------|
-| `perform_doublet_detection` | Optional          | Boolean flag to enable or disable consensus doublet detection (Scrublet + scDblFinder, with the wrappers and consensus rules of [Demuxafy](https://demultiplexing-doublet-detecting-docs.readthedocs.io/), ported into `bin/`). Runs under every profile: the callers have their own conda environments and containers. Detection runs on the cell-called matrix, and the calls reach `.obs["doublet_status"]` of every published AnnData object — independently of `ambient_rna_remover`, though CellSweep additionally projects them onto its UMAP comparison plot when it runs. When one caller cannot run on a matrix (usually too few cells), the other caller's calls are used alone and the log says so; the h5ad lists the tools that contributed in `.uns["doublet_callers"]`. A sample neither caller can handle continues without doublet annotation. Default is `true`. |
+| `perform_doublet_detection` | Optional          | Boolean flag to enable or disable consensus doublet detection (Scrublet + scDblFinder, with the wrappers and consensus rules of [Demuxafy](https://demultiplexing-doublet-detecting-docs.readthedocs.io/), ported into `bin/`). Runs under every profile: the callers have their own conda environments and containers. Detection runs on the cell-called matrix, and the calls reach `.obs["doublet_status"]` of every published AnnData object — independently of `perform_cellsweep`, though CellSweep additionally projects them onto its UMAP comparison plot when it runs. When one caller cannot run on a matrix (usually too few cells), the other caller's calls are used alone and the log says so; the h5ad lists the tools that contributed in `.uns["doublet_callers"]`. A sample neither caller can handle continues without doublet annotation. Default is `true`. |
 | `perform_doublet_filtering` | Optional          | Boolean flag to filter the detected (consensus) doublets out of the count matrices instead of only annotating them. The filtered matrix replaces the original for everything after it, so CellSweep denoises and `<outdir>/anndata/` publishes a matrix the doublets are gone from. Requires `perform_doublet_detection`; setting it without aborts the run at launch. Default is `false`. |
 | `doublet_consensus_method`  | Optional          | Rule that combines the Scrublet and scDblFinder calls, one of Demuxafy's `Combine_Results.R` methods. Default is `"AnySinglet"` (a cell is only called a doublet if *all* tools agree -- i.e. an intersection of doublet calls); `"AnyDoublet"` calls it a doublet if any tool does (the union). With two tools, `"MajoritySinglet"` equals `"AnyDoublet"` and `"AtLeastHalfSinglet"` equals `"AnySinglet"`. When only one tool could run, every rule gives that tool's own calls. See the [Demuxafy combining-results docs](https://demultiplexing-doublet-detecting-docs.readthedocs.io/en/latest/CombineResults.html). |
 | `doublet_rate_per_1000`     | Optional          | Expected doublet rate per 1,000 cells, for both callers: a matrix of *n* cells is expected to hold *n* / 1,000 × this rate of doublets (capped at 0.5). Default is `0.008`, the 10x Chromium loading rate Demuxafy uses. Split-pool protocols (Parse, sci-RNA-seq3, ScaleBio) have a collision rate set by the barcode combinations and cells per well rather than by loading, and may want another value. |
 | `demuxafy_sif`              | Deprecated        | Has no effect: doublet detection no longer runs from the Demuxafy image. A run that sets it warns at startup. |
-| `ambient_rna_remover`  | Optional          | Specifies the ambient RNA filtering software, must be one of the following: `"cellsweep"` or `"none"`. Default is set to `"cellsweep"`. |
+| `perform_cellsweep`    | Optional          | Boolean flag to remove ambient RNA with CellSweep, on the unfiltered matrices. Default is `true`. |
+| `ambient_rna_remover`  | Deprecated        | Has no effect: replaced by `perform_cellsweep`, as CellSweep is the only ambient RNA method left. A run that sets it warns at startup. |
 | `h5ad_compression`     | Optional          | HDF5 compression for the objects in `<outdir>/anndata/`: `"gzip"` (default), `"lzf"` or `"none"`. Compression dominates `MTX_TO_H5AD`'s runtime on a raw matrix; `"lzf"` writes several times faster for roughly 15% more disk, but is only readable through h5py — fine for scanpy, not for R-side readers. |
 | `gpu_cluster_options`  | Optional          | Scheduler flags used to request a GPU, applied only when running with `-profile gpu`. Defaults to the SLURM syntax `--partition=gpu --gres=gpu:1g.10gb:1`; set to `null` on schedulers that take no such flags, or override with your site's equivalent. |
 
@@ -408,11 +409,12 @@ memory follows `dynamic_memory.MERGE_GROUP_H5AD`.
 | `mc2_lateral_gene_patterns` | Optional | Genes marked *lateral* (e.g. cell-cycle genes). They do not drive the grouping but are still used to detect outliers. Default is `""`. |
 | `mc2_min_cells` | Optional | Fewest groupable cells a sample needs. A sample with fewer is shown in the report as skipped, with the reason. Default is `300`. |
 | `mc2_skip_subsampled` | Optional | Skip the `_subsampled_starsolo` and `_geneext_subsampled_starsolo` runs. Default is `true`. |
-| `gene_annotation` | Optional | Protein domains (PFAM) per gene, transcript or protein id. Accepts raw `pfam_scan.pl` output, eggNOG-mapper's `.emapper.annotations`, or a TSV with or without header; see [Domain annotation](#domain-annotation). Without it, the report's PFAM panel is hidden. |
-| `gene_annotation_format` | Optional | `"auto"`, `"pfamscan"`, `"emapper"`, `"table"` (TSV with header) or `"headerless"`. `"auto"` detects the format from the first lines. Default is `"auto"`. |
-| `gene_annotation_id_col` | Optional | Identifier column of a `gene_annotation` with header. A leading `#` in the header is ignored. For eggNOG-mapper, `query` is used when the file has no such column. Default is `"gene_id"`. |
-| `gene_annotation_pfam_col` | Optional | Domain column of a `gene_annotation` with header. For eggNOG-mapper, `PFAMs` is used when the file has no such column. Domains are separated by `,`, `;`, `\|`, `/` or spaces, and `-` means none. Default is `"pfam"`. |
-| `gene_annotation_name_col` | Optional | Gene name column of a `gene_annotation` with header. For eggNOG-mapper, `Preferred_name` is used without it. Default is `null`. |
+| `pfam_annotation` | Optional | Protein domains (PFAM) per gene, transcript or protein id (not the GTF, which is `ref_gtf`). Accepts raw `pfam_scan.pl` output, eggNOG-mapper's `.emapper.annotations`, or a TSV with or without header; see [Domain annotation](#domain-annotation). Without it, the report's PFAM panel is hidden. |
+| `pfam_annotation_format` | Optional | `"auto"`, `"pfamscan"`, `"emapper"`, `"table"` (TSV with header) or `"headerless"`. `"auto"` detects the format from the first lines. Default is `"auto"`. |
+| `pfam_annotation_id_col` | Optional | Identifier column of a `pfam_annotation` with header. A leading `#` in the header is ignored. For eggNOG-mapper, `query` is used when the file has no such column. Default is `"gene_id"`. |
+| `pfam_annotation_pfam_col` | Optional | Domain column of a `pfam_annotation` with header. For eggNOG-mapper, `PFAMs` is used when the file has no such column. Domains are separated by `,`, `;`, `\|`, `/` or spaces, and `-` means none. Default is `"pfam"`. |
+| `pfam_annotation_name_col` | Optional | Gene name column of a `pfam_annotation` with header. For eggNOG-mapper, `Preferred_name` is used without it. Default is `null`. |
+| `gene_annotation`, `gene_annotation_format`, `gene_annotation_id_col`, `gene_annotation_pfam_col`, `gene_annotation_name_col` | Deprecated | Have no effect: renamed to `pfam_annotation`, `pfam_annotation_format`, `pfam_annotation_id_col`, `pfam_annotation_pfam_col` and `pfam_annotation_name_col`, so the domain file is not mistaken for the GTF. A run that sets them warns at startup. |
 | `mcfilter_max_mito_pct` | Optional | The report's starting threshold on mitochondrial UMIs per metacell (%). `null` starts it switched off. Default is `20`. |
 | `mcfilter_max_doublet_pct` | Optional | Starting threshold on consensus doublets per metacell (%). Default is `50`. |
 | `mcfilter_max_alpha_hat` | Optional | Starting threshold on the mean CellSweep ambient fraction per metacell. Default is `null`. |
@@ -420,6 +422,35 @@ memory follows `dynamic_memory.MERGE_GROUP_H5AD`.
 | `mcfilter_pfam_presets` | Optional | Domain regular expressions offered as one-click presets in the report, separated by `;`. Default is `"^Ribosomal;^Histone"`. |
 | `metacell_selection` | Optional | `metacell_selection.json` exported from the report. Rerun with `-resume` to write the filtered matrices. Needs `perform_metacells`. |
 | `metacell_gene_mode` | Optional | `"drop"` removes the excluded genes from the final matrices. `"flag"` keeps every gene and records the decision in `var["pass_filter"]` and `var["exclusion_reasons"]`, which is convenient when samples are integrated later. Default is `"drop"`. |
+
+### Domain annotation
+
+`pfam_annotation` is read as one of four formats. Unless `pfam_annotation_format` names
+one, the format is detected from the first line that is neither blank nor a `##` comment:
+
+| Format | Recognised by | Identifier | Domains | Name |
+|--------|---------------|------------|---------|------|
+| `pfamscan` | a `# pfam_scan.pl` / `# <seq id>` comment | `<seq id>` | `<hmm name>`, one row per hit | none |
+| `emapper` | a `#query` header after the `##` preamble | `query` | `PFAMs` | `Preferred_name` |
+| `table` | a header holding `pfam_annotation_id_col` | `pfam_annotation_id_col` | `pfam_annotation_pfam_col` | `pfam_annotation_name_col` |
+| `headerless` | anything else | column 1 | the last column | column 2, if any row has three columns |
+
+The identifier may be a gene, transcript or protein id of the GTF. A trailing version
+(`.1`) or TransDecoder suffix (`.p1`) is dropped when the id does not match as it is. A
+gene keeps every domain of the rows that resolve to it. Its annotation name is the first
+non-empty one, stored as `annot_name` beside the GTF's `gene_name`. The report shows
+`annot_name` where there is one.
+
+When pfam_scan and eggNOG-mapper results both exist for the same proteins, give the
+pfam_scan ones: `<sp>_long.pep.annotations.csv` (id, name, domain architecture) or
+`<sp>_long.pep.pfamscan_archs.csv`. Those domains were scanned on the proteins
+themselves, with Pfam's gathering cut-offs, and every protein is listed. eggNOG-mapper's
+`PFAMs` are carried over from the seed ortholog, and only proteins with an eggNOG hit
+appear. Ortholog tables (`.hits`, `.orthologs`, `.seed_orthologs`, `diamond_bbh`),
+SignalP/TMHMM output and name-only lists carry no domains, so they cannot be used here.
+
+`gene_table_stats.json` in `<outdir>/metacells/gene_table/` records the detected format
+and how many rows resolved to a gene. A warning is logged when fewer than half resolve.
 
 
 ## External Pipeline Variables

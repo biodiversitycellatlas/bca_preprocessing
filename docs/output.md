@@ -442,7 +442,7 @@ carries not only the counts but everything that was called on them:
 | `var["gene_name"]`, `var["feature_type"]` | always — the gene symbol and feature type from STARsolo's `features.tsv`; `var_names` are the gene IDs. alevin-fry's feature file has IDs only, so there `gene_name` is blank and `feature_type` absent |
 | `obs["doublet_status"]` | `perform_doublet_detection` — `singlet` / `doublet`. The empty droplets of a `raw`/`full` matrix were never evaluated and read `singlet` |
 | `obs["scrublet_call"]`, `obs["scdblfinder_call"]`, `obs["scrublet_score"]`, `obs["scdblfinder_score"]`, `uns["doublet_method"]`, `uns["doublet_callers"]` | as above — each tool's own call and score, the `doublet_consensus_method` that combined them into `doublet_status`, and the tools whose calls it holds. Barcodes no tool evaluated read `NaN`. When one caller could not run, its columns are absent and `uns["doublet_callers"]` lists the other alone |
-| `layers["cellsweep"]` | `ambient_rna_remover = "cellsweep"`, `raw`/`full` only — the denoised counts, aligned to `X` |
+| `layers["cellsweep"]` | `perform_cellsweep`, `raw`/`full` only — the denoised counts, aligned to `X` |
 | `obs["is_empty"]`, `obs["celltype"]`, `obs["alpha_hat"]` | as above — empty-droplet call, Leiden grouping, per-cell ambient fraction. Barcodes called empty read `is_empty = True` and `celltype = "empty"`; CellSweep estimates no ambient fraction for them, so their `alpha_hat` is `NaN` and their `layers["cellsweep"]` row is zero |
 | `var["ambient_hat"]` | as above — per-gene ambient profile |
 
@@ -455,7 +455,7 @@ meaningful on unspliced counts. See
 
 ## Ambient RNA removal
 
-Controlled by `ambient_rna_remover` (`"cellsweep"` by default, or `"none"`).
+Controlled by `perform_cellsweep` (`true` by default).
 It operates on the **unfiltered** matrix.
 
 <details markdown="1">
@@ -498,7 +498,7 @@ matrix.
 > to remove them. Without it, no `*_doublet_filtered/` matrix is written, `obs["doublet_status"]`
 > in `anndata/` flags them, and the calls in `combined/` are yours to apply.
 >
-> Detection is independent of `ambient_rna_remover`: the calls reach `anndata/` whether or not
+> Detection is independent of `perform_cellsweep`: the calls reach `anndata/` whether or not
 > CellSweep runs.
 >
 > Doublet detection can legitimately fail on sparse libraries: scDblFinder's k-nearest-neighbour
@@ -522,7 +522,7 @@ selection. See
 
 | Path | Description |
 | ---- | ----------- |
-| `gene_table/gene_table.tsv` | One row per GTF gene: `gene_id`, `gene_name`, `chrom`, `biotype`, `is_mito` (on `mt_contig`), `is_rrna` (biotype matches `grep_rrna`) `pfam` (domains from `gene_annotation`) and `annot_name` (the name `gene_annotation` gives, if any). |
+| `gene_table/gene_table.tsv` | One row per GTF gene: `gene_id`, `gene_name`, `chrom`, `biotype`, `is_mito` (on `mt_contig`), `is_rrna` (biotype matches `grep_rrna`) `pfam` (domains from `pfam_annotation`) and `annot_name` (the name `pfam_annotation` gives, if any). |
 | `gene_table/gene_table_stats.json` | How many genes are mitochondrial or rRNA, and the annotation's detected format, and how many of its rows resolved to a gene. |
 | `<id>/<id>_mc2_cells.h5ad` | Every called cell. `X` holds the raw counts, `obs["metacell"]` its group, plus per-cell `total_umis`, `pct_mito`, `pct_rrna`, the doublet call, CellSweep's `alpha_hat` and `layers["cellsweep"]` when available. `var["is_mito"]`, `var["is_rrna"]`, `var["pfam"]` and `var["annot_name"]` come from the gene table; `var["gene_name"]` keeps the matrix's own symbol and takes the gene table's only where the matrix has none (all of alevin-fry's). A gene the two name differently is logged. `uns["mc_fingerprint"]` identifies the assignment. |
 | `<id>/<id>_mc2_metacells.h5ad` | One row per group, with summed raw UMIs over every gene and the group's QC in `obs`: cells, UMIs, mito %, doublet %, mean `alpha_hat`, UMAP coordinates, top markers, and `max_lfc` and `n_genes_lfc1`: the highest log2 fold change of any gene over the median metacell, and the number of genes above log2 FC 1 (non-mitochondrial genes with at least 5 UMIs in the metacell; empty for the pseudo-groups). |
