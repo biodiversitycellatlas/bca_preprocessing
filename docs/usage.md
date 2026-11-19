@@ -217,7 +217,7 @@ nextflow run main.nf -profile <institution_config>,conda -c </path/to/custom_par
 | `input` | The samplesheet, read again. Sample names must match the previous run; the FASTQs do not have to exist anymore. |
 | `mapping_software`, `perform_geneext`, `geneext_downstream` | Must match the previous run, as they decide which analytical runs are picked up. They are recorded in its `pipeline_info/run_config_*.txt`. |
 | `ref_gtf`, `ref_fasta`, `protocol` | Still required, for the read metrics. |
-| `geneext_gtf` | Only with `perform_geneext`. Defaults to `<previous_outdir>/gene_ext/geneext.gtf`. |
+| `geneext_gtf` | Only with `perform_geneext`; ignored otherwise. The previous run's extended GTF, against which the read metrics of the GeneExt runs are recomputed. Defaults to `<previous_outdir>/gene_ext/geneext.gtf`; the run stops if that file does not exist. |
 
 Notes:
 
