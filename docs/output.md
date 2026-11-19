@@ -55,7 +55,7 @@ then holds just the alignment GeneExt read (BAM and logs), and appears nowhere e
 
 A samplesheet `filtering_report` group is named the same way: `<group><suffix>`, for example
 `larva_starsolo`. It appears from `metacells/` onwards, in place of its samples' runs. See
-[Combining samples](usage.md#combining-samples).
+[Combining samples](SAMPLESHEET.md#combining-samples).
 
 Both mappers are built on the same reference: `ref_fasta`, with `ref_fasta_addfeature` appended
 when it is set, and `ref_gtf`, or the GeneExt annotation for the `_geneext_` runs.
@@ -282,7 +282,7 @@ pipeline calls cells on. See [Cell calling](#cell-calling).
 | ---- | ----------- |
 | `<id>_run/` | `salmon alevin` mapping output. |
 | `<id>_run/aux_info/meta_info.json` | Mapping-rate statistics. |
-| `<id>_out_permit/` | alevin-fry permit list: every whitelisted barcode with a read (`--unfiltered-pl`), or alevin-fry's knee where that does not apply. See [alevin-fry settings](CONFIGURATION_PARAMETERS.md#alevin-fry-settings). |
+| `<id>_out_permit/` | alevin-fry permit list: every whitelisted barcode with a read (`--unfiltered-pl`), or alevin-fry's knee where that does not apply. See [alevin-fry settings](CONFIGURATION_PARAMETERS.md#alevin-fry-variables). |
 | `<id>_counts/` | alevin-fry quantification output. |
 | `<id>_counts/alevin/` | The count matrix in USA mode: `quants_mat.mtx` (cells × columns), `quants_mat_rows.txt` (barcodes) and `quants_mat_cols.txt` (the gene IDs, then the same IDs with `-U`, then with `-A`). |
 | `<id>_counts/quant.json` | Quantification summary. |
@@ -532,7 +532,7 @@ Besides the metacells (named as Metacell2 names them, e.g. `M12.34`), `obs["meta
 pseudo-groups: `__outliers__` for cells Metacell2 left out of every metacell, and `__excluded__`
 for cells it never grouped (outside `mc2_min_cell_umis`/`mc2_max_cell_umis`).
 
-A `filtering_report` group (see [Combining samples](usage.md#combining-samples)) has its
+A `filtering_report` group (see [Combining samples](SAMPLESHEET.md#combining-samples)) has its
 directory `<group><suffix>/`, with the three files above and two more:
 
 | Path | Description |
@@ -789,7 +789,7 @@ Seven tabs, plus one that appears only when the run produced an extended annotat
 | **Configurations** | The run configuration merged with each sample's samplesheet row. |
 
 When the samplesheet has `qc_report` groups (see
-[Combining samples](usage.md#combining-samples)), a **Sample groups** box appears below the
+[Combining samples](SAMPLESHEET.md#combining-samples)), a **Sample groups** box appears below the
 summary. It has a table of each group's samples with a pooled row, every sample's barcode-rank
 curve on one plot, and the mapped reads per called cell of every sample side by side. The summary
 table gains a *Group* column and the pooled rows, and the sample selector lists the samples under

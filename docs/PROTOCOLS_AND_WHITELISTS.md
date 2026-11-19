@@ -2,13 +2,12 @@
 
 The `protocol` parameter selects the pre-processing steps and the read layout used for mapping. The layouts (`star_soloTypestring`, `alevin_*_geometry`) and the protocol-specific mapping settings live in [`conf/seqtech_parameters.config`](../conf/seqtech_parameters.config).
 
-
+Which read goes in which samplesheet column, and the format of the `p5`, `p7` and `rt` columns, are described in [Samplesheet](SAMPLESHEET.md#columns-per-protocol).
 
 ### Table of Contents
 
 1. [Overview](#overview)
 2. [Barcode whitelists](#barcode-whitelists)
-   - [CRAM input](#cram-input)
 3. [10x Genomics](#10x-genomics)
 4. [OAK](#oak)
 5. [Parse Biosciences](#parse-biosciences)
@@ -17,35 +16,35 @@ The `protocol` parameter selects the pre-processing steps and the read layout us
 8. [MARS-seq](#mars-seq)
 9. [ScaleBio](#scalebio)
 10. [seqspec](#seqspec)
+11. [Known limitations](#known-limitations)
 
 ---
 
 ## Overview
 
-| Platform            | `protocol`                                             | Pre-processing before mapping                   | Extra samplesheet columns            |
+| Platform            | `protocol`                                             | Pre-processing before mapping                   | [Samplesheet columns](SAMPLESHEET.md#columns-per-protocol) besides the FASTQs |
 | ------------------- | ------------------------------------------------------ | ----------------------------------------------- | ------------------------------------ |
 | 10x Genomics        | `10xv1`, `10xv2`, `10xv3`, `10xv4`                     | none                                            | -                                    |
 | OAK                 | `oak_v1`                                               | split aliquots on their i5/i7 index             | `fastq_indices`, `p5`, `p7` (optional) |
-| Parse Biosciences   | `parse_biosciences_WT_mini`, `parse_biosciences_WT`    | split samples on their RT wells                 | `rt`                                 |
+| Parse Biosciences   | `parse_biosciences_WT_mini`, `parse_biosciences_WT`    | split samples on their RT wells, collapse round-1 barcodes | `rt`                       |
 | BD Rhapsody         | `bd_rhapsody_v1`, `bd_rhapsody_enhancedbeads`          | remove variable bases (Enhanced Beads only)     | -                                    |
 | sci-RNA-seq3        | `sciRNAseq3`                                           | demultiplex with sci-rocket, trim with fastp    | `p5`, `p7`, `rt`                     |
 | MARS-seq            | `marsseq_v1`, `marsseq_v2`                             | rebuild the reads                               | -                                    |
 | ScaleBio            | `scalebio_quantum_rna`, `scalebio_rna_v1_1`            | correct barcodes, split samples on RT (+PCR) wells, trim | `fastq_indices`, `rt`, `p5` (optional) |
 | Other               | `seqspec`                                              | none; fastp with `perform_trimming = true`      | -                                    |
 
-Every protocol also takes the optional `qc_report` and `filtering_report` columns. They combine samples after mapping, for rows that hold different cells (channels, sublibraries, plates, aliquots or replicates). Only rows that hold the same cells, such as lanes, should share a `sample` name. See [Combining samples](usage.md#combining-samples).
-
-Pre-processing steps that split or rebuild reads can be skipped with `perform_demultiplexing = false`, and fastp trimming with `perform_trimming = false`. Results of each step are written to `demultiplex/`, `fastp/` or `marsseq_reformat/`.
-
-The commercial pipelines (Cell Ranger, split-pipe, BD Rhapsody) can run alongside for comparison, see [supported external pipelines](INSTALLATION_EXTERNAL_PIPELINES.md).
+- Pre-processing steps that split or rebuild reads can be skipped with `perform_demultiplexing = false`, and fastp trimming with `perform_trimming = false`. Results of each step are written to `demultiplex/`, `fastp/` or `marsseq_reformat/`.
+- Protocols that pool several samples or sublibraries reuse the same barcodes for different cells. Give each its own `sample` name and combine them after mapping, see [Combining samples](SAMPLESHEET.md#combining-samples).
+- Reads can also be given as unaligned CRAMs, see [CRAM input](SAMPLESHEET.md#cram-input).
+- The commercial pipelines (Cell Ranger, split-pipe, BD Rhapsody) can run alongside for comparison, see [supported external pipelines](INSTALLATION_EXTERNAL_PIPELINES.md).
 
 
 ## Barcode whitelists
 
 `bc_whitelist` takes one or more paths **or** URLs (not mixed), separated by whitespace. URLs are downloaded and unzipped automatically.
 
-- Each file is a plain list with one barcode per line.
-- Protocols with a split cell barcode (Parse, BD Rhapsody) take one file per barcode segment, **in the order listed below**.
+- Each file is a plain list with one barcode per line, except for sci-RNA-seq3 and ScaleBio (see their sections).
+- Protocols with a split cell barcode take one file per barcode segment, **in the order listed below**.
 
 | `protocol`                    | `bc_whitelist`                                                                 |
 | ----------------------------- | ------------------------------------------------------------------------------ |
@@ -56,53 +55,25 @@ The commercial pipelines (Cell Ranger, split-pipe, BD Rhapsody) can run alongsid
 | `bd_rhapsody_enhancedbeads`   | `A96_cell_key1` `A96_cell_key2` `A96_cell_key3` (V1 beads), or `B384_cell_key1` `B384_cell_key2` `B384_cell_key3` (V2/V3 beads) |
 | `sciRNAseq3`                  | the sci-rocket barcode definition file, see [sci-RNA-seq3](#sci-rna-seq3)      |
 | `marsseq_v1`, `marsseq_v2`    | none, leave empty                                                              |
-| `scalebio_quantum_rna`        | bead 1, bead 2, bead 3, RT, PCR lists, see [ScaleBio](#scalebio)               |
-| `scalebio_rna_v1_1`           | ligation, RT, PCR (i5) lists, see [ScaleBio](#scalebio)                        |
+| `scalebio_quantum_rna`        | bead 1, bead 2, bead 3, RT, PCR lists, see [ScaleBio](#barcode-lists)          |
+| `scalebio_rna_v1_1`           | ligation, RT, PCR (i5) lists, see [ScaleBio](#barcode-lists)                   |
 | `seqspec`                     | `bc_whitelist`, or else the onlists of the seqspec file's barcode regions      |
-
-
-### CRAM input
-
-Instead of FASTQs, a samplesheet row can give its reads as unaligned CRAM (or BAM) files in a `cram` column, in place of `fastq_cDNA`, `fastq_BC_UMI` and `fastq_indices`. A glob is allowed, for example one CRAM per lane. A sample's rows must all use FASTQs or all use CRAMs.
-
-```csv
-sample,cram,expected_cells,p5,p7,rt
-sampleA,run1/lib_S1_L00*.cram,5000,,,1A-2C
-```
-
-`cram_type` says what the files hold:
-
-- **`"illumina"`** (the default, any protocol): both reads of every pair, with the index reads in the `BC` (sequence) and `QT` (quality) tags. Files written by `samtools import --i1 --i2`, or by Picard `FastqToSam`/`IlluminaBasecallsToSam`, are like this.
-  - `CRAM_TO_FASTQ` converts each file with `samtools fastq` into bcl-convert-named FASTQs (`<file>_R1_001.fastq.gz`, `_R2_`, `_I1_`, `_I2_`). The protocol's `cdna_read` (`conf/seqtech_parameters.config`) says which read holds the cDNA.
-  - The number of index reads is counted from the separator in `BC`, so `ACGT-TTGG` is two. Two indices joined without a separator need `cram_index_format`, for example `"i8i8"` (see `samtools fastq --index-format`).
-  - A file with single-end reads stops the run, so that no reads are lost.
-- **`"ultima"`** (ScaleBio only): Ultima Genomics reads, whose barcodes the Ultima trimmer moved into SAM tags. See [ScaleBio](#scalebio).
-
-Unaligned CRAMs need no reference. For reference-compressed CRAMs, set `cram_reference` to the FASTA they were written against. `seqspec` does not take CRAMs.
 
 
 ## 10x Genomics
 
-Put read 2 in `fastq_cDNA` and read 1 (cell barcode + UMI) in `fastq_BC_UMI`. No pre-processing is needed. Set `perform_cellranger = true` to also run Cell Ranger.
+**Samplesheet.** Read 2 in `fastq_cDNA`, read 1 (cell barcode + UMI) in `fastq_BC_UMI`.
+
+No pre-processing is needed. Set `perform_cellranger = true` to also run Cell Ranger.
 
 
 ## OAK
 
 OAK splits an overloaded 10x 3' run into aliquots, each with its own i5 index (and optionally its own i7 index). Because the same cell barcode can occur in several aliquots, every aliquot is demultiplexed and processed as a separate sample.
 
-**Samplesheet.** Add one row per aliquot, with a unique `sample` name. All rows point to the same FASTQs:
+**Samplesheet.** One row per aliquot, all pointing to the same FASTQs, with the aliquot's index sequences in `p5` (required) and `p7` (optional), see [OAK samplesheet](SAMPLESHEET.md#oak).
 
-| Column          | Content                                                 |
-| --------------- | ------------------------------------------------------- |
-| `fastq_cDNA`    | read 2                                                  |
-| `fastq_BC_UMI`  | read 1                                                  |
-| `fastq_indices` | both index reads, e.g. `/path/Undetermined_S0_I*`       |
-| `p5`            | i5 index sequence of the aliquot (**required**)         |
-| `p7`            | i7 index sequence of the aliquot (optional)             |
-
-`OAK_DEMUX` selects the reads of each aliquot on its i7 (if given) and i5 index, allowing `oak_demux_max_mismatches` mismatches (default `1`). The read counts after each step are written to `demultiplex/<sample>/<sample>_oak_demux.log`. Each aliquot is then mapped as a 10x 3' v3.1 sample.
-
-To see the aliquots of one channel together in the dashboard, give them the same `qc_report` group. To filter them as one set of metacells, give them the same `filtering_report` group. See [Combining samples](usage.md#combining-samples).
+**Pre-processing.** `OAK_DEMUX` selects the reads of each aliquot on its i7 (if given) and i5 index, allowing `oak_demux_max_mismatches` mismatches (default `1`). The read counts after each step are written to `demultiplex/<sample>/<sample>_oak_demux.log`. Each aliquot is then mapped as a 10x 3' v3.1 sample.
 
 
 ## Parse Biosciences
@@ -111,18 +82,9 @@ The two protocols share the same chemistry and differ only in kit size, and ther
 
 Parse pools several samples into one library, which are told apart by the RT wells they were loaded into. The pipeline therefore splits the FASTQs per sample before mapping.
 
-**Samplesheet.** Put read 1 in `fastq_cDNA` and read 2 (barcodes + UMI) in `fastq_BC_UMI`. Fill the `rt` column with the wells of the sample:
+**Samplesheet.** Read 1 in `fastq_cDNA`, read 2 (barcodes + UMI) in `fastq_BC_UMI`, and the sample's wells in `rt`. One row per sublibrary, see [Parse samplesheet](SAMPLESHEET.md#parse-biosciences).
 
-- `A1:C6` is a block, from top-left to bottom-right: A1-A6, B1-B6, C1-C6;
-- `A1-B6` is a range, from start to end: A1-A12, B1-B6;
-- `C4` is a single well;
-- selections are joined by commas without spaces, e.g. `A1-A6,B1:D3,C4`.
-
-**Demultiplexing.** By default, `PARSEBIO_CUSTOM_DEMUX` matches the RT barcode against the well whitelist given in `bc_whitelist_parse_splitwells` (a CSV with the columns `bci,sequence,uid,well,stype`, as shipped with split-pipe), at the smallest edit distance, at most 2.
-
-Set `splitpipe_demultiplex_script` to use split-pipe's own demultiplexing script instead.
-
-**Sublibraries.** Every sublibrary reuses the same barcode combinations for other cells. Give a sample one row per sublibrary, each with its own `sample` name and the same `rt` wells. Rows sharing a name would have their reads merged, which joins different cells that happen to share a barcode. Use the `qc_report` and `filtering_report` columns to combine the sublibraries after mapping, see [Combining samples](usage.md#combining-samples).
+**Demultiplexing.** By default, `PARSEBIO_CUSTOM_DEMUX` matches the RT barcode against the well whitelist given in `bc_whitelist_parse_splitwells` (a CSV with the columns `bci,sequence,uid,well,stype`, as shipped with split-pipe), at the smallest edit distance, at most 2. Set `splitpipe_demultiplex_script` to use split-pipe's own demultiplexing script instead.
 
 **Round-1 barcodes.** Each round-1 well holds an oligo-dT (`T`) and a random-hexamer (`R`) RT primer, and in some kits targeted (`X`) primers, each with its own barcode (the `stype` column of the CSV). split-pipe names cells by well, so these reads form one cell. A mapper given every round-1 barcode would split each cell into a T and an R barcode (in a typical run, about 40% and 60% of its reads). With `parse_collapse_bc1 = true` (the default), `PARSEBIO_COLLAPSE_BC1` therefore rewrites the round-1 barcode in the barcode read to its well's T barcode before mapping:
 
@@ -136,16 +98,16 @@ The rewrite runs after the demultiplexing, whichever is used, and also with `per
 
 ## BD Rhapsody
 
-**Samplesheet.** Put read 2 in `fastq_cDNA` and read 1 (cell label + UMI) in `fastq_BC_UMI`.
+**Samplesheet.** Read 2 in `fastq_cDNA`, read 1 (cell label + UMI) in `fastq_BC_UMI`.
 
-Enhanced Beads reads start with 0-3 variable bases before the cell label. For `bd_rhapsody_enhancedbeads`, `RM_VARBASES` removes these with cutadapt, so the barcode positions are fixed during mapping. `bd_rhapsody_v1` reads are used as they are.
+**Pre-processing.** Enhanced Beads reads start with 0-3 variable bases before the cell label. For `bd_rhapsody_enhancedbeads`, `RM_VARBASES` removes these with cutadapt, so the barcode positions are fixed during mapping. `bd_rhapsody_v1` reads are used as they are.
 
 The BD Rhapsody pipeline, if enabled, receives the untrimmed reads, as it handles the variable bases itself.
 
 
 ## sci-RNA-seq3
 
-**Samplesheet.** Put read 2 in `fastq_cDNA` and read 1 in `fastq_BC_UMI`. Fill the `p5`, `p7` and `rt` columns with the barcode **names** (not sequences) from the sci-rocket barcode definition file, e.g. `p5 = A02`, `p7 = D09`, `rt = P02-A01:P02-H07`. The p5 and p7 sequences must be present in the FASTQ headers, see [this bcl2fastq script](../assets/bcl2fastq2.sh).
+**Samplesheet.** Read 2 in `fastq_cDNA`, read 1 in `fastq_BC_UMI`, and the barcode **names** (not sequences) in `p5`, `p7` and `rt`, see [sci-RNA-seq3 samplesheet](SAMPLESHEET.md#sci-rna-seq3).
 
 **Whitelist.** `bc_whitelist` points to the sci-rocket barcode definition file, not to a list of sequences. The per-segment whitelists used for mapping are generated during demultiplexing.
 
@@ -157,7 +119,9 @@ The BD Rhapsody pipeline, if enabled, receives the untrimmed reads, as it handle
 
 ## MARS-seq
 
-**Samplesheet.** Put read 1 in `fastq_cDNA` and read 2 in `fastq_BC_UMI`. No whitelist is used: cells are called from the raw matrix by the pipeline's cell-calling step (`cellfilter_method`).
+**Samplesheet.** Read 1 in `fastq_cDNA`, read 2 in `fastq_BC_UMI`.
+
+**Whitelist.** None: cells are called from the raw matrix by the pipeline's cell-calling step (`cellfilter_method`).
 
 **Pre-processing.** Read 1 carries the batch barcode and the cDNA, read 2 the cell barcode and UMI. `MARSSEQ_BUILD_READS` rebuilds them before mapping:
 
@@ -176,7 +140,11 @@ The BD Rhapsody pipeline, if enabled, receives the untrimmed reads, as it handle
 
 Supports the QuantumScale RNA kit (`scalebio_quantum_rna`) and the 3-level ScaleRNA v1.1 / Extended Throughput kits (`scalebio_rna_v1_1`).
 
-**Read layout.** A cell is identified by barcodes spread over several reads. Each one is corrected to its list on its own:
+**Samplesheet.** The cDNA read in `fastq_cDNA`, the other read in `fastq_BC_UMI`, the index reads in `fastq_indices`, the RT wells in `rt` and optionally the PCR wells in `p5`. The samples of a library share its FASTQs, see [ScaleBio samplesheet](SAMPLESHEET.md#scalebio).
+
+#### Read layout
+
+A cell is identified by barcodes spread over several reads. Each one is corrected to its list on its own:
 
 | | `scalebio_quantum_rna` | `scalebio_rna_v1_1` |
 | --- | --- | --- |
@@ -187,32 +155,9 @@ Supports the QuantumScale RNA kit (`scalebio_quantum_rna`) and the 3-level Scale
 | PCR barcode | index 2 (i5), 8 nt; a well may hold a pool of sequences | index 2 (i5), 10 nt |
 | cell barcode | bead 1 + bead 2 + bead 3 + RT + PCR | ligation + RT + PCR |
 
-**Samplesheet.** Put the cDNA read in `fastq_cDNA`, the other read in `fastq_BC_UMI`, and the index reads in `fastq_indices`. QuantumScale needs I1 and I2, v1.1 needs I2. Index reads are recognised by `_I1_`/`_I2_` in their names, as written by bcl-convert with `CreateFastqForIndexReads,1`. The lanes of a read are paired by name, so name them the same apart from the read token, for example `_L001_R1_`, `_L001_I1_`.
+#### Barcode lists
 
-A library pools many samples. Give every sample its own row with the **same** FASTQs. The pipeline reads a library once per lane, not once per sample.
-
-- `rt`: the sample's RT wells, for example `1A-2H`, `3A;3B` or `1A;5A-5H`. Ranges of plate wells run column by column, so `1A-2C` is all of column 1 plus `2A-2C`. Separate the parts with `;`.
-- `p5` (optional): the sample's PCR wells, as named in the PCR list, for example `QSR-1;QSR-2` or a range `QSR-1-QSR-6`. Left empty, the sample takes every PCR well.
-- No RT × PCR well combination may belong to two samples.
-- Extended Throughput: the i7 pool (plate) is not part of the cell barcode, so give each plate's FASTQs their own sample names, for example `sampleX_AP1` and `sampleX_AP2`. Give both plates `sampleX` as `qc_report` and/or `filtering_report` group to combine them after mapping, see [Combining samples](usage.md#combining-samples).
-- v1.1 reads only the i5 index. A single index read, given as `_I1_` or coming from a single-index CRAM, is taken as the i5.
-
-**CRAM input.** Illumina-style CRAMs are converted to FASTQ first, see [CRAM input](#cram-input).
-
-Ultima CRAMs (`cram_type = "ultima"`) are read as they are. Each file is one task, and a library's samples again share its files. The read is the cDNA, and the barcodes come from SAM tags:
-- `scalebio_ultima_tags` names the tag of each barcode, as `segment=TAG[:START],...`. START is where the barcode begins in the tag's value, for tags that hold a constant linker first. QuantumScale defaults to the Ultima trimmer's "Scale RNA" format, `pcr=RG,bead1=b1,bead2=b2:4,bead3=b3:4,rt=b4`: `b2` and `b3` hold a constant 4 nt before the 8-nt bead barcode. There is no default for v1.1.
-- A tag may hold:
-  - a barcode sequence, corrected like any other;
-  - a sequence longer than the barcode with no START given: the barcode is looked for at its end, then at its start;
-  - a barcode id of the list, for example `QSR-1`, which is what `RG` holds;
-  - an id or sequence within a longer value, for example a read group `run7-QSR-1`.
-- `scalebio_ultima_umi` says where the UMI is. QuantumScale defaults to `tag:UM`, as in the "Scale RNA" format. It takes either:
-  - `tag:XX`, the SAM tag that holds the UMI; or
-  - `seq:START:LENGTH`, its place in the read, 0-based. It is cut from the cDNA.
-
-  The CRAM header's `@CO` lines describe each tag. Check a read with `samtools view file.cram | head -1`.
-
-**Barcode lists.** `bc_whitelist` takes the lists of the kit, in this order:
+`bc_whitelist` takes the lists of the kit, in this order:
 - QuantumScale: bead 1, bead 2, bead 3, RT, PCR.
 - v1.1: ligation, RT, PCR.
 
@@ -223,7 +168,9 @@ Each list is a headerless text file with one barcode per line:
 
 Get the sequences from your kit's documentation or from ScaleBio. Check with ScaleBio whether your licence lets you reuse the lists that come with their own software.
 
-**Demultiplexing.** First, `SCALEBIO_PREPARE_BARCODES` checks the lists: no sequence may appear twice, and every barcode must fit its segment. Then `SCALEBIO_DEMUX` processes each lane (or Ultima CRAM) of each library. For every read it:
+#### Demultiplexing
+
+First, `SCALEBIO_PREPARE_BARCODES` checks the lists: no sequence may appear twice, and every barcode must fit its segment. Then `SCALEBIO_DEMUX` processes each lane (or Ultima CRAM) of each library. For every read it:
 1. finds the splint (v1.1 only; at most 1 mismatch);
 2. corrects every barcode to its list. At most `scalebio_max_mismatches` substitutions are corrected (default 1). An `N` counts as a substitution, and a barcode equally close to two entries is dropped;
 3. drops reads whose UMI contains an `N` or is a single repeated base;
@@ -238,18 +185,90 @@ Each sample's reads are written with a new barcode read, which the mapping layou
 
 `SCALEBIO_GATHER` joins a sample's lanes. Demultiplexing cannot be skipped: `perform_demultiplexing` has no effect for ScaleBio.
 
-**Metrics.** Per lane, `demultiplex/scalebio/<library>/<chunk>.metrics.json` gives:
+> [!NOTE]
+> The mappers get no whitelist for QuantumScale. The barcodes are already corrected, so STARsolo takes the 16 nt cell barcode as it is (`--soloCBwhitelist None`), and alevin-fry uses its knee permit list. v1.1 passes the per-segment lists to both mappers.
+
+#### Metrics
+
+Per lane, `demultiplex/scalebio/<library>/<chunk>.metrics.json` gives:
 - reads per category: `Pass`, `LinkerError`, `BarcodeError`, `UmiFiltered`, `TooShort`, `Unassigned` (valid barcodes, but no sample);
 - per barcode: `Exact`, `Corrected`, `Ambiguous`, `NoMatch`, `Error`;
 - reads per sample and per RT well.
 
 `demultiplex/scalebio/<sample>/<sample>.scalebio_demux.json` sums them for each sample. Set `scalebio_write_unassigned = true` to also keep the unassigned reads.
 
-> [!NOTE]
-> The mappers get no whitelist for QuantumScale. The barcodes are already corrected, so STARsolo takes the 16 nt cell barcode as it is (`--soloCBwhitelist None`), and alevin-fry uses its knee permit list. v1.1 passes the per-segment lists to both mappers.
+#### Ultima CRAMs
 
+Illumina-style CRAMs are converted to FASTQ first, like for any protocol, see [CRAM input](SAMPLESHEET.md#cram-input). Ultima CRAMs (`cram_type = "ultima"`) are read as they are. Each file is one task, and a library's samples again share its files. The read is the cDNA, and the barcodes come from SAM tags:
+- `scalebio_ultima_tags` names the tag of each barcode, as `segment=TAG[:START],...`. START is where the barcode begins in the tag's value, for tags that hold a constant linker first. QuantumScale defaults to the Ultima trimmer's "Scale RNA" format, `pcr=RG,bead1=b1,bead2=b2:4,bead3=b3:4,rt=b4`: `b2` and `b3` hold a constant 4 nt before the 8-nt bead barcode. There is no default for v1.1.
+- A tag may hold:
+  - a barcode sequence, corrected like any other;
+  - a sequence longer than the barcode with no START given: the barcode is looked for at its end, then at its start;
+  - a barcode id of the list, for example `QSR-1`, which is what `RG` holds;
+  - an id or sequence within a longer value, for example a read group `run7-QSR-1`.
+- `scalebio_ultima_umi` says where the UMI is. QuantumScale defaults to `tag:UM`, as in the "Scale RNA" format. It takes either:
+  - `tag:XX`, the SAM tag that holds the UMI; or
+  - `seq:START:LENGTH`, its place in the read, 0-based. It is cut from the cDNA.
+
+The CRAM header's `@CO` lines describe each tag. Check a read with `samtools view file.cram | head -1`.
+
+#### Mapping
+
+These settings follow ScaleBio's own ScaleRna pipeline:
+- STARsolo counts `GeneFull_Ex50pAS`;
+- it distributes multi-gene reads with `star_soloMultiMappers = "PropUnique"`, so the analysed matrix is `raw/UniqueAndMult-PropUnique.mtx` (see [STARsolo multi-gene reads](CONFIGURATION_PARAMETERS.md#starsolo-multi-gene-reads));
+- a read may map to at most 6 loci, where STAR's default is 10 (`--outFilterMultimapNmax 6`, the protocol's `star_extraargs`). Reads at more loci are unmapped, as *mapped to too many loci*. For another limit, give the option with that value in your own `star_extraargs`;
+- there is no minimum alignment score (`star_outFilterScoreMin = 0`; most other protocols use 30). A read still has to align over two thirds of its length, as STAR requires by default;
+- samples read from Ultima CRAMs are counted on the reverse strand, because Ultima reads are antisense to the gene. Set `star_soloStrand` for another strand.
+
+Two settings are those of the other protocols, and differ from ScaleRna's:
+
+| Setting | This pipeline | ScaleRna | To follow ScaleRna |
+|---------|---------------|----------|--------------------|
+| UMI filtering and deduplication | `MultiGeneUMI_CR`, `1MM_CR` (Cell Ranger's rules) | `-`, `1MM_All` (STAR's defaults) | `star_soloUMIfiltering = "-"` and `star_soloUMIdedup = "1MM_All"`, together |
+| Cell calling | `cellfilter_method`, by default the second derivative | its own cellFinder; STAR's filter is off | not available |
+
+On one QuantumScale library (*C. elegans*, Ultima, 29 million reads) the pipeline, then still with `"EM"`, 10 loci and a minimum score of 30, counted 0.2% more reads on a single gene and 0.8% fewer UMIs than ScaleRna. Neither figure depends on the multi-gene method.
 
 
 ## seqspec
 
-For protocols not listed above, set `protocol = "seqspec"` and point `seqspec_file` to a [seqspec](https://github.com/pachterlab/seqspec) file describing the reads. STARsolo reads the barcode and UMI positions from this file. Reads are trimmed with fastp before mapping.
+For protocols not listed above, set `protocol = "seqspec"` and point `seqspec_file` to a [seqspec](https://github.com/pachterlab/seqspec) file describing the reads. A worked example on the 10x test data is in [examples/seqspec](../examples/seqspec/conf).
+
+**Samplesheet.** The read with the barcode and UMI regions in `fastq_BC_UMI`, the other read with a cDNA region in `fastq_cDNA`. `seqspec` does not take CRAMs.
+
+#### What is read from the file
+
+`SEQSPEC_LAYOUT` (`bin/seqspec_layout.py`) reads the spec's `rna` modality once per run, before any index is built, and writes the layout to `<outdir>/seqspec/seqspec_layout.env`:
+
+- The **barcode read** is the read that covers the `barcode` region(s) and the `umi` region. The **cDNA read** is the other read that covers a `cdna` region.
+- **STARsolo**:
+  - one barcode region gives `--soloType CB_UMI_Simple` with its start and length, plus `--soloBarcodeReadLength 0`, because fastp may shorten barcode reads;
+  - several barcode regions (a split barcode, e.g. between linkers) give `--soloType CB_UMI_Complex` with one `--soloCBposition` per region and `--soloUMIposition`. The whitelist matching then becomes `1MM`, because the protocol's `1MM_multi_Nbase_pseudocounts` works only for `CB_UMI_Simple`.
+- **alevin-fry**: `alevin_bc_geometry` lists the barcode regions in the barcode read (e.g. `1[1-9,14-22,27-35]`), and `alevin_umi_geometry` gives the UMI. `alevin_read_geometry` starts where the cDNA starts in the cDNA read, which is usually `2[1-end]`.
+- **Whitelists**: if `bc_whitelist` is unset, each barcode region's onlist is its whitelist, in read order. Remote onlists are downloaded and decompressed. Local ones are read relative to the seqspec file's folder, as seqspec does. If a barcode region has no onlist, set `bc_whitelist`. A single barcode without any onlist runs without a whitelist, which also skips the barcode check.
+
+`star_soloTypestring`, `star_soloCBmatchWLtype` and the `alevin_*_geometry` parameters still win when you set them.
+
+#### Limits
+
+The run stops with a message when:
+- the barcodes and the UMI are not all in one read;
+- there is no UMI, or more than one UMI region;
+- no other read covers the cDNA;
+- a region up to the end of the barcodes and UMI has a variable length (`min_len` ≠ `max_len`), which leaves no fixed positions.
+
+`seqspec check` runs too, but its findings are only printed. Only the `rna` modality is read.
+
+seqspec's own `seqspec index -t starsolo` is not used. It prints `--soloType` itself, which the pipeline also added, so STAR got the parameter twice and stopped (*duplicate parameter "soloType"*). It also writes the barcode's end position as its length, which is wrong when the barcode does not start the read, and it has no form for split barcodes.
+
+#### Trimming
+
+Off by default for `seqspec`: the reads are mapped as they are, and STARsolo's own `CellRanger4` clipping removes the TSO and poly-A. Set `perform_trimming = true` to trim with fastp first. fastp keeps the pairs in step, so it drops a whole pair when either read fails its quality filter, the barcode read included. On the demo it dropped 42 of 2,375 pairs and trimmed no adapter from either read. Without trimming, the demo's counts are identical to those of `protocol = "10xv3"` on the same reads. The STARsolo settings are those of 10x v3 (`CellRanger4` adapter clipping, `EmptyDrops_CR`); change them through the `star_*` parameters if your protocol differs.
+
+
+## Known limitations
+
+**Homopolymer UMIs.** A UMI made of one repeated base (`GGGGGGGG`) is a sequencing or synthesis artefact, not a molecule tag, and STARsolo is meant to drop it. With the split-barcode layouts (`--soloType CB_UMI_Complex`: Parse, BD Rhapsody, sci-RNA-seq3, ScaleBio v1.1), STAR 2.7.11b drops only all-A UMIs ([alexdobin/STAR#2715](https://github.com/alexdobin/STAR/issues/2715), item 1g). All-C, all-G and all-T UMIs are counted, adding at most one UMI per cell and gene each.
+- ScaleBio is not affected: `SCALEBIO_DEMUX` already drops these reads.
+- In the Parse test data, 0.9 % of reads have an all-G UMI, but 99 % of those also lack a valid cell barcode; the counts change by less than 0.01 %. Runs with many poly-G reads, and BD Rhapsody, whose UMI ends the barcode read, may be affected more.

@@ -78,21 +78,16 @@ For instructions on how to download the supported external pipelines and configu
 
 ### 1. Create a samplesheet
 
-The samplesheet should be a comma-seperated file, specifying the sample id, locations of the FASTQ files (compressed or uncompressed) and details necessary for pipeline execution. Depending on the chosen sequencing technique the order of the FASTQ files is altered, R1 might contain the cDNA while in other cases this might contain the Cell barcode & UMI's, check the available documentation or do a manual inspection. One samplesheet should be created for every species, and duplicate sample id's will be merged before mapping.
-
-This following example shows one configuration example for every type of protocol, [`example_samplesheet.csv`](./examples/example_samplesheet.csv):
+The samplesheet is a comma-separated file with one row per sample (or per lane of a sample): its name, its FASTQ files and the number of cells you expect. Which read holds the cDNA and which the cell barcode and UMI depends on the protocol. Create one samplesheet per species.
 
 ```
-sample,fastq_cDNA,fastq_BC_UMI,fastq_indices,expected_cells,p5,p7,rt
-10x_OAKSEQ_EXAMPLE,BCA001_S0_L001_R2_001.fastq.gz,BCA001_S0_L001_R1_001.fastq.gz,,2500,,,
-BD_RHAPSODY_EXAMPLE,BCA001_R2_001.fastq.gz,BCA001_R1_001.fastq.gz,,2500,,,
-PARSE_BIOSCIENCES_EXAMPLE,BCA001_R1_001.fastq.gz,BCA001_R2_001.fastq.gz,,2500,,,A1-A3
-SCIRNASEQ3_EXAMPLE,BCA001_R2_001.fastq.gz,BCA001_R1_001.fastq.gz,,2500,A02,D09,P02-A01:P02-H07
+sample,fastq_cDNA,fastq_BC_UMI,expected_cells,rt
+PARSE_EXAMPLE,BCA001_R1_001.fastq.gz,BCA001_R2_001.fastq.gz,2500,A1-A3
 ```
 
-For a more detailed explanation of the samplesheet configuration per protocol see [detailed samplesheet configurations](docs/PROTOCOLS_AND_WHITELISTS.md).
+Rows with the same sample name are merged before mapping, which is only right for rows that hold the same cells, such as lanes. Rows with different cells, such as channels, sublibraries or replicates, keep their own names and can be combined after mapping with the optional `qc_report` and `filtering_report` columns.
 
-A duplicate sample id is only right for rows that hold the same cells, such as lanes or a top-up sequencing of one library. Rows with different cells, such as channels, sublibraries or replicates, keep their own ids. Two optional columns combine them after mapping: `qc_report` pools them in the dashboard, and `filtering_report` pools them into one set of metacells and one entry of the filtering report. See [Combining samples](docs/usage.md#combining-samples).
+See [Samplesheet](docs/SAMPLESHEET.md) for every column, the columns per protocol, combining samples and more examples, and [`example_samplesheet.csv`](./examples/example_samplesheet.csv) for one row per protocol.
 
 ### 2. Create a custom configuration file
 
@@ -146,9 +141,11 @@ nextflow run main.nf
 sbatch submit_nextflow.sh main.nf
 ```
 
+See [usage](docs/usage.md) for the profiles, testing your setup, the run methods and the two-pass filtering, and the [documentation index](docs/README.md) for all other pages.
+
 ## Output
 
-The pipeline outputs are organized into sub-directories based on the analysis steps performed, see [output.md](/docs/output.md) for a comprehensive description of the ouput directory content.
+The pipeline outputs are organized into sub-directories based on the analysis steps performed, see [output.md](docs/output.md) for a comprehensive description of the output directory content.
 
 Below is an example of the possible directory structure:
 

@@ -1,6 +1,6 @@
 # Installing external software (optional)
 
-For some protocols, see table below, users can run external pipelines simultaneaously with the BCA pre-processing pipeline. Depending on the sequencing technique, you only have to provide the path to the installation as within the [`conf/custom_parameters.config`](conf/custom_parameters.config) file or a boolean flag to enable/disable the execution.
+For some protocols, see table below, users can run external pipelines simultaneaously with the BCA pre-processing pipeline. Depending on the sequencing technique, you only have to provide the path to the installation as within the [`conf/custom_parameters.config`](../conf/custom_parameters.config) file or a boolean flag to enable/disable the execution.
 
 This option is limited to the following sequencing technologies:
 | Sequencing technology | External pipeline | Requires manual installation |

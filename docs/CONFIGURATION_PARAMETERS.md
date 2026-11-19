@@ -8,15 +8,16 @@ Within each custom configuration file the following variables can be defined:
 1. [Base Variables](#base-variables) (and [How paths are resolved](#how-paths-are-resolved), [Added rRNA reference](#added-rrna-reference))
 2. [STAR Variables](#star-variables) (and [STARsolo multi-gene reads](#starsolo-multi-gene-reads))
 3. [Alevin-fry Variables](#alevin-fry-variables)
-4. [Mapping-rate check](#mapping-rate-check)
-5. [FeatureCounts Variables](#featurecounts-variables)
-6. [Cell calling](#cell-calling)
-7. [Gene Extension Variables](#gene-extension-variables)
-8. [Taxonomic-classification Variables](#taxonomic-classification-variables)
-9. [Filtering Variables](#filtering-variables)
-10. [Metacells and the filtering report](#metacells-and-the-filtering-report)
-11. [External Pipeline Variables](#external-pipeline-variables)
-12. [Execution Reports](#execution-reports)
+4. [Barcode check](#barcode-check)
+5. [Mapping-rate check](#mapping-rate-check)
+6. [FeatureCounts Variables](#featurecounts-variables)
+7. [Cell calling](#cell-calling)
+8. [Gene Extension Variables](#gene-extension-variables)
+9. [Taxonomic-classification Variables](#taxonomic-classification-variables)
+10. [Filtering Variables](#filtering-variables)
+11. [Metacells and the filtering report](#metacells-and-the-filtering-report)
+12. [External Pipeline Variables](#external-pipeline-variables)
+13. [Execution Reports](#execution-reports)
 
 ---
 
@@ -25,7 +26,7 @@ Within each custom configuration file the following variables can be defined:
 
 | Variable               | Required/Optional | Description |
 |------------------------|-------------------|-------------|
-| `input`                | __Required__      | Path to the samplesheet. |
+| `input`                | __Required__      | Path to the samplesheet, see [Samplesheet](SAMPLESHEET.md). |
 | `outdir`               | __Required__      | Path to the results/output directory; created if missing. |
 | `bc_whitelist`         | __Required__      | Path or link to the barcode whitelist file(s), multiple ones separated by whitespace. If links are given, they are automatically downloaded (and unzipped if applicable) for any protocol. Not used by `"marsseq_v1"`/`"marsseq_v2"`, which run without a whitelist.|
 | `protocol`              | __Required__     | Specifies the sequencing technology used (must be one of the following: `"oak_v1"`, `"10xv1"`, `"10xv2"`, `"10xv3"`, `"10xv4"`, `"parse_biosciences_WT_mini"` or `"parse_biosciences_WT"`,     `"bd_rhapsody_v1"`, `"bd_rhapsody_enhancedbeads"`, `"sciRNAseq3"`, `"marsseq_v1"`, `"marsseq_v2"`, `"scalebio_quantum_rna"`, `"scalebio_rna_v1_1"` or `"seqspec"`). |
@@ -48,13 +49,13 @@ Within each custom configuration file the following variables can be defined:
 | `scalebio_write_unassigned` | Optional     | (ScaleBio only) Also write the reads with valid barcodes whose RT/PCR wells belong to no sample, to `demultiplex/scalebio/<library>/`. Default is `false`. |
 | `scalebio_ultima_tags` | Optional          | (ScaleBio, Ultima CRAMs) The SAM tag of each barcode, as `segment=TAG[:START],...`; START is where the barcode begins in the value, after a constant linker. Unset uses the protocol's (QuantumScale: `pcr=RG,bead1=b1,bead2=b2:4,bead3=b3:4,rt=b4`). |
 | `scalebio_ultima_umi`  | Optional          | (ScaleBio, Ultima CRAMs) Where the UMI is: `tag:XX` (a SAM tag) or `seq:START:LENGTH` (its place in the read, 0-based, cut from the cDNA). Unset uses the protocol's (QuantumScale: `tag:UM`). |
-| `cram_type`            | Optional          | What the samplesheet's `cram` files hold: `"illumina"` (read pairs, index reads in the BC/QT tags; any protocol, converted to FASTQ) or `"ultima"` (ScaleBio barcodes in Ultima trimmer tags). Default is `"illumina"`. See [CRAM input](PROTOCOLS_AND_WHITELISTS.md#cram-input). |
+| `cram_type`            | Optional          | What the samplesheet's `cram` files hold: `"illumina"` (read pairs, index reads in the BC/QT tags; any protocol, converted to FASTQ) or `"ultima"` (ScaleBio barcodes in Ultima trimmer tags). Default is `"illumina"`. See [CRAM input](SAMPLESHEET.md#cram-input). |
 | `cram_reference`       | Optional          | FASTA the `cram` files were compressed against. Unaligned CRAMs need none. |
 | `cram_index_format`    | Optional          | How the index reads are read from a CRAM's BC tag (`samtools fastq --index-format`), e.g. `"i8i8"` for two indices joined without a separator. Default `"auto"` counts the indices by their separator. |
 | `seqspec_file`         | Optional          | Path to the seqspec file, for `protocol = "seqspec"`. The barcode and UMI positions of STARsolo and alevin-fry are derived from it, and its barcode onlists are the whitelists when `bc_whitelist` is unset. See [seqspec](PROTOCOLS_AND_WHITELISTS.md#seqspec). |
 | `subsample_nreads`     | Optional          | The size (number of reads) of the subset used to map to STARsolo, in case the parameter `mapping_software = alevin_subsampled_starsolo`. Default set to `100000000` reads. |
 | `alevin_usa_counts`    | Optional          | Which of alevin-fry's USA blocks are summed into each gene's count before ambient-RNA removal and doublet detection: `"SUA"` (spliced + unspliced + ambiguous), `"SA"`, `"S"`, `"UA"` or `"U"`. Default set to `"SUA"`. See [USA counts](#usa-counts). |
-| `alevin_resolution`    | Optional          | alevin-fry's UMI resolution: `"cr-like"` discards UMIs that stay ambiguous between genes, as Cell Ranger and STARsolo with `star_soloMultiMappers = "Unique"` do; `"cr-like-em"` splits them between the genes by expectation-maximisation, giving fractional counts, the counterpart of STARsolo's default `"EM"`. Default set to `"cr-like-em"`. See [alevin-fry settings](#alevin-fry-settings). |
+| `alevin_resolution`    | Optional          | alevin-fry's UMI resolution: `"cr-like"` discards UMIs that stay ambiguous between genes, as Cell Ranger and STARsolo with `star_soloMultiMappers = "Unique"` do; `"cr-like-em"` splits them between the genes by expectation-maximisation, giving fractional counts, the counterpart of STARsolo's default `"EM"`. Default set to `"cr-like-em"`. See [alevin-fry settings](#alevin-fry-variables). |
 | `perform_velocity`     | Optional          | Boolean flag to additionally produce intronic counts for RNA velocity: STARsolo's `Velocyto` feature (spliced/unspliced/ambiguous) and alevin-fry's unspliced block, plus a velocity-ready `.h5ad` per mapper. Default is `false`. See [RNA velocity](#rna-velocity). |
 | `validate_params`      | Optional          | Check every parameter and the samplesheet against `nextflow_schema.json` and `assets/schema_input.json` before anything runs: types, allowed values, and that given input files and directories exist. Default is `true`; set `false` to skip it. |
 
@@ -129,7 +130,7 @@ in the assembly under another name is not detected. Check new sequence against t
 | `star_clipAdapterType` | Optional         | Type of adapter clipping. See [protocol-specific defaults](../conf/seqtech_parameters.config) set in the seqtech_paramaters.config file. |
 | `star_soloStrand`      | Optional         | Strand of the reads relative to the gene: `"Forward"`, `"Reverse"` or `"Unstranded"`. alevin-fry and the antisense metrics follow it. Default `null`: `"Forward"`, or `"Reverse"` for samples read from Ultima CRAMs (`cram_type = "ultima"`), whose reads are antisense. |
 | `star_extraargs`       | Optional         | Further STAR options, as one string, for example `"--outFilterMismatchNmax 5"`. They are added to the protocol's own (see [protocol-specific defaults](../conf/seqtech_parameters.config)). An option given here replaces the protocol's option of the same name; the protocol's other options stay. To undo one of the protocol's options, give it here with STAR's default value. |
-| `star_limitBAMsortRAM` | Optional         | STAR's own ceiling on the BAM sort buffer, in bytes. Default `0`, which makes the pipeline derive it from `task.memory` minus the resident genome index. Set a number only to pin it, e.g. to the figure a STAR error asks for. Note this is *not* the scheduler allocation — see [Resource Tuning](RESOURCE_TUNING.md#tool-internal-memory-ceilings). |
+| `star_limitBAMsortRAM` | Optional         | STAR's own ceiling on the BAM sort buffer, in bytes. Default `0`, which makes the pipeline derive it from `task.memory` minus the resident genome index. Set a number only to pin it, e.g. to the figure a STAR error asks for. Note this is *not* the scheduler allocation — see [Resource Tuning](RESOURCE_TUNING.md). |
 | `star_limitGenomeGenerateRAM` | Optional  | STAR's own ceiling for index construction, in bytes. Default `null`, which derives it from `task.memory`. A pinned value neither grows with a larger resource tier nor shrinks with a smaller one. |
 
 
@@ -217,6 +218,52 @@ analysed matrix under a non-default `alevin_usa_counts`.
 
 
 
+## Barcode check
+
+The mapping rate does not depend on the barcodes. With the whitelist of another kit version, a wrong `protocol`, whitelist files in the wrong order or the cDNA and barcode reads swapped, the cDNA maps as well as ever and the run ends hours later with an almost empty matrix. Before anything is mapped, the pipeline therefore matches the barcodes of every sample against the whitelist, and cancels a sample whose barcodes do not match.
+
+| Variable                   | Required/Optional | Description |
+|----------------------------|-------------------|-------------|
+| `skip_barcode_check`       | Optional          | Boolean flag to turn the check off, so that no sample is ever cancelled for its barcodes. Default is `false`. |
+| `min_barcode_match`        | Optional          | Percentage of the checked reads whose barcode is on the whitelist, below which a sample is cancelled. `0` also disables the check. Default set to `10`, the share Cell Ranger expects for at least one chemistry. |
+| `barcode_check_reads`      | Optional          | Number of reads checked per sample, from the start of the barcode FASTQ. Default set to `100000`. |
+| `mapping_rate_action`      | Optional          | Shared with the [mapping-rate check](#mapping-rate-check): `"abort"` stops the whole pipeline, `"skip_sample"` drops only that sample. Default set to `"abort"`. |
+
+**What is checked**
+
+- `BARCODE_CHECK` reads the first `barcode_check_reads` reads of the barcode FASTQ the mappers get, so after any demultiplexing. It cuts each barcode segment at the positions of the protocol's STARsolo layout (`star_soloTypestring`, or the seqspec file) and matches it against its whitelist file.
+- A read counts when every segment is on its list. Matching is exact, so the share is a few points below STARsolo's `Reads With Valid Barcodes`, which also counts barcodes corrected by one mismatch. Exact matching keeps a wrong and a right list far apart: a random 16-nt barcode matches a list of 6.8 million barcodes with one mismatch in about 8% of reads, but exactly in 0.2%.
+- The length of the barcode read is compared with the layout. A read shorter than the layout fails. A read longer than barcode + UMI passes with a note for the single-segment layouts (for example 28 nt reads with the 26 nt layout of `10xv2`).
+- Nothing is checked, and the sample goes on, for a protocol without a whitelist (MARS-seq, or 10x without `bc_whitelist`), for a custom `star_soloTypestring` whose positions are not counted from the read start, when the number of whitelist files differs from the number of barcode segments, and for a sample with fewer than 1,000 reads.
+
+**Shares measured on real reads.** The default threshold sits between the two groups:
+
+| Reads | Whitelist | Reads on the whitelist |
+|-------|-----------|------------------------|
+| 10x v3 example (2,375 reads) | 10x v3 (`3M-february-2018`) | 87.1% |
+| 10x v3 example | 10x v2 (`737K-august-2016`) | 0.4% |
+| 10x v3 example | 10x v3, reverse-complemented | 0.0% |
+| Fly 10x v3, first 100,000 of 30 million reads | 10x v3 | 96.9% (whole run: 97.1%) |
+| Fly 10x v3 | 10x v2 | 1.7% |
+| Fly 10x v3, cDNA read given as barcode read | 10x v3 | 0.1% |
+| Parse v3 | round 1, 2 and 3 lists | 81.2% |
+| Parse v3 | the three lists in reverse order | 0.0% |
+| Parse v3, mapped as `10xv3` | 10x v3 | 0.2% |
+
+**What you see.** The task of a failing sample prints a `BARCODE CHECK FAILED` block in its log, which says what the reads show: barcodes that match as reverse complement, the segment that fails, a whitelist whose barcodes have another length than the segment, or a barcode read that is too short. The task itself does not fail; the pipeline acts on its verdict:
+
+- with `mapping_rate_action = "abort"`, nothing is mapped until every sample is checked, and the pipeline stops with an error that names every failing sample;
+- with `"skip_sample"`, a failing sample is dropped with a warning, which is repeated at the end of the run, and the other samples are mapped as soon as their own check passes.
+
+Every sample's verdict is in `pipeline_info/barcode_check.tsv`, and the dashboard shows the share next to STARsolo's own `Reads With Valid Barcodes`.
+
+**Limits**
+
+- ScaleBio and sci-RNA-seq3 write a barcode read with corrected barcodes when they demultiplex, so the share at mapping is close to 100% whatever the lists are. A wrong list shows in the pass share of their demultiplexing.
+- A wrong UMI length with the right barcode positions is not visible in the whitelist.
+- `run_method = "post_mapping"` and `"external_pipeline_only"` do not map and are not checked.
+
+
 ## Mapping-rate check
 
 A sample whose reads mostly fail to map (contamination, wrong species or reference, or a wrong protocol/barcode geometry) would otherwise spend hours in the mapper and then run every downstream step on almost nothing. The pipeline therefore cancels any sample that maps below `min_mapping_rate`.
@@ -225,7 +272,7 @@ A sample whose reads mostly fail to map (contamination, wrong species or referen
 |----------------------------|-------------------|-------------|
 | `skip_mapping_rate_check`  | Optional          | Boolean flag to turn the check off, so that no sample is ever cancelled for a low mapping rate. Default is `false`. |
 | `min_mapping_rate`         | Optional          | Percentage below which a sample is cancelled: *uniquely* mapped reads for STARsolo, mapped reads (`percent_mapped`) for salmon/alevin-fry. `0` also disables the check. Default set to `10`. |
-| `mapping_rate_action`      | Optional          | What a failed check does: `"abort"` stops the whole pipeline, `"skip_sample"` drops only that sample (for every mapper) and lets the other samples finish. Default set to `"abort"`. |
+| `mapping_rate_action`      | Optional          | What a failed check does: `"abort"` stops the whole pipeline, `"skip_sample"` drops only that sample (for every mapper) and lets the other samples finish. Also applies to the [barcode check](#barcode-check). Default set to `"abort"`. |
 | `mapping_rate_check_reads` | Optional          | STARsolo only: check the rate from `Log.progress.out` while STAR is still mapping, once this many reads are processed. `0` checks only when STAR finishes. Default set to `20000000`. |
 | `mapping_rate_poll_secs`   | Optional          | How often a running mapper is checked, in seconds. STAR refreshes `Log.progress.out` once a minute. Default set to `60`. |
 
@@ -263,8 +310,8 @@ The mappers share their verdicts through files under `<workDir>/.mapping_rate_ch
 |------------------------|-------------------|-------------|
 | `cellfilter_method`    | Optional          | How cells are separated from empty droplets: `"star_solocellfilter"`, `"second_derivative"` or `"manual_cutoff"` (see the methods below). Default set to `"second_derivative"`. |
 | `star_solocellfilter`  | Optional          | STARsolo's `--soloCellFilter`; only decides the cells with `cellfilter_method = "star_solocellfilter"`. See [STAR Variables](#star-variables). |
-| `expected_cells` (samplesheet column) | Optional | `"second_derivative"` only. The boundary is chosen by a test against ambient RNA, not by this value: it only breaks ties between equally good boundaries, and the report warns when the boundary found is more than 3x away from it. When the test places no boundary, the bend is chosen from the curve alone, among those between 0.1x and 10x this value. A placeholder or a blank therefore rarely changes the cells called. Ignored under `"manual_cutoff"`. |
-| `manual_cutoff` (samplesheet column) | __Required__ with `"manual_cutoff"` | The UMI threshold, one value per sample. Every sample needs one under `cellfilter_method = "manual_cutoff"`, or the run is rejected at start-up; under any other method the column is ignored with a warning. |
+| `expected_cells` ([samplesheet](SAMPLESHEET.md#columns) column) | __Required__ | Read by STARsolo's cell filter (`"star_solocellfilter"`) and by `"second_derivative"`. With `"second_derivative"`, the boundary is chosen by a test against ambient RNA, not by this value: it only breaks ties between equally good boundaries, and the report warns when the boundary found is more than 3x away from it. When the test places no boundary, the bend is chosen from the curve alone, among those between 0.1x and 10x this value. A rough estimate therefore rarely changes the cells called. Ignored under `"manual_cutoff"`. |
+| `manual_cutoff` ([samplesheet](SAMPLESHEET.md#columns) column) | __Required__ with `"manual_cutoff"` | The UMI threshold, one value per sample. Every sample needs one under `cellfilter_method = "manual_cutoff"`, or the run is rejected at start-up; under any other method the column is ignored with a warning. |
 
 **Cell calling methods**
 
@@ -273,6 +320,69 @@ The mappers share their verdicts through files under `<workDir>/.mapping_rate_ch
 | `"star_solocellfilter"` | Each mapper's own cell call: STARsolo's `--soloCellFilter` and alevin-fry's knee-based permit list. |
 | `"second_derivative"` (default) | One UMI cutoff per sample, at a bend of the barcode-rank curve. The bends are the minima of the second derivative of the log-log cumulative UMI curve, taken in closed form and tested for significance against the curve's own noise. Among them, the cell boundary is the bend whose barcodes above are unlike ambient RNA and whose barcodes below are like it (a Dirichlet-multinomial test against the barcodes with ≤ 100 UMIs, as in EmptyDrops). This tells a cell/empty boundary from a bend among cell types or a shoulder of debris, and works without a plateau of empty droplets (split-pool protocols). The cutoff keeps the lower half of the chosen drop, where cells with less RNA sit. Both mappers' raw matrices are read. The knee plot and the JSON in `filtered_secondderiv/` record how the bend was chosen. |
 | `"manual_cutoff"`    | The sample's `manual_cutoff` column; the search is skipped. Use it when a curve has no knee the search finds, or when the cutoff was chosen by eye from a previous run's report. Everything else is as with `"second_derivative"`. |
+
+## RNA velocity
+
+`perform_velocity = true` adds an intron-aware third matrix to the exonic (`Gene`) and
+exonic+intronic (`GeneFull_Ex50pAS`) matrices the pipeline already produces. It is off by
+default because it costs STARsolo extra memory and disk on every run, and most analyses do
+not need it.
+
+On the STARsolo side it appends `Velocyto` to `--soloFeatures`, which classifies each UMI
+as **spliced** (compatible only with the mature mRNA), **unspliced** (overlapping an intron
+or an exon–intron boundary) or **ambiguous**, and writes one matrix per class over a single
+shared barcode and feature axis. On the alevin-fry side the unspliced block of the USA
+matrix is extracted with `--counts U`, alongside — not instead of — the main matrix. Both
+mappers additionally get a velocity-ready `.h5ad` for their called cells, with
+`adata.layers["spliced"]` and `adata.layers["unspliced"]`, which is what scVelo, velocyto
+and CellRank read, plus `adata.layers["ambiguous"]`. Each mapper's layers follow that
+mapper's own convention, recorded in `adata.uns["velocity_layers"]`:
+
+| Layer | STARsolo | alevin-fry |
+|-------|----------|------------|
+| `spliced` | Velocyto spliced | S + A |
+| `unspliced` | Velocyto unspliced | U |
+| `ambiguous` | Velocyto ambiguous (not read by scVelo) | A, for reference: already inside `spliced` |
+| `X` | spliced + unspliced + ambiguous | S + U + A |
+
+alevin-fry's spliced layer includes A as alevin-fry's velocity tutorial and pyroe's
+`velocity` output format do; the alevin-fry paper found that counting the ambiguous reads
+as spliced changes the velocity graph only slightly. Velocyto's and alevin-fry's
+ambiguous classes are defined differently, so compare `spliced` with `spliced` and
+`unspliced` with `unspliced`, not the ambiguous layers.
+
+The velocity matrices are subset to the cells called on `GeneFull_Ex50pAS`, not to a cutoff
+of their own, so every matrix published for a sample describes the same cells. This holds
+under every `cellfilter_method`, STARsolo's own included: STAR stops writing after the first
+count column when it filters, so its `Velocyto/filtered` would hold `spliced.mtx` alone. It
+is discarded and the subset is derived from `Velocyto/raw` instead.
+
+The velocity matrices are a terminal output: they are deliberately not fed to ambient-RNA
+removal or doublet detection, since neither is meaningful on unspliced counts.
+
+> [!NOTE]
+> Do not try to derive intronic counts by subtracting `Gene` from `GeneFull_Ex50pAS`. The
+> two are independent counting passes with different gene-assignment and UMI-collapsing
+> rules, not a superset and a subset, so the difference is negative for some gene/cell pairs
+> and mixes true intronic reads with reads that were merely unassignable under exon-only
+> rules. (The per-cell *intronic fraction* the dashboard reports is computed that way, but
+> summed over all genes in a cell, where it is a valid QC statistic.)
+
+> [!IMPORTANT]
+> These counts require a fresh STARsolo pass and cannot be recovered from an existing run.
+> `run_method = "post_mapping"` re-stages them from a previous run that set
+> `perform_velocity`, but cannot add them to one that did not.
+
+Under `perform_geneext = true`, the GeneExt-remapped analytical run produces its own
+velocity matrices. Expect the spliced/unspliced ratio to differ between the two runs:
+GeneExt extends genes with *exonic* 3'UTR, so reads that were intronic or intergenic against
+the original annotation become spliced against the extended one.
+
+Resource note: `Velocyto` adds a third feature structure to STARsolo's solo post-map step.
+`STARSOLO_ALIGN`'s dynamic memory scales on FASTQ size, which does not change when a feature
+is added, so its anchor may under-provision — see [Resource tuning](RESOURCE_TUNING.md).
+
+
 
 
 ## Gene Extension Variables
@@ -395,7 +505,7 @@ lets you decide, metacell by metacell and gene by gene, what goes into downstrea
 report exports that decision as a `metacell_selection.json`, which a second run applies.
 
 Samples that share a `filtering_report` group in the samplesheet are pooled first, and grouped
-and filtered as one. See [Combining samples](usage.md#combining-samples). The pooling step's
+and filtered as one. See [Combining samples](SAMPLESHEET.md#combining-samples). The pooling step's
 memory follows `dynamic_memory.MERGE_GROUP_H5AD`.
 
 | Variable | Required/Optional | Description |

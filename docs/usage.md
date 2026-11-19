@@ -3,96 +3,29 @@
 ### Table of Contents
 
 1. [Before you start](#before-you-start)
-2. [Combining samples](#combining-samples)
-3. [Running the pipeline](#running-the-pipeline)
+2. [Running the pipeline](#running-the-pipeline)
     - [Profiles](#profiles)
     - [Useful options](#useful-options)
     - [Testing your setup](#testing-your-setup)
-4. [Run methods](#run-methods)
+3. [Run methods](#run-methods)
     - [Full run (`standard`)](#full-run-standard)
     - [Gene extension only (`geneext_only`)](#gene-extension-only-geneext_only)
     - [External pipelines only (`external_pipeline_only`)](#external-pipelines-only-external_pipeline_only)
     - [Re-running after mapping (`post_mapping`)](#re-running-after-mapping-post_mapping)
-5. [Filtering UMI matrices (two passes)](#filtering-umi-matrices-two-passes)
+4. [Filtering UMI matrices (two passes)](#filtering-umi-matrices-two-passes)
 
 ---
 
 
 ## Before you start
 
-- [ ] A samplesheet in CSV format, see [`example_samplesheet.csv`](../examples/example_samplesheet.csv) and the [samplesheet configuration per protocol](PROTOCOLS_AND_WHITELISTS.md).
+- [ ] A samplesheet in CSV format, see [Samplesheet](SAMPLESHEET.md) for its columns, per protocol, and how to combine samples.
 - [ ] A custom configuration file, see [`custom_parameters.config`](../conf/custom_parameters.config) and [all configuration parameters](CONFIGURATION_PARAMETERS.md).
 - [ ] Nextflow and one of: Conda, Mamba, Micromamba, Docker, Podman, Singularity or Apptainer.
 
 > [!WARNING]
 > When using conda, mamba or micromamba: the pipeline must be run in the base environment, it cannot activate the different environments properly with a prior environment activated.
 
-
-## Combining samples
-
-Samplesheet rows can be combined at three points. Which one is right depends on whether the rows hold the same cells.
-
-| Mechanism | Combined | Use it when the rows hold |
-|-----------|----------|---------------------------|
-| The same `sample` name on several rows | The FASTQs, before mapping | **The same cells**: several lanes, or a top-up sequencing of one library. |
-| `qc_report` column | Only the numbers in `dashboard.html` | **Different cells** whose quality you want to judge together. |
-| `filtering_report` column | The cell-called objects, just before Metacell2 | **Different cells** you want to filter and analyse as one set of metacells. |
-
-Rows that hold different cells must not share a `sample` name. Their barcodes overlap, so merging their reads before mapping turns two cells with the same barcode into one, and mixes their empty droplets. This happens with:
-- one sample loaded on several 10x or BD channels;
-- the sublibraries of a Parse, ScaleBio or sci-RNA-seq3 experiment, which reuse the same barcode combinations;
-- the plates of a ScaleBio Extended Throughput run;
-- the aliquots of an overloaded 10x channel (OAK).
-
-Give such rows their own `sample` names and combine them with the two columns instead. Both are optional. An empty value leaves a sample on its own, and the two columns are independent of each other:
-
-```
-sample,fastq_cDNA,fastq_BC_UMI,expected_cells,rt,qc_report,filtering_report
-nvec_well1_larva_rep1,...,...,2500,A1-A6,nvec_well1,nvec_larva
-nvec_well1_larva_rep2,...,...,2500,A1-A6,nvec_well1,nvec_larva
-nvec_well2_larva,...,...,2500,B1-B6,nvec_well2,nvec_larva
-nvec_well3_adult,...,...,2500,C1-C6,nvec_well3,nvec_adult
-nvec_well4_adult,...,...,2500,D1-D6,nvec_well4,nvec_adult
-```
-
-Here the two replicates of well 1 are shown together in the dashboard. The metacells and the filtering are done per stage: wells 1 and 2 as `nvec_larva`, wells 3 and 4 as `nvec_adult`.
-
-### Which mechanism to use
-
-| Situation | `qc_report` | `filtering_report` |
-|-----------|-------------|--------------------|
-| One sample on several 10x or BD channels | the sample | the sample, or its condition |
-| Sublibraries of one Parse, ScaleBio or sci-RNA-seq3 experiment, one row per sublibrary | the sample | the sample |
-| ScaleBio Extended Throughput plates (`sampleX_AP1`, `sampleX_AP2`) | `sampleX` | `sampleX` |
-| Aliquots of one overloaded 10x channel (OAK) | the channel | the sample or condition |
-| The wells of a sample split into rows, to see the quality of each well | the well or replicate | the condition |
-| Biological replicates of one condition | the condition, to compare the replicates | the condition, for more cells per Metacell2 run and one filtering applied to all |
-| Stages or tissues meant to share metacells (an atlas) | - | one group for all of them |
-
-Do not group:
-- **Two sequencing runs of the same library under `filtering_report`.** The same cells would enter Metacell2 twice. Give the runs one `sample` name instead. The pooling step warns when two samples share more than half of their cell barcodes. Unrelated captures share far fewer, a few percent at most.
-- **Samples that need very different filtering.** The report's thresholds act on the pooled metacells, so one setting applies to the whole group.
-- **Samples of different species or references.** Each needs its own samplesheet anyway, and the pooling refuses samples counted against different genes.
-
-Pooled metacells can be made of one sample only, from a batch effect or from a cell type only that sample has. The report's *Main sample %* column shows this per metacell.
-
-Rules, checked when the run starts:
-- every row of a sample gives the same groups;
-- a group cannot have the name of a sample, or end in an analytical-run suffix such as `_starsolo`;
-- the name of a sample in a `filtering_report` group cannot contain `:`.
-
-A group of one sample is allowed, and runs under the group's name.
-
-### Changing the groups of a finished run
-
-The groups are read from the samplesheet when the run starts, and are not part of any step before Metacell2. So the groups can be changed after a run, for example after looking at the per-sample dashboard. Edit the two columns and rerun with `-resume`. Only these steps run again:
-- the pooling;
-- Metacell2 for the groups that changed, and for samples taken out of a group;
-- the two reports.
-
-A `post_mapping` run reads the groups from the current samplesheet as well.
-
-A selection made before the groups changed no longer applies to the changed groups. Export a new one from the new report.
 
 ## Running the pipeline
 
@@ -199,7 +132,7 @@ Picks a finished run up where mapping ended. The previous run's STARsolo and ale
 
 Use it to correct the cell calling without mapping again:
 
-- **A different number of expected cells:** edit `expected_cells` in the samplesheet. It bounds the window the second-derivative search looks for the knee in.
+- **A different number of expected cells:** edit `expected_cells` in the samplesheet. The second-derivative search uses it to break ties between equally good boundaries, and, when no boundary passes its test, to limit the bends it chooses from to 0.1x-10x this value.
 - **A cutoff chosen by hand:** set `cellfilter_method = "manual_cutoff"` and give every sample a `manual_cutoff` in the samplesheet.
 
 See [Cell calling](CONFIGURATION_PARAMETERS.md#cell-calling) for both methods.
@@ -214,7 +147,7 @@ nextflow run main.nf -profile <institution_config>,conda -c </path/to/custom_par
 | Variable | Notes |
 |----------|-------|
 | `previous_outdir` | Results directory of the finished run. Defaults to `outdir`, which overwrites the cell-called outputs in place; set a different `outdir` to keep the original results. |
-| `input` | The samplesheet, read again. Sample names must match the previous run; the FASTQs do not have to exist anymore. |
+| `input` | The samplesheet, read again. Sample names must match the previous run; the FASTQs do not have to exist anymore. `expected_cells`, `manual_cutoff` and the [sample groups](SAMPLESHEET.md#combining-samples) are taken from it, so they can be changed. |
 | `mapping_software`, `perform_geneext`, `geneext_downstream` | Must match the previous run, as they decide which analytical runs are picked up. They are recorded in its `pipeline_info/run_config_*.txt`. |
 | `ref_gtf`, `ref_fasta`, `protocol` | Still required, for the read metrics. |
 | `geneext_gtf` | Only with `perform_geneext`; ignored otherwise. The previous run's extended GTF, against which the read metrics of the GeneExt runs are recomputed. Defaults to `<previous_outdir>/gene_ext/geneext.gtf`; the run stops if that file does not exist. |
@@ -242,4 +175,4 @@ nextflow run main.nf -profile <institution_config>,conda -c </path/to/custom_par
 
 Only the filtering step runs. The filtered matrices are written to `<outdir>/metacell_filtering/<sample>/<sample>_final/`. See [Metacells and the filtering report](CONFIGURATION_PARAMETERS.md#metacells-and-the-filtering-report) for the report's settings.
 
-Samples in a `filtering_report` group are filtered together, as one entry of the report, see [Combining samples](#combining-samples).
+Samples in a `filtering_report` group are filtered together, as one entry of the report, see [Combining samples](SAMPLESHEET.md#combining-samples).
