@@ -44,7 +44,7 @@ process ALEVIN_FRY {
     def bc_geom = params.alevin_bc_geometry ?: seqtech.alevin_bc_geometry
     def umi_geom = params.alevin_umi_geometry ?: seqtech.alevin_umi_geometry
     def read_geom = params.alevin_read_geometry ?: seqtech.alevin_read_geometry
-    
+
     // The seqspec layout replaces the protocol's geometries, but not geometries set in the run
     def geom_from_layout = seqspec_layout ? [
         bc:   params.alevin_bc_geometry ? '' : 'yes',
