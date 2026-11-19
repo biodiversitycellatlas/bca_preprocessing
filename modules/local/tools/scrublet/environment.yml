@@ -1,0 +1,11 @@
+channels:
+  - conda-forge
+  - bioconda
+
+dependencies:
+  - conda-forge::python=3.12
+  - bioconda::scrublet=0.2.3
+  - conda-forge::matplotlib-base
+  - conda-forge::numpy
+  - conda-forge::pandas
+  - conda-forge::scipy

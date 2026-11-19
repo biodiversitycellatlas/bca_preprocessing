@@ -4,7 +4,9 @@ The format is based on [Keep a Changelog](https://keepachangelog.com/en/1.1.0/),
 and this project adheres to [Semantic Versioning](https://semver.org/spec/v2.0.0.html).
 
 ## [0.2.4] - 2026-10-19
+
 ### Breaking changes
+
 - `ref_gtf_alt` and `perform_featurecounts` are deprecated. Setting either logs a warning and has no effect.
 - `geneext_downstream` is new and defaults to `"geneext_only"`, so only GeneExt-annotated runs continue downstream. Use `"both"` for the old behaviour.
 - `alevin_resolution` is new and defaults to `"cr-like"` (was `cr-like-em`).
@@ -13,6 +15,7 @@ and this project adheres to [Semantic Versioning](https://semver.org/spec/v2.0.0
 - A missing FASTQ, or a `star_index` that is set but missing, now stops the run.
 
 ### New features
+
 - **Metacell filtering** (`perform_metacells = true`): Metacell2 metacells, an interactive `filtering_report.html`, and `APPLY_METACELL_FILTER` to rerun with a saved selection.
 - **Mapping-rate check:** a sample below `min_mapping_rate` is skipped or aborts the pipeline.
 - **`oak_v1` protocol** with i7/i5 demultiplexing, replacing `oak_seq`.
@@ -24,6 +27,7 @@ and this project adheres to [Semantic Versioning](https://semver.org/spec/v2.0.0
 - alevin-fry can now be re-mapped against the GeneExt annotation.
 
 ### Improvements
+
 - Read metrics: `CALC_READ_METRICS` replaces `CALC_MT_RRNA` and `CALC_ANTISENSE`. It makes a single BAM pass, adds called-cell and strand-split rows, and `PERCELL_METRICS` no longer reads the BAM.
 - Antisense is now taken from STARsolo's `CellReads.stats`.
 - alevin-fry uses the same reference as STARsolo, with the same counting rules.
@@ -38,6 +42,7 @@ and this project adheres to [Semantic Versioning](https://semver.org/spec/v2.0.0
 - Clearer dashboard labels and metric names.
 
 ### Bug fixes
+
 - alevin-fry: gene IDs containing `-` are handled.
 - alevin-fry: `secondderiv_alevin.py` accepts every `alevin_usa_counts` value.
 - The published `.h5ad` objects now carry gene symbols.
@@ -50,9 +55,9 @@ and this project adheres to [Semantic Versioning](https://semver.org/spec/v2.0.0
 - Dashboard: `PREPARE_DASHBOARD_INPUTS` failed for alevin-fry runs.
 
 ### Maintenance
+
 - Channel factories are called as `channel.` (no behaviour change).
 - New checks: `alevin_usa`, `mt_rrna_metrics`, `metacell_filtering` and `resource_efficiency: dynamic_memory`.
-
 
 ## [0.2.0] - 2026-02-24
 

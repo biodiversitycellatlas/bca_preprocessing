@@ -1,19 +1,20 @@
 #!/usr/bin/env python3
 """
 Build synthetic STARsolo raw directories with a known cell/empty boundary, for the
-matrix-aware selection in ``secondderiv_cellcalling_v5.py``.
+ambient test that ``secondderiv_cellcalling.py`` runs with ``--raw-dir``.
 
-``make_knee_fixture.py`` plants boundaries in a curve; v5 also reads what the
-barcodes on either side of a bend look like, so these fixtures plant expression too.
-Cells are drawn from distinct cell-type profiles, empty droplets and debris from a
-Dirichlet-multinomial around an ambient profile that mixes the cell types (as lysed
-cells do) with an extra mitochondrial-like share.  Two archetypes:
+``make_knee_fixture.py`` plants boundaries in a curve; with a matrix the cell caller
+also reads what the barcodes on either side of a bend look like, so these fixtures
+plant expression too.  Cells are drawn from distinct cell-type profiles, empty
+droplets and debris from a Dirichlet-multinomial around an ambient profile that mixes
+the cell types (as lysed cells do) with an extra mitochondrial-like share.  Each
+archetype is a trap for the curve rule alone (the caller without ``--raw-dir``):
 
 ``two_tier``
     The 2026_Q3 ``spolac01_lib1`` failure: 300 high-RNA cells of one type above 2,700
     cells of two others, then the empty tail.  The curve bends at both 300 and 3,000.
-    v4 at an expected count of 450 (0.15x) takes the bend at 300, which is a bend
-    among cells; the cell/empty boundary is 3,000 at any expected count.
+    The curve rule at an expected count of 450 (0.15x) takes the bend at 300, which is
+    a bend among cells; the cell/empty boundary is 3,000 at any expected count.
 
 ``shoulder``
     2,500 cells above 12,000 debris droplets of about 250 UMIs drawn from the ambient
@@ -32,9 +33,15 @@ cells do) with an extra mitochondrial-like share.  Two archetypes:
     The Parse Biosciences shape: no plateau of empty droplets, only a thin tail of
     debris at a few UMIs, and a low-RNA cell type centred near 90 UMIs, so cells tail
     off to about 20 UMIs and many sit inside the 100-UMI ambient pool.  The cliff below
-    the cells never recovers into a plateau, so no bend passes v4's recovery test.  v5
-    then scans for the boundary, finds the ambient test's "empties" level among the
-    shallow cells, and cuts far above them; scored against ``truth/cells.tsv``.
+    the cells never recovers into a plateau, so no bend passes the recovery test; an
+    ungated ambient scan would find its "empties" level among the shallow cells and cut
+    far above them.  Scored against ``truth/cells.tsv``.
+
+``shallow_split_pool``
+    The same shape, shallower: types near 200 and 120 UMIs above the 100-UMI floor and
+    one near 45 below it, so the cliff lies under the floor and a bend among the cells
+    sits above it.  The curve rule stops at that bend; the boundary is only found by
+    searching below the floor.  Scored against ``truth/cells.tsv``.
 
 Importable, so the checks name the same constants that generated the data.
 """
@@ -143,7 +150,7 @@ def write(outdir: str, kind: str) -> str:
 
 
 def parse_args() -> argparse.Namespace:
-    parser = argparse.ArgumentParser(description="Write synthetic STARsolo raw directories for the v5 checks.")
+    parser = argparse.ArgumentParser(description="Write synthetic STARsolo raw directories for the cell_calling check.")
     parser.add_argument("-o", "--outdir", required=True, help="Directory the fixtures are written to.")
     return parser.parse_args()
 

@@ -158,7 +158,7 @@ while IFS= read -r nf; do
     module="${nf#"$PROJECT_ROOT"/modules/}"; module="${module%/main.nf}"
     literals="$(awk -f "$BCA_LIB_DIR/extract_containers.awk" "$nf")"
     if [[ -z "$literals" ]]; then
-        # e.g. `container { demuxafy_sif }` -- resolved at runtime from params,
+        # e.g. `container { params.some_image }` -- resolved at runtime from params,
         # so there is no static reference to validate.
         record SKIP "$module" "container resolved at runtime from params"
         n_dynamic=$((n_dynamic + 1))

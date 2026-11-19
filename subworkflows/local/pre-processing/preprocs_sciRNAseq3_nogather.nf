@@ -37,13 +37,17 @@ workflow sciRNAseq3_nogather_workflow {
             out_samplesheet = ch_samplesheet
         }
 
-        if (params.perform_trimming) {
+        // perform_trimming if set, otherwise the protocol's default (conf/seqtech_parameters.config)
+        def perform_trimming = params.perform_trimming != null
+            ? params.perform_trimming
+            : params.seqtech_parameters[params.protocol].perform_trimming
+        if (perform_trimming) {
             // Trimming adapters and low-quality reads
             FASTP(out_samplesheet)
             out_data = FASTP.out.trimmed_files
             ch_versions = ch_versions.mix(FASTP.out.versions)
         } else {
-            log.info "Skipping trimming as perform_trimming is set to false"
+            log.info "Skipping trimming: perform_trimming is false${params.perform_trimming == null ? " (the protocol's default)" : ""}"
             out_data = out_samplesheet
         }
 

@@ -7,9 +7,11 @@ examples/
 ├── 10x/
 │   ├── conf/        # parameter config + samplesheet
 │   └── test_data/   # subsampled FASTQs + reference
-└── mars-seq/
-    ├── conf/        # parameter config + samplesheet
-    └── test_data/   # subsampled FASTQs + reference
+├── mars-seq/
+│   ├── conf/        # parameter config + samplesheet
+│   └── test_data/   # subsampled FASTQs + reference
+└── seqspec/
+    └── conf/        # seqspec file, parameter config + samplesheet (reads from 10x/test_data)
 ```
 
 ## Running a test
@@ -28,6 +30,19 @@ nextflow run main.nf \
 ```
 
 Output is written to `examples/10x/output/`.
+
+**Any protocol, described by a seqspec file:**
+
+The same 10x reads, run with `protocol = "seqspec"`. The barcode and UMI positions of both mappers and the barcode whitelist come from [spis_10xv3.seqspec.yaml](seqspec/conf/spis_10xv3.seqspec.yaml); `bc_whitelist` is not set. Use it as a template for a protocol the pipeline has no built-in settings for (see [seqspec](../docs/PROTOCOLS_AND_WHITELISTS.md#seqspec)).
+
+```bash
+nextflow run main.nf \
+    -profile crg,conda,test \
+    -c examples/seqspec/conf/spis_seqspec_parameters.config \
+    -ansi-log false
+```
+
+Output is written to `examples/seqspec/output/`; the derived layout is in `seqspec/seqspec_layout.env` there.
 
 Replace `crg` with the profile for your own institution, and `conda` with another software profile if you need one (for example `singularity`).
 

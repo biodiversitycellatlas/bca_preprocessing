@@ -31,7 +31,7 @@ The `protocol` parameter selects the pre-processing steps and the read layout us
 | sci-RNA-seq3        | `sciRNAseq3`                                           | demultiplex with sci-rocket, trim with fastp    | `p5`, `p7`, `rt`                     |
 | MARS-seq            | `marsseq_v1`, `marsseq_v2`                             | rebuild the reads                               | -                                    |
 | ScaleBio            | `scalebio_quantum_rna`, `scalebio_rna_v1_1`            | correct barcodes, split samples on RT (+PCR) wells, trim | `fastq_indices`, `rt`, `p5` (optional) |
-| Other               | `seqspec`                                              | trim with fastp                                 | -                                    |
+| Other               | `seqspec`                                              | none; fastp with `perform_trimming = true`      | -                                    |
 
 Every protocol also takes the optional `qc_report` and `filtering_report` columns. They combine samples after mapping, for rows that hold different cells (channels, sublibraries, plates, aliquots or replicates). Only rows that hold the same cells, such as lanes, should share a `sample` name. See [Combining samples](usage.md#combining-samples).
 
@@ -58,7 +58,7 @@ The commercial pipelines (Cell Ranger, split-pipe, BD Rhapsody) can run alongsid
 | `marsseq_v1`, `marsseq_v2`    | none, leave empty                                                              |
 | `scalebio_quantum_rna`        | bead 1, bead 2, bead 3, RT, PCR lists, see [ScaleBio](#scalebio)               |
 | `scalebio_rna_v1_1`           | ligation, RT, PCR (i5) lists, see [ScaleBio](#scalebio)                        |
-| `seqspec`                     | the whitelist(s) belonging to the seqspec layout                               |
+| `seqspec`                     | `bc_whitelist`, or else the onlists of the seqspec file's barcode regions      |
 
 
 ### CRAM input

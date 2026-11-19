@@ -93,7 +93,6 @@ output_directory/
 ├── kraken/                         # (Optional) Taxonomic classification of unmapped reads
 │
 ├── summary_results/                # MultiQC report, mapping_stats.tsv, per-cell metrics
-├── containers/                     # (Optional) Downloaded Demuxafy image
 │
 ├── CellRanger_pipeline/            # (Optional) External Cell Ranger outputs
 ├── ParseBio_pipeline/              # (Optional) External split-pipe outputs
@@ -442,7 +441,7 @@ carries not only the counts but everything that was called on them:
 | `obs["sample_id"]` | always |
 | `var["gene_name"]`, `var["feature_type"]` | always — the gene symbol and feature type from STARsolo's `features.tsv`; `var_names` are the gene IDs. alevin-fry's feature file has IDs only, so there `gene_name` is blank and `feature_type` absent |
 | `obs["doublet_status"]` | `perform_doublet_detection` — `singlet` / `doublet`. The empty droplets of a `raw`/`full` matrix were never evaluated and read `singlet` |
-| `obs["scrublet_call"]`, `obs["scdblfinder_call"]`, `obs["scrublet_score"]`, `obs["scdblfinder_score"]`, `uns["doublet_method"]` | as above — each tool's own call and score, and the `doublet_consensus_method` that combined them into `doublet_status`. Barcodes no tool evaluated read `NaN` |
+| `obs["scrublet_call"]`, `obs["scdblfinder_call"]`, `obs["scrublet_score"]`, `obs["scdblfinder_score"]`, `uns["doublet_method"]`, `uns["doublet_callers"]` | as above — each tool's own call and score, the `doublet_consensus_method` that combined them into `doublet_status`, and the tools whose calls it holds. Barcodes no tool evaluated read `NaN`. When one caller could not run, its columns are absent and `uns["doublet_callers"]` lists the other alone |
 | `layers["cellsweep"]` | `ambient_rna_remover = "cellsweep"`, `raw`/`full` only — the denoised counts, aligned to `X` |
 | `obs["is_empty"]`, `obs["celltype"]`, `obs["alpha_hat"]` | as above — empty-droplet call, Leiden grouping, per-cell ambient fraction. Barcodes called empty read `is_empty = True` and `celltype = "empty"`; CellSweep estimates no ambient fraction for them, so their `alpha_hat` is `NaN` and their `layers["cellsweep"]` row is zero |
 | `var["ambient_hat"]` | as above — per-gene ambient profile |
@@ -485,15 +484,14 @@ matrix.
 | Path | Description |
 | ---- | ----------- |
 | `scrublet/<id>_scrublet_results.tsv` | Per-barcode Scrublet doublet scores and calls. |
-| `scrublet/<id>_doublet_score_histogram.png` | Doublet score distribution. A clearly bimodal distribution means the automatic threshold is trustworthy. |
+| `scrublet/<id>_doublet_score_histogram.png` | Doublet score distribution, with the threshold the calls use (the automatic one, or the fallback). A clearly bimodal distribution means the automatic threshold is trustworthy. |
 | `scdblfinder/<id>_scDblFinder_results.tsv` | Per-barcode scDblFinder scores and calls. |
 | `scdblfinder/<id>_scDblFinder_summary.tsv` | Summary counts. |
-| `combined/<id>_combined_doublets_w_combined_assignments.tsv` | The consensus call per barcode, combining both methods under `doublet_consensus_method`. |
+| `combined/<id>_combined_doublets_w_combined_assignments.tsv` | The consensus call per barcode, combining both methods under `doublet_consensus_method`. When one caller could not run, it holds the other caller's columns and calls alone. |
 | `combined/<id>_combined_doublets_summary.tsv` | Consensus summary counts. |
 | `<datatype>/<id>_<datatype>_doublet_filtered/` | Count matrix with doublets **removed**, as an `mtx`/`barcodes`/`features` triplet — only when `perform_doublet_filtering = true`. This is what ambient RNA removal then denoises and what `anndata/` publishes. |
 | `<datatype>/<id>_<datatype>_doublet_filter_summary.txt` | What was removed. |
 | `<datatype>/<id>_<datatype>_doublet_filtering_summary.png` | Visual summary of the filtering. |
-| `10x_export/<id>_10x/` | Cell-called matrix exported in 10x format, used as input to the doublet callers. |
 
 > [!NOTE]
 > By default doublets are **annotated, not removed** — set `perform_doublet_filtering = true`
@@ -505,10 +503,10 @@ matrix.
 >
 > Doublet detection can legitimately fail on sparse libraries: scDblFinder's k-nearest-neighbour
 > step needs more cells than a poor library retains, and Scrublet needs a bimodal score
-> distribution. Both steps are configured to skip rather than abort, so a missing subdirectory
-> here means the sample was left unannotated — check the run log for
-> `[WARNING] No doublet calls for ...`. See
-> [When doublet detection cannot run](CONFIGURATION_PARAMETERS.md#when-doublet-detection-cannot-run).
+> distribution. Both steps are configured to skip rather than abort. When one of them fails,
+> the other's calls are used alone (`[WARNING] <tool> could not run on ...` in the run log);
+> when both fail, the sample is left unannotated (`[WARNING] No doublet calls for ...`). See
+> `perform_doublet_detection` under [Filtering Variables](CONFIGURATION_PARAMETERS.md#filtering-variables).
 
 </details>
 
@@ -765,16 +763,6 @@ reads are extracted from the BAM.
 
 The Sankey data are embedded into the dashboard's Taxonomic Classification tab, so you do not
 need to open these files separately.
-
-</details>
-
-<details markdown="1">
-<summary><code>containers/</code></summary>
-
-`containers/demuxafy/Demuxafy.sif` — the Demuxafy singularity image (~7.5 GB), downloaded
-automatically and MD5-verified when `demuxafy_sif` is not set. A later run with the same
-`outdir` finds it here and reuses it instead of downloading it again. Set `demuxafy_sif` to
-this path to share the image with runs that write to another `outdir`.
 
 </details>
 

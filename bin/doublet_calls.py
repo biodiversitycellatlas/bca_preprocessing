@@ -2,10 +2,12 @@
 """
 Reading the consensus doublet calls that ``COMBINE_DOUBLET_RESULTS`` produces.
 
-Demuxafy's ``Combine_Results.R`` writes one row per evaluated barcode and one
-``<method>_DropletType`` column per consensus method; ``params.doublet_consensus_method``
-picks which one counts (``AnySinglet`` = doublet only where every tool agrees,
-``AnyDoublet`` = doublet where any tool calls it).
+``demuxafy_combine_results.R`` (Demuxafy's ``Combine_Results.R``, ported) writes one
+row per evaluated barcode, each tool's ``<tool>_DropletType`` and score columns, and
+the ``<method>_DropletType`` column of ``params.doublet_consensus_method``
+(``AnySinglet`` = doublet only where every tool agrees, ``AnyDoublet`` = doublet where
+any tool calls it). When one caller could not run, the table holds the other's
+columns alone and the consensus is that tool's own call.
 
 Shared by ``filter_doublets.py``, ``run_cellsweep.py`` and ``mtx_to_h5ad.py``, which
 all have to agree on that column and on which barcodes it names.
@@ -23,11 +25,17 @@ logger = logging.getLogger("DoubletCalls")
 DOUBLET_COL = "doublet_status"
 CALLERS = {"scrublet": "scrublet", "scDblFinder": "scdblfinder"}
 METHOD_UNS = "doublet_method"
+CALLERS_UNS = "doublet_callers"
 
 
 def read_combined_results(combined_results):
-    """The Combine_Results.R table, as written."""
-    return pd.read_csv(combined_results, sep="\t")
+    """The combined table, as written; barcodes as text, so all-digit ones keep their zeros."""
+    return pd.read_csv(combined_results, sep="\t", dtype={"Barcode": str})
+
+
+def callers_present(combined):
+    """The tool prefixes (keys of CALLERS) whose calls the combined table holds, in CALLERS order."""
+    return [prefix for prefix in CALLERS if f"{prefix}_DropletType" in combined.columns]
 
 
 def doublet_barcodes(combined, method, source=""):
@@ -79,13 +87,15 @@ def annotate_callers(adata, combined, method):
     """
     Each tool's own call and score, beside the consensus: ``.obs['<tool>_call']``
     (singlet / doublet) and ``.obs['<tool>_score']``, NaN for the barcodes never
-    evaluated, and ``.uns['doublet_method']``, the consensus rule. A tool missing
-    from the table leaves its columns out; a missing score only the score.
+    evaluated; ``.uns['doublet_method']``, the consensus rule; and
+    ``.uns['doublet_callers']``, the tools whose calls it holds. A tool missing from
+    the table (it could not run) leaves its columns out; a missing score only the score.
     """
     table = combined.set_index("Barcode")
+    present = callers_present(combined)
     for prefix, name in CALLERS.items():
         call_col = f"{prefix}_DropletType"
-        if call_col not in table.columns:
+        if prefix not in present:
             logger.warning(f"No '{call_col}' column in the combined results; {name} calls left out")
             continue
         calls = table[call_col].astype(str).str.lower().reindex(adata.obs_names)
@@ -94,4 +104,5 @@ def annotate_callers(adata, combined, method):
         if score_col:
             adata.obs[f"{name}_score"] = pd.to_numeric(table[score_col], errors="coerce").reindex(adata.obs_names).to_numpy()
     adata.uns[METHOD_UNS] = method
+    adata.uns[CALLERS_UNS] = [CALLERS[prefix] for prefix in present]
     return adata

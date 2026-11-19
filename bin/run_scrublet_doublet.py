@@ -1,8 +1,8 @@
 #!/usr/bin/env python3
 """
-Wraps Demuxafy's Scrublet.py CLI wrapper to add a fallback doublet
-threshold: if Scrublet's automatic threshold lands at an extreme (flags
-0% or 100% of cells as doublets), Scrublet.py is re-run with a manual
+Wraps demuxafy_scrublet.py (Demuxafy's Scrublet.py, ported) to add a fallback
+doublet threshold: if Scrublet's automatic threshold lands at an extreme (flags
+0% or 100% of cells as doublets), demuxafy_scrublet.py is re-run with a manual
 threshold (-t) set to the 90th percentile of the first pass's doublet
 scores.
 
@@ -37,16 +37,20 @@ BARCODE_COL = "Barcode"
 CLASS_COL = "scrublet_DropletType"
 SCORE_COL = "scrublet_Scores"
 
-# Demuxafy names this output after the tool, "<tool>_doublets_singlets.tsv", the same
-# convention as scDblFinder's. Older builds called Scrublet's "scrublet_results.tsv",
-# so both are accepted and normalised to the latter, which is what the Nextflow module
-# collects.
+# demuxafy_scrublet.py writes "scrublet_results.tsv" at its automatic threshold and
+# "scrublet_doublets_singlets.tsv" at a manual one (-t), as Demuxafy's Scrublet.py did.
+# A manual re-run comes after the automatic one, so its file is looked for first; the
+# result is handed on as "scrublet_results.tsv", which is what the Nextflow module collects.
 RESULTS_CANDIDATES = ("scrublet_doublets_singlets.tsv", "scrublet_results.tsv")
 CANONICAL_RESULTS = "scrublet_results.tsv"
 
+# demuxafy_scrublet.py's exit status when its automatic threshold finds no bimodal split
+NO_THRESHOLD_EXIT = 3
 
-def run_scrublet(counts_matrix, outdir, threshold=None, filtered_barcodes=None):
-    cmd = ["Scrublet.py", "-m", str(counts_matrix), "-o", str(outdir)]
+
+def run_scrublet(counts_matrix, outdir, doublet_rate_per_1000, threshold=None, filtered_barcodes=None):
+    cmd = ["demuxafy_scrublet.py", "-m", str(counts_matrix), "-o", str(outdir),
+           "--doublet_rate_per_1000", str(doublet_rate_per_1000)]
     if threshold is not None:
         cmd += ["-t", str(threshold)]
     if filtered_barcodes is not None:
@@ -57,10 +61,10 @@ def run_scrublet(counts_matrix, outdir, threshold=None, filtered_barcodes=None):
 
 def resolve_results(outdir):
     """
-    Locate the per-barcode results Scrublet.py just wrote.
+    Locate the per-barcode results demuxafy_scrublet.py just wrote.
 
-    Re-resolved after every Scrublet.py call rather than cached, since each re-run
-    rewrites the file under the tool's own name.
+    Re-resolved after every call rather than cached, since a re-run at a manual
+    threshold writes under the other name.
     """
     for name in RESULTS_CANDIDATES:
         candidate = outdir / name
@@ -69,7 +73,7 @@ def resolve_results(outdir):
 
     present = sorted(p.name for p in outdir.iterdir()) if outdir.is_dir() else []
     raise SystemExit(
-        f"Scrublet.py wrote none of {', '.join(RESULTS_CANDIDATES)} into {outdir}. "
+        f"demuxafy_scrublet.py wrote none of {', '.join(RESULTS_CANDIDATES)} into {outdir}. "
         f"Found: {', '.join(present) if present else '(nothing)'}"
     )
 
@@ -81,12 +85,9 @@ def read_results(results_path):
 
 def restrict_to_filtered_barcodes(results_path, filtered_barcodes_path):
     """
-    Scrublet.py's own output keeps every original barcode (mostly 'unclassified'
-    placeholders for the ones excluded by -f), even though only the provided
-    candidate barcodes were actually scored. Prune the results file down to just
-    those candidates so it's scoped the same way as scDblFinder's output (already
-    restricted to just the filtered barcodes) and downstream consensus logic isn't
-    swamped by tens of thousands of never-evaluated empty-droplet placeholder rows.
+    Keep only the candidate barcodes in the results file, so it is scoped the same
+    way as scDblFinder's output. demuxafy_scrublet.py already writes just those
+    under -f; this guards the consensus against any never-evaluated rows.
     """
     if filtered_barcodes_path is None:
         return
@@ -123,36 +124,42 @@ def parse_scores(rows):
 
 def main():
     parser = argparse.ArgumentParser(
-        description="Run Demuxafy's Scrublet.py with a doublet-score-percentile fallback threshold."
+        description="Run demuxafy_scrublet.py with a doublet-score-percentile fallback threshold."
     )
     parser.add_argument("--counts_matrix", type=str, required=True, help="10x-format matrix directory")
     parser.add_argument("--outdir", type=str, required=True, help="Output directory")
     parser.add_argument("--sample_id", type=str, required=True, help="Sample ID (for logging)")
+    parser.add_argument("--doublet_rate_per_1000", type=float, default=0.008,
+                         help="Expected doublet rate per 1,000 cells (passed through to demuxafy_scrublet.py)")
     parser.add_argument("--filtered_barcodes", type=str, default=None,
                          help="Optional list of real-cell barcodes to restrict doublet calling to "
-                              "(passed through to Scrublet.py -f)")
+                              "(passed through to demuxafy_scrublet.py -f)")
     args = parser.parse_args()
 
     outdir = Path(args.outdir)
     outdir.mkdir(parents=True, exist_ok=True)
+    rate = args.doublet_rate_per_1000
 
     # Scrublet's own automatic thresholding doubles as the bimodality test: it is what
     # fails when the score distribution has no separable doublet mode.
     bimodal = True
     try:
-        run_scrublet(args.counts_matrix, outdir, filtered_barcodes=args.filtered_barcodes)
-    except subprocess.CalledProcessError:
-        # When Scrublet finds no bimodal split it warns and returns without setting
-        # threshold_, which crashes Scrublet.py's unconditional plot_histogram() before
-        # it writes any results. Re-run with an explicit threshold so the scores get
-        # written; that leaves 0% doublets, which is then reported as it stands.
+        run_scrublet(args.counts_matrix, outdir, rate, filtered_barcodes=args.filtered_barcodes)
+    except subprocess.CalledProcessError as err:
+        # Any other failure is a real error: the task fails, and the consensus goes on
+        # with scDblFinder's calls alone
+        if err.returncode != NO_THRESHOLD_EXIT:
+            raise
+        # No bimodal split: Scrublet set no threshold and called nothing. Re-run with an
+        # explicit threshold so the scores get written; that leaves 0% doublets, which
+        # is then reported as it stands.
         bimodal = False
         logger.warning(
-            f"[{args.sample_id}] Scrublet.py failed, most likely because its automatic "
-            f"threshold detection found no bimodal split. Re-running with a bootstrap "
-            f"threshold of {BOOTSTRAP_THRESHOLD} to recover the doublet scores."
+            f"[{args.sample_id}] Scrublet's automatic threshold detection found no bimodal "
+            f"split. Re-running with a bootstrap threshold of {BOOTSTRAP_THRESHOLD} to "
+            f"recover the doublet scores."
         )
-        run_scrublet(args.counts_matrix, outdir, threshold=BOOTSTRAP_THRESHOLD,
+        run_scrublet(args.counts_matrix, outdir, rate, threshold=BOOTSTRAP_THRESHOLD,
                      filtered_barcodes=args.filtered_barcodes)
 
     results_path = resolve_results(outdir)
@@ -187,7 +194,8 @@ def main():
                 f"score distribution). Re-running with a fallback threshold set to the "
                 f"{FALLBACK_PERCENTILE}th percentile of doublet scores: {fallback_threshold:.4f}"
             )
-            run_scrublet(args.counts_matrix, outdir, threshold=fallback_threshold, filtered_barcodes=args.filtered_barcodes)
+            run_scrublet(args.counts_matrix, outdir, rate, threshold=fallback_threshold,
+                         filtered_barcodes=args.filtered_barcodes)
             results_path = resolve_results(outdir)
             restrict_to_filtered_barcodes(results_path, args.filtered_barcodes)
             rows = read_results(results_path)

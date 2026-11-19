@@ -2,8 +2,8 @@
 """
 Repacks a raw mtx/barcodes/features triplet (as produced by STARsolo or
 alevin-fry) into a 10x Genomics-style matrix directory (matrix.mtx.gz,
-barcodes.tsv.gz, features.tsv.gz) for the Demuxafy CLI wrappers
-(Scrublet.py, scDblFinder.R). This works directly on the pre-h5ad triplet,
+barcodes.tsv.gz, features.tsv.gz) for the doublet callers ported from Demuxafy
+(demuxafy_scrublet.py, demuxafy_scdblfinder.R). This works directly on the pre-h5ad triplet,
 like every other step of the filtering workflow.
 
 The genes x cells orientation the 10x convention expects is resolved by

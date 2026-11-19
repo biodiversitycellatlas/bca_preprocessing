@@ -178,7 +178,6 @@ output_directory/
 ├── kraken/                         # (Optional) Taxonomic classification of unmapped reads
 │
 ├── summary_results/                # MultiQC report, mapping_stats.tsv, per-cell metrics
-├── containers/                     # (Optional) Downloaded Demuxafy image
 │
 ├── CellRanger_pipeline/            # (Optional) External Cell Ranger outputs
 ├── ParseBio_pipeline/              # (Optional) External split-pipe outputs

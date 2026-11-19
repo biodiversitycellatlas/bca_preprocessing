@@ -3045,6 +3045,8 @@
     // Each doublet caller's calls, and which of them the consensus excluded
     const DOUBLET_METHODS = { AnySinglet: "a doublet where both callers agree", AnyDoublet: "a doublet where either caller calls one" };
     const DOUBLET_GROUPS = [[1, "Scrublet only"], [2, "scDblFinder only"], [3, "both"]];
+    // The callers by the bit each sets in doublet_callers, and their display names
+    const DOUBLET_CALLERS = { scrublet: [1, "Scrublet"], scdblfinder: [2, "scDblFinder"] };
 
     function renderDoubletCard(s, cc) {
         const C = s.cells;
@@ -3055,7 +3057,7 @@
         const annotated = !!C.doublet;
         availability("panel-cdoublet", "plot-cdoublet", "cdoublet-note", annotated, {
             removed: "Doublets were removed before grouping (perform_doublet_filtering), so there are none left to exclude.",
-            absent: "No doublet calls for this sample (detection off, or a caller could not run).",
+            absent: "No doublet calls for this sample (detection off, or neither caller could run).",
         }[s.doublet_mode] || "No doublet calls for this sample.");
         setBadge("cdoublet-count", [CELL_REASONS.doublet],
                  annotated && r.excludeDoublets ? `${count(cellsWith(cc, CELL_BIT.doublet), "cell")} excluded` : "");
@@ -3065,7 +3067,11 @@
         // One bar per group of callers, split into the cells the consensus calls doublets
         // (excluded once the box is ticked) and those it keeps
         const nDoublets = C.doublet.reduce((a, d) => a + (d === 1 ? 1 : 0), 0);
-        const groups = C.doublet_callers ? DOUBLET_GROUPS : [[null, "consensus"]];
+        // A caller that could not run leaves the other's calls alone (payloads from before
+        // doublet_callers_ran always had both)
+        const ran = (s.doublet_callers_ran || Object.keys(DOUBLET_CALLERS)).filter(c => c in DOUBLET_CALLERS);
+        const single = ran.length === 1 ? DOUBLET_CALLERS[ran[0]] : null;
+        const groups = !C.doublet_callers ? [[null, "consensus"]] : single ? [single] : DOUBLET_GROUPS;
         const inGroup = (i, bits) => bits == null ? C.doublet[i] === 1 : C.doublet_callers[i] === bits;
         let nEvaluated = 0;
         const rows = groups.map(([bits, label]) => ({ label, kept: 0, excl: 0 }));
@@ -3078,9 +3084,16 @@
             });
         }
         const method = s.doublet_method;
-        sub.textContent = `${C.doublet_callers ? "Scrublet and scDblFinder on" : "Doublet calls of"} ` +
-            `${count(nEvaluated, "cell")}; the consensus${method ? ` (${method})` : ""} calls ` +
-            `${DOUBLET_METHODS[method] || "a doublet"}: ${fmt(nDoublets, 0)} cells (${fmt(pct(nDoublets, nEvaluated), 1)} %).`;
+        const tally = `${fmt(nDoublets, 0)} cells (${fmt(pct(nDoublets, nEvaluated), 1)} %)`;
+        if (C.doublet_callers && single) {
+            const other = Object.values(DOUBLET_CALLERS).find(c => c !== single)[1];
+            sub.textContent = `${single[1]} alone on ${count(nEvaluated, "cell")} (${other} could not run); ` +
+                `its doublets are the calls: ${tally}.`;
+        } else {
+            sub.textContent = `${C.doublet_callers ? "Scrublet and scDblFinder on" : "Doublet calls of"} ` +
+                `${count(nEvaluated, "cell")}; the consensus${method ? ` (${method})` : ""} calls ` +
+                `${DOUBLET_METHODS[method] || "a doublet"}: ${tally}.`;
+        }
 
         const ys = rows.map(d => d.label);
         const bar = (name, color, xs) => ({

@@ -7,7 +7,7 @@
 #
 # Commented-out directives (// container "...") are ignored, because the regex
 # anchors `container` to the start of the line. Fully dynamic directives such as
-# `container { demuxafy_sif }` yield no output -- the caller reports those as
+# `container { params.some_image }` yield no output -- the caller reports those as
 # skipped, since there is no literal reference to validate.
 
 BEGIN { collecting = 0; quotes = 0; block = "" }

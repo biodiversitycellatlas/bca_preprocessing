@@ -21,6 +21,7 @@ workflow mapping_starsolo_workflow {
     take:
         data_output
         bc_whitelist
+        seqspec_layout      // SEQSPEC_LAYOUT's layout file for protocol 'seqspec', empty otherwise
         ref_gtf
         ref_fasta
         remap_geneext
@@ -65,11 +66,9 @@ workflow mapping_starsolo_workflow {
         // The whitelist reaches every sample: a value channel holding the list of files
         def bc_whitelist_ch = bc_whitelist instanceof List ? channel.value(bc_whitelist) : bc_whitelist
 
-        // Protocol 'seqspec' reads its barcode layout from the seqspec file, staged into the task
-        def seqspec = params.protocol == 'seqspec' ? file(params.seqspec_file, checkIfExists: true) : []
-
-        // Run STARsolo alignment
-        STARSOLO_ALIGN(data_output, bc_whitelist_ch, bam_only, star_index_ch, seqspec, MappingRateCheck.flagDir(workflow).toString())
+        // Run STARsolo alignment. Protocol 'seqspec' takes its barcode layout from the layout
+        // file SEQSPEC_LAYOUT derived from the seqspec file.
+        STARSOLO_ALIGN(data_output, bc_whitelist_ch, bam_only, star_index_ch, seqspec_layout, MappingRateCheck.flagDir(workflow).toString())
         ch_versions = ch_versions.mix(STARSOLO_ALIGN.out.versions)
 
         // Re-call cells on a UMI cutoff, or keep STARsolo's own filtered matrix
