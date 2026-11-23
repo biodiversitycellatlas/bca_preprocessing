@@ -113,6 +113,10 @@ The BD Rhapsody pipeline, if enabled, receives the untrimmed reads, as it handle
 
 **Pre-processing.** `SCIROCKET_DEMUX` keeps only reads whose p5, p7 and RT barcodes match a sample in the samplesheet, and writes a new 48 nt barcode read: p7, p5, ligation and RT barcode (10 nt each, 9 nt ligation barcodes are padded with a `G`), followed by the 8 nt UMI. The mapping layout in `conf/seqtech_parameters.config` refers to this new read. `FASTP` then trims adapters and low-quality bases.
 
+**alevin-fry.** The 40 nt cell barcode is longer than salmon alevin takes (31 nt). `ALEVIN_FRY` therefore passes salmon a rewritten read 1 (through a pipe, nothing is written to disk). It holds a 16 nt code of the cell's place in the sample's four lists, written as one number in base 4 as for ScaleBio QuantumScale, followed by the UMI ([`bin/sci_cb_code.sh`](../bin/sci_cb_code.sh)). sci-rocket has already corrected every barcode, so alevin-fry's permit list is the codes that occur in the reads: its full matrix holds every barcode with a read, as STARsolo's raw matrix does.
+
+After quantification the matrix's barcodes (`quants_mat_rows.txt`) are decoded to `p7_p5_lig_rt`, the form STARsolo writes, so both mappers name a cell the same way. `featureDump.txt`, the permit list files and the AlevinQC report keep the codes; `<id>_counts/cell_barcode_codes.tsv` pairs each code with its barcode.
+
 > [!NOTE]
 > Demultiplexing cannot be skipped: `perform_demultiplexing = false` stops the run, as without it there is neither the 48 nt barcode read nor a whitelist to map against.
 

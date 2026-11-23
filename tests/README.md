@@ -39,6 +39,7 @@ tests/
 │   ├── resource_efficiency.sh
 │   ├── sample_groups.sh
 │   ├── scalebio_demux.sh
+│   ├── sci_cb_code.sh
 │   ├── seqspec_layout.sh
 │   ├── star_settings.sh
 │   ├── starsolo_em_matrix.sh

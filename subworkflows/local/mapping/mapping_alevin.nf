@@ -32,8 +32,15 @@ workflow mapping_alevin_workflow {
         // The GeneExt re-mapping builds its own splici and index, kept apart in genome/
         def index_suffix = remap_geneext == 'true' ? '_geneext' : ''
 
-        // Build one Salmon splici and index for all samples, on the same reference STARsolo uses
-        SALMON_SPLICI(data_output.first(), ref_gtf, ref_fasta, index_suffix)
+        // Build one Salmon splici and index for all samples, on the same reference STARsolo uses.
+        // The splici takes its read length from one sample: the first by id, so every run and
+        // -resume passes it the same one (whichever sample arrived first changed its hash, and
+        // with it the index and every alevin-fry task after it)
+        def ch_splici_sample = data_output
+            .toSortedList { a, b -> a[0].id <=> b[0].id }
+            .filter { rows -> rows }
+            .map { rows -> rows[0] }
+        SALMON_SPLICI(ch_splici_sample, ref_gtf, ref_fasta, index_suffix)
         SALMON_INDEX(SALMON_SPLICI.out.splici_index_reference, index_suffix)
 
         // Run Alevin-fry for each sample

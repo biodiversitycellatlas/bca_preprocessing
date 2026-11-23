@@ -287,6 +287,7 @@ pipeline calls cells on. See [Cell calling](#cell-calling).
 | `<id>_counts/alevin/` | The count matrix in USA mode: `quants_mat.mtx` (cells × columns), `quants_mat_rows.txt` (barcodes) and `quants_mat_cols.txt` (the gene IDs, then the same IDs with `-U`, then with `-A`). |
 | `<id>_counts/quant.json` | Quantification summary. |
 | `<id>_counts/cell_meta.tsv` | Per-cell summary statistics. |
+| `<id>_counts/cell_barcode_codes.tsv` | sci-RNA-seq3 only: each 16 nt code alevin-fry mapped, with its cell barcode (`p7_p5_lig_rt`). `quants_mat_rows.txt` holds the barcodes; `featureDump.txt`, `<id>_out_permit/` and the AlevinQC report keep the codes. See [sci-RNA-seq3](PROTOCOLS_AND_WHITELISTS.md#sci-rna-seq3). |
 | `<id>_counts/alevin/filtered_secondderiv/` | The pipeline's cell-called matrix. See [Cell calling](#cell-calling). |
 | `<id>_alevinFry_QC.html` | AlevinQC report. |
 | `gene_level_matrix/<datatype>/gene_level/` | The USA matrix collapsed to one count per gene — see below. |

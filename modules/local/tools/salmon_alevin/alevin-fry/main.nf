@@ -86,6 +86,32 @@ process ALEVIN_FRY {
     // A whitelist given in parts (one per barcode segment) is expanded into every combination
     // of the parts, in segment order, up to this many barcodes; beyond it the knee is used
     def max_permit_barcodes = 10000000
+
+    // sciRNAseq3 (alevin_cb_segments in conf/seqtech_parameters.config): its 40 nt cell barcode
+    // is longer than salmon alevin takes, so salmon reads read 1 rewritten as a code of the
+    // cell's place in the sample's barcode lists, then the UMI (bin/sci_cb_code.sh, through a
+    // process substitution). The barcodes are corrected already, so the permit list is the
+    // codes that occur, and the matrix's barcodes are decoded to STARsolo's form at the end.
+    // Not with geometries set in the run, which describe the reads as they are.
+    def cb_code = seqtech.alevin_cb_segments && !params.alevin_bc_geometry && !params.alevin_umi_geometry
+    def cb_args = "--lists ${whitelists.join(' ')} --digits ${seqtech.alevin_cb_digits}"
+    def read1 = !cb_code ? fastq_BC_UMI
+        : "<(sci_cb_code.sh encode ${cb_args} --segments ${seqtech.alevin_cb_segments} --umi ${seqtech.alevin_cb_umi} --r1 ${fastq_BC_UMI} --out - --permit sci_cb_permit.txt)"
+
+    // The encoder has finished, so the permit list is complete; a failed encoder stops the task
+    def cb_wait = cb_code ? 'wait $!' : ''
+    def permit_lists = cb_code ? ['sci_cb_permit.txt'] : whitelists
+    def rows = "./${meta.id}_counts/alevin/quants_mat_rows.txt"
+
+    def cb_decode = !cb_code ? '' : """
+    echo -e "\\n\\n-------------  Decode cell barcodes -------------------"
+    # The matrix's barcodes back to the cell barcode, its segments joined with '_' as STARsolo
+    # writes them. featureDump.txt and the permit list files keep the codes, as alevinQC joins
+    # them with each other; cell_barcode_codes.tsv pairs each code with its barcode.
+    sci_cb_code.sh decode ${cb_args} --with-code < ${rows} > ./${meta.id}_counts/cell_barcode_codes.tsv
+    cut -f2 ./${meta.id}_counts/cell_barcode_codes.tsv > ${rows}
+    rm -f sci_cb_permit.txt
+    """
     """
     echo -e "\\n\\n==================  ALEVIN-FRY =================="
     echo "Sample ID: ${meta}"
@@ -116,7 +142,7 @@ process ALEVIN_FRY {
     ${mapping_guard} salmon alevin \\
         -i ${salmon_index} \\
         -l A \\
-        -1 ${fastq_BC_UMI} \\
+        -1 ${read1} \\
         -2 ${fastq_cDNA} \\
         -p ${task.cpus} \\
         --bc-geometry "\${BC_GEOM}" \\
@@ -124,12 +150,12 @@ process ALEVIN_FRY {
         --read-geo "\${READ_GEOM}" \\
         -o ./${meta.id}_run \\
         --justAlign
-
+${cb_wait}
     echo -e "\\n\\n-------------  generate permit -------------------"
     permit_args="-k"
     knee_reason="${knee_reason}"
     if [ -z "\$knee_reason" ]; then
-        whitelists=(${whitelists.join(' ')})
+        whitelists=(${permit_lists.join(' ')})
         n_barcodes=1
         for wl in "\${whitelists[@]}"; do
             n_barcodes=\$(( n_barcodes * \$(zcat -f "\$wl" | tr -d '\\r' | awk 'NF' | wc -l) ))
@@ -174,7 +200,7 @@ process ALEVIN_FRY {
         -o ./${meta.id}_counts \\
         -t ${task.cpus} \\
         -r ${params.alevin_resolution}
-
+${cb_decode}
     rm -f permit_whitelist.txt
 
     cat <<-END_VERSIONS > versions.yml
