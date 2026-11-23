@@ -275,6 +275,20 @@ workflow PIPELINE_INITIALISATION {
         error("Unknown 'run_method' = '${params.run_method}'. Use one of: ${valid_run_methods.join(', ')}.")
     }
 
+    //
+    // Fail fast on vendor pipeline settings that would silently do nothing
+    //
+    // An 'external_pipeline_only' run with no vendor pipeline to run would only pre-process
+    // and still report success, and a vendor installation that does not exist would be
+    // skipped without a word. Settings of another protocol's vendor pipeline, or given
+    // with 'post_mapping', are only warned about.
+    //
+    def vendor_check = VendorPipelines.check(params)
+    vendor_check.warnings.each { message -> log.warn(message) }
+    if (vendor_check.errors) {
+        error(vendor_check.errors.join("\n"))
+    }
+
     def valid_cellfilter_methods = ["star_solocellfilter", "second_derivative", "manual_cutoff"]
     if (!(params.cellfilter_method in valid_cellfilter_methods)) {
         error("Unknown 'cellfilter_method' = '${params.cellfilter_method}'. Use one of: ${valid_cellfilter_methods.join(', ')}.")

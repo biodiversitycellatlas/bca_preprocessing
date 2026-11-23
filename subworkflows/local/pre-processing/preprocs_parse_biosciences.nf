@@ -77,8 +77,9 @@ workflow parse_workflow {
             ch_bc1_whitelist = PARSEBIO_COLLAPSE_BC1.out.bc1_whitelist.first()
         }
 
-        // Only run Parse pipeline if the path is defined and exists
-        if (params.splitpipe_installation && file(params.splitpipe_installation).exists()) {
+        // Only run Parse pipeline if the path is defined; VendorPipelines.check stopped the
+        // run at startup if it does not exist or 'splitpipe_conda_env' is not set
+        if (params.splitpipe_installation) {
             PARSEBIO_PIPELINE_MKREF(file(params.ref_fasta, checkIfExists: true), file(params.ref_gtf, checkIfExists: true))
 
             // The reference process has single-value inputs only, so it runs once and its output is reused by every sample

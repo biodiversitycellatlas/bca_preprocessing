@@ -572,6 +572,20 @@ and how many rows resolved to a gene. A warning is logged when fewer than half r
 | `splitpipe_installation`| Optional        | Path to the split-pipe installation folder. |
 | `splitpipe_conda_env`   | Required (if `splitpipe_installation` is provided)         | Path to the split-pipe conda environment created by following these [instructions](INSTALLATION_EXTERNAL_PIPELINES.md), required if running the split-pipe pipeline. |
 
+Each vendor pipeline runs only for its own protocols: Cell Ranger for 10x Genomics and OAK,
+split-pipe for Parse Biosciences, the BD Rhapsody pipeline for BD Rhapsody. These settings are
+checked at startup:
+
+- An installation path that is given but does not exist stops the run, as does
+  `splitpipe_installation` without `splitpipe_conda_env`.
+- `run_method = "external_pipeline_only"` stops the run when no vendor pipeline would run. That
+  happens when none is enabled, or when the protocol has none (MARS-seq, sciRNAseq3, ScaleBio,
+  seqspec).
+- A setting of another protocol's vendor pipeline (for example `perform_cellranger` with Parse)
+  is ignored, with a warning.
+- With `run_method = "post_mapping"` the vendor pipelines are not rerun, so any vendor setting
+  given is ignored, with a warning.
+
 
 ## Execution Reports
 

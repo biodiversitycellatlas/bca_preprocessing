@@ -37,8 +37,9 @@ workflow bd_rhapsody_workflow {
             preprocs_samplesheet = ch_samplesheet
         }
 
-        // Only run BD Rhapsody pipeline if the path is defined and exists
-        if (params.rhapsody_installation && file(params.rhapsody_installation).exists()) {
+        // Only run BD Rhapsody pipeline if the path is defined; VendorPipelines.check stopped
+        // the run at startup if it does not exist
+        if (params.rhapsody_installation) {
             // One reference for all samples, its sjdbOverhang set from the longest cDNA read
             // Assigned without 'def': Nextflow 24.04 fails to compile it here otherwise
             all_cdna_ch = ch_samplesheet
@@ -64,7 +65,7 @@ workflow bd_rhapsody_workflow {
             )
 
         } else {
-            log.warn "BD Rhapsody pipeline directory not provided or doesn't exist: '${params.rhapsody_installation}'"
+            log.info "BD Rhapsody pipeline not run: 'rhapsody_installation' is not set."
         }
 
     emit:

@@ -118,6 +118,12 @@ Runs the protocol's pre-processing and the enabled vendor pipelines, then stops.
 | split-pipe | Parse Biosciences | `splitpipe_installation` and `splitpipe_conda_env` |
 | BD Rhapsody | BD Rhapsody | `rhapsody_installation` |
 
+If no vendor pipeline would run, the run stops at startup. This covers a pipeline that is not
+enabled, and a protocol that has none: MARS-seq, sciRNAseq3, ScaleBio and seqspec. Without the
+check the run would only pre-process the reads and still report success. In every run method,
+an installation path that does not exist also stops the run. See
+[External Pipeline Variables](CONFIGURATION_PARAMETERS.md#external-pipeline-variables).
+
 ```
 nextflow run main.nf -profile <institution_config>,conda -c </path/to/custom_parameters.config> \
     --run_method external_pipeline_only

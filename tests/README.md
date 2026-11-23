@@ -42,6 +42,7 @@ tests/
 │   ├── seqspec_layout.sh
 │   ├── star_settings.sh
 │   ├── starsolo_em_matrix.sh
+│   ├── vendor_pipelines.sh
 │   └── velocity_matrix.sh
 ├── fixtures/
 │   └── execution_trace_formats.txt  # hand-written trace covering awkward formats
@@ -696,6 +697,29 @@ Needs `nextflow`, and is skipped without it.
 
 ```bash
 bash tests/run_tests.sh star_settings
+```
+
+## `vendor_pipelines`
+
+Checks [`lib/VendorPipelines.groovy`](../lib/VendorPipelines.groovy), whose errors and warnings
+`PIPELINE_INITIALISATION` reports at startup. A vendor pipeline only runs when it is enabled,
+so each of these cases used to pass silently. Covered:
+
+- `external_pipeline_only` stops when nothing would run: 10x/OAK without `perform_cellranger`,
+  Parse without `splitpipe_installation`, BD without `rhapsody_installation`, and the protocols
+  without a vendor pipeline (MARS-seq, sciRNAseq3, ScaleBio, seqspec);
+- a split-pipe or BD Rhapsody path that does not exist stops any run of its protocol, and is
+  reported once, not also as "nothing to run";
+- `splitpipe_installation` without `splitpipe_conda_env` stops the run;
+- a setting of another protocol's vendor pipeline gives a warning naming the protocols it is for,
+  and its path is not checked;
+- with `post_mapping`, vendor settings give one warning, even a path that does not exist;
+- the defaults, complete setups, blank strings and an unknown protocol give nothing.
+
+Needs `nextflow`, and is skipped without it.
+
+```bash
+bash tests/run_tests.sh vendor_pipelines
 ```
 
 ## `barcode_check`
