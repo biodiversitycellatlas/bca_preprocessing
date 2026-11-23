@@ -3,15 +3,14 @@ channels:
   - bioconda
 
 dependencies:
-  - python=3.10
-  - pandas=2.1.*
+  - python=3.13
+  - pandas=2.3.*
   - numpy
   - matplotlib>=3.7
   - scipy
   - scikit-learn
   - pysam>=0.22
   - samtools=1.22.1
-  - bc=1.07.1
-  - r-base=4.3.*
+  - r-base=4.5.*
   - r-data.table
   - r-argparse

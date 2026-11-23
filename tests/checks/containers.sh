@@ -11,7 +11,7 @@
 set -euo pipefail
 source "$(cd "$(dirname "${BASH_SOURCE[0]}")/../lib" && pwd)/common.sh"
 
-ALL_PROFILES="docker podman singularity apptainer wave"
+ALL_PROFILES="docker singularity apptainer wave"
 
 PROFILES=""
 DEPTH="auto"
@@ -36,7 +36,7 @@ Options:
                       env       pull, then check that the image provides every
                                 package in the module's environment.yml
                                 (needs python3)
-                      auto      manifest for docker/podman, env for
+                      auto      manifest for docker, env for
                                 singularity/apptainer (default)
   --only PATTERN    Only check images matching PATTERN (grep -E).
   --force           Re-pull images already present in the cache.
@@ -247,13 +247,13 @@ mkdir -p "$CACHEDIR"
 effective_depth() {
     if [[ "$DEPTH" != auto ]]; then printf '%s' "$DEPTH"; return; fi
     case "$1" in
-        docker|podman) printf 'manifest' ;;
+        docker)        printf 'manifest' ;;
         *)             printf 'env' ;;
     esac
 }
 
 # check_env ENGINE IMAGE REF MODULES -- check a pulled image (a SIF file, or a
-# docker/podman image name) against the environment.yml of each module that
+# docker image name) against the environment.yml of each module that
 # declares it (see lib/check_image_env.py).
 check_env() {
     local engine="$1" image="$2" ref="$3" modules="$4"
@@ -266,7 +266,7 @@ check_env() {
     # A glob that matches nothing makes ls fail, so the listing is judged by its content
     local list_cmd='ls -1 /opt/conda/conda-meta/*.json /opt/conda/lib/python3*/site-packages/ 2>/dev/null'
     case "$engine" in
-        docker|podman) "$engine" run --rm --entrypoint sh "$image" -c "$list_cmd" ;;
+        docker) "$engine" run --rm --entrypoint sh "$image" -c "$list_cmd" ;;
         *)             "$engine" exec "$image" sh -c "$list_cmd" ;;
     esac >"$listing" 2>/dev/null || true
     for module in $modules; do
@@ -293,7 +293,7 @@ check_ref() {
     logfile="$BCA_TEST_LOGDIR/containers__$slug.log"
 
     case "$engine" in
-        docker|podman)
+        docker)
             case "$ref" in
                 oras://*)
                     record SKIP "$engine: $ref" "oras:// artifact, singularity/apptainer only"
@@ -327,7 +327,7 @@ check_ref() {
 
         singularity|apptainer)
             if [[ "$roles" == alt ]]; then
-                record SKIP "$engine: $ref" "docker/podman image; $engine uses the module's oras:// image"
+                record SKIP "$engine: $ref" "docker image; $engine uses the module's oras:// image"
                 return
             fi
             case "$ref" in

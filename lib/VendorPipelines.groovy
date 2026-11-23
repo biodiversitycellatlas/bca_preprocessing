@@ -134,7 +134,7 @@ class VendorPipelines {
         if (enabled && own == 'cellranger' && !containerEngine) {
             warnings << (
                 "Cell Ranger has no conda environment: with no container engine (e.g. -profile conda) it runs\n" +
-                "the 'cellranger' on the PATH of the compute nodes. Use a container profile (docker, singularity, apptainer, podman) to run it from its image."
+                "the 'cellranger' on the PATH of the compute nodes. Use a container profile (docker, singularity, apptainer) to run it from its image."
             ).toString()
         }
         if (enabled && own == 'splitpipe' && containerEngine) {

@@ -116,7 +116,7 @@ list comes from the file itself rather than from `conda.channels` in
 ## `containers`
 
 Extracts the image references declared by the modules and checks that each one
-resolves for the container profiles in `nextflow.config` (`docker`, `podman`,
+resolves for the container profiles in `nextflow.config` (`docker`,
 `singularity`, `apptainer`, `wave`).
 
 A module runs from its `environment.yml` under the conda profiles and from its
@@ -140,7 +140,7 @@ bash tests/run_tests.sh containers -- --profiles singularity --depth pull
 
 After changing an `environment.yml`, rebuild both its images from that file and
 put the new references in the module (the `oras://` one for singularity/apptainer,
-the other for docker/podman), e.g. with the
+the other for docker), e.g. with the
 [Wave CLI](https://github.com/seqeralabs/wave-cli):
 
 ```bash

@@ -3,5 +3,5 @@ channels:
   - bioconda
 
 dependencies:
-  - conda-forge::r-base=4.3.*
+  - conda-forge::r-base=4.4.*
   - bioconda::bioconductor-alevinqc

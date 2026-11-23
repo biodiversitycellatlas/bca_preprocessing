@@ -17,7 +17,7 @@ Every other step of the pipeline has both a conda environment and a container, s
 
 | External pipeline | Runs under | Why |
 |-------------------|------------|-----|
-| Cell Ranger | a container profile (`docker`, `singularity`, `apptainer`, `podman`) | Cell Ranger is not packaged for conda. Under `conda` it runs the `cellranger` on the compute nodes' `PATH`. |
+| Cell Ranger | a container profile (`docker`, `singularity`, `apptainer`) | Cell Ranger is not packaged for conda. Under `conda` it runs the `cellranger` on the compute nodes' `PATH`. |
 | split-pipe | `conda` (or `mamba`) | split-pipe is licensed, so there is no public image; it runs from your `splitpipe_conda_env`. Under a container profile it runs the `split-pipe` on the compute nodes' `PATH`. |
 | BD Rhapsody | `conda` (or `mamba`), with `singularity` or `apptainer` on the compute nodes | cwltool starts the BD Rhapsody containers itself (`--singularity`), which it cannot do from inside a container. |
 

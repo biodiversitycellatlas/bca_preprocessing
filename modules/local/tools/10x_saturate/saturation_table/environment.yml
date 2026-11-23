@@ -3,10 +3,10 @@ channels:
   - bioconda
 
 dependencies:
-  - python=3.7
+  - python=3.13
   - samtools=1.22.1
   - bc=1.07.1
-  - r-base=4.3.*
+  - r-base=4.4.*
   - r-data.table
   - r-argparse
   - pip

@@ -149,6 +149,14 @@ if run_log and os.path.exists(run_log):
 if not run_log:
     for case in ("illumina_dual", "illumina_single", "unpaired"):
         skip(case, "nextflow is needed")
+elif not outs and not os.path.isdir(os.path.join(work, "nf", "work")):
+    # Nextflow stopped before any task ran (e.g. a Java it cannot use): say why, once per case
+    import re
+    log = open(run_log).read() if os.path.exists(run_log) else ""
+    log = re.sub(r"\x1b(\[[0-9;]*[A-Za-z]|\([A-Z])", "", log).splitlines()   # the launcher colours its errors
+    why = next((l.strip() for l in log if "ERROR" in l), next((l.strip() for l in log[1:] if l.strip()), "no log"))
+    for case in ("illumina_dual", "illumina_single", "unpaired"):
+        check(case, False, "nextflow did not start: " + why[:200])
 else:
     q = os.path.join(FIX, "q", "lib_S1_L001")
     v = os.path.join(FIX, "v", "lib_S1_L001")

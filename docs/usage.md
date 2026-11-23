@@ -21,7 +21,7 @@
 
 - [ ] A samplesheet in CSV format, see [Samplesheet](SAMPLESHEET.md) for its columns, per protocol, and how to combine samples.
 - [ ] A custom configuration file, see [`custom_parameters.config`](../conf/custom_parameters.config) and [all configuration parameters](CONFIGURATION_PARAMETERS.md).
-- [ ] Nextflow and one of: Conda, Mamba, Micromamba, Docker, Podman, Singularity or Apptainer.
+- [ ] Nextflow and one of: Conda, Mamba, Micromamba, Docker, Singularity or Apptainer.
 
 > [!WARNING]
 > When using conda, mamba or micromamba: the pipeline must be run in the base environment, it cannot activate the different environments properly with a prior environment activated.
@@ -54,7 +54,7 @@ Combine one institution profile with one environment manager, separated by a com
 | `<institution_config>` | Executor and queue settings of your cluster, loaded from [nf-core/configs](https://github.com/nf-core/configs) (e.g. `crg`). Leave it out to run locally. |
 | `conda`, `mamba`, `micromamba` | Builds one environment per module from its `environment.yml`. |
 | `apptainer`, `singularity` | Pulls a pre-built [Seqera container](https://seqera.io/containers/) (Singularity image) per module on first use. |
-| `docker`, `podman` | Pulls the Docker image of the same environment per module. Add `arm` on Apple Silicon to run the amd64 images. |
+| `docker` | Pulls the Docker image of the same environment per module. Add `arm` on Apple Silicon to run the amd64 images. |
 | `wave` | Builds each module's container from its conda environment with [Wave](https://seqera.io/wave/); use together with a container profile. |
 | `test` | Caps every task at 2 CPUs, 4 GB and 1 h, and turns off retries ([`conf/test.config`](../conf/test.config)). |
 

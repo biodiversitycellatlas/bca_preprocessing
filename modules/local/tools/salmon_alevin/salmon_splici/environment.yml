@@ -7,7 +7,7 @@ dependencies:
   - r-optparse
   - r-dplyr
   - r-stringr
-  - libdeflate=1.24.*
+  - libdeflate=1.25.*
   - bioconductor-eisar
   - bioconductor-genomicfeatures
   - bioconductor-biostrings
