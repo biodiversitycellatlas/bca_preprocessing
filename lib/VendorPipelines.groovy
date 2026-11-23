@@ -29,7 +29,7 @@ class VendorPipelines {
     static final Map<String, Map> PIPELINES = [
         cellranger: [
             name     : 'Cell Ranger',
-            protocols: ['10xv1', '10xv2', '10xv3', '10xv4', 'oak_v1'],
+            protocols: ['10xv2', '10xv3', '10xv4', 'oak_v1'],
             settings : ['perform_cellranger'],
         ],
         splitpipe: [

@@ -34,7 +34,6 @@
                     "type": "string",
                     "description": "Sequencing technology, which selects the pre-processing and the read layout in conf/seqtech_parameters.config. 'seqspec' reads the layout from 'seqspec_file'.",
                     "enum": [
-                        "10xv1",
                         "10xv2",
                         "10xv3",
                         "10xv4",

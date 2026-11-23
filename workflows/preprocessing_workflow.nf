@@ -141,7 +141,7 @@ workflow preprocessing_workflow {
             bc_whitelist_ch  = resolved_whitelist
             ch_versions = ch_versions.mix(bd_rhapsody_workflow.out.versions)
 
-        } else if (params.protocol in ['10xv1', '10xv2', '10xv3', '10xv4']) {
+        } else if (params.protocol in ['10xv2', '10xv3', '10xv4']) {
             tenx_genomics_workflow(merged_samplesheet)
             data_output_ch = tenx_genomics_workflow.out.data_output
             bc_whitelist_ch  = resolved_whitelist
@@ -238,7 +238,6 @@ workflow preprocessing_workflow {
             - 'parse_biosciences_WT'
             - 'bd_rhapsody_v1'
             - 'bd_rhapsody_enhancedbeads'
-            - '10xv1'
             - '10xv2'
             - '10xv3'
             - '10xv4'

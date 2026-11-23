@@ -52,7 +52,7 @@ More samplesheets are in [`examples/`](../examples/README.md) and under [Example
 
 | `protocol` | `fastq_cDNA` | `fastq_BC_UMI` | `fastq_indices` | `p5` | `p7` | `rt` |
 |------------|--------------|----------------|-----------------|------|------|------|
-| `10xv1` - `10xv4` | R2 | R1 | - | - | - | - |
+| `10xv2` - `10xv4` | R2 | R1 | - | - | - | - |
 | `oak_v1` | R2 | R1 | I1 and I2 | i5 sequence | i7 sequence (optional) | - |
 | `parse_biosciences_*` | R1 | R2 | - | - | - | RT wells |
 | `bd_rhapsody_*` | R2 | R1 | - | - | - | - |

@@ -24,7 +24,7 @@ Which read goes in which samplesheet column, and the format of the `p5`, `p7` an
 
 | Platform            | `protocol`                                             | Pre-processing before mapping                   | [Samplesheet columns](SAMPLESHEET.md#columns-per-protocol) besides the FASTQs |
 | ------------------- | ------------------------------------------------------ | ----------------------------------------------- | ------------------------------------ |
-| 10x Genomics        | `10xv1`, `10xv2`, `10xv3`, `10xv4`                     | none                                            | -                                    |
+| 10x Genomics        | `10xv2`, `10xv3`, `10xv4`                              | none                                            | -                                    |
 | OAK                 | `oak_v1`                                               | split aliquots on their i5/i7 index             | `fastq_indices`, `p5`, `p7` (optional) |
 | Parse Biosciences   | `parse_biosciences_WT_mini`, `parse_biosciences_WT`    | split samples on their RT wells, collapse round-1 barcodes | `rt`                       |
 | BD Rhapsody         | `bd_rhapsody_v1`, `bd_rhapsody_enhancedbeads`          | remove variable bases (Enhanced Beads only)     | -                                    |
@@ -48,7 +48,7 @@ Which read goes in which samplesheet column, and the format of the `p5`, `p7` an
 
 | `protocol`                    | `bc_whitelist`                                                                 |
 | ----------------------------- | ------------------------------------------------------------------------------ |
-| `10xv1` - `10xv4`, `oak_v1`   | the 10x whitelist matching the chemistry                                       |
+| `10xv2` - `10xv4`, `oak_v1`   | the 10x whitelist matching the chemistry                                       |
 | `parse_biosciences_WT_mini`   | `bc_data_n26_R1_v3_4` `bc_data_v1` `bc_data_R3_v4`                             |
 | `parse_biosciences_WT`        | `bc_data_n107_R1_v3_4` `bc_data_v1` `bc_data_R3_v4`                            |
 | `bd_rhapsody_v1`              | `A96_cell_key1` `A96_cell_key2` `A96_cell_key3`                                |
