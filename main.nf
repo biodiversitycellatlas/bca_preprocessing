@@ -99,7 +99,8 @@ workflow BCA_PREPROCESSING {
             // Runs mapping for "standard", "geneext_only"
             if ( params.run_method != "external_pipeline_only" ) {
                 // Mapping using STARsolo, Alevin, and/or comparison to commercial pipelines
-                QC_mapping_workflow(preprocessing_workflow.out.data_output, preprocessing_workflow.out.bc_whitelist, preprocessing_workflow.out.seqspec_layout)
+                QC_mapping_workflow(preprocessing_workflow.out.data_output, preprocessing_workflow.out.bc_whitelist,
+                                    preprocessing_workflow.out.bc_whitelist_by_sample, preprocessing_workflow.out.seqspec_layout)
                 mapping_out = QC_mapping_workflow.out
 
                 // Continue with filtering and MultiQC only with "standard" run_method

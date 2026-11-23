@@ -25,7 +25,7 @@ process SCIROCKET_DEMUX {
     path("demux_reads/${meta.id}_whitelist_ligation*"),     emit: bc_whitelists_ligation
     path("demux_reads/${meta.id}_whitelist_rt*"),           emit: bc_whitelists_rt
     tuple val(meta), path("demux_reads/${meta.id}_R2.fastq.gz"), path("demux_reads/${meta.id}_R1.fastq.gz"), path(fastq_indices), path(input_file), emit: demux_samplesheet
-    tuple path("demux_reads/${meta.id}_whitelist_p7*"), path("demux_reads/${meta.id}_whitelist_p5*"), path("demux_reads/${meta.id}_whitelist_ligation*"), path("demux_reads/${meta.id}_whitelist_rt*"), emit: bc_whitelist
+    tuple val(meta), path("demux_reads/${meta.id}_whitelist_p7*"), path("demux_reads/${meta.id}_whitelist_p5*"), path("demux_reads/${meta.id}_whitelist_ligation*"), path("demux_reads/${meta.id}_whitelist_rt*"), emit: bc_whitelist
     path "versions.yml", emit: versions
 
     script:

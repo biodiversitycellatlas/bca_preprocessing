@@ -198,7 +198,7 @@ on its i7 (optional) and i5 index, as `<sample>_S1_L001_{R1,R2,I1,I2}_001.fastq.
 | `<sample>_R1.fastq.gz` | The synthetic 48 nt barcode read (p7, p5, ligation, RT barcodes + UMI). |
 | `<sample>_R2.fastq.gz` | cDNA. |
 | `<sample>_R1_discarded*`, `<sample>_R2_discarded*` | Reads that could not be assigned. |
-| `<sample>_whitelist_p5*`, `_p7*`, `_ligation*`, `_rt*` | Per-run barcode whitelists, generated from the observed data and passed straight to the mapper. |
+| `<sample>_whitelist_p5*`, `_p7*`, `_ligation*`, `_rt*` | The sample's barcode whitelists: its own p5, p7 and RT barcodes from the samplesheet, and every ligation barcode. The mappers and the barcode check use these for that sample. |
 
 **`demultiplex/scalebio/`** — ScaleBio:
 

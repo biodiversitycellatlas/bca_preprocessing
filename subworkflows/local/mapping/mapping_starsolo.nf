@@ -63,7 +63,8 @@ workflow mapping_starsolo_workflow {
             ch_versions = ch_versions.mix(STARSOLO_INDEX.out.versions)
         }
 
-        // The whitelist reaches every sample: a value channel holding the list of files
+        // The whitelist as a list of files: one value channel for every sample, or (sciRNAseq3)
+        // a channel in step with data_output that gives each sample its own
         def bc_whitelist_ch = bc_whitelist instanceof List ? channel.value(bc_whitelist) : bc_whitelist
 
         // Run STARsolo alignment. Protocol 'seqspec' takes its barcode layout from the layout

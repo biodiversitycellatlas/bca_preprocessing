@@ -95,6 +95,11 @@ workflow preprocessing_workflow {
         // Vendor pipeline results the mapping statistics are read from, as [pipeline, meta, file]
         def ch_vendor_results = channel.empty()
 
+        // Whitelists of their own per sample, as [sample id, [files in segment order]]: only
+        // sciRNAseq3, where sci-rocket writes each sample's barcodes. The mappers then take
+        // these in place of bc_whitelist_ch, which stays empty.
+        def bc_whitelist_by_sample_ch = channel.empty()
+
         // The barcode whitelist as a list of files, one per barcode segment in segment order,
         // and empty without one (e.g. MARS-seq). 'bc_whitelist' gives one or more URLs or
         // paths, separated by whitespace: URLs are downloaded, paths are staged into the
@@ -158,8 +163,9 @@ workflow preprocessing_workflow {
         } else if (params.protocol == 'sciRNAseq3') {
             sciRNAseq3_nogather_workflow(merged_samplesheet, resolved_whitelist)
             data_output_ch   = sciRNAseq3_nogather_workflow.out.data_output
-            // The mappers take one whitelist for every sample: the first sample's from sci-rocket
-            bc_whitelist_ch  = sciRNAseq3_nogather_workflow.out.bc_whitelist.map { tup -> [tup].flatten() }.ifEmpty([]).first()
+            // Each sample is mapped against its own lists from sci-rocket
+            bc_whitelist_by_sample_ch = sciRNAseq3_nogather_workflow.out.bc_whitelist
+            bc_whitelist_ch  = channel.value([])
             ch_versions = ch_versions.mix(sciRNAseq3_nogather_workflow.out.versions)
 
         } else if (params.protocol in ['marsseq_v1', 'marsseq_v2']) {
@@ -255,6 +261,7 @@ workflow preprocessing_workflow {
         merged_samplesheet = merged_samplesheet
         data_output     = data_output_ch
         bc_whitelist    = bc_whitelist_ch
+        bc_whitelist_by_sample = bc_whitelist_by_sample_ch
         seqspec_layout  = seqspec_layout_ch
         vendor_results  = ch_vendor_results
         versions        = ch_versions

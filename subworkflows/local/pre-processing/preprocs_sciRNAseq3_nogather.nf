@@ -23,19 +23,25 @@ workflow sciRNAseq3_nogather_workflow {
         out_data = channel.empty()
         ch_versions = channel.empty()
 
-        if (params.perform_demultiplexing) {
-            log.info "Starting demultiplexing with sci-rocket"
-            if (!params.bc_whitelist) {
-                error("sci-rocket demultiplexes on the barcodes in 'bc_whitelist', which is not set.")
-            }
-            SCIROCKET_DEMUX(ch_samplesheet, bc_whitelist)
-            out_samplesheet = SCIROCKET_DEMUX.out.demux_samplesheet
-            out_whitelist = SCIROCKET_DEMUX.out.bc_whitelist
-            ch_versions = ch_versions.mix(SCIROCKET_DEMUX.out.versions)
-        } else {
-            log.info "Skipping demultiplexing as perform_demultiplexing is set to false"
-            out_samplesheet = ch_samplesheet
+        // The mappers' whitelists are written by sci-rocket, one set per sample, and the
+        // barcode read they describe is rebuilt by it: without demultiplexing there is neither
+        if (!params.perform_demultiplexing) {
+            error("protocol 'sciRNAseq3' needs 'perform_demultiplexing = true': sci-rocket rebuilds the 48 nt barcode read that the mappers read, and writes each sample's barcode whitelists.")
         }
+        log.info "Starting demultiplexing with sci-rocket"
+        if (!params.bc_whitelist) {
+            error("sci-rocket demultiplexes on the barcodes in 'bc_whitelist', which is not set.")
+        }
+        SCIROCKET_DEMUX(ch_samplesheet, bc_whitelist)
+        out_samplesheet = SCIROCKET_DEMUX.out.demux_samplesheet
+
+        // Each sample is mapped against its own p5, p7 and RT barcodes (sci-rocket itself
+        // gives every sample the union of the run's): the reads hold only those after
+        // demultiplexing, so the result is the same, and STARsolo, which expands the segment
+        // lists into every combination, stays smaller
+        out_whitelist = SCIROCKET_DEMUX.out.bc_whitelist
+            .map { meta, p7, p5, ligation, rt -> [meta.id, [p7, p5, ligation, rt]] }
+        ch_versions = ch_versions.mix(SCIROCKET_DEMUX.out.versions)
 
         // perform_trimming if set, otherwise the protocol's default (conf/seqtech_parameters.config)
         def perform_trimming = params.perform_trimming != null

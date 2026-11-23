@@ -33,7 +33,7 @@ Which read goes in which samplesheet column, and the format of the `p5`, `p7` an
 | ScaleBio            | `scalebio_quantum_rna`, `scalebio_rna_v1_1`            | correct barcodes, split samples on RT (+PCR) wells, trim | `fastq_indices`, `rt`, `p5` (optional) |
 | Other               | `seqspec`                                              | none; fastp with `perform_trimming = true`      | -                                    |
 
-- Pre-processing steps that split or rebuild reads can be skipped with `perform_demultiplexing = false`, and fastp trimming with `perform_trimming = false`. Results of each step are written to `demultiplex/`, `fastp/` or `marsseq_reformat/`.
+- Pre-processing steps that split or rebuild reads can be skipped with `perform_demultiplexing = false` (not for sci-RNA-seq3, which needs them, nor for ScaleBio, where it has no effect), and fastp trimming with `perform_trimming = false`. Results of each step are written to `demultiplex/`, `fastp/` or `marsseq_reformat/`.
 - Protocols that pool several samples or sublibraries reuse the same barcodes for different cells. Give each its own `sample` name and combine them after mapping, see [Combining samples](SAMPLESHEET.md#combining-samples).
 - Reads can also be given as unaligned CRAMs, see [CRAM input](SAMPLESHEET.md#cram-input).
 - The commercial pipelines (Cell Ranger, split-pipe, BD Rhapsody) can run alongside for comparison, see [supported external pipelines](INSTALLATION_EXTERNAL_PIPELINES.md).
@@ -109,12 +109,12 @@ The BD Rhapsody pipeline, if enabled, receives the untrimmed reads, as it handle
 
 **Samplesheet.** Read 2 in `fastq_cDNA`, read 1 in `fastq_BC_UMI`, and the barcode **names** (not sequences) in `p5`, `p7` and `rt`, see [sci-RNA-seq3 samplesheet](SAMPLESHEET.md#sci-rna-seq3).
 
-**Whitelist.** `bc_whitelist` points to the sci-rocket barcode definition file, not to a list of sequences. The per-segment whitelists used for mapping are generated during demultiplexing.
+**Whitelist.** `bc_whitelist` points to the sci-rocket barcode definition file, not to a list of sequences. The per-segment whitelists used for mapping are generated during demultiplexing, one set per sample: the sample's own p5, p7 and RT barcodes and every ligation barcode. Each sample is mapped and checked against its own set.
 
 **Pre-processing.** `SCIROCKET_DEMUX` keeps only reads whose p5, p7 and RT barcodes match a sample in the samplesheet, and writes a new 48 nt barcode read: p7, p5, ligation and RT barcode (10 nt each, 9 nt ligation barcodes are padded with a `G`), followed by the 8 nt UMI. The mapping layout in `conf/seqtech_parameters.config` refers to this new read. `FASTP` then trims adapters and low-quality bases.
 
 > [!NOTE]
-> With `perform_demultiplexing = false`, no whitelists are generated for mapping.
+> Demultiplexing cannot be skipped: `perform_demultiplexing = false` stops the run, as without it there is neither the 48 nt barcode read nor a whitelist to map against.
 
 
 ## MARS-seq

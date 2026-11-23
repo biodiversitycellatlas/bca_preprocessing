@@ -51,10 +51,28 @@ def apply_suffix(ch, String suffix) {
     }
 }
 
+// The rows of 'ch' and the whitelist each is mapped against, as two channels in step.
+// Without per-sample whitelists every row shares the run's one whitelist. With them
+// (sciRNAseq3, where sci-rocket writes each sample's barcodes) a row takes its own
+// sample's, found on the sample's id: 'base_id' once apply_suffix has renamed the row.
+def pair_whitelist(ch, whitelist, whitelist_by_sample, boolean per_sample) {
+    if (!per_sample) {
+        return [data: ch, wl: whitelist]
+    }
+    return ch
+        .map { row -> [row[0].base_id ?: row[0].id, row] }
+        .combine(whitelist_by_sample, by: 0)
+        .multiMap { _id, row, wl ->
+            data: row
+            wl:   wl
+        }
+}
+
 workflow QC_mapping_workflow {
     take:
         data_output
         bc_whitelist
+        bc_whitelist_by_sample
         seqspec_layout
 
     main:
@@ -127,8 +145,11 @@ workflow QC_mapping_workflow {
         def ref_fasta_geneext_ch = null
 
         // Both mappers take the whitelist as a list of files, one per barcode segment in segment
-        // order, and stage nothing for protocols running without one (e.g. MARS-seq)
+        // order, and stage nothing for protocols running without one (e.g. MARS-seq). For
+        // sciRNAseq3 it is empty and bc_whitelist_by_sample holds a list per sample.
         def bc_whitelist_safe = bc_whitelist.ifEmpty([])
+        // sciRNAseq3 maps each sample against its own sci-rocket lists (pair_whitelist)
+        def per_sample_wl = params.protocol == 'sciRNAseq3'
 
         // Quality Control, also for a sample the barcode check stops: the report on its
         // barcode read helps to find out why
@@ -146,9 +167,10 @@ workflow QC_mapping_workflow {
                 : (seqtech.star_soloTypestring ?: '')
             def min_match = params.min_barcode_match
 
+            def check_input = pair_whitelist(data_output, bc_whitelist_safe, bc_whitelist_by_sample, per_sample_wl)
             BARCODE_CHECK(
-                data_output.map { row -> [row[0], row[2]] },
-                bc_whitelist_safe,
+                check_input.data.map { row -> [row[0], row[2]] },
+                check_input.wl,
                 solo_type_string,
                 seqspec_layout,
                 min_match,
@@ -210,8 +232,10 @@ workflow QC_mapping_workflow {
         // Only its BAM is used, so geneext_bam_only strips it down to the alignment.
         def star_index_standard = null
         if (runs.geneext_input == 'own_run') {
-            mapping_starsolo_geneext_input_workflow(apply_suffix(ch_samples, AnalyticalRuns.GENEEXT_INPUT_SUFFIX),
-                                                    bc_whitelist_safe, seqspec_layout, ref_gtf_ch, ref_fasta_ch, 'false',
+            def geneext_input = pair_whitelist(apply_suffix(ch_samples, AnalyticalRuns.GENEEXT_INPUT_SUFFIX),
+                                               bc_whitelist_safe, bc_whitelist_by_sample, per_sample_wl)
+            mapping_starsolo_geneext_input_workflow(geneext_input.data,
+                                                    geneext_input.wl, seqspec_layout, ref_gtf_ch, ref_fasta_ch, 'false',
                                                     params.geneext_bam_only as boolean, null)
 
             // Same reference, so a standard subsampled run does not build a second index
@@ -239,7 +263,8 @@ workflow QC_mapping_workflow {
                 : apply_suffix(ch_samples, runs.star_standard)
             ch_mapped_ss = ch_mapped_ss.mix(apply_suffix(ch_samples, runs.star_standard))
 
-            mapping_starsolo_workflow(ch_star_input, bc_whitelist_safe, seqspec_layout, ref_gtf_ch, ref_fasta_ch, 'false', false, star_index_standard)
+            def star_input = pair_whitelist(ch_star_input, bc_whitelist_safe, bc_whitelist_by_sample, per_sample_wl)
+            mapping_starsolo_workflow(star_input.data, star_input.wl, seqspec_layout, ref_gtf_ch, ref_fasta_ch, 'false', false, star_index_standard)
 
             // Assign starsolo standard mapping outputs
             ch_starsolo_bam                 = ch_starsolo_bam.mix(mapping_starsolo_workflow.out.starsolo_bam)
@@ -320,7 +345,8 @@ workflow QC_mapping_workflow {
                 : apply_suffix(ch_samples, runs.star_geneext)
             ch_mapped_ss = ch_mapped_ss.mix(apply_suffix(ch_samples, runs.star_geneext))
 
-            mapping_starsolo_geneext_workflow(ch_geneext, bc_whitelist_safe, seqspec_layout, ref_gtf_geneext_ch, ref_fasta_geneext_ch, 'true', false, null)
+            def star_geneext_input = pair_whitelist(ch_geneext, bc_whitelist_safe, bc_whitelist_by_sample, per_sample_wl)
+            mapping_starsolo_geneext_workflow(star_geneext_input.data, star_geneext_input.wl, seqspec_layout, ref_gtf_geneext_ch, ref_fasta_geneext_ch, 'true', false, null)
 
             // Mix the geneext starsolo outputs with standard run
             ch_starsolo_bam                 = ch_starsolo_bam.mix(mapping_starsolo_geneext_workflow.out.starsolo_bam)
@@ -368,7 +394,8 @@ workflow QC_mapping_workflow {
             def ch_alevin = apply_suffix(ch_samples, "_alevinfry")
             ch_mapped_ss = ch_mapped_ss.mix(ch_alevin)
             // Same reference as the standard STARsolo run, so the two mappers are compared like for like
-            mapping_alevin_workflow(ch_alevin, bc_whitelist_safe, seqspec_layout, ref_gtf_ch, ref_fasta_ch, 'false')
+            def alevin_input = pair_whitelist(ch_alevin, bc_whitelist_safe, bc_whitelist_by_sample, per_sample_wl)
+            mapping_alevin_workflow(alevin_input.data, alevin_input.wl, seqspec_layout, ref_gtf_ch, ref_fasta_ch, 'false')
 
             ch_alevin_meta_info    = ch_alevin_meta_info.mix(mapping_alevin_workflow.out.af_meta_info)
             ch_alevin_quant_json   = ch_alevin_quant_json.mix(mapping_alevin_workflow.out.af_quant_json)
@@ -389,7 +416,8 @@ workflow QC_mapping_workflow {
         if (runs.alevin_geneext) {
             def ch_alevin_geneext = apply_suffix(ch_samples, "_geneext_alevinfry")
             ch_mapped_ss = ch_mapped_ss.mix(ch_alevin_geneext)
-            mapping_alevin_geneext_workflow(ch_alevin_geneext, bc_whitelist_safe, seqspec_layout, ref_gtf_geneext_ch, ref_fasta_geneext_ch, 'true')
+            def alevin_geneext_input = pair_whitelist(ch_alevin_geneext, bc_whitelist_safe, bc_whitelist_by_sample, per_sample_wl)
+            mapping_alevin_geneext_workflow(alevin_geneext_input.data, alevin_geneext_input.wl, seqspec_layout, ref_gtf_geneext_ch, ref_fasta_geneext_ch, 'true')
 
             ch_alevin_meta_info    = ch_alevin_meta_info.mix(mapping_alevin_geneext_workflow.out.af_meta_info)
             ch_alevin_quant_json   = ch_alevin_quant_json.mix(mapping_alevin_geneext_workflow.out.af_quant_json)
