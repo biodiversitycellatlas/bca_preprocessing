@@ -111,8 +111,11 @@ workflow {
     }
 }
 NF
+    # The module asks for 4 CPUs, which the local executor refuses outright on a smaller
+    # machine (e.g. a 1-CPU interactive session); the toy CRAMs need no more than one.
     cat >"$NF/nextflow.config" <<'CFG'
 process.errorStrategy = 'ignore'
+process.resourceLimits = [cpus: 1, memory: 2.GB, time: 1.h]
 CFG
     RUN_LOG="$BCA_TEST_LOGDIR/cram_input_run.log"
     (cd "$NF" && run_logged "$RUN_LOG" nextflow -q run main.nf) || true
@@ -149,14 +152,17 @@ if run_log and os.path.exists(run_log):
 if not run_log:
     for case in ("illumina_dual", "illumina_single", "unpaired"):
         skip(case, "nextflow is needed")
-elif not outs and not os.path.isdir(os.path.join(work, "nf", "work")):
-    # Nextflow stopped before any task ran (e.g. a Java it cannot use): say why, once per case
+elif not outs:
+    # The run itself failed (a Java it cannot use, a task it refuses to schedule, ...): the
+    # failed tasks are ignored, so this is the run's own error. Say why, once per case.
     import re
     log = open(run_log).read() if os.path.exists(run_log) else ""
     log = re.sub(r"\x1b(\[[0-9;]*[A-Za-z]|\([A-Z])", "", log).splitlines()   # the launcher colours its errors
-    why = next((l.strip() for l in log if "ERROR" in l), next((l.strip() for l in log[1:] if l.strip()), "no log"))
+    at = next((i for i, l in enumerate(log) if l.strip() == "Caused by:"), None)
+    cause = [l.strip() for l in log[at + 1:] if l.strip()][:1] if at is not None else []
+    why = next(iter(cause),next((l.strip() for l in log if "ERROR" in l), next((l.strip() for l in log[1:] if l.strip()), "no log")))
     for case in ("illumina_dual", "illumina_single", "unpaired"):
-        check(case, False, "nextflow did not start: " + why[:200])
+        check(case, False, "nextflow run failed: " + why[:200])
 else:
     q = os.path.join(FIX, "q", "lib_S1_L001")
     v = os.path.join(FIX, "v", "lib_S1_L001")
