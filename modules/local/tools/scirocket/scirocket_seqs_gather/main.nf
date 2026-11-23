@@ -2,6 +2,10 @@ process SCIROCKET_SEQS_GATHER {
     publishDir path: { "${params.outdir}" }, mode: 'copy', saveAs: { filename -> filename == 'versions.yml' ? null : filename }
     label 'process_single'
 
+    conda "${moduleDir}/environment.yml"
+    container "${ workflow.containerEngine in ['singularity', 'apptainer'] && !task.ext.singularity_pull_docker_container ?
+        'oras://community.wave.seqera.io/library/python:3.14.2--0bd36b5fd9edb930' :
+        'community.wave.seqera.io/library/python:3.14.2--0562a0df3245213a' }"
 
     input:
     path samples_discarded_R1

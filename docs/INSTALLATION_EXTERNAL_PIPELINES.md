@@ -11,6 +11,16 @@ This option is limited to the following sequencing technologies:
 | Parse Biosciences | [split-pipe](https://support.parsebiosciences.com/hc/en-us/articles/27066395947412-How-Do-I-Analyze-my-Parse-Biosciences-Data) | :heavy_check_mark: |
 | BD-Rhapsody | [BD Rhapsody™ Sequence Analysis Pipeline](https://www.bdbiosciences.com/en-us/products/software/rhapsody-sequence-analysis-pipeline) | :heavy_check_mark: |
 
+### Profiles
+
+Every other step of the pipeline has both a conda environment and a container, so it runs under any profile. Three vendor pipelines run under one kind of profile only, and the pipeline warns at startup when one of them is enabled under the other kind:
+
+| External pipeline | Runs under | Why |
+|-------------------|------------|-----|
+| Cell Ranger | a container profile (`docker`, `singularity`, `apptainer`, `podman`) | Cell Ranger is not packaged for conda. Under `conda` it runs the `cellranger` on the compute nodes' `PATH`. |
+| split-pipe | `conda` (or `mamba`) | split-pipe is licensed, so there is no public image; it runs from your `splitpipe_conda_env`. Under a container profile it runs the `split-pipe` on the compute nodes' `PATH`. |
+| BD Rhapsody | `conda` (or `mamba`), with `singularity` or `apptainer` on the compute nodes | cwltool starts the BD Rhapsody containers itself (`--singularity`), which it cannot do from inside a container. |
+
 ---
 
 

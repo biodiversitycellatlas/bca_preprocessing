@@ -6,7 +6,7 @@
 # run pre-processed the reads and reported success, a split-pipe path that does not exist
 # skipped split-pipe, and settings for another protocol were ignored. Each case gives
 # VendorPipelines.check a params map and compares its errors and warnings with the
-# expected ones.
+# expected ones, with the container engine of the run where it matters.
 #
 # Needs nextflow, and is skipped without it.
 
@@ -31,6 +31,7 @@ Cases:
   paths           a vendor path that does not exist, or split-pipe without its conda env, stops the run
   mismatch        settings of another protocol's vendor pipeline only warn
   post_mapping    vendor settings only warn, even a path that does not exist
+  engine          a vendor pipeline under a profile it cannot run under warns
   clean           defaults, a complete setup and an unknown protocol give nothing
 EOF
 }
@@ -95,7 +96,7 @@ def cases = [
         ["'rhapsody_installation' = '${missing}' does not exist"], []],
 
     ['mismatch', '10x with splitpipe_kit', [protocol: '10xv3', perform_cellranger: true, splitpipe_kit: 'WT'],
-        [], ["'splitpipe_kit' is ignored: it belongs to split-pipe,\nwhich runs for parse_biosciences_WT_mini, parse_biosciences_WT, not for protocol '10xv3'"]],
+        [], ["'splitpipe_kit' is ignored: it belongs to split-pipe,\nwhich runs for parse_biosciences_WT_mini, parse_biosciences_WT, not for protocol '10xv3'"], 'docker'],
     ['mismatch', 'MARS-seq with perform_cellranger', [protocol: 'marsseq_v2', perform_cellranger: true],
         [], ["'perform_cellranger' is ignored"]],
     // Not this protocol's pipeline, so its path is not checked
@@ -109,8 +110,24 @@ def cases = [
         [], ["'perform_cellranger', 'splitpipe_installation' are ignored with 'run_method' = 'post_mapping'"]],
     ['post_mapping', 'nothing set', [protocol: 'sciRNAseq3', run_method: 'post_mapping'], [], []],
 
+    // Each vendor pipeline under a profile it cannot run under; the sixth element is
+    // workflow.containerEngine (null, the default, when no container engine is enabled)
+    ['engine', 'Cell Ranger, no engine',  [protocol: '10xv3', perform_cellranger: true], [], ["Cell Ranger has no conda environment"]],
+    ['engine', 'Cell Ranger, docker',     [protocol: '10xv3', perform_cellranger: true], [], [], 'docker'],
+    ['engine', 'Cell Ranger off, no engine', [protocol: 'oak_v1'], [], []],
+    ['engine', 'split-pipe, docker',      [protocol: 'parse_biosciences_WT', splitpipe_installation: sp, splitpipe_conda_env: 'env'],
+        [], ["split-pipe has no container: under docker"], 'docker'],
+    ['engine', 'split-pipe, no engine',   [protocol: 'parse_biosciences_WT', splitpipe_installation: sp, splitpipe_conda_env: 'env'], [], []],
+    ['engine', 'BD, apptainer',           [protocol: 'bd_rhapsody_enhancedbeads', rhapsody_installation: bd],
+        [], ["'cwltool --singularity', but under apptainer"], 'apptainer'],
+    ['engine', 'BD, no engine',           [protocol: 'bd_rhapsody_v1', rhapsody_installation: bd], [], []],
+    ['engine', 'BD off, singularity',     [protocol: 'bd_rhapsody_v1'], [], [], 'singularity'],
+    // Vendor pipelines do not run with post_mapping, so only that warning is given
+    ['engine', 'split-pipe post_mapping, docker', [protocol: 'parse_biosciences_WT', run_method: 'post_mapping', splitpipe_installation: sp, splitpipe_conda_env: 'env'],
+        [], ["'splitpipe_installation', 'splitpipe_conda_env' are ignored with 'run_method' = 'post_mapping'"], 'docker'],
+
     ['clean', 'defaults',                 [:], [], []],
-    ['clean', '10x external, Cell Ranger', [protocol: '10xv4', run_method: ext, perform_cellranger: true], [], []],
+    ['clean', '10x external, Cell Ranger', [protocol: '10xv4', run_method: ext, perform_cellranger: true], [], [], 'singularity'],
     ['clean', 'Parse external, complete', [protocol: 'parse_biosciences_WT', run_method: ext, splitpipe_installation: sp, splitpipe_conda_env: 'env', splitpipe_kit: 'WT'], [], []],
     ['clean', 'BD external, complete',    [protocol: 'bd_rhapsody_v1', run_method: ext, rhapsody_installation: bd], [], []],
     ['clean', 'BD standard, nothing set', [protocol: 'bd_rhapsody_v1'], [], []],
@@ -120,8 +137,10 @@ def cases = [
     ['clean', 'unknown protocol',         [protocol: 'dropseq', run_method: ext], [], []],
 ]
 
-cases.each { name, label, overrides, want_errors, want_warnings ->
-    def got = VendorPipelines.check(base + overrides)
+cases.each { c ->
+    def (name, label, overrides, want_errors, want_warnings) = c
+    def engine = c.size() > 5 ? c[5] : null
+    def got = VendorPipelines.check(base + overrides, engine)
     def problems = []
     [['error', got.errors, want_errors], ['warning', got.warnings, want_warnings]].each { kind, messages, wanted ->
         if (messages.size() != wanted.size()) {
@@ -140,7 +159,7 @@ NF
 
 LOG="$BCA_TEST_LOGDIR/vendor_pipelines.log"
 if (cd "$WORKDIR" && run_logged "$LOG" nextflow -q run main.nf); then
-    for case_name in external_only paths mismatch post_mapping clean; do
+    for case_name in external_only paths mismatch post_mapping engine clean; do
         expected=$(grep -c "^\s*\['$case_name'," "$WORKDIR/main.nf" || true)
         ok=$(grep -c -P "^OK\t$case_name\t" "$LOG" || true)
         bad=$(grep -P "^BAD\t$case_name\t" "$LOG" | head -2 | tr '\n' ' ' || true)

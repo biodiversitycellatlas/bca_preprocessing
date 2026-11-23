@@ -281,9 +281,10 @@ workflow PIPELINE_INITIALISATION {
     // An 'external_pipeline_only' run with no vendor pipeline to run would only pre-process
     // and still report success, and a vendor installation that does not exist would be
     // skipped without a word. Settings of another protocol's vendor pipeline, or given
-    // with 'post_mapping', are only warned about.
+    // with 'post_mapping', are only warned about, as is a vendor pipeline enabled under a
+    // profile it cannot run under (it may still be on the compute nodes' PATH).
     //
-    def vendor_check = VendorPipelines.check(params)
+    def vendor_check = VendorPipelines.check(params, workflow.containerEngine)
     vendor_check.warnings.each { message -> log.warn(message) }
     if (vendor_check.errors) {
         error(vendor_check.errors.join("\n"))

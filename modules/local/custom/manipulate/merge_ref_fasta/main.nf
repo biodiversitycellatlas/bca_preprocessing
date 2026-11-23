@@ -2,6 +2,11 @@ process MERGE_REF_FASTA {
     publishDir path: { "${params.outdir}/genome" }, mode: 'copy', saveAs: { filename -> filename == 'versions.yml' ? null : filename }
     label 'process_single2'
 
+    conda "${moduleDir}/environment.yml"
+    container "${ workflow.containerEngine in ['singularity', 'apptainer'] && !task.ext.singularity_pull_docker_container ?
+        'oras://community.wave.seqera.io/library/python:3.14.2--0bd36b5fd9edb930' :
+        'community.wave.seqera.io/library/python:3.14.2--0562a0df3245213a' }"
+
     input:
     path base_fasta
     path add_fasta

@@ -10,8 +10,8 @@ process MARSSEQ_BUILD_READS {
 
     conda "${moduleDir}/environment.yml"
     container "${ workflow.containerEngine in ['singularity', 'apptainer'] && !task.ext.singularity_pull_docker_container ?
-        'oras://community.wave.seqera.io/library/python:3.14.2--0bd36b5fd9edb930' :
-        'community.wave.seqera.io/library/python:3.14.2--0562a0df3245213a' }"
+        'oras://community.wave.seqera.io/library/python_pigz:2680f78dbff53ba8' :
+        'community.wave.seqera.io/library/python_pigz:f3a8af6cfacef622' }"
 
     input:
     tuple val(meta), path(fastq_cDNA), path(fastq_BC_UMI), path(fastq_indices), path(input_file)

@@ -11,6 +11,10 @@ process KRAKEN_CREATE_DB {
     tag "kraken_db"
     label 'process_single2'
 
+    conda "${moduleDir}/environment.yml"
+    container "${ workflow.containerEngine in ['singularity', 'apptainer'] && !task.ext.singularity_pull_docker_container ?
+        'oras://community.wave.seqera.io/library/wget_tar_gzip_coreutils_sed:08ac5dcb4a95baf8' :
+        'community.wave.seqera.io/library/wget_tar_gzip_coreutils_sed:259defdf3738918f' }"
 
     output:
     path 'k2_pluspf_16gb', emit: db

@@ -10,7 +10,10 @@
       none, pre-processed the reads, ran nothing else and reported success;
     - a 'splitpipe_installation' that does not exist skipped split-pipe silently;
     - 'splitpipe_installation' without 'splitpipe_conda_env' failed only at the task;
-    - a vendor setting given for another protocol was ignored.
+    - a vendor setting given for another protocol was ignored;
+    - a vendor pipeline run under a profile it cannot run under (Cell Ranger without a
+      container engine, split-pipe or BD Rhapsody with one) failed only at the task,
+      or ran whatever was on the host PATH.
 
     check() returns the errors and warnings; PIPELINE_INITIALISATION reports them.
     Vendor pipelines are not rerun with 'post_mapping', so there their settings only
@@ -62,7 +65,8 @@ class VendorPipelines {
         return path instanceof Path && Files.exists(path)
     }
 
-    static Map check(Map params) {
+    // containerEngine is workflow.containerEngine: null when no container engine is enabled
+    static Map check(Map params, String containerEngine = null) {
         def errors   = []
         def warnings = []
         def protocol = params.protocol?.toString()
@@ -122,6 +126,28 @@ class VendorPipelines {
             if (!pathExists(params.rhapsody_installation)) {
                 errors << "'rhapsody_installation' = '${params.rhapsody_installation}' does not exist. Correct the path, or unset it to skip the BD Rhapsody pipeline.".toString()
             }
+        }
+
+        // Each vendor pipeline runs under one kind of profile only: Cell Ranger has a container
+        // but no conda environment, split-pipe a conda environment but no container, and the BD
+        // Rhapsody pipeline starts its own Singularity containers, which it cannot do from inside one
+        if (enabled && own == 'cellranger' && !containerEngine) {
+            warnings << (
+                "Cell Ranger has no conda environment: with no container engine (e.g. -profile conda) it runs\n" +
+                "the 'cellranger' on the PATH of the compute nodes. Use a container profile (docker, singularity, apptainer, podman) to run it from its image."
+            ).toString()
+        }
+        if (enabled && own == 'splitpipe' && containerEngine) {
+            warnings << (
+                "split-pipe has no container: under ${containerEngine}, 'splitpipe_conda_env' is not activated and split-pipe\n" +
+                "runs from the PATH of the compute nodes. Use -profile conda (or mamba) to run it from that environment."
+            ).toString()
+        }
+        if (enabled && own == 'rhapsody' && containerEngine) {
+            warnings << (
+                "The BD Rhapsody pipeline starts its own containers with 'cwltool --singularity', but under ${containerEngine}\n" +
+                "cwltool runs inside a container that has no singularity. Use -profile conda, with singularity or apptainer on the PATH of the compute nodes."
+            ).toString()
         }
 
         if (method == 'external_pipeline_only' && !enabled) {

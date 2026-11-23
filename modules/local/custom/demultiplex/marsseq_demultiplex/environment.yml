@@ -3,5 +3,5 @@ channels:
   - bioconda
 
 dependencies:
-  - python=3.10
-  - pigz
+  - conda-forge::python=3.14
+  - conda-forge::pigz=2.8

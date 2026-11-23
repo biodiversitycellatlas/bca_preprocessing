@@ -4,8 +4,8 @@
 # Extracts the container references declared by the modules and checks that each
 # one can actually be resolved by the engines behind the container profiles in
 # nextflow.config. This catches images that were deleted, retagged, or that a
-# given engine simply cannot consume. It also checks that every module with a
-# conda environment declares a container, and that each image provides what the
+# given engine simply cannot consume. It also checks that every module declares
+# both a conda environment and a container, and that each image provides what the
 # module's environment.yml lists, so the container profiles run what conda runs.
 
 set -euo pipefail
@@ -44,9 +44,11 @@ Options:
   -h, --help        Show this help.
 
 Notes:
-  * The 'coverage' case needs no engine: it fails for every module that has an
-    environment.yml but no container, since such a module cannot run under the
-    container profiles.
+  * The 'coverage' case needs no engine: it fails for every module that lacks
+    a conda or a container directive (such a module runs on the host's tools
+    under that kind of profile), and for a \${moduleDir} conda file that does
+    not exist. Cell Ranger (no conda) and split-pipe (no container) are the
+    known exceptions.
   * Most modules pick their image by engine: an oras:// image for singularity
     and apptainer, and a registry image of the same environment for the
     others. Each engine checks only the image it would run; the other is
@@ -81,25 +83,61 @@ case "$DEPTH" in
 esac
 
 # --------------------------------------------------------------------------
-# Coverage: a module with a conda environment needs a container as well
+# Coverage: every module declares a conda environment and a container
 # --------------------------------------------------------------------------
 
-# Without one, the task runs on the host under the container profiles and finds
-# none of its tools. Needs no engine, so it runs on every machine.
+# A module without a conda environment runs on the host's tools under the conda
+# profiles, and one without a container does so under the container profiles.
+# Needs no engine, so it runs on every machine.
+
+# allowed_gap MODULE -- the directive a vendor module may lack, because its
+# licence or packaging rules the other one out; empty for every other module.
+# VendorPipelines.check() warns at startup when such a module runs under the
+# other kind of profile.
+allowed_gap() {
+    case "$1" in
+        # Cell Ranger is not packaged for conda; its image is nf-core's
+        local/pipelines/cellranger/cellranger_count|local/pipelines/cellranger/cellranger_mkref) printf 'conda' ;;
+        # split-pipe is licensed, so there is no public image; it runs from the
+        # user's own 'splitpipe_conda_env'
+        local/pipelines/split-pipe/split-pipe_all|local/pipelines/split-pipe/split-pipe_mkref) printf 'container' ;;
+    esac
+}
+
 log_header "coverage"
-missing=""
-while IFS= read -r yml; do
-    nf="$(dirname "$yml")/main.nf"
-    [[ -f "$nf" ]] || continue
-    if ! grep -qE '^[[:space:]]*container[[:space:]]*["'"'"'{]' "$nf"; then
-        module="${nf#"$PROJECT_ROOT"/modules/}"
-        missing="$missing ${module%/main.nf}"
-    fi
-done < <(find "$PROJECT_ROOT/modules" -name environment.yml | sort)
-if [[ -z "$missing" ]]; then
-    record PASS "coverage" "every module with an environment.yml declares a container"
+gaps=""
+stale=""
+bad_paths=""
+n_modules=0
+while IFS= read -r nf; do
+    module="${nf#"$PROJECT_ROOT"/modules/}"; module="${module%/main.nf}"
+    n_modules=$((n_modules + 1))
+    allowed="$(allowed_gap "$module")"
+    for directive in conda container; do
+        if grep -qE '^[[:space:]]*'"$directive"'[[:space:]]*["'"'"'{]' "$nf"; then
+            [[ "$allowed" == "$directive" ]] && stale="$stale $module($directive)"
+        elif [[ "$allowed" != "$directive" ]]; then
+            gaps="$gaps $module(no $directive)"
+        fi
+    done
+    # A conda file given relative to the module, often another module's, must exist
+    while IFS= read -r rel; do
+        [[ -n "$rel" && -f "$(dirname "$nf")/$rel" ]] || bad_paths="$bad_paths $module($rel)"
+    done < <(sed -nE 's|^[[:space:]]*conda[[:space:]]*"\$\{moduleDir\}/([^"]*)".*|\1|p' "$nf")
+done < <(find "$PROJECT_ROOT/modules" -name main.nf | sort)
+
+if [[ -z "$gaps" ]]; then
+    record PASS "coverage" "$n_modules modules declare a conda environment and a container (Cell Ranger and split-pipe excepted)"
 else
-    record FAIL "coverage" "environment.yml without a container:$missing"
+    record FAIL "coverage" "missing directive:$gaps"
+fi
+if [[ -n "$stale" ]]; then
+    record FAIL "coverage: exceptions" "now declared, so drop from allowed_gap:$stale"
+fi
+if [[ -z "$bad_paths" ]]; then
+    record PASS "coverage: conda files" "every \${moduleDir} conda file exists"
+else
+    record FAIL "coverage: conda files" "not found:$bad_paths"
 fi
 
 # --------------------------------------------------------------------------
