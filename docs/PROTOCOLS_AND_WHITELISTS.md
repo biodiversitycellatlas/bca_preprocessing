@@ -190,7 +190,7 @@ Each sample's reads are written with a new barcode read, which the mapping layou
 `SCALEBIO_GATHER` joins a sample's lanes. Demultiplexing cannot be skipped: `perform_demultiplexing` has no effect for ScaleBio.
 
 > [!NOTE]
-> The mappers get no whitelist for QuantumScale. The barcodes are already corrected, so STARsolo takes the 16 nt cell barcode as it is (`--soloCBwhitelist None`), and alevin-fry uses its knee permit list. v1.1 passes the per-segment lists to both mappers.
+> The mappers get no whitelist for QuantumScale. The barcodes are already corrected, so STARsolo takes the 16 nt cell barcode as it is (`--soloCBwhitelist None`), and alevin-fry's permit list is the barcodes that occur in the reads, so its full matrix holds every barcode with a read, as STARsolo's raw matrix and ScaleRna's do. With `cellfilter_method = "star_solocellfilter"` alevin-fry uses its knee, as for every protocol. v1.1 passes the per-segment lists to both mappers.
 
 #### Metrics
 

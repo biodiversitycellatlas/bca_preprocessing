@@ -77,32 +77,51 @@ process ALEVIN_FRY {
     // the whitelist (--unfiltered-pl), so its 'full' matrix is a raw matrix like STARsolo's and
     // the cell call is made on the whole curve. With star_solocellfilter, alevin-fry's own knee
     // is the cell call, since the pipeline uses its 'full' matrix as called cells.
+    //
+    // Protocols whose barcodes are corrected before mapping take the barcodes that occur in the
+    // reads as the permit list: nothing is left to correct, and the knee would fold every
+    // barcode one base from a cell, another real barcode, into that cell. Not with geometries
+    // set in the run, which describe the reads as they are.
+    //   - sciRNAseq3 (alevin_cb_segments in conf/seqtech_parameters.config): its 40 nt cell
+    //     barcode is longer than salmon alevin takes, so salmon reads read 1 rewritten as a code
+    //     of the cell's place in the sample's barcode lists, then the UMI (bin/sci_cb_code.sh,
+    //     through a process substitution), which also lists the codes that occur. The matrix's
+    //     barcodes are decoded to STARsolo's form at the end.
+    //   - QuantumScale (alevin_permit_from_reads): SCALEBIO_DEMUX wrote the corrected barcode
+    //     as a code already, at these positions of read 1, where the list is read from.
+    def own_geometry = params.alevin_bc_geometry || params.alevin_umi_geometry
+    def cb_code = !own_geometry && seqtech.alevin_cb_segments
+    def permit_from_reads = own_geometry ? null : seqtech.alevin_permit_from_reads
+    def observed_permit = cb_code || permit_from_reads
+
     def whitelists = (bc_whitelist instanceof List ? bc_whitelist : [bc_whitelist]).findAll { it }
     def recalls_cells = params.cellfilter_method in ['second_derivative', 'manual_cutoff']
     def knee_reason = !recalls_cells ? "cellfilter_method '${params.cellfilter_method}' uses alevin-fry's own knee as the cell call"
-        : !whitelists ? "no barcode whitelist for protocol '${params.protocol}'"
+        : !whitelists && !observed_permit ? "no barcode whitelist for protocol '${params.protocol}'"
         : ''
 
     // A whitelist given in parts (one per barcode segment) is expanded into every combination
-    // of the parts, in segment order, up to this many barcodes; beyond it the knee is used
-    def max_permit_barcodes = 10000000
+    // of the parts, in segment order, up to this many barcodes; beyond it the knee is used.
+    // A list of the barcodes that occur is used as it is, so it has no cap.
+    def max_permit_barcodes = observed_permit ? Long.MAX_VALUE : 10000000
+    def permit_lists = observed_permit ? ['observed_cb.txt'] : whitelists
+    def permit_source = observed_permit ? 'the reads (barcodes corrected already)' : '${#whitelists[@]} whitelist file(s)'
 
-    // sciRNAseq3 (alevin_cb_segments in conf/seqtech_parameters.config): its 40 nt cell barcode
-    // is longer than salmon alevin takes, so salmon reads read 1 rewritten as a code of the
-    // cell's place in the sample's barcode lists, then the UMI (bin/sci_cb_code.sh, through a
-    // process substitution). The barcodes are corrected already, so the permit list is the
-    // codes that occur, and the matrix's barcodes are decoded to STARsolo's form at the end.
-    // Not with geometries set in the run, which describe the reads as they are.
-    def cb_code = seqtech.alevin_cb_segments && !params.alevin_bc_geometry && !params.alevin_umi_geometry
     def cb_args = "--lists ${whitelists.join(' ')} --digits ${seqtech.alevin_cb_digits}"
     def read1 = !cb_code ? fastq_BC_UMI
-        : "<(sci_cb_code.sh encode ${cb_args} --segments ${seqtech.alevin_cb_segments} --umi ${seqtech.alevin_cb_umi} --r1 ${fastq_BC_UMI} --out - --permit sci_cb_permit.txt)"
+        : "<(sci_cb_code.sh encode ${cb_args} --segments ${seqtech.alevin_cb_segments} --umi ${seqtech.alevin_cb_umi} --r1 ${fastq_BC_UMI} --out - --permit observed_cb.txt)"
 
-    // The encoder has finished, so the permit list is complete; a failed encoder stops the task
-    def cb_wait = cb_code ? 'wait $!' : ''
-    def permit_lists = cb_code ? ['sci_cb_permit.txt'] : whitelists
+    // After salmon, the barcodes that occur: complete once the sciRNAseq3 encoder has finished
+    // (a failed encoder stops the task), or read from QuantumScale's read 1
+    def bc_range = permit_from_reads ? permit_from_reads.tokenize('-').collect { v -> v.toInteger() } : []
+    def observed_list = cb_code ? 'wait $!'
+        : permit_from_reads && recalls_cells ? """
+    zcat -f ${fastq_BC_UMI} | awk -v s=${bc_range[0]} -v l=${bc_range[1] - bc_range[0] + 1} \\
+        'NR % 4 == 2 { b = substr(\$0, s, l); if (b ~ /^[ACGT]+\$/ && !(b in seen)) { seen[b] = 1; print b } }' > observed_cb.txt
+    """
+        : ''
+
     def rows = "./${meta.id}_counts/alevin/quants_mat_rows.txt"
-
     def cb_decode = !cb_code ? '' : """
     echo -e "\\n\\n-------------  Decode cell barcodes -------------------"
     # The matrix's barcodes back to the cell barcode, its segments joined with '_' as STARsolo
@@ -110,7 +129,6 @@ process ALEVIN_FRY {
     # them with each other; cell_barcode_codes.tsv pairs each code with its barcode.
     sci_cb_code.sh decode ${cb_args} --with-code < ${rows} > ./${meta.id}_counts/cell_barcode_codes.tsv
     cut -f2 ./${meta.id}_counts/cell_barcode_codes.tsv > ${rows}
-    rm -f sci_cb_permit.txt
     """
     """
     echo -e "\\n\\n==================  ALEVIN-FRY =================="
@@ -150,7 +168,7 @@ process ALEVIN_FRY {
         --read-geo "\${READ_GEOM}" \\
         -o ./${meta.id}_run \\
         --justAlign
-${cb_wait}
+${observed_list}
     echo -e "\\n\\n-------------  generate permit -------------------"
     permit_args="-k"
     knee_reason="${knee_reason}"
@@ -169,7 +187,7 @@ ${cb_wait}
                      { for (i = 1; i <= n; i++) print \$0 seg[i] }' <(zcat -f "\$wl" | tr -d '\\r') permit_whitelist.txt > permit_whitelist.tmp
                 mv permit_whitelist.tmp permit_whitelist.txt
             done
-            echo "Unfiltered permit list: \$(wc -l < permit_whitelist.txt) barcodes from \${#whitelists[@]} whitelist file(s)"
+            echo "Unfiltered permit list: \$(wc -l < permit_whitelist.txt) barcodes from ${permit_source}"
             # Every barcode with a read, as in STARsolo's raw matrix: the low end is where the
             # ambient-RNA step finds its empty droplets (alevin-fry's own default is 10 reads)
             permit_args="--unfiltered-pl permit_whitelist.txt --min-reads 1"
@@ -201,7 +219,7 @@ ${cb_wait}
         -t ${task.cpus} \\
         -r ${params.alevin_resolution}
 ${cb_decode}
-    rm -f permit_whitelist.txt
+    rm -f permit_whitelist.txt observed_cb.txt
 
     cat <<-END_VERSIONS > versions.yml
     "${task.process}":

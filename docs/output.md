@@ -282,7 +282,7 @@ pipeline calls cells on. See [Cell calling](#cell-calling).
 | ---- | ----------- |
 | `<id>_run/` | `salmon alevin` mapping output. |
 | `<id>_run/aux_info/meta_info.json` | Mapping-rate statistics. |
-| `<id>_out_permit/` | alevin-fry permit list: every whitelisted barcode with a read (`--unfiltered-pl`), or alevin-fry's knee where that does not apply. See [alevin-fry settings](CONFIGURATION_PARAMETERS.md#alevin-fry-variables). |
+| `<id>_out_permit/` | alevin-fry permit list: every whitelisted barcode with a read (`--unfiltered-pl`), for sciRNAseq3 and QuantumScale every barcode in the reads, or alevin-fry's knee where that does not apply. See [alevin-fry settings](CONFIGURATION_PARAMETERS.md#alevin-fry-variables). |
 | `<id>_counts/` | alevin-fry quantification output. |
 | `<id>_counts/alevin/` | The count matrix in USA mode: `quants_mat.mtx` (cells × columns), `quants_mat_rows.txt` (barcodes) and `quants_mat_cols.txt` (the gene IDs, then the same IDs with `-U`, then with `-A`). |
 | `<id>_counts/quant.json` | Quantification summary. |
