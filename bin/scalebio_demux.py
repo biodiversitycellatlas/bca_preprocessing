@@ -1,7 +1,7 @@
 #!/usr/bin/env python3
 """
-Barcode demultiplexing for ScaleBio single-cell RNA kits (QuantumScale RNA and
-ScaleRNA v1.1 / Extended Throughput).
+Barcode demultiplexing for ScaleBio single-cell RNA kits (QuantumScale RNA and the
+3-level RNA v1.1 / Extended Throughput kits).
 
 Three subcommands:
 
@@ -12,8 +12,9 @@ Three subcommands:
                the mappers use as the per-segment whitelists of the synthetic barcode read.
   demux    Stream one chunk of a library (one lane: cDNA + barcode read + index reads; or,
            with --cram, an Ultima CRAM whose barcodes the Ultima trimmer moved into SAM
-           tags), correct every barcode against its list (Hamming distance), trim the cDNA,
-           assign the read to a sample by its RT well (and PCR well) and write per sample
+           tags), correct every barcode against its list (Hamming distance), trim the cDNA
+           with cutadapt (FASTQs only: Ultima reads arrive trimmed), assign
+           the read to a sample by its RT well (and PCR well) and write per sample
              <sample>.<chunk>_cDNA.fastq.gz    the trimmed cDNA read
              <sample>.<chunk>_BC_UMI.fastq.gz  a synthetic read: the cell barcode, then the
                                                UMI. The cell barcode is the corrected
@@ -70,23 +71,37 @@ LAYOUTS = {
         "umi": ("bc", 0, 8),
         "linker": None,
         "index_reads": ["i1", "i2"],
-        "trim": {"A": 8, "G": 12},
+        # cutadapt adapters for the cDNA read (see CUTADAPT_ARGS): poly-A, and poly-G, which
+        # two-colour sequencers read past the insert; up to two removed
+        "trim": ["-n", "2", "-a", "A{8}N{100}", "-a", "G{12}N{100}"],
     },
     "v1.1": {
         "segments": ["lig", "rt", "pcr"],
-        # lig is the barcode read up to the splint; umi and rt follow the splint
+        # lig is the first 9 nt of the barcode read, wherever the splint starts: an 8-nt
+        # ligation barcode is listed with the splint's first base (T) as its ninth. The UMI
+        # and RT follow the splint, which starts at 8 or 9.
         "extract": {
-            "lig": ("bc", 0, None),
+            "lig": ("bc", 0, 9),
             "rt":  ("anchor", 15, 10),
             "pcr": ("i2", 0, 10),
         },
         "width": {"lig": 9, "rt": 10, "pcr": 10},
         "umi": ("anchor", 7, 8),
-        "linker": {"sequence": "TCAGAGC", "starts": [8, 9], "max_mismatches": 1},
+        # Up to 2 differences: the splint after an 8-nt ligation barcode reads TC[AT]GAG[AC]
+        # (on ScaleBio's v1.1 test data, 23 % of reads are 2 from TCAGAGC, none further).
+        # One base off, the splint is 4+ differences away.
+        "linker": {"sequence": "TCAGAGC", "starts": [8, 9], "max_mismatches": 2},
         "index_reads": ["i2"],
-        "trim": {"A": 8, "T": 8},
+        "trim": ["-a", "A{8}N{100}", "-a", "T{8}N{100}"],
     },
 }
+
+# The cDNA read of FASTQ input is trimmed by cutadapt with the layout's adapters and these
+# options: an error rate of 0.15 (one error in a run of 8; the N wildcards do not count) and
+# a 2-nt minimum overlap, so that 2 trailing bases of a run are cut too. The --min-cdna-length
+# check then drops reads under 16 nt. Ultima reads arrive trimmed by the Ultima trimmer and
+# are not trimmed again.
+CUTADAPT_ARGS = ["-e", "0.15", "-O", "2"]
 
 PAD_BASES = "ACGT"
 COMPLEMENT = str.maketrans("ACGTN", "TGCAN")
@@ -496,26 +511,38 @@ def chain_records(paths):
 # Trimming
 # ---------------------------------------------------------------------------
 
-def trim_cdna(seq, trim):
+def cutadapt_command(cutadapt, layout, cores):
+    """cutadapt reading a FASTQ (path appended) and writing it trimmed to stdout."""
+    exe = shutil.which(cutadapt) or (cutadapt if os.path.isfile(cutadapt) else None)
+    if not exe:
+        sys.exit(f"cutadapt ('{cutadapt}') was not found: it trims the cDNA read of FASTQ input. "
+                 "Put it on the PATH or give its path with --cutadapt.")
+    return [exe, "-j", str(cores), *CUTADAPT_ARGS, *LAYOUTS[layout]["trim"], "-o", "-"]
+
+
+def trimmed_records(paths, command):
     """
-    Cut the cDNA read at the first homopolymer run of a trimmed base at least as long as
-    its threshold (e.g. a poly-A tail of 8 or more), then drop a run of 3 or more of a
-    trimmed base left at the end of the read. Returns the kept length.
+    The cDNA records of 'paths' after cutadapt, in input order. No length filter is given to
+    cutadapt, so every read comes back (possibly empty) and the other reads stay in step;
+    the caller applies the minimum length. cutadapt's report goes to stderr.
     """
-    cut = len(seq)
-    for base, n in trim.items():
-        pos = seq.find(base * n)
-        if pos != -1 and pos < cut:
-            cut = pos
-    changed = True
-    while changed and cut:
-        changed = False
-        for base in trim:
-            run = len(seq[:cut]) - len(seq[:cut].rstrip(base))
-            if run >= 3:
-                cut -= run
-                changed = True
-    return cut
+    for path in paths:
+        proc = subprocess.Popen(command + [path], stdout=subprocess.PIPE, text=True)
+        finished = False
+        try:
+            it = iter(proc.stdout)
+            for header in it:
+                seq = next(it).rstrip("\n")
+                next(it)
+                qual = next(it).rstrip("\n")
+                yield header.rstrip("\n"), seq, qual
+            finished = True
+        finally:
+            if not finished:
+                proc.kill()
+            proc.stdout.close()
+            if proc.wait() != 0 and finished:
+                sys.exit(f"cutadapt failed on {path} (exit {proc.returncode})")
 
 
 # ---------------------------------------------------------------------------
@@ -540,15 +567,15 @@ def umi_ok(umi):
     return "N" not in umi and len(set(umi)) > 1
 
 
-def fastq_units(reads, lay):
+def fastq_units(reads, lay, trim_command):
     """
-    Per read of a FASTQ chunk: (name, cDNA seq, cDNA qual, error category or None,
+    Per read of a FASTQ chunk: (name, trimmed cDNA seq and qual, error category or None,
     {segment: observed barcode or None}, UMI).
     """
     linker = lay["linker"]
     umi_src, umi_off, umi_len = lay["umi"]
     extract = lay["extract"]
-    iters = [chain_records(reads["cdna"]), chain_records(reads["bc"])]
+    iters = [trimmed_records(reads["cdna"], trim_command), chain_records(reads["bc"])]
     iters += [chain_records(reads[r]) for r in ("i1", "i2") if reads[r]]
     has_i1, has_i2 = bool(reads["i1"]), bool(reads["i2"])
     for recs in zip(*iters):
@@ -572,11 +599,9 @@ def fastq_units(reads, lay):
         for seg, (src, off, length) in extract.items():
             if src == "anchor":
                 o = bseq[anchor + off:anchor + off + length]
-            elif length is None:      # up to the linker
-                o = seqs[src][off:anchor]
             else:
                 o = seqs[src][off:off + length]
-            obs[seg] = o if length is None or len(o) == length else None
+            obs[seg] = o if len(o) == length else None
 
         if umi_src == "anchor":
             umi = bseq[anchor + umi_off:anchor + umi_off + umi_len]
@@ -719,14 +744,17 @@ def cmd_demux(args):
 
     segments = {name: Segment(segs_json[name], args.max_mismatches, revcomp_seqs=(name == "pcr" and rc))
                 for name in seg_order}
-    # From FASTQs a barcode is cut at a fixed length, so a list of other lengths never matches
-    # (e.g. the 9-nt Ultima PCR list with Illumina reads, whose I2 holds 8 nt)
+    # From FASTQs a barcode is cut at a fixed length, so a barcode of another length never
+    # matches (e.g. the 9-nt Ultima PCR list with Illumina reads, whose I2 holds 8 nt)
     if not ultima:
+        hints = {
+            "lig": "Ligation barcodes are read as 9 nt: list an 8-nt one with the splint's first base, T, added.",
+        }
         for name, (_src, _off, length) in lay["extract"].items():
-            if length is not None and length not in segments[name].lengths:
+            if segments[name].lengths != [length]:
                 sys.exit(f"The '{name}' list ({segs_json[name]['source']}) holds {'/'.join(map(str, segments[name].lengths))}-nt "
-                         f"barcodes, but the reads hold {length} nt there. Is it the list for this sequencer "
-                         f"(e.g. the Illumina PCR pool list rather than the Ultima one)?")
+                         f"barcodes, but the reads hold {length} nt there. " +
+                         hints.get(name, "Is it the list for this sequencer (e.g. the Illumina PCR pool list rather than the Ultima one)?"))
     names, assign = read_samples(args.samples, segments["rt"].ids, segments["pcr"].ids)
     rt_idx_of = seg_order.index("rt")
     pcr_idx_of = seg_order.index("pcr")
@@ -741,8 +769,11 @@ def cmd_demux(args):
     per_sample = Counter()
     per_rt = Counter()
     umi_len = lay["umi"][2]
-    trim = lay["trim"]
-    min_len = args.min_cdna_length
+    # Ultima reads come from the Ultima trimmer, which has already cut the poly-A tail and
+    # adapters; they go to mapping as they are, as in ScaleBio's own Ultima analysis. Only
+    # empty reads are dropped, which STAR cannot read. FASTQ cDNA reads arrive trimmed by
+    # cutadapt (CUTADAPT_ARGS).
+    min_len = args.min_cdna_length if args.min_cdna_length is not None else (1 if ultima else 16)
     syn_qual = "F" * synthetic_length(layout)
     cb_code = lay.get("cb_code")
     sizes = [len(segments[n].ids) for n in seg_order]
@@ -750,7 +781,7 @@ def cmd_demux(args):
     if ultima:
         units = ultima_units(args.cram, seg_tags, umi_spec, args.reference, args.threads)
     else:
-        units = fastq_units(reads, lay)
+        units = fastq_units(reads, lay, cutadapt_command(args.cutadapt, layout, args.threads))
     total = 0
     for name, cseq, cqual, error, obs, umi in units:
         total += 1
@@ -774,8 +805,7 @@ def cmd_demux(args):
             categories["UmiFiltered"] += 1
             continue
 
-        keep = trim_cdna(cseq, trim)
-        if keep < min_len:
+        if len(cseq) < min_len:
             categories["TooShort"] += 1
             continue
 
@@ -796,7 +826,7 @@ def cmd_demux(args):
         else:
             cb = "".join(segments[n].canonical[h] for n, h in zip(seg_order, hits))
         w_cdna, w_bc = writers[sample]
-        w_cdna.write(f"{name}\n{cseq[:keep]}\n+\n{cqual[:keep]}\n")
+        w_cdna.write(f"{name}\n{cseq}\n+\n{cqual}\n")
         w_bc.write(f"{name}\n{cb}{umi}\n+\n{syn_qual}\n")
 
     for w_cdna, w_bc in writers.values():
@@ -878,6 +908,10 @@ def cmd_decode(args):
                     ids = [s["entries"][i]["id"] for s, i in zip(segs, decode_cell(cb, sizes))]
                 except ValueError:
                     ids = []
+            elif "_" in cb:
+                # STARsolo's CB_UMI_Complex form, and alevin-fry's once decoded: lig_rt_pcr
+                parts = cb.split("_")
+                ids = [lookup.get(p, "?") for p, lookup in zip(parts, by_canon)] if len(parts) == len(segs) else []
             else:
                 pos = 0
                 for name, lookup in zip(lay["segments"], by_canon):
@@ -913,10 +947,13 @@ def main(argv=None):
     p.add_argument("--ultima-umi", default="tag:UM",
                    help="with --cram: where the UMI is, 'tag:XX' or 'seq:START:LENGTH' (0-based, cut from the read)")
     p.add_argument("--reference", help="with --cram: FASTA for reference-compressed CRAMs")
-    p.add_argument("--threads", type=int, default=1, help="with --cram: samtools decompression threads")
+    p.add_argument("--threads", type=int, default=1,
+                   help="with --cram: samtools decompression threads; with FASTQs: cutadapt cores")
+    p.add_argument("--cutadapt", default="cutadapt", help="the cutadapt that trims the cDNA of FASTQ input (default: on the PATH)")
     p.add_argument("--max-mismatches", type=int, default=1, choices=[0, 1, 2])
     p.add_argument("--i5-revcomp", default="auto", choices=["auto", "true", "false"])
-    p.add_argument("--min-cdna-length", type=int, default=16)
+    p.add_argument("--min-cdna-length", type=int, default=None,
+                   help="shortest cDNA kept after trimming (default: 16 for FASTQs; 1 for Ultima CRAMs, which are not trimmed)")
     p.add_argument("--write-unassigned", action="store_true")
     p.add_argument("--outdir", default=".")
     p.set_defaults(func=cmd_demux)

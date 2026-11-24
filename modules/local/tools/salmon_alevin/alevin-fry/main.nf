@@ -82,11 +82,12 @@ process ALEVIN_FRY {
     // reads as the permit list: nothing is left to correct, and the knee would fold every
     // barcode one base from a cell, another real barcode, into that cell. Not with geometries
     // set in the run, which describe the reads as they are.
-    //   - sciRNAseq3 (alevin_cb_segments in conf/seqtech_parameters.config): its 40 nt cell
-    //     barcode is longer than salmon alevin takes, so salmon reads read 1 rewritten as a code
-    //     of the cell's place in the sample's barcode lists, then the UMI (bin/sci_cb_code.sh,
-    //     through a process substitution), which also lists the codes that occur. The matrix's
-    //     barcodes are decoded to STARsolo's form at the end.
+    //   - sciRNAseq3 and ScaleBio v1.1 (alevin_cb_segments in conf/seqtech_parameters.config):
+    //     sciRNAseq3's 40 nt cell barcode is longer than salmon alevin takes, and v1.1's 29 nt
+    //     one makes generate-permit-list take ~8 GB. So salmon reads read 1 rewritten as a code
+    //     of the cell's place in the barcode lists, then the UMI (bin/sci_cb_code.sh, through a
+    //     process substitution), which also lists the codes that occur. The matrix's barcodes
+    //     are decoded to STARsolo's form (segments joined with '_') at the end.
     //   - QuantumScale (alevin_permit_from_reads): SCALEBIO_DEMUX wrote the corrected barcode
     //     as a code already, at these positions of read 1, where the list is read from.
     def own_geometry = params.alevin_bc_geometry || params.alevin_umi_geometry

@@ -691,8 +691,8 @@ resolves from more than one source. Covered:
 - `star_extraargs`: the custom options are added to the protocol's, and an option given in
   both replaces the protocol's with all its values, since STAR refuses an option given twice;
 - `star_extraargs` that starts with a value is refused;
-- the ScaleBio protocols in `conf/seqtech_parameters.config` carry the settings they share
-  with ScaleRna: `PropUnique`, at most 6 loci, no minimum alignment score.
+- the ScaleBio protocols in `conf/seqtech_parameters.config` carry their mapping settings:
+  `PropUnique`, at most 6 loci, no minimum alignment score, a 23-mer salmon index.
 
 Needs `nextflow`, and is skipped without it.
 

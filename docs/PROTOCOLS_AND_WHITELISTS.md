@@ -142,7 +142,7 @@ After quantification the matrix's barcodes (`quants_mat_rows.txt`) are decoded t
 
 ## ScaleBio
 
-Supports the QuantumScale RNA kit (`scalebio_quantum_rna`) and the 3-level ScaleRNA v1.1 / Extended Throughput kits (`scalebio_rna_v1_1`).
+Supports the QuantumScale RNA kit (`scalebio_quantum_rna`) and the 3-level RNA v1.1 / Extended Throughput kits (`scalebio_rna_v1_1`).
 
 **Samplesheet.** The cDNA read in `fastq_cDNA`, the other read in `fastq_BC_UMI`, the index reads in `fastq_indices`, the RT wells in `rt` and optionally the PCR wells in `p5`. The samples of a library share its FASTQs, see [ScaleBio samplesheet](SAMPLESHEET.md#scalebio).
 
@@ -155,7 +155,7 @@ A cell is identified by barcodes spread over several reads. Each one is correcte
 | cDNA | read 1 | read 2 |
 | UMI | read 2, nt 1-8 | read 1, 8 nt after the splint |
 | RT barcode (sample) | read 2, nt 9-16 | read 1, 10 nt after the UMI |
-| other cell barcodes | index 1: bead barcodes at nt 1-8, 13-20, 25-32 | read 1: ligation barcode (8-9 nt) before the splint `TCAGAGC` |
+| other cell barcodes | index 1: bead barcodes at nt 1-8, 13-20, 25-32 | read 1, nt 1-9: ligation barcode; the splint `TCAGAGC` follows at nt 9 or 10 |
 | PCR barcode | index 2 (i5), 8 nt; a well may hold a pool of sequences | index 2 (i5), 10 nt |
 | cell barcode | bead 1 + bead 2 + bead 3 + RT + PCR | ligation + RT + PCR |
 
@@ -165,32 +165,44 @@ A cell is identified by barcodes spread over several reads. Each one is correcte
 - QuantumScale: bead 1, bead 2, bead 3, RT, PCR.
 - v1.1: ligation, RT, PCR.
 
+ScaleBio's own barcode lists can be given as they are:
+
+| Kit | `bc_whitelist`, in this order |
+| --- | --- |
+| QuantumScale, Illumina | `quantum_bead_barcode1.txt quantum_bead_barcode2.txt quantum_bead_barcode3.txt quantum_rt.txt quantum_pcr_pool.txt` |
+| QuantumScale, Ultima | the same, with `quantum_pcr_ultima.txt` as the PCR list |
+| v1.1 / Extended Throughput | `3lvlRNA_lig.txt 3lvlRNA_rt.txt 3lvlRNA_pcr.txt` |
+
+Give local copies, or the files' raw URLs, which are downloaded automatically.
+
 Each list is a headerless text file with one barcode per line:
 - an id, then its sequence, separated by tabs or spaces, for example `1A  ACGTACGT`;
 - a pooled well lists all its sequences after the id;
 - a list of bare sequences is also read, numbered by line.
 
-Get the sequences from your kit's documentation or from ScaleBio. Check with ScaleBio whether your licence lets you reuse the lists that come with their own software.
+From FASTQs every barcode of a list must have the length the reads hold. v1.1 reads the ligation barcode as the first 9 nt of read 1, so an 8-nt ligation barcode is listed with the splint's first base, `T`, as its ninth, as `3lvlRNA_lig.txt` does.
 
 #### Demultiplexing
 
 First, `SCALEBIO_PREPARE_BARCODES` checks the lists: no sequence may appear twice, and every barcode must fit its segment. Then `SCALEBIO_DEMUX` processes each lane (or Ultima CRAM) of each library. For every read it:
-1. finds the splint (v1.1 only; at most 1 mismatch);
+1. finds the splint (v1.1 only), which places the UMI and RT barcode. Up to 2 mismatches are accepted: after an 8-nt ligation barcode the splint often reads `TCTGAGA` or `TCAGAGA` rather than `TCAGAGC`;
 2. corrects every barcode to its list. At most `scalebio_max_mismatches` substitutions are corrected (default 1). An `N` counts as a substitution, and a barcode equally close to two entries is dropped;
 3. drops reads whose UMI contains an `N` or is a single repeated base;
-4. trims the cDNA at a poly-A run (8 nt) and a poly-G run (12 nt, QuantumScale) or poly-T run (8 nt, v1.1), plus 3 or more of these bases left at its end, and drops reads shorter than 16 nt;
+4. trims the cDNA with [cutadapt](https://cutadapt.readthedocs.io). It cuts a poly-A run (`A{8}N{100}`) and a poly-G run (`G{12}N{100}`, QuantumScale, up to both removed) or poly-T run (`T{8}N{100}`, v1.1), with an error rate of 0.15 (one error in a run of 8) and a minimum overlap of 2, so that 2 such bases at the end of the read are cut too. Reads shorter than 16 nt are then dropped. Ultima reads are not trimmed again, see [Ultima CRAMs](#ultima-crams);
 5. assigns the read to a sample by its RT and PCR wells.
 
 The PCR index orientation on I2 is detected per lane from its first 200,000 reads (`scalebio_i5_revcomp = "auto"`), or set it with `"true"` or `"false"`.
 
 Each sample's reads are written with a new barcode read, which the mapping layout in `conf/seqtech_parameters.config` refers to. It holds the cell barcode, then the UMI:
-- **v1.1** (37 nt): the corrected barcodes in list order, with pooled PCR wells as their first sequence and ligation barcodes padded to 9 nt.
+- **v1.1** (37 nt): the corrected barcodes in list order (ligation 9 nt, RT and PCR 10 nt each), with pooled PCR wells as their first sequence.
 - **QuantumScale** (24 nt): its five barcodes together are 40 nt, longer than STARsolo's 31 nt maximum. They also make about 10<sup>9</sup> combinations, too many for its whitelists. So the cell barcode is the cell's combination of list entries, written as one number in 16 bases. It is lossless: `scalebio_demux.py decode --barcodes demultiplex/scalebio/barcodes/barcodes.json --cells barcodes.tsv` gives the bead, RT and PCR ids of each cell barcode.
 
 `SCALEBIO_GATHER` joins a sample's lanes. Demultiplexing cannot be skipped: `perform_demultiplexing` has no effect for ScaleBio.
 
 > [!NOTE]
-> The mappers get no whitelist for QuantumScale. The barcodes are already corrected, so STARsolo takes the 16 nt cell barcode as it is (`--soloCBwhitelist None`), and alevin-fry's permit list is the barcodes that occur in the reads, so its full matrix holds every barcode with a read, as STARsolo's raw matrix and ScaleRna's do. With `cellfilter_method = "star_solocellfilter"` alevin-fry uses its knee, as for every protocol. v1.1 passes the per-segment lists to both mappers.
+> The mappers get no whitelist for QuantumScale. The barcodes are already corrected, so STARsolo takes the 16 nt cell barcode as it is (`--soloCBwhitelist None`), and alevin-fry's permit list is the barcodes that occur in the reads, so its full matrix holds every barcode with a read, as STARsolo's raw matrix does. With `cellfilter_method = "star_solocellfilter"` alevin-fry uses its knee, as for every protocol.
+>
+> For v1.1, STARsolo reads the three barcodes against the per-segment lists and writes a cell as `lig_rt_pcr`. alevin-fry gets a 16 nt code of the cell's list entries instead of the 29 nt barcode, as for [sci-RNA-seq3](#sci-rna-seq3), because its permit-list step needs about 8 GB per sample for a 29 nt barcode. Its permit list is the codes that occur, and its matrix's barcodes are decoded to `lig_rt_pcr` at the end, so both mappers name a cell the same way; `<id>_counts/cell_barcode_codes.tsv` pairs each code with its barcode.
 
 #### Metrics
 
@@ -203,14 +215,14 @@ Per lane, `demultiplex/scalebio/<library>/<chunk>.metrics.json` gives:
 
 #### Ultima CRAMs
 
-Illumina-style CRAMs are converted to FASTQ first, like for any protocol, see [CRAM input](SAMPLESHEET.md#cram-input). Ultima CRAMs (`cram_type = "ultima"`) are read as they are. Each file is one task, and a library's samples again share its files. The read is the cDNA, and the barcodes come from SAM tags:
-- `scalebio_ultima_tags` names the tag of each barcode, as `segment=TAG[:START],...`. START is where the barcode begins in the tag's value, for tags that hold a constant linker first. QuantumScale defaults to the Ultima trimmer's "Scale RNA" format, `pcr=RG,bead1=b1,bead2=b2:4,bead3=b3:4,rt=b4`: `b2` and `b3` hold a constant 4 nt before the 8-nt bead barcode. There is no default for v1.1.
+Illumina-style CRAMs are converted to FASTQ first, like for any protocol, see [CRAM input](SAMPLESHEET.md#cram-input). Ultima CRAMs (`cram_type = "ultima"`) are read as they are. Each file is one task, and a library's samples again share its files. The read is the cDNA. The Ultima trimmer has already trimmed it, so it is mapped as it is: no poly-A or poly-G trimming, and only empty reads are dropped. The barcodes come from SAM tags:
+- `scalebio_ultima_tags` names the tag of each barcode, as `segment=TAG[:START],...`. START is where the barcode begins in the tag's value, for tags that hold a constant linker first. QuantumScale defaults to the tags the Ultima trimmer writes for it, `pcr=RG,bead1=b1,bead2=b2:4,bead3=b3:4,rt=b4`: `b2` and `b3` hold a constant 4 nt before the 8-nt bead barcode. There is no default for v1.1.
 - A tag may hold:
   - a barcode sequence, corrected like any other;
   - a sequence longer than the barcode with no START given: the barcode is looked for at its end, then at its start;
   - a barcode id of the list, for example `QSR-1`, which is what `RG` holds;
   - an id or sequence within a longer value, for example a read group `run7-QSR-1`.
-- `scalebio_ultima_umi` says where the UMI is. QuantumScale defaults to `tag:UM`, as in the "Scale RNA" format. It takes either:
+- `scalebio_ultima_umi` says where the UMI is. QuantumScale defaults to `tag:UM`, where the Ultima trimmer writes it. It takes either:
   - `tag:XX`, the SAM tag that holds the UMI; or
   - `seq:START:LENGTH`, its place in the read, 0-based. It is cut from the cDNA.
 
@@ -218,21 +230,26 @@ The CRAM header's `@CO` lines describe each tag. Check a read with `samtools vie
 
 #### Mapping
 
-These settings follow ScaleBio's own ScaleRna pipeline:
+These settings match ScaleBio's own pipeline:
 - STARsolo counts `GeneFull_Ex50pAS`;
 - it distributes multi-gene reads with `star_soloMultiMappers = "PropUnique"`, so the analysed matrix is `raw/UniqueAndMult-PropUnique.mtx` (see [STARsolo multi-gene reads](CONFIGURATION_PARAMETERS.md#starsolo-multi-gene-reads));
 - a read may map to at most 6 loci, where STAR's default is 10 (`--outFilterMultimapNmax 6`, the protocol's `star_extraargs`). Reads at more loci are unmapped, as *mapped to too many loci*. For another limit, give the option with that value in your own `star_extraargs`;
 - there is no minimum alignment score (`star_outFilterScoreMin = 0`; most other protocols use 30). A read still has to align over two thirds of its length, as STAR requires by default;
 - samples read from Ultima CRAMs are counted on the reverse strand, because Ultima reads are antisense to the gene. Set `star_soloStrand` for another strand.
 
-Two settings are those of the other protocols, and differ from ScaleRna's:
+Two settings are those of the other protocols, and differ from ScaleBio's pipeline:
 
-| Setting | This pipeline | ScaleRna | To follow ScaleRna |
+| Setting | This pipeline | ScaleBio's pipeline | To match it |
 |---------|---------------|----------|--------------------|
 | UMI filtering and deduplication | `MultiGeneUMI_CR`, `1MM_CR` (Cell Ranger's rules) | `-`, `1MM_All` (STAR's defaults) | `star_soloUMIfiltering = "-"` and `star_soloUMIdedup = "1MM_All"`, together |
 | Cell calling | `cellfilter_method`, by default the second derivative | its own cellFinder; STAR's filter is off | not available |
 
-On one QuantumScale library (*C. elegans*, Ultima, 29 million reads) the pipeline, then still with `"EM"`, 10 loci and a minimum score of 30, counted 0.2% more reads on a single gene and 0.8% fewer UMIs than ScaleRna. Neither figure depends on the multi-gene method.
+On one QuantumScale library (*C. elegans*, Ultima, 29 million reads) the pipeline, then still with `"EM"`, 10 loci and a minimum score of 30, counted 0.2% more reads on a single gene and 0.8% fewer UMIs than ScaleBio's pipeline. Neither figure depends on the multi-gene method.
+
+On ScaleBio's public v1.1 test data (4 samples) and barcode lists, compared with ScaleBio's pipeline:
+- the pipeline assigned the same reads to each sample, and trimmed every read to the same length;
+- STARsolo found every barcode and cell ScaleBio's pipeline did. It counted 1% fewer UMIs, and within 0.3% with that pipeline's UMI rules and 10 loci. Per-cell gene profiles correlate with Pearson 0.99.
+- alevin-fry counted 5–7% fewer UMIs, with per-cell Pearson 0.96. The trimming leaves 14% of these reads under 31 nt, which a salmon index of 31-mers cannot place, so the ScaleBio protocols build the index from 23-mers (`salmon_index_k = 23`; with 31-mers alevin-fry counted 12–15% fewer). Reads under 23 nt, 8% here, are still left to STARsolo.
 
 
 ## seqspec

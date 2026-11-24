@@ -41,7 +41,14 @@ workflow mapping_alevin_workflow {
             .filter { rows -> rows }
             .map { rows -> rows[0] }
         SALMON_SPLICI(ch_splici_sample, ref_gtf, ref_fasta, index_suffix)
-        SALMON_INDEX(SALMON_SPLICI.out.splici_index_reference, index_suffix)
+
+        // The index's k-mer length: salmon_index_k, else the protocol's, else 31.
+        // Passed as a value, so the index is rebuilt only when k changes.
+        def salmon_k = params.salmon_index_k ?: params.seqtech_parameters[params.protocol]?.salmon_index_k ?: 31
+        if (!(salmon_k instanceof Integer) || salmon_k < 15 || salmon_k > 31 || salmon_k % 2 == 0) {
+            error("salmon_index_k must be an odd number from 15 to 31, as salmon index -k requires; got '${salmon_k}'.")
+        }
+        SALMON_INDEX(SALMON_SPLICI.out.splici_index_reference, index_suffix, salmon_k)
 
         // Run Alevin-fry for each sample
         ALEVIN_FRY(

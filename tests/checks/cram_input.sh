@@ -11,8 +11,9 @@
 #     index reads included, named like bcl-convert output;
 #   - single index: one index read comes back as I1;
 #   - unpaired: a CRAM of single-end reads fails instead of losing them;
-#   - Ultima, UMI in a tag / at the start of the read: the same categories and written reads
-#     as the FASTQ truth;
+#   - Ultima, UMI in a tag / at the start of the read: the categories and written reads of
+#     the FASTQ truth, except that Ultima reads are not trimmed again: every read keeps its
+#     length, and the reads the FASTQ trimming leaves too short pass;
 #   - tag values: barcode ids, ids inside read-group names, sequences.
 
 set -euo pipefail
@@ -38,7 +39,7 @@ Cases:
   illumina_dual     dual-index CRAM -> FASTQ: identical reads and index reads, bcl-convert names
   illumina_single   single-index CRAM -> FASTQ: the index read comes back as I1
   unpaired          a single-end CRAM fails the conversion
-  ultima_tag        Ultima CRAM, UMI in a tag: categories and reads as the FASTQ truth
+  ultima_tag        Ultima CRAM, UMI in a tag: categories and reads as the FASTQ truth, untrimmed
   ultima_seq        Ultima CRAM, UMI at the start of the read: the same
   tag_values        barcode ids, ids inside read-group names and sequences are matched
 
@@ -200,10 +201,12 @@ def ultima(name, umi_where):
     sam = os.path.join(work, f"{name}.sam")
     rgs = set()
     body = []
+    full_len = {}
     for (n, s1, q1), (_, s2, _), (_, si1, _), (_, si2, _) in zip(*[reads(os.path.join(d, f"lib_S1_L001_{r}_001.fastq.gz")) for r in ("R1", "R2", "I1", "I2")]):
         umi, rt = s2[:8], s2[8:16]
+        full_len[n] = len(s1)
         seq, qual = (umi + s1, "I" * 8 + q1) if umi_where == "seq" else (s1, q1)
-        # as the Ultima trimmer writes them ("Scale RNA" format): b2/b3 start with a constant 4 nt
+        # as the Ultima trimmer writes them for QuantumScale: b2/b3 start with a constant 4 nt
         tags = [f"RG:Z:{si2}", f"b1:Z:{si1[0:8]}", f"b2:Z:CTGT{si1[12:20]}", f"b3:Z:GGTT{si1[24:32]}", f"b4:Z:{rt}"]
         if umi_where == "tag":
             tags.append(f"US:Z:{umi}")
@@ -223,7 +226,9 @@ def ultima(name, umi_where):
     if p.returncode != 0:
         check(name, False, p.stderr[-300:]); return
     m = json.load(open(os.path.join(out, "c1.metrics.json")))
-    want = {k: v for k, v in Counter(r["category"] for r in truth.values()).items()}
+    # The Ultima trimmer has trimmed the reads already, so the demultiplexer leaves them as
+    # they are: the FASTQ truth's TooShort reads pass, and every read keeps its full length
+    want = dict(Counter("Pass" if r["category"] == "TooShort" else r["category"] for r in truth.values()))
     got = {k: v for k, v in m["read_categories"].items() if v}
     bad, seen = 0, 0
     for s in ("sampleA", "sampleB", "sampleC"):
@@ -232,7 +237,7 @@ def ultima(name, umi_where):
         for (n, bc, _), (_, cd, cq) in zip(bcs, cds):
             seen += 1
             t = truth[n]
-            bad += (t["sample"], t["bc_read"], int(t["cdna_len"])) != (s, bc, len(cd)) or len(cd) != len(cq)
+            bad += (t["sample"], t["bc_read"], full_len[n]) != (s, bc, len(cd)) or len(cd) != len(cq)
     check(name, got == want and seen == want["Pass"] and not bad and m["input"] == "ultima_cram",
           f"{m['reads']} records, {got}" + ("" if got == want else f" (expected {want})") + f"; {seen} written, {bad} wrong")
 

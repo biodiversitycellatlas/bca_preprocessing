@@ -10,7 +10,8 @@
 #     name, with all its values, and leave the protocol's other options in place.
 #
 # The config case reads conf/seqtech_parameters.config: the ScaleBio protocols must carry
-# the settings docs/PROTOCOLS_AND_WHITELISTS.md says they share with ScaleRna.
+# the mapping settings docs/PROTOCOLS_AND_WHITELISTS.md gives for them, and the 23-mer
+# salmon index their short trimmed reads need.
 #
 # Needs nextflow, and is skipped without it.
 
@@ -34,7 +35,7 @@ Cases:
   strand          star_soloStrand wins; unset, only Ultima CRAM samples are Reverse
   merge           custom options are added to the protocol's and replace the same option
   merge_invalid   star_extraargs that starts with a value is refused
-  config          the ScaleBio protocols: PropUnique, 6 loci, no minimum score
+  config          the ScaleBio protocols: PropUnique, 6 loci, no minimum score, salmon k 23
 EOF
 }
 
@@ -107,8 +108,8 @@ try {
 
 ['scalebio_quantum_rna', 'scalebio_rna_v1_1'].each { protocol ->
     def seqtech = params.seqtech_parameters[protocol]
-    def got = [seqtech.star_soloMultiMappers, seqtech.star_outFilterScoreMin, StarSettings.mergeArgs(seqtech.star_extraargs, null)]
-    def want = ['PropUnique', 0, '--outFilterMultimapNmax 6']
+    def got = [seqtech.star_soloMultiMappers, seqtech.star_outFilterScoreMin, StarSettings.mergeArgs(seqtech.star_extraargs, null), seqtech.salmon_index_k]
+    def want = ['PropUnique', 0, '--outFilterMultimapNmax 6', 23]
     println "${got == want ? 'OK' : 'BAD'}\tconfig\t${protocol} ${got}\twant ${want}"
 }
 NF

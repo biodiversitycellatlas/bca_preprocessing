@@ -1,13 +1,15 @@
 #!/usr/bin/env bash
 #
-# sci_cb_code.sh -- sciRNAseq3 cell barcodes as a short code for alevin-fry, and back.
+# sci_cb_code.sh -- split cell barcodes as a short code for alevin-fry, and back.
 #
 # sci-rocket writes a 48-nt barcode read: p7, p5, ligation and RT barcode (10 nt each),
-# then the 8-nt UMI. The 40-nt cell barcode is longer than salmon alevin takes (31 nt), so
-# alevin-fry gets the cell's position in each of the sample's barcode lists instead, as
-# one mixed-radix number written in base-4 digits (A/C/G/T, most significant first), the
-# scheme of encode_cell() in scalebio_demux.py. The barcodes are already corrected by
-# sci-rocket, so every read's segments are on the lists.
+# then the 8-nt UMI. The 40-nt cell barcode is longer than salmon alevin takes (31 nt).
+# ScaleBio v1.1's 37-nt read (scalebio_demux.py) holds a 29-nt one (ligation, RT, PCR),
+# for which alevin-fry's generate-permit-list takes ~8 GB. So alevin-fry gets the cell's
+# position in each of the barcode lists instead, as one mixed-radix number written in
+# base-4 digits (A/C/G/T, most significant first), the scheme of encode_cell() in
+# scalebio_demux.py. The barcodes are already corrected (by sci-rocket, or by
+# scalebio_demux.py), so every read's segments are on the lists.
 #
 #   check   the lists can be read and their combinations fit the code
 #   encode  rewrite the barcode read as code + UMI, and list the codes that occur

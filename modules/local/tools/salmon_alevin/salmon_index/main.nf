@@ -16,6 +16,7 @@ process SALMON_INDEX {
     input:
     path(splici_index_reference)
     val(index_suffix)
+    val(kmer)                   // k-mer length (odd, at most 31): mapping_alevin.nf resolves it from salmon_index_k
 
     output:
     path("salmon_index${index_suffix}/"), emit: salmon_index
@@ -25,11 +26,12 @@ process SALMON_INDEX {
     script:
     """
     echo -e "\\n\\n==================  SALMON INDEX =================="
+    echo "k-mer length: ${kmer}"
     # Build reference index
     salmon index \\
         -t ${splici_index_reference}/*.fa \\
         -i ./salmon_index${index_suffix} \\
-        -k 31 \\
+        -k ${kmer} \\
         -p ${task.cpus}
 
     cat <<-END_VERSIONS > versions.yml

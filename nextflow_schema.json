@@ -355,6 +355,12 @@
                 "alevin_read_geometry": {
                     "description": "alevin-fry position of the biological sequence, '2[1-end]' for every built-in protocol. Unset: the protocol's default in conf/seqtech_parameters.config; with protocol 'seqspec', derived from where the cDNA starts in the cDNA read.",
                     "type": "string"
+                },
+                "salmon_index_k": {
+                    "description": "k-mer length of the salmon index alevin-fry maps against (salmon index -k): odd, 15 to 31. salmon cannot map a read shorter than k. Unset: the protocol's value in conf/seqtech_parameters.config (23 for ScaleBio, whose trimming leaves many short reads), else 31.",
+                    "type": "integer",
+                    "minimum": 15,
+                    "maximum": 31
                 }
             }
         },

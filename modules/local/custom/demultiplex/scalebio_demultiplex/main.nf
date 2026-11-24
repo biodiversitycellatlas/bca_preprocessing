@@ -5,17 +5,16 @@ process SCALEBIO_DEMUX {
 
     // One lane (FASTQs) or one Ultima CRAM of one library: Python streams the reads, pigz
     // and samtools (de)compress alongside. Time follows the reads (params.dynamic_time; a
-    // CRAM is counted at its FASTQ size by BcaResources), never below 1 h. FASTQ input runs at
-    // ~1.2-1.4 cores (Python plus one-thread pigz streams); an Ultima CRAM adds samtools -@.
-    cpus   { library.ultima ? 3 : 2 }
+    // CRAM is counted at its FASTQ size by BcaResources), never below 1 h.
+    cpus   3
     memory { 1.GB * task.attempt }
     time   { BcaResources.scaledTime(
         params.dynamic_time?.SCALEBIO_DEMUX, [fastq_cDNA, fastq_BC, fastq_I1, fastq_I2], task.attempt, 1) }
 
     conda "${moduleDir}/environment.yml"
     container "${ workflow.containerEngine in ['singularity', 'apptainer'] && !task.ext.singularity_pull_docker_container ?
-        'oras://community.wave.seqera.io/library/python_pigz_samtools:016fffe7e7bd7a22' :
-        'community.wave.seqera.io/library/python_pigz_samtools:17d3e4f9b8b7e970' }"
+        'oras://community.wave.seqera.io/library/python_pigz_samtools_cutadapt:1d494dc8e81574a9' :
+        'community.wave.seqera.io/library/python_pigz_samtools_cutadapt:e7f9428a0e93ecbf' }"
 
     input:
     // library: [id, ultima, samples: [[id, rt, pcr], ...]]; chunk: '<library>_<lane>', unique over
@@ -39,8 +38,9 @@ process SCALEBIO_DEMUX {
         input_args = "--cram ${fastq_cDNA} --ultima-tags '${tags}' --ultima-umi '${umi}' --threads ${task.cpus - 1}" +
             (reference ? " --reference ${reference}" : '')
     } else {
+        // cutadapt trims the cDNA on one core (--threads, see scalebio_demux.py)
         input_args = "--cdna ${fastq_cDNA} --bc ${fastq_BC}" +
-            (fastq_I1 ? " --i1 ${fastq_I1}" : '') + (fastq_I2 ? " --i2 ${fastq_I2}" : '')
+            (fastq_I1 ? " --i1 ${fastq_I1}" : '') + (fastq_I2 ? " --i2 ${fastq_I2}" : '') + " --threads 1"
     }
     // One line per sample, indented like the script so Nextflow's indent stripping keeps the heredoc intact
     def samples_tsv    = library.samples.collect { s -> "${s.id}\t${s.rt ?: ''}\t${s.pcr ?: ''}" }.join('\n    ')
@@ -66,6 +66,7 @@ process SCALEBIO_DEMUX {
     "${task.process}":
         python: \$(python3 --version | sed 's/Python //g')
         samtools: \$(samtools --version | head -1 | sed 's/samtools //')
+        cutadapt: \$(cutadapt --version)
     END_VERSIONS
     """
 }

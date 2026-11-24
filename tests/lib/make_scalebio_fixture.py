@@ -4,9 +4,12 @@ Synthetic ScaleBio-layout reads for tests/checks/scalebio_demux.sh.
 
 Every barcode is random (no ScaleBio barcode lists are used). Each segment's list keeps
 its sequences at least 4 substitutions apart, so one substitution is always corrected
-to its own barcode and two never reach another one. The reads cycle through the cases
-below, and truth.tsv records, for every read, the category the demultiplexer must give
-it and, for the reads it keeps, the sample, the synthetic barcode read and the trimmed
+to its own barcode and two never reach another one. The v1.1 ligation list holds 9-nt
+entries, as ScaleBio's does: half are an 8-nt barcode followed by T, read with the splint
+(TCAGAGC) starting at position 8, so that T is the splint's; the other half are 9-nt
+barcodes, with the splint at 9. The reads cycle through the cases below, and truth.tsv
+records, for every read, the category the demultiplexer must give it and, for the reads
+it keeps (and the TooShort ones), the sample, the synthetic barcode read and the trimmed
 cDNA length.
 
   clean        all barcodes exact
@@ -16,13 +19,18 @@ cDNA length.
   umi_n        an N in the UMI                            -> UmiFiltered
   umi_homo     a homopolymer UMI                          -> UmiFiltered
   polya        poly-A tail inside the cDNA                -> Pass, trimmed
+  polya_mm     a run of 8 A's with one substitution       -> Pass, trimmed (cutadapt -e 0.15)
   polyg/polyt  poly-G (QuantumScale) / poly-T (v1.1) tail -> Pass, trimmed
+  tail2        the cDNA ends in AA                        -> Pass, 2 nt trimmed (cutadapt -O 2)
   short        poly-A close to the start of the cDNA      -> TooShort
   rt_other     an RT well that no sample uses             -> Unassigned
   pcr_other    a PCR well outside the sample's PCR wells  -> Unassigned
   pool         a non-first sequence of a pooled PCR well  -> Pass (canonical in CB)
   nolinker     (v1.1) splint replaced                     -> LinkerError
   linker_mm    (v1.1) one substitution in the splint      -> Pass
+  linker_mm2   (v1.1) the splint as TCTGAGA (2 changes),
+               as after many 8-nt ligation barcodes       -> Pass
+  linker_mm3   (v1.1) three substitutions in the splint   -> LinkerError
 
 Usage: make_scalebio_fixture.py --layout quantum|v1.1 --outdir DIR [--reads N]
        [--seed S] [--i5-revcomp]
@@ -112,8 +120,10 @@ def main():
         width = {"bead1": 8, "bead2": 8, "bead3": 8, "rt": 8, "pcr": 8}
     else:
         lists["pcr"] = [(f"P-{i + 1}", [s]) for i, s in enumerate(pcr_seqs)]
-        lig8 = code(rng, 24, 8)
-        lig9 = code(rng, 24, 9)
+        # The first 24 entries: an 8-nt barcode whose ninth base is the splint's first, T
+        lig8 = [s + SPLINT[0] for s in code(rng, 24, 8)]
+        lig9 = code(rng, 24, 9, taken=lig8)
+        n_lig8 = len(lig8)
         lists["lig"] = [(f"L{i + 1}", [s]) for i, s in enumerate(lig8 + lig9)]
         segments = ["lig", "rt", "pcr"]
         width = {"lig": 9, "rt": 10, "pcr": 10}
@@ -156,10 +166,10 @@ def main():
     rt_index = {x: i for i, (x, _) in enumerate(lists["rt"])}
     pcr_index = {x: i for i, (x, _) in enumerate(lists["pcr"])}
 
-    cases = ["clean", "mm1", "mm2", "nbase", "umi_n", "umi_homo", "polya",
-             "polyg" if quantum else "polyt", "short", "rt_other", "pcr_other", "pool"]
+    cases = ["clean", "mm1", "mm2", "nbase", "umi_n", "umi_homo", "polya", "polya_mm",
+             "polyg" if quantum else "polyt", "tail2", "short", "rt_other", "pcr_other", "pool"]
     if not quantum:
-        cases += ["nolinker", "linker_mm"]
+        cases += ["nolinker", "linker_mm", "linker_mm2", "linker_mm3"]
     if not quantum:
         cases.remove("pool")
 
@@ -202,17 +212,30 @@ def main():
         if case == "umi_homo":
             umi = "G" * 8
 
-        # cDNA: 60 nt without runs; a tail starting at 'cut' where the case asks for one
-        cdna = no_runs(rng, 60)
+        # cDNA: 60 nt without runs, so cutadapt (scalebio_demux.CUTADAPT_ARGS: one error in
+        # a run of 8, 2-nt minimum overlap) finds nothing to trim: its last base is no
+        # trimmed base. A tail case puts a run at 'cut', after two bases that are no trimmed
+        # base, so that cutadapt cuts exactly there (with one there, an alignment starting
+        # earlier would score as well).
+        trimmed = "AG" if quantum else "AT"
+        tail = {"polya": "A", "polya_mm": "A", "polyg": "G", "polyt": "T", "short": "A"}.get(case)
         cut = 60
-        tail = {"polya": "A", "polyg": "G", "polyt": "T", "short": "A"}.get(case)
+        if tail:
+            cut = 10 if case == "short" else rng.randrange(20, 45)
+        if case == "tail2":
+            cut = 58
+        cdna = no_runs(rng, 60)
+        while cdna[-1] in trimmed or (cut < 60 and (cdna[cut - 1] in trimmed or cdna[cut - 2] in trimmed)):
+            cdna = no_runs(rng, 60)
         if tail:
             n = 12 if tail == "G" else 8
-            cut = 10 if case == "short" else rng.randrange(20, 45)
-            while cdna[cut - 1] == tail:
-                cdna = no_runs(rng, 60)
-            cdna = cdna[:cut] + tail * n + cdna[cut + n:]
-            cdna = cdna[:60]
+            run = tail * n
+            if case == "polya_mm":
+                p = rng.randrange(2, 6)
+                run = run[:p] + rng.choice([b for b in B if b != tail]) + run[p + 1:]
+            cdna = (cdna[:cut] + run + cdna[cut + n:])[:60]
+        if case == "tail2":
+            cdna = cdna[:58] + "AA"
 
         i2 = obs["pcr"]
         if a.i5_revcomp:
@@ -228,9 +251,17 @@ def main():
                 splint = "GGTTCCA"
             if case == "linker_mm":
                 splint = SPLINT[:3] + ("T" if SPLINT[3] != "T" else "A") + SPLINT[4:]
+            if case == "linker_mm2":
+                splint = "TCTGAGA"
+            if case == "linker_mm3":
+                splint = "TCTGTGA"
             lig = obs["lig"]
+            # An 8-nt ligation barcode: the splint starts at position 8, its T being the
+            # entry's ninth base (a substitution there also changes the splint)
+            if idx["lig"] < n_lig8:
+                splint = splint[1:]
             # The splint one base off overlaps itself or the ligation barcode and differs
-            # from TCAGAGC at 2+ positions, so it is only ever found where it was put
+            # from TCAGAGC at 4+ positions, so it is only ever found where it was put
             r1 = lig + splint + umi + obs["rt"] + no_runs(rng, 20)
             r2 = cdna
         put("R1", rid, r1)
@@ -238,7 +269,7 @@ def main():
         put("I2", rid, i2)
 
         # expectation
-        if case == "nolinker":
+        if case in ("nolinker", "linker_mm3"):
             cat = "LinkerError"
         elif case == "mm2":
             cat = "BarcodeError"
@@ -250,7 +281,8 @@ def main():
             cat = "Unassigned"
         else:
             cat = "Pass"
-        if cat == "Pass":
+        # TooShort reads keep their sample and barcode read too: untrimmed (Ultima) they pass
+        if cat in ("Pass", "TooShort"):
             if quantum:
                 # the cell's list entries as one number (mixed radix, list sizes), 16 base-4 digits
                 n = 0

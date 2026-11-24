@@ -7,7 +7,7 @@
 # truth.tsv holds every read's expected outcome:
 #
 #   - per layout (QuantumScale, v1.1) and i5 orientation: the read categories, and every
-#     written read's sample, synthetic barcode read and trimmed length;
+#     written read's sample, synthetic barcode read and length after cutadapt's trimming;
 #   - the match table's rules: exact, corrected, ambiguous, N, too far;
 #   - well notation: column-major plate ranges, ids holding dashes, malformed specs;
 #   - barcode-list checks in 'prepare' and the padding of short barcodes;
@@ -18,6 +18,7 @@ set -euo pipefail
 source "$(cd "$(dirname "${BASH_SOURCE[0]}")/../lib" && pwd)/common.sh"
 
 PYTHON="${BCA_PYTHON:-}"
+CUTADAPT="${BCA_CUTADAPT:-}"
 KEEP=0
 
 usage() {
@@ -29,28 +30,33 @@ Check scalebio_demux.py on synthetic ScaleBio-layout reads.
 
 Options:
   --python PATH   Python interpreter (default: \$BCA_PYTHON, else python3).
+  --cutadapt PATH cutadapt, which trims the cDNA of FASTQ input (default: \$BCA_CUTADAPT,
+                  else on the PATH). Without it the check is skipped.
   --keep          Keep the generated fixture and outputs for inspection.
   -h, --help      Show this message.
 
 Cases:
   quantum           QuantumScale reads: categories and every written read as expected
   quantum_i5_rc     the same with the i5 index reverse-complemented (detected from the reads)
-  v1_1              v1.1 reads (splint-anchored barcodes, 8/9-nt ligation barcodes)
+  v1_1              v1.1 reads (splint at 8 or 9, 9-nt ligation list, splint-anchored UMI and RT)
   v1_1_i5_rc        the same, orientation given rather than detected
   match_rules       exact / corrected / ambiguous / N / too far
   well_ranges       plate ranges run column by column; ids with dashes; bad specs rejected
   prepare_checks    duplicate sequences, too-long barcodes, wrong list count rejected; padding
   list_lengths      QuantumScale takes a 9-nt (Ultima) PCR list; FASTQ demux with it stops
+  lig_length        v1.1 FASTQ demux with a list of 8-nt ligation barcodes stops with a hint
   config_layout     seqtech_parameters' STARsolo and alevin-fry positions match the script
   uneven_reads      read files of different lengths make the run fail
   gather            a sample's metrics are the sum of its chunks
   decode            QuantumScale cell barcodes decode back to their sample's wells
+  decode_v1_1       v1.1 cell barcodes, as lig_rt_pcr (STARsolo) or 29 nt, decode to their wells
 EOF
 }
 
 while [[ $# -gt 0 ]]; do
     case "$1" in
         --python)  PYTHON="${2:?--python needs a value}"; shift 2 ;;
+        --cutadapt) CUTADAPT="${2:?--cutadapt needs a value}"; shift 2 ;;
         --keep)    KEEP=1; shift ;;
         -h|--help) usage; exit 0 ;;
         *) log_error "unknown argument: $1"; usage >&2; exit 2 ;;
@@ -67,6 +73,12 @@ if [[ -z "$PYTHON" ]]; then
     finish_check
     exit 0
 fi
+if [[ -z "$CUTADAPT" ]] && have_cmd cutadapt; then CUTADAPT="$(command -v cutadapt)"; fi
+if [[ -z "$CUTADAPT" || ! -x "$CUTADAPT" ]]; then
+    record SKIP "tools" "cutadapt is needed (it trims the cDNA of FASTQ input); give it with --cutadapt or BCA_CUTADAPT"
+    finish_check
+    exit 0
+fi
 
 WORKDIR="$BCA_TEST_LOGDIR/scalebio_demux"
 mkdir -p "$WORKDIR"
@@ -74,10 +86,10 @@ cleanup() { [[ "$KEEP" -eq 1 ]] || rm -rf "$WORKDIR"; }
 trap cleanup EXIT
 
 OUT="$WORKDIR/results.tsv"
-if "$PYTHON" - "$PROJECT_ROOT" "$WORKDIR" "$PYTHON" >"$OUT" 2>"$WORKDIR/stderr.log" <<'PY'
+if "$PYTHON" - "$PROJECT_ROOT" "$WORKDIR" "$PYTHON" "$CUTADAPT" >"$OUT" 2>"$WORKDIR/stderr.log" <<'PY'
 import csv, gzip, json, os, re, shutil, subprocess, sys
 from collections import Counter
-root, work, python = sys.argv[1], sys.argv[2], sys.argv[3]
+root, work, python, cutadapt = sys.argv[1], sys.argv[2], sys.argv[3], sys.argv[4]
 sys.path.insert(0, os.path.join(root, "bin"))
 import scalebio_demux as sb
 
@@ -107,7 +119,8 @@ def demux(d, layout, chunk="lib1_01_L001", extra=(), ok=True, cdna=None):
     cd, bc = ("R1", "R2") if layout == "quantum" else ("R2", "R1")
     args = [SCRIPT, "demux", "--barcodes", os.path.join(d, "prep", "barcodes.json"),
             "--samples", os.path.join(d, "samples.tsv"), "--chunk", chunk,
-            "--cdna", cdna or rd(cd), "--bc", rd(bc), "--i2", rd("I2"), "--outdir", os.path.join(d, "out")]
+            "--cdna", cdna or rd(cd), "--bc", rd(bc), "--i2", rd("I2"), "--outdir", os.path.join(d, "out"),
+            "--cutadapt", cutadapt]
     if layout == "quantum":
         args += ["--i1", rd("I1")]
     return run(*args, *extra, ok=ok)
@@ -221,6 +234,24 @@ check("list_lengths", ok_prepare and p.returncode != 0 and "holds 9-nt barcodes,
       ("a 9-nt PCR list is read for QuantumScale" if ok_prepare else f"a 9-nt PCR list is REJECTED: {p.stderr.strip()[-150:]}")
       + ("; FASTQ demux with it stops with a message" if ok_prepare and p.returncode != 0 else "; FASTQ demux with it did NOT stop"))
 
+# v1.1 reads the ligation barcode as the first 9 nt of read 1: a list of 8-nt ligation
+# barcodes (without the splint's T) never matches, so FASTQ demux with it stops with a hint
+fl = fixture("lig8_fixture", "v1.1", False, reads=50)
+llists = open(os.path.join(fl, "whitelists.txt")).read().split()
+lig8 = os.path.join(d9, "lig8.tsv")
+with open(lig8, "w") as fh:
+    for i in range(1, 13):
+        fh.write(f"L{i}\t{'ACGT'[i % 4]}{'ACGT'[i // 4 % 4]}CGATGC\n")
+p = run(SCRIPT, "prepare", "--layout", "v1.1", "--whitelists", lig8, *llists[1:], "--outdir", os.path.join(fl, "prep8"), ok=False)
+ok8 = p.returncode == 0
+if ok8:
+    shutil.copy(os.path.join(fl, "prep8", "barcodes.json"), os.path.join(fl, "prep", "barcodes.json"))
+    p = demux(fl, "v1.1", ok=False)
+check("lig_length", ok8 and p.returncode != 0 and "holds 8-nt barcodes, but the reads hold 9 nt" in p.stderr
+      and "splint's first base" in p.stderr,
+      ("an 8-nt ligation list passes 'prepare'" if ok8 else f"'prepare' REJECTED an 8-nt ligation list: {p.stderr.strip()[-150:]}")
+      + ("; FASTQ demux with it stops with the hint" if ok8 and p.returncode != 0 else f"; FASTQ demux with it did NOT stop as expected: {p.stderr.strip()[-150:]}"))
+
 # conf/seqtech_parameters.config reads the synthetic read where the script writes it
 conf = open(os.path.join(root, "conf", "seqtech_parameters.config")).read()
 cproblems = []
@@ -248,9 +279,24 @@ for proto, layout in [("scalebio_quantum_rna", "quantum"), ("scalebio_rna_v1_1",
             cproblems.append(f"{proto}: a {start}-nt cell barcode is longer than STARsolo's 31")
     if want_star not in block:
         cproblems.append(f"{proto}: STARsolo layout is not '{want_star}'")
-    if f'alevin_bc_geometry =    "1[1-{start}]"' not in block or \
-       f'alevin_umi_geometry =   "1[{start + 1}-{start + lay["umi"][2]}]"' not in block:
-        cproblems.append(f"{proto}: alevin-fry geometry is not 1[1-{start}] / 1[{start + 1}-{start + lay['umi'][2]}]")
+    # alevin-fry reads the synthetic read as it is, or, with alevin_cb_segments, a code of the
+    # cell's list entries (bin/sci_cb_code.sh) cut from where the synthetic read holds them
+    cb_seg = re.search(r'alevin_cb_segments\s*=\s*"([^"]+)"', block)
+    a_start = start
+    if cb_seg:
+        segs_1b, p0 = [], 1
+        for s in lay["segments"]:
+            segs_1b.append(f"{p0}-{p0 + lay['width'][s] - 1}"); p0 += lay["width"][s]
+        want_umi = f"{p0}-{p0 + lay['umi'][2] - 1}"
+        cb_umi = re.search(r'alevin_cb_umi\s*=\s*"([^"]+)"', block)
+        digits = re.search(r'alevin_cb_digits\s*=\s*(\d+)', block)
+        if cb_seg.group(1) != ",".join(segs_1b) or not cb_umi or cb_umi.group(1) != want_umi or not digits:
+            cproblems.append(f"{proto}: alevin_cb_segments/alevin_cb_umi are not {','.join(segs_1b)} / {want_umi}, or no alevin_cb_digits")
+        else:
+            a_start = int(digits.group(1))
+    if f'alevin_bc_geometry =    "1[1-{a_start}]"' not in block or \
+       f'alevin_umi_geometry =   "1[{a_start + 1}-{a_start + lay["umi"][2]}]"' not in block:
+        cproblems.append(f"{proto}: alevin-fry geometry is not 1[1-{a_start}] / 1[{a_start + 1}-{a_start + lay['umi'][2]}]")
     if f'scalebio_layout =       "{layout}"' not in block:
         cproblems.append(f"{proto}: scalebio_layout is not '{layout}'")
 check("config_layout", not cproblems, "both protocols read the synthetic read as written" if not cproblems else "; ".join(cproblems))
@@ -304,6 +350,24 @@ for s, (rts, pcrs) in wells.items():
 check("decode", round_trip and not dbad and n_cells > 0,
       f"2002 random cells round-trip {'exactly' if round_trip else 'WRONG'}; "
       f"{n_cells} written cells decode to their sample's wells" + (f"; {len(dbad)} do not: {dbad[:2]}" if dbad else ""))
+
+# decode, v1.1: the cell barcodes as STARsolo writes them (lig_rt_pcr) and as 29 nt
+try:
+    d11 = os.path.join(work, "v1_1")
+    vbad, v_cells = [], 0
+    for s, (rts, pcrs) in wells.items():
+        with gzip.open(os.path.join(d11, "out", f"{s}.lib1_01_L001_BC_UMI.fastq.gz"), "rt") as fh:
+            cbs = sorted({line[:29] for n, line in enumerate(fh) if n % 4 == 1})
+        with open(cells, "w") as fh:
+            fh.write("\n".join([f"{c[:9]}_{c[9:19]}_{c[19:29]}" for c in cbs] + cbs) + "\n")
+        p = run(SCRIPT, "decode", "--barcodes", os.path.join(d11, "prep", "barcodes.json"), "--cells", cells)
+        rows = [l.split("\t") for l in p.stdout.strip().split("\n")[1:]]
+        v_cells += len(rows)
+        vbad += [r for r in rows if r[2] not in rts or (pcrs and r[3] not in pcrs) or "?" in r]
+    check("decode_v1_1", not vbad and v_cells > 0,
+          f"{v_cells // 2} written cells in both forms decode to their sample's wells" + (f"; {len(vbad)} do not: {vbad[:2]}" if vbad else ""))
+except (OSError, RuntimeError) as exc:
+    check("decode_v1_1", False, str(exc))
 PY
 then
     while IFS=$'\t' read -r status name detail; do
