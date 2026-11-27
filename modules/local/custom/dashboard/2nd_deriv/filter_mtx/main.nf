@@ -10,13 +10,13 @@ process FILTER_MATRICES {
     // just its one. Coefficients live in params.dynamic_memory; without an entry the request
     // is process_single_mem2's 10 GB.
     cpus   1
-    time   { 30.m * task.attempt }
-    memory { BcaResources.scaledMemory(
+    time   { BcaResources.attemptTime(task, '30m') }
+    memory { BcaResources.attemptMemory(task, BcaResources.scaledMemory(
         params.dynamic_memory?.FILTER_MATRICES,
         mapper == 'alevin-fry'
             ? [matrix_dir]
             : [BcaResources.filesIn(matrix_dir, [matrix_name, 'barcodes.tsv', 'features.tsv']), cellreads_stats],
-        task.attempt, 10) }
+        1, 10)) }
 
     conda "${moduleDir}/environment.yml"
     container "${ workflow.containerEngine in ['singularity', 'apptainer'] && !task.ext.singularity_pull_docker_container ?

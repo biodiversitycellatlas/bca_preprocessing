@@ -3,10 +3,10 @@ process FASTQC {
     tag "${fastq_cDNA}, ${fastq_BC_UMI}"
 
     // Time follows the FASTQs file size
-    cpus   { 1 * task.attempt }
-    memory { 2.GB * task.attempt }
-    time   { BcaResources.scaledTime(
-        params.dynamic_time?.FASTQC, [fastq_cDNA, fastq_BC_UMI], task.attempt, 2) }
+    cpus   1
+    memory { BcaResources.attemptMemory(task, '2 GB') }
+    time   { BcaResources.attemptTime(task, BcaResources.scaledTime(
+        params.dynamic_time?.FASTQC, [fastq_cDNA, fastq_BC_UMI], 1, 2)) }
 
     conda "${moduleDir}/environment.yml"
     container "${ workflow.containerEngine in ['singularity', 'apptainer'] && !task.ext.singularity_pull_docker_container ?

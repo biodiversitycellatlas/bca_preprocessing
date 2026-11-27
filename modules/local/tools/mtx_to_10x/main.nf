@@ -6,9 +6,9 @@ process MTX_TO_10X {
     // Deliberately no resource label, since a withLabel setting would take precedence over
     // these: cpus and time are process_single_mem2's.
     cpus   1
-    time   { 30.m * task.attempt }
-    memory { BcaResources.scaledMemory(
-        params.dynamic_memory?.MTX_TO_10X, [mtx, barcodes, features], task.attempt, 10) }
+    time   { BcaResources.attemptTime(task, '30m') }
+    memory { BcaResources.attemptMemory(task, BcaResources.scaledMemory(
+        params.dynamic_memory?.MTX_TO_10X, [mtx, barcodes, features], 1, 10)) }
 
     conda "${moduleDir}/environment.yml"
     container "${ workflow.containerEngine in ['singularity', 'apptainer'] && !task.ext.singularity_pull_docker_container ?

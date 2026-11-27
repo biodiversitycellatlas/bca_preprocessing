@@ -384,7 +384,8 @@ the original annotation become spliced against the extended one.
 
 Resource note: `Velocyto` adds a third feature structure to STARsolo's solo post-map step.
 `STARSOLO_ALIGN`'s dynamic memory scales on FASTQ size, which does not change when a feature
-is added, so its anchor may under-provision — see [Resource tuning](RESOURCE_TUNING.md).
+is added, so its anchor may under-provision. An out-of-memory kill is retried with twice the
+memory; see [Resource tuning](RESOURCE_TUNING.md#starsolo_align).
 
 
 

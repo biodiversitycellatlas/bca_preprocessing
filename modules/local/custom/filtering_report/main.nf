@@ -5,10 +5,10 @@ process GENERATE_FILTERING_REPORT {
     // grow with the number of runs. Coefficients live in params.dynamic_memory; without
     // an entry the request is process_single_mem2's 10 GB.
     cpus   1
-    time   { 30.m * task.attempt }
-    memory { BcaResources.scaledMemory(
+    time   { BcaResources.attemptTime(task, '30m') }
+    memory { BcaResources.attemptMemory(task, BcaResources.scaledMemory(
         params.dynamic_memory?.GENERATE_FILTERING_REPORT,
-        [summaries, mt_rrna_metrics, antisense_metrics, cellreads_stats], task.attempt, 10) }
+        [summaries, mt_rrna_metrics, antisense_metrics, cellreads_stats], 1, 10)) }
 
     container "${ workflow.containerEngine in ['singularity', 'apptainer'] && !task.ext.singularity_pull_docker_container ?
         'oras://community.wave.seqera.io/library/python:3.14.2--0bd36b5fd9edb930' :

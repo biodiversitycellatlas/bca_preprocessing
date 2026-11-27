@@ -7,9 +7,9 @@ process MERGE_GROUP_H5AD {
     // layer are read, so they raise the floor (resident_factor in the entry) rather than
     // adding to the input, as in METACELL2.
     cpus   1
-    time   { 2.h * task.attempt }
-    memory { BcaResources.scaledMemory(
-        params.dynamic_memory?.MERGE_GROUP_H5AD, [cells_h5ad], task.attempt, 16, ambient_h5ad) }
+    time   { BcaResources.attemptTime(task, '2h') }
+    memory { BcaResources.attemptMemory(task, BcaResources.scaledMemory(
+        params.dynamic_memory?.MERGE_GROUP_H5AD, [cells_h5ad], 1, 16, ambient_h5ad)) }
 
     // The image METACELL2 runs in: the merge imports run_metacells.py's CellSweep lift
     conda "${moduleDir}/environment.yml"

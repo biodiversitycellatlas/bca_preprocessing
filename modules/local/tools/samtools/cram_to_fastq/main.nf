@@ -4,9 +4,9 @@ process CRAM_TO_FASTQ {
     // samtools decodes and compresses with its threads. Time follows the CRAM
     // (params.dynamic_time), which BcaResources counts at its FASTQ size, never below 1 h.
     cpus   4
-    memory { 2.GB * task.attempt }
-    time   { BcaResources.scaledTime(
-        params.dynamic_time?.CRAM_TO_FASTQ, [cram], task.attempt, 1) }
+    memory { BcaResources.attemptMemory(task, '2 GB') }
+    time   { BcaResources.attemptTime(task, BcaResources.scaledTime(
+        params.dynamic_time?.CRAM_TO_FASTQ, [cram], 1, 1)) }
 
     conda "${moduleDir}/environment.yml"
     container "${ workflow.containerEngine in ['singularity', 'apptainer'] && !task.ext.singularity_pull_docker_container ?

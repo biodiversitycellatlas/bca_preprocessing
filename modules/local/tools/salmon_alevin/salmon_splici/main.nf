@@ -5,9 +5,9 @@ process SALMON_SPLICI {
     // Coefficients live in params.dynamic_memory; without an entry the request is
     // process_high's 64 GB.
     cpus   1
-    time   { 4.h * task.attempt }
-    memory { BcaResources.scaledMemory(
-        params.dynamic_memory?.SALMON_SPLICI, [ref_fasta, ref_gtf], task.attempt, 64) }
+    time   { BcaResources.attemptTime(task, '4h') }
+    memory { BcaResources.attemptMemory(task, BcaResources.scaledMemory(
+        params.dynamic_memory?.SALMON_SPLICI, [ref_fasta, ref_gtf], 1, 64)) }
 
     conda "${moduleDir}/environment.yml"
     container "${ workflow.containerEngine in ['singularity', 'apptainer'] && !task.ext.singularity_pull_docker_container ?

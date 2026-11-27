@@ -7,15 +7,15 @@ process PERCELL_METRICS {
     // table, and with Velocyto its three raw matrices are read too. Only those files are
     // measured, not the rest of Solo.out.
     cpus   1
-    time   { 1.h * task.attempt }
-    memory { BcaResources.scaledMemory(
+    time   { BcaResources.attemptTime(task, '1h') }
+    memory { BcaResources.attemptMemory(task, BcaResources.scaledMemory(
         params.dynamic_memory?.PERCELL_METRICS,
         [barcode_reads,
          BcaResources.filesIn(star_solodir, [
             'GeneFull_Ex50pAS/CellReads.stats', 'GeneFull_Ex50pAS/raw/barcodes.tsv',
             'Velocyto/raw/spliced.mtx', 'Velocyto/raw/unspliced.mtx', 'Velocyto/raw/ambiguous.mtx']),
          filtered_matrix_dir ? BcaResources.filesIn(filtered_matrix_dir, ['barcodes.tsv']) : []],
-        task.attempt, 4) }
+        1, 4)) }
 
     conda "${moduleDir}/environment.yml"
     container "${ workflow.containerEngine in ['singularity', 'apptainer'] && !task.ext.singularity_pull_docker_container ?

@@ -6,10 +6,10 @@ process ALEVIN_FRY {
     // Time follows the FASTQs and memory follows the salmon index size.
     // Salmon's mapping stops gaining at about 8 threads (66 s for 30 M pairs at 8, 12 and 16), so more only adds cost.
     cpus   8
-    time   { BcaResources.scaledTime(
-        params.dynamic_time?.ALEVIN_FRY, [fastq_cDNA, fastq_BC_UMI], task.attempt, 4) }
-    memory { BcaResources.scaledMemory(
-        params.dynamic_memory?.ALEVIN_FRY, [fastq_cDNA, fastq_BC_UMI], task.attempt, 64, salmon_index) }
+    time   { BcaResources.attemptTime(task, BcaResources.scaledTime(
+        params.dynamic_time?.ALEVIN_FRY, [fastq_cDNA, fastq_BC_UMI], 1, 4)) }
+    memory { BcaResources.attemptMemory(task, BcaResources.scaledMemory(
+        params.dynamic_memory?.ALEVIN_FRY, [fastq_cDNA, fastq_BC_UMI], 1, 64, salmon_index)) }
 
     // Exit 42 from bin/mapping_rate_guard.sh (mapping rate below params.min_mapping_rate)
     // aborts the pipeline or drops the sample; other exit codes follow conf/base.config.

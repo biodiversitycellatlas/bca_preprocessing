@@ -7,9 +7,9 @@ process SUBSET_VELOCYTO_MATRICES {
     // Deliberately no resource label, since a withLabel setting would take precedence over
     // these: cpus and time are process_single_mem2's.
     cpus   1
-    time   { 30.m * task.attempt }
-    memory { BcaResources.scaledMemory(
-        params.dynamic_memory?.SUBSET_VELOCYTO_MATRICES, [velocyto_raw_dir], task.attempt, 10) }
+    time   { BcaResources.attemptTime(task, '30m') }
+    memory { BcaResources.attemptMemory(task, BcaResources.scaledMemory(
+        params.dynamic_memory?.SUBSET_VELOCYTO_MATRICES, [velocyto_raw_dir], 1, 10)) }
 
     conda "${moduleDir}/environment.yml"
     container "${ workflow.containerEngine in ['singularity', 'apptainer'] && !task.ext.singularity_pull_docker_container ?

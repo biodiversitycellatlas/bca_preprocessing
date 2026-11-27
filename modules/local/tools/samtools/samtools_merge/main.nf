@@ -2,10 +2,10 @@ process SAMTOOLS_MERGE {
     tag "merging_bams"
 
     // Time follows the BAMs being merged
-    cpus   { 2 * task.attempt }
-    memory { 1.GB * task.attempt }
-    time   { BcaResources.scaledTime(
-        params.dynamic_time?.SAMTOOLS_MERGE, [bams], task.attempt, 0.75) }
+    cpus   2
+    memory { BcaResources.attemptMemory(task, '1 GB') }
+    time   { BcaResources.attemptTime(task, BcaResources.scaledTime(
+        params.dynamic_time?.SAMTOOLS_MERGE, [bams], 1, 0.75)) }
 
     conda "${moduleDir}/environment.yml"
     container "${ workflow.containerEngine in ['singularity', 'apptainer'] && !task.ext.singularity_pull_docker_container ?

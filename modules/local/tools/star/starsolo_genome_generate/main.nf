@@ -4,11 +4,11 @@ process STARSOLO_INDEX {
     // Memory and time track the size of the reference being indexed. CPUs step up from 2
     // above a reference size in params.dynamic_cpus: a small genome indexes on about one core.
     cpus   { BcaResources.tieredCpus(
-        params.dynamic_cpus?.STARSOLO_INDEX, [ref_fasta, ref_gtf], task.attempt, 2) }
-    time   { BcaResources.scaledTime(
-        params.dynamic_time?.STARSOLO_INDEX, [ref_fasta, ref_gtf], task.attempt, 2) }
-    memory { BcaResources.scaledMemory(
-        params.dynamic_memory?.STARSOLO_INDEX, [ref_fasta, ref_gtf], task.attempt, 10) }
+        params.dynamic_cpus?.STARSOLO_INDEX, [ref_fasta, ref_gtf], 1, 2) }
+    time   { BcaResources.attemptTime(task, BcaResources.scaledTime(
+        params.dynamic_time?.STARSOLO_INDEX, [ref_fasta, ref_gtf], 1, 2)) }
+    memory { BcaResources.attemptMemory(task, BcaResources.scaledMemory(
+        params.dynamic_memory?.STARSOLO_INDEX, [ref_fasta, ref_gtf], 1, 10)) }
 
     conda "${moduleDir}/environment.yml"
     container "${ workflow.containerEngine in ['singularity', 'apptainer'] && !task.ext.singularity_pull_docker_container ?

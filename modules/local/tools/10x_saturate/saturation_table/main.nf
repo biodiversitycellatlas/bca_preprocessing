@@ -3,12 +3,14 @@ process SATURATION_TABLE {
     tag "${meta.id}"
     label 'error_retry'
 
-    // Memory and time track the size of the BAM file
+    // Memory and time track the size of the BAM file. A retry doubles only what the failure
+    // called for: time after a wall-time kill (140), memory after an out-of-memory kill (137),
+    // both otherwise. Retries come from the error_retry label (two of them).
     cpus   4
-    time   { BcaResources.scaledTime(
-        params.dynamic_time?.SATURATION_TABLE, [bam_file], task.attempt, 4) }
-    memory { BcaResources.scaledMemory(
-        params.dynamic_memory?.SATURATION_TABLE, [bam_file], task.attempt, 10) }
+    time   { BcaResources.attemptTime(task,
+        BcaResources.scaledTime(params.dynamic_time?.SATURATION_TABLE, [bam_file], 1, 4)) }
+    memory { BcaResources.attemptMemory(task,
+        BcaResources.scaledMemory(params.dynamic_memory?.SATURATION_TABLE, [bam_file], 1, 10)) }
 
     conda "${moduleDir}/environment.yml"
     container "${ workflow.containerEngine in ['singularity', 'apptainer'] && !task.ext.singularity_pull_docker_container ?

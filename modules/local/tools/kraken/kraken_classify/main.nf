@@ -6,10 +6,10 @@ process KRAKEN {
     // actually used, downloaded or given in kraken_db_path, rather than the reads. Only
     // those files are measured: a database built in place also keeps its library/.
     cpus   { BcaResources.tieredCpus(
-        params.dynamic_cpus?.KRAKEN, [filtered_fasta], task.attempt, 2) }
-    time   { 45.m * task.attempt }
-    memory { BcaResources.scaledMemory(
-        params.dynamic_memory?.KRAKEN, BcaResources.filesEndingWith(kraken_db, '.k2d'), task.attempt, 128) }
+        params.dynamic_cpus?.KRAKEN, [filtered_fasta], 1, 2) }
+    time   { BcaResources.attemptTime(task, '45m') }
+    memory { BcaResources.attemptMemory(task, BcaResources.scaledMemory(
+        params.dynamic_memory?.KRAKEN, BcaResources.filesEndingWith(kraken_db, '.k2d'), 1, 128)) }
 
     conda "${moduleDir}/environment.yml"
     container "${ workflow.containerEngine in ['singularity', 'apptainer'] && !task.ext.singularity_pull_docker_container ?

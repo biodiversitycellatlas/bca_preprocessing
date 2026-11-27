@@ -63,8 +63,14 @@ Cases:
   bamsort_no_memory no allocation to derive from leaves STAR its own default
   bamsort_unmeasured  an unmeasurable index falls back to a fraction, not a guess
   bamsort_floor     an index larger than the allocation floors at 1 GB
+  retry_by_exit     a retry doubles time after exit 140, memory after 137, both otherwise
+  retry_via_task    attemptMemory/attemptTime, the modules' form, read attempt and trace from the task
+  as_strings        "8 GB" and "131m" read back as bytes and milliseconds
+  prior_time        a GeneExt re-mapping's limit is the earlier pass's time x prior_factor
+  star_elapsed      STAR's run time is read from Log.final.out, also across New Year
   config_shape      the dynamic_memory, dynamic_time and dynamic_cpus maps in
                     nextflow.config parse and are complete
+  star_memory_keys  STARSOLO_ALIGN and STARSOLO_ALIGN_BAM_ONLY are both shipped
 EOF
 }
 
@@ -110,6 +116,23 @@ mkdir -p "$WORKDIR/solo_out/Gene/raw"
 head -c 2097152 /dev/zero >"$WORKDIR/solo_out/Gene/raw/matrix.mtx"
 head -c 1048576 /dev/zero >"$WORKDIR/solo_out/Gene/raw/barcodes.tsv"
 head -c 4194304 /dev/zero >"$WORKDIR/solo_out/Gene/raw/UniqueAndMult-EM.mtx"
+# STAR Log.final.out heads: a 3h14m run (hoihon01_H1H13_1, genoa64), one across New Year,
+# and one cut off before "Finished on".
+mkdir -p "$WORKDIR/star_logs"
+printf '%s\n' \
+    $'                                 Started job on |\tNov 23 12:08:36' \
+    $'                             Started mapping on |\tNov 23 12:09:02' \
+    $'                                    Finished on |\tNov 23 15:22:41' \
+    $'       Mapping speed, Million of reads per hour |\t43.21' \
+    $'                          Number of input reads |\t139000000' \
+    >"$WORKDIR/star_logs/H1H13_Log.final.out"
+printf '%s\n' \
+    $'                                 Started job on |\tDec 31 23:30:00' \
+    $'                                    Finished on |\tJan 01 00:45:30' \
+    >"$WORKDIR/star_logs/newyear_Log.final.out"
+printf '%s\n' \
+    $'                                 Started job on |\tNov 23 12:08:36' \
+    >"$WORKDIR/star_logs/cut_Log.final.out"
 
 cat >"$WORKDIR/Spec.groovy" <<'GROOVY'
 import java.nio.file.Paths
@@ -316,6 +339,77 @@ check("bamsort_unmeasured", unknown.bytes == (32L * GB * 60L).intdiv(100L),
 def squeezed = BcaResources.bamSortRam(0, new MemoryUnit("2 GB"), bigRef)
 check("bamsort_floor", squeezed.bytes == GB, squeezed.bytes + " (want " + GB + "); note: " + squeezed.note)
 
+// Retries grow only what the failure called for, from the previous attempt's request.
+// The previous attempt arrives as task.previousTrace (a TraceRecord: exit Integer,
+// memory bytes, time milliseconds); a Map stands in for it here.
+def GiB = 1024L * 1024 * 1024
+def prevTrace = { int exit, long memGb, long minutes -> [exit: exit, memory: memGb * GiB, time: minutes * 60000L] }
+def memAfter = { prev, int attempt -> new MemoryUnit(BcaResources.retryMemory(prev, attempt, "11 GB")).toGiga() }
+def timeAfter = { prev, int attempt -> new nextflow.util.Duration(BcaResources.retryTime(prev, attempt, "131m")).toMinutes() }
+def retries = [
+    first:    [memAfter(null, 1), timeAfter(null, 1)],
+    timeout:  [memAfter(prevTrace(140, 11, 131), 2), timeAfter(prevTrace(140, 11, 131), 2)],
+    oom:      [memAfter(prevTrace(137, 11, 131), 2), timeAfter(prevTrace(137, 11, 131), 2)],
+    other:    [memAfter(prevTrace(143, 11, 131), 2), timeAfter(prevTrace(143, 11, 131), 2)],
+    // attempt 3 after an OOM (22 GB, 131m) then a timeout: memory stays doubled
+    chained:  [memAfter(prevTrace(140, 22, 131), 3), timeAfter(prevTrace(140, 22, 131), 3)],
+    // a previous trace without requests falls back to the plain ladder
+    noTrace:  [memAfter([exit: 140], 2), timeAfter([exit: 140], 2)],
+]
+def wantRetries = [first: [11L, 131L], timeout: [11L, 262L], oom: [22L, 131L], other: [22L, 262L],
+                   chained: [22L, 262L], noTrace: [22L, 262L]]
+check("retry_by_exit", retries == wantRetries,
+      retries.collect { k, v -> k + "=" + v[0] + "GB/" + v[1] + "m" }.join(", ") +
+      " (want " + wantRetries.collect { k, v -> k + "=" + v[0] + "GB/" + v[1] + "m" }.join(", ") + ")")
+
+// The module-facing form takes the task itself (a Map standing in for TaskConfig).
+def viaTask = [
+    BcaResources.attemptMemory([attempt: 1], "2 GB"),
+    BcaResources.attemptMemory([attempt: 2, previousTrace: prevTrace(140, 2, 30)], "2 GB"),
+    BcaResources.attemptMemory([attempt: 2, previousTrace: prevTrace(137, 2, 30)], "2 GB"),
+    BcaResources.attemptTime([attempt: 1], "4h"),
+    BcaResources.attemptTime([attempt: 2, previousTrace: prevTrace(140, 2, 240)], "4h"),
+    BcaResources.attemptTime([attempt: 2, previousTrace: prevTrace(137, 2, 240)], "4h"),
+]
+def wantViaTask = ["2048 MB", "2048 MB", "4096 MB", "240m", "480m", "240m"]
+check("retry_via_task", viaTask == wantViaTask, viaTask.join(", ") + " (want " + wantViaTask.join(", ") + ")")
+
+// The strings this class writes read back as the values it meant.
+def asStrings = [BcaResources.asBytes("8 GB"), BcaResources.asBytes("512 MB"), BcaResources.asBytes("1024"),
+                 BcaResources.asBytes("auto"), BcaResources.asMillis("131m"), BcaResources.asMillis("4h"),
+                 BcaResources.asMillis(new nextflow.util.Duration("2h")), BcaResources.asMillis("soon")]
+def wantStrings = [8L * GiB, 512L * 1024 * 1024, 1024L, 0L, 131L * 60000, 4L * 3600000, 2L * 3600000, 0L]
+check("as_strings", asStrings == wantStrings, asStrings.join(", ") + " (want " + wantStrings.join(", ") + ")")
+
+// A GeneExt re-mapping's time from the earlier pass: minutes x prior_factor, within floor and cap.
+def pspec = [exponent: 0.9d, ref_gb: 34.4, time_h: 4, floor_h: 1, cap_h: 24, prior_factor: 1.75d]
+def parsedPrior = ConfigParserFactory.create()
+        .parse("params { dynamic_time = [ NOPRIOR: [ exponent: 0.9, ref_gb: 34.4, time_h: 4 ] ] }").params.dynamic_time
+def priors = [
+    BcaResources.priorTime(pspec, 194, "131m"),                     // 194 x 1.75 = 339.5 -> 340m
+    BcaResources.priorTime(pspec, 12, "60m"),                       // 21 min, floored at 1 h
+    BcaResources.priorTime(pspec, 1000, "131m"),                    // 29 h, capped at 24 h
+    BcaResources.priorTime(pspec, null, "131m"),                    // no earlier pass
+    BcaResources.priorTime(pspec, 0, "131m"),
+    BcaResources.priorTime(pspec - [prior_factor: 1.75d], 194, "131m"),
+    BcaResources.priorTime(parsedPrior?.NOPRIOR, 194, "131m"),
+    BcaResources.priorTime(null, 194, "131m"),
+]
+def wantPriors = ["340m", "60m", "1440m", "131m", "131m", "131m", "131m", "131m"]
+check("prior_time", priors == wantPriors, priors.join(", ") + " (want " + wantPriors.join(", ") + ")")
+
+// STAR's run time read from Log.final.out
+def logs = Paths.get(System.getProperty("bca.work")).resolve("star_logs")
+def elapsed = [
+    BcaResources.starElapsedMinutes(logs.resolve("H1H13_Log.final.out")),               // 3h14m05s -> 195
+    BcaResources.starElapsedMinutes(new TaskPath(new FileHolder(logs.resolve("H1H13_Log.final.out")))),
+    BcaResources.starElapsedMinutes(logs.resolve("newyear_Log.final.out")),             // 1h15m30s -> 76
+    BcaResources.starElapsedMinutes(logs.resolve("cut_Log.final.out")),
+    BcaResources.starElapsedMinutes(logs.resolve("does-not-exist")),
+]
+check("star_elapsed", elapsed == [195, 195, 76, null, null],
+      elapsed.join(", ") + " (want 195, 195, 76, null, null)")
+
 // Every entry shipped in nextflow.config must be complete, or it silently does
 // nothing at all.
 def text = new File(root, "nextflow.config").text
@@ -343,6 +437,14 @@ check("config_shape", shipped.size() > 0 && incomplete.isEmpty() && shippedTime.
       (incomplete ? "; INCOMPLETE memory: " + incomplete.join(", ") : "") +
       (incompleteTime ? "; INCOMPLETE time: " + incompleteTime.join(", ") : "") +
       (badCpus ? "; INCOMPLETE cpus: " + badCpus.join(", ") : ""))
+
+// The module picks STARSOLO_ALIGN_BAM_ONLY for a bam_only pass; a missing entry would
+// silently fall back to the 32 GB label. The full pass must not ask for less.
+def starFull = shipped.STARSOLO_ALIGN, starBam = shipped.STARSOLO_ALIGN_BAM_ONLY
+check("star_memory_keys", starFull?.mem_gb && starBam?.mem_gb && starFull.floor_gb >= starBam.floor_gb &&
+      starFull.mem_gb >= starBam.mem_gb && shippedTime.STARSOLO_ALIGN?.prior_factor instanceof Number,
+      "STARSOLO_ALIGN " + starFull + ", STARSOLO_ALIGN_BAM_ONLY " + starBam +
+      ", prior_factor " + shippedTime.STARSOLO_ALIGN?.prior_factor)
 GROOVY
 
 # The JVM needs native paths and the platform's classpath separator, which under

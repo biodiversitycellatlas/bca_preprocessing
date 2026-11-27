@@ -7,9 +7,9 @@ process DOUBLET_FILTER {
     // Deliberately no resource label, since a withLabel setting would take precedence over
     // these: time is process_low's. The script runs on one thread.
     cpus   1
-    time   { 4.h * task.attempt }
-    memory { BcaResources.scaledMemory(
-        params.dynamic_memory?.DOUBLET_FILTER, [mtx, barcodes, features], task.attempt, 12) }
+    time   { BcaResources.attemptTime(task, '4h') }
+    memory { BcaResources.attemptMemory(task, BcaResources.scaledMemory(
+        params.dynamic_memory?.DOUBLET_FILTER, [mtx, barcodes, features], 1, 12)) }
 
     conda "${moduleDir}/environment.yml"
     container "${ workflow.containerEngine in ['singularity', 'apptainer'] && !task.ext.singularity_pull_docker_container ?

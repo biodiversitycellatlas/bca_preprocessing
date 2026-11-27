@@ -10,14 +10,14 @@ process SECONDDERIV_CELLCALLING {
     // in STARsolo's raw/ is measured).
     cpus   1
     memory {
-        BcaResources.scaledMemory(
+        BcaResources.attemptMemory(task, BcaResources.scaledMemory(
             params.dynamic_memory?.SECONDDERIV_CELLCALLING,
             mapper == 'alevin-fry'
                 ? [curve_source]
                 : BcaResources.filesIn(curve_source, [matrix_name, 'barcodes.tsv', 'features.tsv']),
-            task.attempt, 10)
+            1, 10))
     }
-    time   { 30.m * task.attempt }
+    time   { BcaResources.attemptTime(task, '30m') }
 
     conda "${moduleDir}/environment.yml"
     container "${ workflow.containerEngine in ['singularity', 'apptainer'] && !task.ext.singularity_pull_docker_container ?

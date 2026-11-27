@@ -4,9 +4,9 @@ process SCDBLFINDER {
 
     // Memory tracks the cell-called matrix
     cpus   1
-    time   { 30.m * task.attempt }
-    memory { BcaResources.scaledMemory(
-        params.dynamic_memory?.SCDBLFINDER, [tenx_dir], task.attempt, 10) }
+    time   { BcaResources.attemptTime(task, '30m') }
+    memory { BcaResources.attemptMemory(task, BcaResources.scaledMemory(
+        params.dynamic_memory?.SCDBLFINDER, [tenx_dir], 1, 10)) }
 
     // scDblFinder cannot model every matrix: its kNN step needs more cells than a poor
     // library retains. A failure never ends the run (error_optional: one retry when the

@@ -4,9 +4,9 @@ process SPLITSEQ_COLLAPSE_BC1 {
 
     // One pass over the barcode read; time follows its size
     cpus   1
-    memory { 1.GB * task.attempt }
-    time   { BcaResources.scaledTime(
-        params.dynamic_time?.SPLITSEQ_COLLAPSE_BC1, [fastq_BC_UMI], task.attempt, 4) }
+    memory { BcaResources.attemptMemory(task, '1 GB') }
+    time   { BcaResources.attemptTime(task, BcaResources.scaledTime(
+        params.dynamic_time?.SPLITSEQ_COLLAPSE_BC1, [fastq_BC_UMI], 1, 4)) }
 
     conda "${moduleDir}/environment.yml"
     container "${ workflow.containerEngine in ['singularity', 'apptainer'] && !task.ext.singularity_pull_docker_container ?

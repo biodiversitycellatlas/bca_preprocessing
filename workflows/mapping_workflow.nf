@@ -236,7 +236,7 @@ workflow QC_mapping_workflow {
                                                bc_whitelist_safe, bc_whitelist_by_sample, per_sample_wl)
             mapping_starsolo_geneext_input_workflow(geneext_input.data,
                                                     geneext_input.wl, seqspec_layout, ref_gtf_ch, ref_fasta_ch, 'false',
-                                                    params.geneext_bam_only as boolean, null)
+                                                    params.geneext_bam_only as boolean, null, null)
 
             // Same reference, so a standard subsampled run does not build a second index
             star_index_standard = mapping_starsolo_geneext_input_workflow.out.star_index
@@ -264,7 +264,7 @@ workflow QC_mapping_workflow {
             ch_mapped_ss = ch_mapped_ss.mix(apply_suffix(ch_samples, runs.star_standard))
 
             def star_input = pair_whitelist(ch_star_input, bc_whitelist_safe, bc_whitelist_by_sample, per_sample_wl)
-            mapping_starsolo_workflow(star_input.data, star_input.wl, seqspec_layout, ref_gtf_ch, ref_fasta_ch, 'false', false, star_index_standard)
+            mapping_starsolo_workflow(star_input.data, star_input.wl, seqspec_layout, ref_gtf_ch, ref_fasta_ch, 'false', false, star_index_standard, null)
 
             // Assign starsolo standard mapping outputs
             ch_starsolo_bam                 = ch_starsolo_bam.mix(mapping_starsolo_workflow.out.starsolo_bam)
@@ -345,8 +345,25 @@ workflow QC_mapping_workflow {
                 : apply_suffix(ch_samples, runs.star_geneext)
             ch_mapped_ss = ch_mapped_ss.mix(apply_suffix(ch_samples, runs.star_geneext))
 
+            // The run time of the STARsolo pass GeneExt read, per sample: the same reads on the
+            // same genome, so the re-mapping's time limit follows it. Sorted, so the value (an
+            // input of STARSOLO_ALIGN) hashes the same whatever order the logs arrived in.
+            // A subsampled re-mapping maps fewer reads than that pass did, so it keeps the
+            // FASTQ size estimate (null).
+            def ch_prior_minutes = null
+            if (runs.star_geneext != '_geneext_subsampled_starsolo') {
+                def ch_prior_log = runs.geneext_input == 'reuse_standard'
+                    ? mapping_starsolo_workflow.out.star_final_log
+                    : mapping_starsolo_geneext_input_workflow.out.star_final_log
+                ch_prior_minutes = ch_prior_log
+                    .map { meta, log_final -> [meta.base_id ?: meta.id, BcaResources.starElapsedMinutes(log_final)] }
+                    .filter { row -> row[1] != null }
+                    .toList()
+                    .map { rows -> rows.sort { row -> row[0] }.collectEntries { row -> [(row[0]): row[1]] } }
+            }
+
             def star_geneext_input = pair_whitelist(ch_geneext, bc_whitelist_safe, bc_whitelist_by_sample, per_sample_wl)
-            mapping_starsolo_geneext_workflow(star_geneext_input.data, star_geneext_input.wl, seqspec_layout, ref_gtf_geneext_ch, ref_fasta_geneext_ch, 'true', false, null)
+            mapping_starsolo_geneext_workflow(star_geneext_input.data, star_geneext_input.wl, seqspec_layout, ref_gtf_geneext_ch, ref_fasta_geneext_ch, 'true', false, null, ch_prior_minutes)
 
             // Mix the geneext starsolo outputs with standard run
             ch_starsolo_bam                 = ch_starsolo_bam.mix(mapping_starsolo_geneext_workflow.out.starsolo_bam)

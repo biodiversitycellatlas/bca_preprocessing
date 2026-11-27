@@ -4,9 +4,9 @@ process SPLITSEQ_DEMUX {
 
     // One pass over both reads; time follows their size (params.dynamic_time)
     cpus   1
-    memory { 2.GB * task.attempt }
-    time   { BcaResources.scaledTime(
-        params.dynamic_time?.SPLITSEQ_DEMUX, [fastq_cDNA, fastq_BC_UMI], task.attempt, 4) }
+    memory { BcaResources.attemptMemory(task, '2 GB') }
+    time   { BcaResources.attemptTime(task, BcaResources.scaledTime(
+        params.dynamic_time?.SPLITSEQ_DEMUX, [fastq_cDNA, fastq_BC_UMI], 1, 4)) }
 
     conda "${moduleDir}/environment.yml"
     container "${ workflow.containerEngine in ['singularity', 'apptainer'] && !task.ext.singularity_pull_docker_container ?

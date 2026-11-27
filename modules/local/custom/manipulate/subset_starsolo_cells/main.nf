@@ -11,11 +11,11 @@ process SUBSET_STARSOLO_CELLS {
     // request is process_single_mem2's 10 GB. Deliberately no resource label, since a
     // withLabel setting would take precedence over these: cpus and time are process_single_mem2's.
     cpus   1
-    time   { 30.m * task.attempt }
-    memory { BcaResources.scaledMemory(
+    time   { BcaResources.attemptTime(task, '30m') }
+    memory { BcaResources.attemptMemory(task, BcaResources.scaledMemory(
         params.dynamic_memory?.SUBSET_STARSOLO_CELLS,
         [BcaResources.filesIn(raw_dir, [matrix_name, 'barcodes.tsv', 'features.tsv']), cell_barcodes],
-        task.attempt, 10) }
+        1, 10)) }
 
     conda "${moduleDir}/environment.yml"
     container "${ workflow.containerEngine in ['singularity', 'apptainer'] && !task.ext.singularity_pull_docker_container ?

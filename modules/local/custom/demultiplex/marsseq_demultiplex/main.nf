@@ -3,10 +3,10 @@ process MARSSEQ_BUILD_READS {
     tag "${meta.id}"
 
     // Time follows the FASTQs (params.dynamic_time), never below 45 min
-    cpus   { 2 * task.attempt }
-    memory { 6.GB * task.attempt }
-    time   { BcaResources.scaledTime(
-        params.dynamic_time?.MARSSEQ_BUILD_READS, [fastq_cDNA, fastq_BC_UMI], task.attempt, 0.75) }
+    cpus   2
+    memory { BcaResources.attemptMemory(task, '6 GB') }
+    time   { BcaResources.attemptTime(task, BcaResources.scaledTime(
+        params.dynamic_time?.MARSSEQ_BUILD_READS, [fastq_cDNA, fastq_BC_UMI], 1, 0.75)) }
 
     conda "${moduleDir}/environment.yml"
     container "${ workflow.containerEngine in ['singularity', 'apptainer'] && !task.ext.singularity_pull_docker_container ?

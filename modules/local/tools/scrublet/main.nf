@@ -4,9 +4,9 @@ process SCRUBLET {
 
     // Memory tracks the cell-called matrix
     cpus   1
-    time   { 45.m * task.attempt }
-    memory { BcaResources.scaledMemory(
-        params.dynamic_memory?.SCRUBLET, [tenx_dir], task.attempt, 6) }
+    time   { BcaResources.attemptTime(task, '45m') }
+    memory { BcaResources.attemptMemory(task, BcaResources.scaledMemory(
+        params.dynamic_memory?.SCRUBLET, [tenx_dir], 1, 6)) }
 
     // Scrublet cannot model every matrix (too few cells, no bimodal score split). A
     // failure never ends the run (error_optional: one retry when the task was killed for

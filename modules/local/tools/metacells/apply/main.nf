@@ -5,9 +5,9 @@ process APPLY_METACELL_FILTER {
     // Memory tracks the cell-called h5ad, which is loaded in full. Coefficients live in
     // params.dynamic_memory; without an entry the request is process_single_mem2's 10 GB.
     cpus   1
-    time   { 30.m * task.attempt }
-    memory { BcaResources.scaledMemory(
-        params.dynamic_memory?.APPLY_METACELL_FILTER, [cells_h5ad], task.attempt, 10) }
+    time   { BcaResources.attemptTime(task, '30m') }
+    memory { BcaResources.attemptMemory(task, BcaResources.scaledMemory(
+        params.dynamic_memory?.APPLY_METACELL_FILTER, [cells_h5ad], 1, 10)) }
 
     container "${ workflow.containerEngine in ['singularity', 'apptainer'] && !task.ext.singularity_pull_docker_container ?
         'oras://community.wave.seqera.io/library/scanpy:1.12--45f1dccaf83880df' :

@@ -3,9 +3,9 @@ process GENE_EXT {
 
     // Time follows the BAM size
     cpus   2
-    memory { 6.GB * task.attempt }
-    time   { BcaResources.scaledTime(
-        params.dynamic_time?.GENE_EXT, [bam_file], task.attempt, 2) }
+    memory { BcaResources.attemptMemory(task, '6 GB') }
+    time   { BcaResources.attemptTime(task, BcaResources.scaledTime(
+        params.dynamic_time?.GENE_EXT, [bam_file], 1, 2)) }
 
     conda "${moduleDir}/environment.yml"
     container "${ workflow.containerEngine in ['singularity', 'apptainer'] && !task.ext.singularity_pull_docker_container ?

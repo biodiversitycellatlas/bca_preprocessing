@@ -3,10 +3,10 @@ process CALC_READ_METRICS {
     tag "${meta.id}"
 
     // Time follows the BAM size
-    cpus   { 1 * task.attempt }
-    memory { 2.GB * task.attempt }
-    time   { BcaResources.scaledTime(
-        params.dynamic_time?.CALC_READ_METRICS, [bam_file], task.attempt, 2) }
+    cpus   1
+    memory { BcaResources.attemptMemory(task, '2 GB') }
+    time   { BcaResources.attemptTime(task, BcaResources.scaledTime(
+        params.dynamic_time?.CALC_READ_METRICS, [bam_file], 1, 2)) }
 
     conda "${moduleDir}/environment.yml"
     container "${ workflow.containerEngine in ['singularity', 'apptainer'] && !task.ext.singularity_pull_docker_container ?

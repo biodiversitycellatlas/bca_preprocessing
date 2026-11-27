@@ -2,10 +2,10 @@ process SAMTOOLS_SUBSAMPLE {
     tag "${meta.id}"
 
     // Time follows the BAMs size
-    cpus   { 2 * task.attempt }
-    memory { 1.GB * task.attempt }
-    time   { BcaResources.scaledTime(
-        params.dynamic_time?.SAMTOOLS_SUBSAMPLE, [bam_file], task.attempt, 0.75) }
+    cpus   2
+    memory { BcaResources.attemptMemory(task, '1 GB') }
+    time   { BcaResources.attemptTime(task, BcaResources.scaledTime(
+        params.dynamic_time?.SAMTOOLS_SUBSAMPLE, [bam_file], 1, 0.75)) }
 
     conda "${moduleDir}/environment.yml"
     container "${ workflow.containerEngine in ['singularity', 'apptainer'] && !task.ext.singularity_pull_docker_container ?

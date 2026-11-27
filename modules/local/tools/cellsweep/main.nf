@@ -4,10 +4,10 @@ process CELLSWEEP {
 
     // Memory tracks the size of the raw matrix, which is loaded in full
     cpus   2
-    time   { BcaResources.scaledTime(
-        params.dynamic_time?.CELLSWEEP, [mtx, barcodes, features], task.attempt, 0.75) }
-    memory { BcaResources.scaledMemory(
-        params.dynamic_memory?.CELLSWEEP, [mtx, barcodes, features], task.attempt, 6) }
+    time   { BcaResources.attemptTime(task, BcaResources.scaledTime(
+        params.dynamic_time?.CELLSWEEP, [mtx, barcodes, features], 1, 0.75)) }
+    memory { BcaResources.attemptMemory(task, BcaResources.scaledMemory(
+        params.dynamic_memory?.CELLSWEEP, [mtx, barcodes, features], 1, 6)) }
 
     // A matrix with too few cells to cluster exits 3 from bin/run_cellsweep.py; the
     // sample is then dropped from this step and published without denoised counts.

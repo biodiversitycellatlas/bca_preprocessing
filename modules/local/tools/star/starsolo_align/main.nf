@@ -9,15 +9,25 @@ process STARSOLO_ALIGN {
     tag "${meta.id}"
 
     // Memory and time track the size of the FASTQs being read, never below what the genome index needs.
-    // CPUs step up above a size in params.dynamic_cpus, and by default 8 while unset. A retry
-    // keeps the same count: retries follow memory kills, and memory and time already double.
+    // A bam_only pass (GeneExt input: no solo features, tags or unmapped reads) has its own,
+    // smaller memory entry. A GeneExt re-mapping takes its time from the earlier pass over the
+    // same reads (prior_minutes, by base sample id) when that is known.
+    // CPUs step up above a size in params.dynamic_cpus, and by default 8 while unset, and stay
+    // the same on a retry. A retry doubles only what the failure called for: time after a
+    // wall-time kill (140), memory after an out-of-memory kill (137), both otherwise.
     cpus   { BcaResources.tieredCpus(
         params.dynamic_cpus?.STARSOLO_ALIGN, [fastq_cDNA, fastq_BC_UMI], 1, 8) }
-    time   { BcaResources.scaledTime(
-        params.dynamic_time?.STARSOLO_ALIGN, [fastq_cDNA, fastq_BC_UMI], task.attempt, 7) }
-    memory { BcaResources.scaledMemory(
-        params.dynamic_memory?.STARSOLO_ALIGN,
-        [fastq_cDNA, fastq_BC_UMI], task.attempt, 32, genome_index_files) }
+    time   { BcaResources.attemptTime(task,
+        BcaResources.priorTime(params.dynamic_time?.STARSOLO_ALIGN, prior_minutes?.get(meta.base_id),
+            BcaResources.scaledTime(params.dynamic_time?.STARSOLO_ALIGN, [fastq_cDNA, fastq_BC_UMI], 1, 7))) }
+    memory { BcaResources.attemptMemory(task,
+        BcaResources.scaledMemory(
+            bam_only ? params.dynamic_memory?.STARSOLO_ALIGN_BAM_ONLY : params.dynamic_memory?.STARSOLO_ALIGN,
+            [fastq_cDNA, fastq_BC_UMI], 1, 32, genome_index_files)) }
+
+    // A third attempt: a sample that maps several times slower per GB than the time model
+    // assumes needs more than one doubling
+    maxRetries 2
 
     // Exit 42 from bin/mapping_rate_guard.sh (mapping rate below params.min_mapping_rate)
     // aborts the pipeline or drops the sample; other exit codes follow conf/base.config.
@@ -35,6 +45,7 @@ process STARSOLO_ALIGN {
     path genome_index_files
     path(seqspec_layout, stageAs: 'seqspec_layout/*')
     val mapping_flag_dir
+    val prior_minutes   // [base_id: minutes] of an earlier STAR pass over the same reads; [:] for none
 
     output:
     tuple val(meta), path("*_Log.final.out"),                   emit: log_final_file

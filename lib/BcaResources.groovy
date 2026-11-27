@@ -311,7 +311,10 @@ class BcaResources {
      * but not a small one. The spec is `[above_gb: X, cpus: N]`; with no threshold set,
      * or an input that cannot be measured, the request is `baseCpus`, as before.
      *
-     * @return The CPU count, already multiplied by task.attempt.
+     * The modules pass attempt 1: a retry follows a memory or wall-time kill, which more
+     * CPUs do not fix, so the count stays the same (see attemptMemory()/attemptTime()).
+     *
+     * @return The CPU count, multiplied by `attempt`.
      */
     static int tieredCpus(Map spec, Object files, int attempt, int baseCpus) {
         int cpus = Math.max(1, baseCpus)
@@ -325,6 +328,204 @@ class BcaResources {
             }
         }
         return cpus * Math.max(1, attempt)
+    }
+
+    /**
+     * The first attempt's time limit from the run time of an earlier STAR pass over the
+     * same reads, where there is one.
+     *
+     * A GeneExt re-mapping follows a pass that mapped the same reads to the same genome
+     * (the bam_only GeneExt input pass, or the standard run). On genoa64 the re-mapping
+     * took 1.2-1.4x that pass's time in every sample, while minutes per GB of FASTQ
+     * varied 5x between samples of one run (hoihon01, 23 Nov 2026). The measured time
+     * is the better predictor, so it replaces the size model whenever it is known.
+     *
+     * @param spec         params.dynamic_time entry; its `prior_factor` sets the margin,
+     *                     `floor_h` and `cap_h` clamp the result. Without `prior_factor`
+     *                     the fallback is returned.
+     * @param priorMinutes The earlier pass's run time in minutes, or null.
+     * @param fallback     The size-based limit (scaledTime() at attempt 1).
+     * @return A duration string in whole minutes, such as "340m".
+     */
+    static String priorTime(Map spec, Object priorMinutes, String fallback) {
+        if (!(priorMinutes instanceof Number) || (priorMinutes as double) <= 0d ||
+                !spec || !(spec.prior_factor instanceof Number)) {
+            return fallback
+        }
+        double hours = (priorMinutes as double) * (spec.prior_factor as double) / 60.0d
+        if (spec.floor_h instanceof Number) {
+            hours = Math.max(hours, spec.floor_h as double)
+        }
+        if (spec.cap_h instanceof Number) {
+            hours = Math.min(hours, spec.cap_h as double)
+        }
+        long minutes = Math.max(1L, (long) Math.ceil(hours * 60.0d - 1e-9d))
+        return "${minutes}m".toString()
+    }
+
+    /** STAR's "Mon dd HH:mm:ss" stamps in Log.final.out; they carry no year. */
+    private static final java.time.format.DateTimeFormatter STAR_STAMP =
+        java.time.format.DateTimeFormatter.ofPattern('yyyy MMM d HH:mm:ss', Locale.ENGLISH)
+
+    /**
+     * Minutes from "Started job on" to "Finished on" in a STAR Log.final.out, rounded
+     * up. Null when the file cannot be read or either stamp is missing or unparseable.
+     * A run across New Year shows a finish before its start, and gets a year added.
+     */
+    static Integer starElapsedMinutes(Object logFinal) {
+        try {
+            Path path = logFinal instanceof Path ? realPath((Path) logFinal) : Paths.get(logFinal.toString())
+            String started = null
+            String finished = null
+            for (String line : Files.readAllLines(path)) {
+                int bar = line.indexOf('|')
+                if (bar < 0) {
+                    continue
+                }
+                String key = line.substring(0, bar).trim()
+                String value = line.substring(bar + 1).trim().replaceAll(/\s+/, ' ')
+                if (key == 'Started job on') {
+                    started = value
+                }
+                else if (key == 'Finished on') {
+                    finished = value
+                }
+            }
+            if (!started || !finished) {
+                return null
+            }
+            // A leap year, so a run on 29 Feb parses
+            def start = java.time.LocalDateTime.parse("2000 ${started}".toString(), STAR_STAMP)
+            def end   = java.time.LocalDateTime.parse("2000 ${finished}".toString(), STAR_STAMP)
+            if (end.isBefore(start)) {
+                end = end.plusYears(1)
+            }
+            long seconds = java.time.Duration.between(start, end).seconds
+            return (int) Math.max(1L, (long) Math.ceil(seconds / 60.0d))
+        }
+        catch (Exception ignored) {
+            return null
+        }
+    }
+
+    /** Exit statuses whose retry needs only more time (SLURM wall-time kill on CRG's genoa64). */
+    static final List<Integer> TIME_EXIT_CODES = [140]
+
+    /** Exit statuses whose retry needs only more memory (SIGKILL from the cgroup OOM killer). */
+    static final List<Integer> MEMORY_EXIT_CODES = [137]
+
+    /** A field of `task.previousTrace` (a TraceRecord), or of a Map standing in for one. */
+    private static Object traceField(Object trace, String name) {
+        try {
+            return trace?.get(name)
+        }
+        catch (Exception ignored) {
+            return null
+        }
+    }
+
+    /**
+     * Whether a retry after `previous` should grow `resource` ('memory' or 'time').
+     * A wall-time kill grows only time, an out-of-memory kill only memory, and any
+     * other failure both, as a plain `x task.attempt` ladder would.
+     */
+    static boolean retryGrows(Object previous, String resource) {
+        Object exit = traceField(previous, 'exit')
+        int code = exit instanceof Number ? (exit as int) : -1
+        if (code in TIME_EXIT_CODES) {
+            return resource == 'time'
+        }
+        if (code in MEMORY_EXIT_CODES) {
+            return resource == 'memory'
+        }
+        return true
+    }
+
+    /**
+     * Memory for an attempt, from the previous attempt's request and how it failed:
+     * doubled after an out-of-memory kill or an unrecognised failure, kept after a
+     * wall-time kill. Attempt 1, or a previous trace without a request, gets
+     * `first x attempt`, the plain ladder.
+     *
+     * @param previous `task.previousTrace` (null on attempt 1).
+     * @param attempt  task.attempt.
+     * @param first    The attempt-1 request, such as "8 GB".
+     */
+    static String retryMemory(Object previous, int attempt, String first) {
+        long prev = asBytes(traceField(previous, 'memory'))
+        if (attempt <= 1 || prev <= 0L) {
+            long bytes = asBytes(first) * Math.max(1, attempt)
+            return "${bytes.intdiv(1024L * 1024L)} MB".toString()
+        }
+        long bytes = retryGrows(previous, 'memory') ? prev * 2L : prev
+        return "${bytes.intdiv(1024L * 1024L)} MB".toString()
+    }
+
+    /**
+     * Time for an attempt, the counterpart of retryMemory(): doubled after a wall-time
+     * kill or an unrecognised failure, kept after an out-of-memory kill.
+     *
+     * @param first The attempt-1 limit, such as "131m".
+     */
+    static String retryTime(Object previous, int attempt, String first) {
+        long prev = asMillis(traceField(previous, 'time'))
+        long millis
+        if (attempt <= 1 || prev <= 0L) {
+            millis = asMillis(first) * Math.max(1, attempt)
+        }
+        else {
+            millis = retryGrows(previous, 'time') ? prev * 2L : prev
+        }
+        long minutes = Math.max(1L, (long) Math.ceil(millis / 60000.0d))
+        return "${minutes}m".toString()
+    }
+
+    /**
+     * A module's memory directive: `memory { BcaResources.attemptMemory(task, first) }`,
+     * where `first` is the attempt-1 request ("2 GB", or scaledMemory(..., 1, ...)).
+     * Retries follow retryMemory(): doubled after exit 137 or an unrecognised failure,
+     * kept after a wall-time kill.
+     */
+    static String attemptMemory(Object task, String first) {
+        int attempt = Math.max(1, (task?.attempt ?: 1) as int)
+        return retryMemory(attempt > 1 ? task.previousTrace : null, attempt, first)
+    }
+
+    /** The time directive's counterpart of attemptMemory(), with `first` such as "30m" or "4h". */
+    static String attemptTime(Object task, String first) {
+        int attempt = Math.max(1, (task?.attempt ?: 1) as int)
+        return retryTime(attempt > 1 ? task.previousTrace : null, attempt, first)
+    }
+
+    private static final Map<String, Long> TIME_UNIT_MILLIS = [
+        ms: 1L, s: 1000L, m: 60000L, h: 3600000L, d: 86400000L
+    ]
+
+    /**
+     * Milliseconds from a Duration (`task.time`), a plain number, or a string with one
+     * number and unit such as "131m" or "4h" (the form scaledTime() writes).
+     */
+    static long asMillis(Object value) {
+        if (value == null) {
+            return 0L
+        }
+        if (value instanceof Number) {
+            return ((Number) value).longValue()
+        }
+        if (!(value instanceof CharSequence)) {
+            try {
+                // nextflow.util.Duration, by duck typing as in asBytes()
+                return value.toMillis() as long
+            }
+            catch (Exception ignored) {
+            }
+        }
+        def m = value.toString().trim() =~ /^(\d+(?:\.\d+)?)\s*(ms|s|m|h|d)?$/
+        if (!m.matches()) {
+            return 0L
+        }
+        long unit = TIME_UNIT_MILLIS[m.group(2) ?: 'ms']
+        return (long) Math.round((m.group(1) as double) * unit)
     }
 
     /** Bytes from a MemoryUnit (`task.memory`), a plain number, or a numeric string. */
@@ -342,13 +543,19 @@ class BcaResources {
         }
         catch (Exception ignored) {
         }
-        try {
-            return Long.parseLong(value.toString().trim())
-        }
-        catch (Exception ignored) {
+        // A string such as "8 GB", the form scaledMemory() writes, or a bare byte count
+        def m = value.toString().trim().toUpperCase() =~ /^(\d+(?:\.\d+)?)\s*(B|KB|MB|GB|TB)?$/
+        if (!m.matches()) {
             return 0L
         }
+        long unit = MEMORY_UNIT_BYTES[m.group(2) ?: 'B']
+        return (long) Math.round((m.group(1) as double) * unit)
     }
+
+    /** Nextflow's units: KB, MB and GB mean KiB, MiB and GiB. */
+    private static final Map<String, Long> MEMORY_UNIT_BYTES = [
+        B: 1L, KB: 1024L, MB: 1048576L, GB: 1073741824L, TB: 1099511627776L
+    ]
 
     /** What STAR needs on top of the index and the sort buffer: alignment buffers,
      *  the solo structures, and the usual container overhead. */

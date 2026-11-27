@@ -2,10 +2,10 @@ process SUBSAMPLE_FASTQS {
     tag "${meta.id}"
 
     // Time follows the FASTQs.
-    cpus   { 2 * task.attempt }
-    memory { 12.GB * task.attempt }
-    time   { BcaResources.scaledTime(
-        params.dynamic_time?.SUBSAMPLE_FASTQS, [fastq_cDNA, fastq_BC_UMI], task.attempt, 4) }
+    cpus   2
+    memory { BcaResources.attemptMemory(task, '12 GB') }
+    time   { BcaResources.attemptTime(task, BcaResources.scaledTime(
+        params.dynamic_time?.SUBSAMPLE_FASTQS, [fastq_cDNA, fastq_BC_UMI], 1, 4)) }
 
     conda "${moduleDir}/environment.yml"
     container "${ workflow.containerEngine in ['singularity', 'apptainer'] && !task.ext.singularity_pull_docker_container ?

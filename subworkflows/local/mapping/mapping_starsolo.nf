@@ -27,6 +27,7 @@ workflow mapping_starsolo_workflow {
         remap_geneext
         bam_only            // true for a pass mapped only for GeneExt: alignment and BAM, nothing else
         prebuilt_star_index // a STARsolo index another pass already built, or null to build one here
+        prior_minutes       // value channel [base_id: minutes] of an earlier STAR pass over the same reads, or null
 
     main:
         // Initialize reporting channels
@@ -69,7 +70,10 @@ workflow mapping_starsolo_workflow {
 
         // Run STARsolo alignment. Protocol 'seqspec' takes its barcode layout from the layout
         // file SEQSPEC_LAYOUT derived from the seqspec file.
-        STARSOLO_ALIGN(data_output, bc_whitelist_ch, bam_only, star_index_ch, seqspec_layout, MappingRateCheck.flagDir(workflow).toString())
+        // prior_minutes sets a GeneExt re-mapping's time limit from the pass before it
+        def prior_minutes_ch = prior_minutes != null ? prior_minutes : channel.value([:])
+        STARSOLO_ALIGN(data_output, bc_whitelist_ch, bam_only, star_index_ch, seqspec_layout,
+                       MappingRateCheck.flagDir(workflow).toString(), prior_minutes_ch)
         ch_versions = ch_versions.mix(STARSOLO_ALIGN.out.versions)
 
         // Re-call cells on a UMI cutoff, or keep STARsolo's own filtered matrix

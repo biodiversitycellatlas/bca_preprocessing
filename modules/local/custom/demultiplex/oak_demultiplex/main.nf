@@ -4,9 +4,9 @@ process OAK_DEMUX {
 
     // Every aliquot reads the whole run's FASTQs, so time follows them (params.dynamic_time), never below 1 h
     cpus   1
-    memory { 1.GB * task.attempt }
-    time   { BcaResources.scaledTime(
-        params.dynamic_time?.OAK_DEMUX, [fastq_cDNA, fastq_BC_UMI], task.attempt, 1) }
+    memory { BcaResources.attemptMemory(task, '1 GB') }
+    time   { BcaResources.attemptTime(task, BcaResources.scaledTime(
+        params.dynamic_time?.OAK_DEMUX, [fastq_cDNA, fastq_BC_UMI], 1, 1)) }
 
     conda "${moduleDir}/environment.yml"
     container "${ workflow.containerEngine in ['singularity', 'apptainer'] && !task.ext.singularity_pull_docker_container ?

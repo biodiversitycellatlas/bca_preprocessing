@@ -7,9 +7,9 @@ process SCALEBIO_DEMUX {
     // and samtools (de)compress alongside. Time follows the reads (params.dynamic_time; a
     // CRAM is counted at its FASTQ size by BcaResources), never below 1 h.
     cpus   3
-    memory { 1.GB * task.attempt }
-    time   { BcaResources.scaledTime(
-        params.dynamic_time?.SCALEBIO_DEMUX, [fastq_cDNA, fastq_BC, fastq_I1, fastq_I2], task.attempt, 1) }
+    memory { BcaResources.attemptMemory(task, '1 GB') }
+    time   { BcaResources.attemptTime(task, BcaResources.scaledTime(
+        params.dynamic_time?.SCALEBIO_DEMUX, [fastq_cDNA, fastq_BC, fastq_I1, fastq_I2], 1, 1)) }
 
     conda "${moduleDir}/environment.yml"
     container "${ workflow.containerEngine in ['singularity', 'apptainer'] && !task.ext.singularity_pull_docker_container ?

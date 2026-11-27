@@ -4,9 +4,9 @@ process PARSEBIO_CUSTOM_DEMUX {
 
     // Time follows the reads (params.dynamic_time), never below 4 h.
     cpus   1
-    memory { 2.GB * task.attempt }
-    time   { BcaResources.scaledTime(
-        params.dynamic_time?.PARSEBIO_CUSTOM_DEMUX, [fastq_cDNA, fastq_BC_UMI], task.attempt, 4) }
+    memory { BcaResources.attemptMemory(task, '2 GB') }
+    time   { BcaResources.attemptTime(task, BcaResources.scaledTime(
+        params.dynamic_time?.PARSEBIO_CUSTOM_DEMUX, [fastq_cDNA, fastq_BC_UMI], 1, 4)) }
 
     conda "${moduleDir}/environment.yml"
     container "${ workflow.containerEngine in ['singularity', 'apptainer'] && !task.ext.singularity_pull_docker_container ?

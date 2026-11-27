@@ -7,14 +7,14 @@ process MAPPING_STATS {
     // Coefficients live in params.dynamic_memory; without an entry the request is
     // process_single_mem2's 10 GB.
     cpus   1
-    time   { 30.m * task.attempt }
-    memory { BcaResources.scaledMemory(
+    time   { BcaResources.attemptTime(task, '30m') }
+    memory { BcaResources.attemptMemory(task, BcaResources.scaledMemory(
         params.dynamic_memory?.MAPPING_STATS,
         [dests, files instanceof List ? files : [files]].transpose()
             .findAll { dest, _f -> dest.toString().endsWith('/raw') }
             .collect { _dest, f -> BcaResources.filesIn(f, [star_raw_matrix, 'barcodes.tsv', 'features.tsv']) }
             .max { run -> BcaResources.totalBytes(run) } ?: [],
-        task.attempt, 10) }
+        1, 10)) }
 
     conda "${moduleDir}/environment.yml"
     container "${ workflow.containerEngine in ['singularity', 'apptainer'] && !task.ext.singularity_pull_docker_container ?
