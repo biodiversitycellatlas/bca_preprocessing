@@ -25,15 +25,18 @@ process KRAKEN {
     path "versions.yml",         emit: versions
 
     script:
+    def confidence = params.kraken_confidence
     """
     echo -e "\\n\\n==================  KRAKEN  =================="
     echo "Kraken database: ${kraken_db}"
+    echo "Confidence threshold: ${confidence}"
     echo "Running KRAKEN for ${meta.id}"
     echo "FASTA file: ${filtered_fasta}"
 
     kraken2 \\
         --threads ${task.cpus} \\
         --db ${kraken_db} \\
+        --confidence ${confidence} \\
         --report ${meta.id}.k2report \\
         --output ${meta.id}.kraken \\
         ${filtered_fasta}

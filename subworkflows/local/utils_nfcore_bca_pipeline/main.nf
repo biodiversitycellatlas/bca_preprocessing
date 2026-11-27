@@ -307,6 +307,10 @@ workflow PIPELINE_INITIALISATION {
     }
     MappingRateCheck.reset(workflow)
 
+    if (!(params.kraken_confidence instanceof Number) || params.kraken_confidence < 0 || params.kraken_confidence > 1) {
+        error("'kraken_confidence' = '${params.kraken_confidence}' must be a number between 0 and 1 (0 is kraken2's default).")
+    }
+
     // The barcode check runs before mapping and follows mapping_rate_action
     if (!(params.min_barcode_match instanceof Number) || params.min_barcode_match < 0 || params.min_barcode_match > 100) {
         error("'min_barcode_match' = '${params.min_barcode_match}' must be a percentage between 0 and 100 (0 disables the check).")

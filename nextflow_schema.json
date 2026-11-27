@@ -684,6 +684,13 @@
                     "format": "directory-path",
                     "exists": true,
                     "description": "Existing Kraken2 database; the PlusPF 16 GB database is downloaded when unset."
+                },
+                "kraken_confidence": {
+                    "description": "Kraken2 confidence threshold: the share of a read's k-mers that must support its classification (0 to 1).",
+                    "type": "number",
+                    "minimum": 0,
+                    "maximum": 1,
+                    "default": 0.15
                 }
             }
         },

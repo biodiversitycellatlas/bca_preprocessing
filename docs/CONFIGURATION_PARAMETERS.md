@@ -484,6 +484,7 @@ would leave GeneExt with nothing to read.
 |------------------------|-------------------|-------------|
 | `perform_kraken`       | Optional          | Boolean flag to enable or disable Kraken2 classification of unmapped reads. Default is `false`. |
 | `kraken_db_path`       | Optional          | Path to the Kraken2 database used for taxonomic classification of unmapped reads, if empty, a default database will be installed. `KRAKEN` requests memory from the size of the database's `*.k2d` files, which kraken2 loads whole. |
+| `kraken_confidence`    | Optional          | kraken2's `--confidence`: the share of a read's k-mers that must support its classification, between 0 and 1. A read below it is moved up the taxonomy until enough k-mers agree, or left unclassified. Default is `0.15`; `0` is kraken2's own default. |
 
 
 
