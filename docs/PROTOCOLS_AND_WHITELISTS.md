@@ -11,12 +11,13 @@ Which read goes in which samplesheet column, and the format of the `p5`, `p7` an
 3. [10x Genomics](#10x-genomics)
 4. [OAK](#oak)
 5. [Parse Biosciences](#parse-biosciences)
-6. [BD Rhapsody](#bd-rhapsody)
-7. [sci-RNA-seq3](#sci-rna-seq3)
-8. [MARS-seq](#mars-seq)
-9. [ScaleBio](#scalebio)
-10. [seqspec](#seqspec)
-11. [Known limitations](#known-limitations)
+6. [SPLiT-seq](#split-seq)
+7. [BD Rhapsody](#bd-rhapsody)
+8. [sci-RNA-seq3](#sci-rna-seq3)
+9. [MARS-seq](#mars-seq)
+10. [ScaleBio](#scalebio)
+11. [seqspec](#seqspec)
+12. [Known limitations](#known-limitations)
 
 ---
 
@@ -27,6 +28,7 @@ Which read goes in which samplesheet column, and the format of the `p5`, `p7` an
 | 10x Genomics        | `10xv2`, `10xv3`, `10xv4`                              | none                                            | -                                    |
 | OAK                 | `oak_v1`                                               | split aliquots on their i5/i7 index             | `fastq_indices`, `p5`, `p7` (optional) |
 | Parse Biosciences   | `parse_biosciences_WT_mini`, `parse_biosciences_WT`    | split samples on their RT wells, collapse round-1 barcodes | `rt`                       |
+| SPLiT-seq           | `splitseq_v1`                                          | split samples on their RT wells, collapse round-1 barcodes | `rt` (optional)            |
 | BD Rhapsody         | `bd_rhapsody_v1`, `bd_rhapsody_enhancedbeads`          | remove variable bases (Enhanced Beads only)     | -                                    |
 | sci-RNA-seq3        | `sciRNAseq3`                                           | demultiplex with sci-rocket, trim with fastp    | `p5`, `p7`, `rt`                     |
 | MARS-seq            | `marsseq_v1`, `marsseq_v2`                             | rebuild the reads                               | -                                    |
@@ -51,6 +53,7 @@ Which read goes in which samplesheet column, and the format of the `p5`, `p7` an
 | `10xv2` - `10xv4`, `oak_v1`   | the 10x whitelist matching the chemistry                                       |
 | `parse_biosciences_WT_mini`   | `bc_data_n26_R1_v3_4` `bc_data_v1` `bc_data_R3_v4`                             |
 | `parse_biosciences_WT`        | `bc_data_n107_R1_v3_4` `bc_data_v1` `bc_data_R3_v4`                            |
+| `splitseq_v1`                 | the 96 SPLiT-seq barcodes, one list for all rounds, see [SPLiT-seq](#split-seq) |
 | `bd_rhapsody_v1`              | `A96_cell_key1` `A96_cell_key2` `A96_cell_key3`                                |
 | `bd_rhapsody_enhancedbeads`   | `A96_cell_key1` `A96_cell_key2` `A96_cell_key3` (V1 beads), or `B384_cell_key1` `B384_cell_key2` `B384_cell_key3` (V2/V3 beads) |
 | `sciRNAseq3`                  | the sci-rocket barcode definition file, see [sci-RNA-seq3](#sci-rna-seq3)      |
@@ -94,6 +97,33 @@ Parse pools several samples into one library, which are told apart by the RT wel
 - split-pipe, if enabled, still receives the original reads.
 
 The rewrite runs after the demultiplexing, whichever is used, and also with `perform_demultiplexing = false`.
+
+
+## SPLiT-seq
+
+`splitseq_v1` is academic SPLiT-seq, as published by Rosenberg et al. (Science 2018) and its split-seq-pipeline: three barcoding rounds of the same 96 barcodes, and sublibraries told apart by their i7 index. Parse Biosciences' kits are a later version of this chemistry with shorter linkers, so they use the Parse protocols above.
+
+| Read 2 (0-based) | UMI | round 3 | linker | round 2 | linker | round 1 (RT) |
+| ---------------- | --- | ------- | ------ | ------- | ------ | ------------ |
+| positions        | 0-10 | 10-18  | 30 nt  | 48-56   | 30 nt  | 86-94        |
+
+**Read 2 must be at least 94 nt**, as in the published runs (66 + 94 nt, or 150 + 150 nt). The microSPLiT and Parse v1/v2 layout, with the round-1 barcode at 78-86, is not supported yet.
+
+**Samplesheet.** Read 1 (cDNA) in `fastq_cDNA`, read 2 (barcodes + UMI) in `fastq_BC_UMI`. One row per sublibrary: the same barcodes in two sublibraries are two different cells, so never give two sublibraries the same `sample` name. To split a sublibrary into the samples loaded into different RT wells, add one row per sample with its wells in `rt` (e.g. `A1-A6`), see [SPLiT-seq samplesheet](SAMPLESHEET.md#split-seq). A row with an empty `rt` keeps all reads.
+
+**Barcode whitelist.** One list of the 96 barcodes for all three rounds. The list of split-seq-pipeline can be given as its URL:
+
+```
+bc_whitelist = "https://raw.githubusercontent.com/Alex-Rosenberg/split-seq-pipeline/master/split_seq/barcodes/bc_8nt_v1.csv"
+```
+
+The list may be a plain list or a delimited table (as this `index,sequence` CSV); the field made only of A/C/G/T is the barcode. Three lists (round 1, round 2, round 3) can be given instead. `SPLITSEQ_WELLS` writes them as plain lists to `demultiplex/splitseq_whitelists/`.
+
+**RT wells.** Each of the 48 RT wells holds an oligo-dT primer (barcodes 1-48) and a random-hexamer primer (barcodes 49-96): barcodes *i* and *i*+48 are one well. Unless `splitseq_wells` gives a well CSV of its own (columns `bci,sequence,uid,well,stype`, as for Parse), `SPLITSEQ_WELLS` derives it from the round-1 list: wells `A1`-`D12` in plate order, `stype` `T` and `R`. A different plate layout needs `splitseq_wells`.
+
+**Demultiplexing.** For rows with `rt`, `SPLITSEQ_DEMUX` keeps the read pairs whose round-1 barcode lies in the sample's wells, oligo-dT and random-hexamer alike, matched as for Parse (smallest edit distance, at most 2). Its counts are written to `demultiplex/demux_splitseq/<sample>/<sample>_demux.log`.
+
+**Round-1 barcodes.** A mapper given all 96 round-1 barcodes splits every cell into an oligo-dT and a random-hexamer barcode. With `splitseq_collapse_bc1 = true` (the default), `SPLITSEQ_COLLAPSE_BC1` rewrites the round-1 barcode to its well's oligo-dT barcode before mapping, as for Parse. The mappers then get the 48 oligo-dT barcodes as round-1 whitelist. The step stops the run when more than half of a sample's barcode reads are shorter than 94 nt, which points to a too-short read 2 or to swapped reads. Its counts are written to `demultiplex/bc1_collapse/<sample>/<sample>_bc1_collapse.log`.
 
 
 ## BD Rhapsody
@@ -290,6 +320,6 @@ Off by default for `seqspec`: the reads are mapped as they are, and STARsolo's o
 
 ## Known limitations
 
-**Homopolymer UMIs.** A UMI made of one repeated base (`GGGGGGGG`) is a sequencing or synthesis artefact, not a molecule tag, and STARsolo is meant to drop it. With the split-barcode layouts (`--soloType CB_UMI_Complex`: Parse, BD Rhapsody, sci-RNA-seq3, ScaleBio v1.1), STAR 2.7.11b drops only all-A UMIs ([alexdobin/STAR#2715](https://github.com/alexdobin/STAR/issues/2715), item 1g). All-C, all-G and all-T UMIs are counted, adding at most one UMI per cell and gene each.
+**Homopolymer UMIs.** A UMI made of one repeated base (`GGGGGGGG`) is a sequencing or synthesis artefact, not a molecule tag, and STARsolo is meant to drop it. With the split-barcode layouts (`--soloType CB_UMI_Complex`: Parse, SPLiT-seq, BD Rhapsody, sci-RNA-seq3, ScaleBio v1.1), STAR 2.7.11b drops only all-A UMIs ([alexdobin/STAR#2715](https://github.com/alexdobin/STAR/issues/2715), item 1g). All-C, all-G and all-T UMIs are counted, adding at most one UMI per cell and gene each.
 - ScaleBio is not affected: `SCALEBIO_DEMUX` already drops these reads.
 - In the Parse test data, 0.9 % of reads have an all-G UMI, but 99 % of those also lack a valid cell barcode; the counts change by less than 0.01 %. Runs with many poly-G reads, and BD Rhapsody, whose UMI ends the barcode read, may be affected more.

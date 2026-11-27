@@ -81,6 +81,7 @@ def cases = [
     ['external_only', 'MARS-seq',     [protocol: 'marsseq_v1', run_method: ext],           ["has no vendor pipeline"], []],
     ['external_only', 'sciRNAseq3',   [protocol: 'sciRNAseq3', run_method: ext],           ["has no vendor pipeline"], []],
     ['external_only', 'ScaleBio',     [protocol: 'scalebio_quantum_rna', run_method: ext], ["has no vendor pipeline"], []],
+    ['external_only', 'SPLiT-seq',    [protocol: 'splitseq_v1', run_method: ext],          ["has no vendor pipeline"], []],
     ['external_only', 'seqspec',      [protocol: 'seqspec', run_method: ext],              ["has no vendor pipeline"], []],
 
     // A missing path is reported once, not also as "nothing to run"

@@ -104,6 +104,10 @@ def main():
     ap.add_argument("--barcode_start", type=int, default=50, help="0-based start of bc1 in R2.")
     ap.add_argument("--barcode_end", type=int, default=58, help="Exclusive end of bc1 in R2.")
     ap.add_argument("--max_edit_dist", type=int, default=2, choices=[0, 1, 2], help="Max edit (Levenshtein) distance (<=2).")
+    ap.add_argument("--whitelist_name", default=WHITELIST_NAME, help="File name of the round-1 whitelist written.")
+    ap.add_argument("--max_too_short", type=float, default=None,
+                    help="Fail when more than this fraction of the reads is shorter than --barcode_end "
+                         "(e.g. a read 2 sequenced too short, or the reads swapped). Unset: never fail.")
     args = ap.parse_args()
 
     seq_well, seq_type, canonical = load_wells(args.csv)
@@ -112,7 +116,7 @@ def main():
         sys.exit(f"bc1 slice length {args.barcode_end - args.barcode_start} does not match the CSV barcodes ({sorted(lens)}).")
 
     os.makedirs(args.output, exist_ok=True)
-    with open(os.path.join(args.output, WHITELIST_NAME), "w") as fh:
+    with open(os.path.join(args.output, args.whitelist_name), "w") as fh:
         fh.write("\n".join(canonical.values()) + "\n")
 
     out_name = os.path.join(args.output, f"{args.sample_id}_R2.bc1collapsed.fastq.gz")
@@ -128,6 +132,11 @@ def main():
     sys.stdout.write(report)
     with open(os.path.join(args.output, f"{args.sample_id}_bc1_collapse.log"), "w") as fh:
         fh.write(report)
+
+    if args.max_too_short is not None and stats["total"] and stats["too_short"] > args.max_too_short * stats["total"]:
+        sys.exit(f"{args.sample_id}: {stats['too_short']} of {stats['total']} barcode reads are shorter than "
+                 f"{args.barcode_end} nt, so they hold no round-1 barcode. Check that read 2 was sequenced "
+                 f"long enough and that the samplesheet gives the barcode read in 'fastq_BC_UMI'.")
 
 
 if __name__ == "__main__":

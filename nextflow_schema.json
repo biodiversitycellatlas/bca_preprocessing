@@ -40,6 +40,7 @@
                         "oak_v1",
                         "parse_biosciences_WT_mini",
                         "parse_biosciences_WT",
+                        "splitseq_v1",
                         "bd_rhapsody_v1",
                         "bd_rhapsody_enhancedbeads",
                         "sciRNAseq3",
@@ -93,6 +94,17 @@
                     "type": "boolean",
                     "default": true,
                     "description": "Parse Biosciences: rewrite each read's round-1 barcode to its well's oligo-dT barcode before mapping, so a cell's oligo-dT, random-hexamer and targeted reads form one cell. Needs 'bc_whitelist_parse_splitwells'."
+                },
+                "splitseq_wells": {
+                    "type": "string",
+                    "format": "file-path",
+                    "exists": true,
+                    "description": "SPLiT-seq: round-1 well CSV (bci,sequence,uid,well,stype) for the well demultiplexing and the round-1 merge. Unset, it is derived from the 96 barcodes of the first 'bc_whitelist' file: barcodes i (oligo-dT) and i+48 (random hexamer) share well i, A1-D12 in plate order."
+                },
+                "splitseq_collapse_bc1": {
+                    "type": "boolean",
+                    "default": true,
+                    "description": "SPLiT-seq: rewrite each read's round-1 barcode to its well's oligo-dT barcode before mapping, so a cell's oligo-dT and random-hexamer reads form one cell."
                 },
                 "scalebio_max_mismatches": {
                     "type": "integer",
@@ -371,7 +383,7 @@
             "default": "",
             "properties": {
                 "perform_demultiplexing": {
-                    "description": "Demultiplex the FASTQ files of protocols that need it (MARS-seq, OAK, Parse Biosciences, sci-RNA-seq3).",
+                    "description": "Demultiplex the FASTQ files of protocols that need it (MARS-seq, OAK, Parse Biosciences, sci-RNA-seq3, and SPLiT-seq samples with 'rt' wells).",
                     "type": "boolean",
                     "default": true
                 },

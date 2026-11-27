@@ -15,6 +15,7 @@ include { marsseq_workflow              } from '../subworkflows/local/pre-proces
 include { seqspec_workflow              } from '../subworkflows/local/pre-processing/preprocs_seqspec'
 include { oak_workflow                  } from '../subworkflows/local/pre-processing/preprocs_oak'
 include { scalebio_workflow             } from '../subworkflows/local/pre-processing/preprocs_scalebio'
+include { splitseq_workflow             } from '../subworkflows/local/pre-processing/preprocs_splitseq'
 
 include { MERGE_FASTQS                  } from '../modules/local/custom/manipulate/merge_files/main'
 include { CRAM_TO_FASTQ                 } from '../modules/local/tools/samtools/cram_to_fastq/main'
@@ -26,6 +27,7 @@ include { SEQSPEC_LAYOUT                } from '../modules/local/custom/manipula
     WORKFLOW TO RUN PRE-PROCESSING
         Sequencing-specific pre-processing of the data:
         - Parse Bioscience: Demultiplexing using groups of wells and mapping using split-pipe
+        - SPLiT-seq: Demultiplexing on the RT wells and merging each well's oligo-dT and random-hexamer barcodes
         - BD Rhapsody: Removing variable bases and mapping using BD rhapsody pipeline
         - 10x Genomics: Mapping using CellRanger
         - OAK: Demultiplexing the aliquots on their i7/i5 index, then mapping using CellRanger
@@ -140,6 +142,15 @@ workflow preprocessing_workflow {
             ch_versions = ch_versions.mix(parse_workflow.out.versions)
             ch_vendor_results = parse_workflow.out.splitpipe_stats.map { meta, f -> ['splitpipe', meta, f] }
 
+        } else if (params.protocol == 'splitseq_v1') {
+            if (!whitelist_tokens) {
+                error("SPLiT-seq matches every barcode against its list: set 'bc_whitelist' to the 96 SPLiT-seq barcodes, one list for all three rounds (see docs/PROTOCOLS_AND_WHITELISTS.md).")
+            }
+            splitseq_workflow(merged_samplesheet, resolved_whitelist)
+            data_output_ch  = splitseq_workflow.out.data_output
+            bc_whitelist_ch = splitseq_workflow.out.bc_whitelist
+            ch_versions = ch_versions.mix(splitseq_workflow.out.versions)
+
         } else if (params.protocol in ['bd_rhapsody_v1', 'bd_rhapsody_enhancedbeads']) {
             bd_rhapsody_workflow(merged_samplesheet)
             data_output_ch = bd_rhapsody_workflow.out.data_output
@@ -242,6 +253,7 @@ workflow preprocessing_workflow {
             Invalid sequencing technology specified. Use one of the following parameters for 'protocol':
             - 'parse_biosciences_WT_mini'
             - 'parse_biosciences_WT'
+            - 'splitseq_v1'
             - 'bd_rhapsody_v1'
             - 'bd_rhapsody_enhancedbeads'
             - '10xv2'

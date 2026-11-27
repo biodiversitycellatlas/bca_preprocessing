@@ -49,7 +49,7 @@ class VendorPipelines {
 
     // Protocols the pipeline supports that have no vendor pipeline
     static final List<String> NO_VENDOR_PROTOCOLS = [
-        'marsseq_v1', 'marsseq_v2', 'sciRNAseq3', 'scalebio_quantum_rna', 'scalebio_rna_v1_1', 'seqspec'
+        'marsseq_v1', 'marsseq_v2', 'sciRNAseq3', 'scalebio_quantum_rna', 'scalebio_rna_v1_1', 'splitseq_v1', 'seqspec'
     ]
 
     // A flag is given when true, a path or name when it is not blank

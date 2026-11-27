@@ -32,6 +32,7 @@ This nextflow pipeline is designed to pre-process single-cell and single-nucleus
 
 - 10x Genomics
 - Parse Biosciences
+- SPLiT-seq
 - BD Rhapsody
 - OAK
 - sci-RNA-seq3

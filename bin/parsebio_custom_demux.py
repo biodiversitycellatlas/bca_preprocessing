@@ -86,11 +86,17 @@ def open_out(path: str, sample_id: str, sample_name: str, read: str):
 # --------------------- Chemistry → bc1 bounds ---------------------
 
 def amp_seq_for_chem(chem: str) -> str:
-    """Return amplicon template string for v1/v2 vs v3 (digits mark bc rounds)."""
+    """Return the read-2 amplicon template of a chemistry (digits mark bc rounds).
+
+    v1 is academic SPLiT-seq (Rosenberg et al. 2018), with a 30 nt second linker: bc1 at
+    86-94. v2 (microSPLiT, Parse WT v1/v2) shortens that linker to 22 nt: bc1 at 78-86.
+    v3 is Parse WT v3: bc1 at 50-58.
+    """
     c = chem.lower().strip()
     if c in ("v3", "3"):
         return "NNNNNNNNNN33333333ATGAGGGGTCAG22222222TCCAACCACCTC11111111"
-    # v1/v2 default
+    if c in ("v1", "1"):
+        return "NNNNNNNNNN33333333GTGGCCGATGTTTCGCATCGGCGTACGACT22222222ATCCACGTGCTTGAGAGGCCAGAGCATTCG11111111"
     return "NNNNNNNNNN33333333GTGGCCGATGTTTCGCATCGGCGTACGACT22222222ATCCACGTGCTTGAGACTGTGG11111111"
 
 def part_bounds(template: str) -> Tuple[List[int], List[int]]:

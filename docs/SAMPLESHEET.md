@@ -43,7 +43,7 @@ More samplesheets are in [`examples/`](../examples/README.md) and under [Example
 | `manual_cutoff` | With `cellfilter_method = "manual_cutoff"` | The UMI threshold of the sample's cells. With that method every sample needs one, or the run stops. With any other method the column is ignored, with a warning. |
 | `p5` | OAK, sci-RNA-seq3, ScaleBio | Depends on the protocol, see [Columns per protocol](#columns-per-protocol). |
 | `p7` | OAK, sci-RNA-seq3 | Depends on the protocol, see [Columns per protocol](#columns-per-protocol). |
-| `rt` | Parse, sci-RNA-seq3, ScaleBio | The sample's reverse-transcription wells or barcodes, in the protocol's notation. |
+| `rt` | Parse, sci-RNA-seq3, ScaleBio; optional for SPLiT-seq | The sample's reverse-transcription wells or barcodes, in the protocol's notation. |
 | `qc_report` | No | A group name, without spaces. Samples with the same group are shown together in `dashboard.html`. See [Combining samples](#combining-samples). |
 | `filtering_report` | No | A group name, without spaces. Samples with the same group are pooled into one Metacell2 run and one entry of `filtering_report.html`. See [Combining samples](#combining-samples). |
 
@@ -55,6 +55,7 @@ More samplesheets are in [`examples/`](../examples/README.md) and under [Example
 | `10xv2` - `10xv4` | R2 | R1 | - | - | - | - |
 | `oak_v1` | R2 | R1 | I1 and I2 | i5 sequence | i7 sequence (optional) | - |
 | `parse_biosciences_*` | R1 | R2 | - | - | - | RT wells |
+| `splitseq_v1` | R1 | R2 | - | - | - | RT wells (optional) |
 | `bd_rhapsody_*` | R2 | R1 | - | - | - | - |
 | `sciRNAseq3` | R2 | R1 | - | p5 name | p7 name | RT names |
 | `marsseq_v1`, `marsseq_v2` | R1 | R2 | - | - | - | - |
@@ -89,6 +90,23 @@ One row per aliquot, each with its own `sample` name. All rows of a channel poin
 - selections are joined by commas without spaces. The commas would split the CSV field, so put the value in double quotes: `"A1-A6,B1:D3,C4"`.
 
 Every sublibrary reuses the same barcode combinations for other cells. Give a sample one row per sublibrary, each with its own `sample` name and the same `rt` wells, and combine them with [`qc_report` and `filtering_report`](#combining-samples).
+
+
+### SPLiT-seq
+
+Read 2 must be at least 94 nt, see [SPLiT-seq](PROTOCOLS_AND_WHITELISTS.md#split-seq). Give each sublibrary (i7 index) its own row and its own `sample` name; the same barcodes in two sublibraries are two different cells.
+
+`rt` is optional. Left empty, the row takes every read of its sublibrary. To split a sublibrary into the samples loaded into different RT wells, give one row per sample, all pointing to the sublibrary's FASTQs, with the sample's wells in `rt`, in the [Parse notation](#parse-biosciences) on the 48 RT wells `A1`-`D12`:
+
+```csv
+sample,fastq_cDNA,fastq_BC_UMI,rt
+sub1_larva,sub1_R1.fastq.gz,sub1_R2.fastq.gz,A1-B12
+sub1_adult,sub1_R1.fastq.gz,sub1_R2.fastq.gz,C1-D12
+sub2_larva,sub2_R1.fastq.gz,sub2_R2.fastq.gz,A1-B12
+sub2_adult,sub2_R1.fastq.gz,sub2_R2.fastq.gz,C1-D12
+```
+
+Combine the sublibraries of a sample with [`qc_report` and `filtering_report`](#combining-samples).
 
 
 ### sci-RNA-seq3
@@ -155,7 +173,7 @@ Samplesheet rows can be combined at three points. Which one is right depends on 
 
 Rows that hold different cells must not share a `sample` name. Their barcodes overlap, so merging their reads before mapping turns two cells with the same barcode into one, and mixes their empty droplets. This happens with:
 - one sample loaded on several 10x or BD channels;
-- the sublibraries of a Parse, ScaleBio or sci-RNA-seq3 experiment, which reuse the same barcode combinations;
+- the sublibraries of a Parse, SPLiT-seq, ScaleBio or sci-RNA-seq3 experiment, which reuse the same barcode combinations;
 - the plates of a ScaleBio Extended Throughput run;
 - the aliquots of an overloaded 10x channel (OAK).
 
@@ -180,7 +198,7 @@ The `filtering_report` groups need `perform_metacells = true`; without it they a
 | Situation | `qc_report` | `filtering_report` |
 |-----------|-------------|--------------------|
 | One sample on several 10x or BD channels | the sample | the sample, or its condition |
-| Sublibraries of one Parse, ScaleBio or sci-RNA-seq3 experiment, one row per sublibrary | the sample | the sample |
+| Sublibraries of one Parse, SPLiT-seq, ScaleBio or sci-RNA-seq3 experiment, one row per sublibrary | the sample | the sample |
 | ScaleBio Extended Throughput plates (`sampleX_AP1`, `sampleX_AP2`) | `sampleX` | `sampleX` |
 | Aliquots of one overloaded 10x channel (OAK) | the channel | the sample or condition |
 | The wells of a sample split into rows, to see the quality of each well | the well or replicate | the condition |
